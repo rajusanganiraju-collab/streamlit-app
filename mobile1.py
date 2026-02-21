@@ -11,7 +11,7 @@ st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
 # --- 2. AUTO RUN (1 MINUTE) & HIDE REFRESH BUTTON ---
 st_autorefresh(interval=60000, key="datarefresh")
 
-# CSS DESIGN CHANGES ADDED HERE
+# --- CSS DESIGN CHANGES ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -24,8 +24,8 @@ st.markdown("""
     html, body, [class*="css"] { font-family: 'Arial', sans-serif; color: #000000; }
     .block-container { padding: 1rem; }
     
-    /* 🔥 Table Styling - Updated to White Headers, Bold Text & No Word Wrap */
-    th { 
+    /* 🔥 Table Headings - WHITE Background & BLACK Text */
+    th, th.col_heading, th.row_heading { 
         background-color: #ffffff !important; 
         color: #000000 !important; 
         font-size: 13px !important; 
@@ -35,31 +35,44 @@ st.markdown("""
         border-bottom: 2px solid #000000 !important;
         white-space: nowrap !important;
     }
+    
+    /* 🔥 Table Data - Bold & Clear */
     td { 
         font-size: 13px !important; 
-        font-weight: 700 !important; /* Bold text for tables */
+        font-weight: 700 !important; 
         color: #000000 !important; 
         border-bottom: 1px solid #eeeeee !important; 
         text-align: left !important; 
         padding: 6px 10px !important; 
-        white-space: nowrap !important; /* Prevents table expanding width weirdly */
+        white-space: nowrap !important; 
     }
     
-    /* 🔥 Dashboard Single Line Fix */
+    /* Dashboard Single Line Fix */
     [data-testid="column"] {
         min-width: max-content !important;
         flex: 1 1 auto !important;
     }
     
-    /* Metrics Styling */
-    div[data-testid="stMetricValue"] { font-size: 15px !important; font-weight: 800; }
-    div[data-testid="stMetricLabel"] { font-size: 10px; font-weight: bold; color: #444; }
+    /* 🔥 DASHBOARD TEXT FIX (NIFTY, BANKNIFTY Text to Black) */
+    [data-testid="stMetricLabel"] p, [data-testid="stMetricLabel"] div, [data-testid="stMetricLabel"] span { 
+        color: #000000 !important; 
+        font-size: 13px !important; 
+        font-weight: 900 !important; 
+    }
+    [data-testid="stMetricValue"] div { 
+        color: #000000 !important; 
+        font-size: 16px !important; 
+        font-weight: 900 !important; 
+    }
     
-    h4 { margin: 5px 0px; font-size: 13px; text-transform: uppercase; border-bottom: 2px solid #333; padding-bottom: 5px; }
+    h4 { margin: 5px 0px; font-size: 13px; text-transform: uppercase; border-bottom: 2px solid #333; padding-bottom: 5px; color: #000000; font-weight: 900; }
     .bull-head { background: #d4edda; color: #155724; padding: 5px; font-weight: bold; border: 1px solid #c3e6cb; }
     .bear-head { background: #f8d7da; color: #721c24; padding: 5px; font-weight: bold; border: 1px solid #f5c6cb; }
     </style>
     """, unsafe_allow_html=True)
+
+# Helper for forcing white headers on pandas styler
+th_styles = [{'selector': 'th', 'props': [('background-color', '#ffffff'), ('color', '#000000'), ('font-weight', 'bold'), ('border-bottom', '2px solid black')]}]
 
 # --- 3. DATA CONFIGURATION ---
 def format_ticker(t):
@@ -167,11 +180,9 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         sl, tgt = (low, ltp * 1.02) if check_bullish else (high, ltp * 0.98)
         status, score = [], 0
         
-        # 0.3% Buffer
         is_open_low = abs(open_p - low) <= (ltp * 0.003)
         is_open_high = abs(open_p - high) <= (ltp * 0.003)
         
-        # Scoring
         if day_chg >= 2.0: status.append("BigMove🚀"); score += 3
         elif day_chg <= -2.0: status.append("BigMove🩸"); score += 3
 
@@ -209,7 +220,7 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         }
     except: return None
 
-# --- Custom Styling: Highlight ONLY if Score >= 9 ---
+# --- Custom Styling ---
 def highlight_priority(row):
     score = int(row['SCORE'])
     day_chg = float(row['DAY%'])
@@ -236,9 +247,9 @@ with st.spinner("Fetching Market Data..."):
 
 if data is not None and not data.empty:
     
-    # 1. DASHBOARD SECTION (Full width)
+    # 1. DASHBOARD SECTION
     st.markdown("#### 📉 DASHBOARD")
-    m_cols = st.columns(5) # Keeping this so metrics stay in one line
+    m_cols = st.columns(5)
     nifty_chg = 0.0
     
     for idx, (ticker, name) in enumerate(INDICES.items()):
@@ -271,7 +282,7 @@ if data is not None and not data.empty:
     
     st.divider()
 
-    # 2. SECTOR RANKS SECTION (Full width, right below Dashboard)
+    # 2. SECTOR RANKS SECTION
     st.markdown("#### 📋 SECTOR RANKS")
     sec_rows = []
     for name, info in SECTOR_MAP.items():
@@ -298,53 +309,59 @@ if data is not None and not data.empty:
     if sec_rows:
         df_sec = pd.DataFrame(sec_rows).sort_values("DAY%", ascending=False)
         df_sec.set_index("SECTOR", inplace=True)
-        st.dataframe(df_sec.T.style.map(style_sector_ranks).format("{:.2f}"), use_container_width=True)
+        # Added set_table_styles to strictly force white headers
+        styled_sec = df_sec.T.style.map(style_sector_ranks).format("{:.2f}").set_table_styles(th_styles)
+        st.dataframe(styled_sec, use_container_width=True)
         top_sec, bot_sec = df_sec.index[0], df_sec.index[-1]
     else: df_sec = pd.DataFrame()
 
     st.divider()
     
     if not df_sec.empty:
-        # 3. BUY SECTION (Full width)
+        # 3. BUY SECTION
         st.markdown(f"<div class='bull-head'>🚀 BUY: {top_sec}</div>", unsafe_allow_html=True)
         res = [analyze(s, data, True) for s in SECTOR_MAP[top_sec]['stocks']]
         res = [x for x in res if x]
         if res: 
             df_to_show = pd.DataFrame(res).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(10)
-            st.dataframe(df_to_show.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['MOVE']), use_container_width=True, hide_index=True)
+            styled_buy = df_to_show.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['MOVE']).set_table_styles(th_styles)
+            st.dataframe(styled_buy, use_container_width=True, hide_index=True)
         else: st.info("No Signals")
         
         st.divider()
 
-        # 4. SELL SECTION (Full width)
+        # 4. SELL SECTION
         st.markdown(f"<div class='bear-head'>🩸 SELL: {bot_sec}</div>", unsafe_allow_html=True)
         res = [analyze(s, data, False) for s in SECTOR_MAP[bot_sec]['stocks']]
         res = [x for x in res if x]
         if res: 
             df_to_show = pd.DataFrame(res).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(10)
-            st.dataframe(df_to_show.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['MOVE']), use_container_width=True, hide_index=True)
+            styled_sell = df_to_show.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['MOVE']).set_table_styles(th_styles)
+            st.dataframe(styled_sell, use_container_width=True, hide_index=True)
         else: st.info("No Signals")
         
     st.divider()
     
-    # 5. INDEPENDENT SECTION (Full width)
+    # 5. INDEPENDENT SECTION
     st.markdown("#### 🌟 INDEPENDENT (Top 8)")
     ind_movers = [analyze(s, data, force=True) for name, info in SECTOR_MAP.items() if name not in [top_sec, bot_sec] for s in info['stocks']]
     ind_movers = [r for r in ind_movers if r and (float(r['VOL'][:-1]) >= 1.0 or r['SCORE'] >= 1)]
     if ind_movers: 
         df_to_show = pd.DataFrame(ind_movers).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8)
-        st.dataframe(df_to_show.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['MOVE']), use_container_width=True, hide_index=True)
+        styled_ind = df_to_show.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['MOVE']).set_table_styles(th_styles)
+        st.dataframe(styled_ind, use_container_width=True, hide_index=True)
     else: st.info("No movers")
     
     st.divider()
 
-    # 6. BROADER MARKET SECTION (Full width)
+    # 6. BROADER MARKET SECTION
     st.markdown("#### 🌌 BROADER MARKET (Top 8)")
     res = [analyze(s, data, force=True) for s in BROADER_MARKET]
     res = [x for x in res if x and (float(x['VOL'][:-1]) >= 1.0 or x['SCORE'] >= 1)]
     if res: 
         df_to_show = pd.DataFrame(res).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8)
-        st.dataframe(df_to_show.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['MOVE']), use_container_width=True, hide_index=True)
+        styled_broader = df_to_show.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['MOVE']).set_table_styles(th_styles)
+        st.dataframe(styled_broader, use_container_width=True, hide_index=True)
     else: st.info("No signals")
 
 else:
