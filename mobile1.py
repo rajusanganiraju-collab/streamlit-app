@@ -1,268 +1,202 @@
-import streamlit as st
-import yfinance as yf
-import pandas as pd
-from datetime import datetime, time as dt_time
-from streamlit_autorefresh import st_autorefresh
-import concurrent.futures
-
-# --- 1. PAGE CONFIGURATION ---
-st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
-
-# --- 2. AUTO RUN (1 MINUTE) & HIDE REFRESH BUTTON ---
-st_autorefresh(interval=60000, key="datarefresh")
-
-st.markdown("""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading Dashboard</title>
     <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    button[title="View fullscreen"] {visibility: hidden;}
-    [data-testid="stStatusWidget"] {display: none;}
-    
-    .stApp { background-color: #ffffff; color: #000000; }
-    html, body, [class*="css"] { font-family: 'Arial', sans-serif; font-weight: 600; color: #000000; }
-    .block-container { padding: 1rem; }
-    
-    /* Table Styling */
-    th { background-color: #222222 !important; color: white !important; font-size: 13px !important; text-align: left !important; padding-left: 10px !important; }
-    td { font-size: 13px !important; color: #000; border-bottom: 1px solid #ddd; text-align: left !important; padding-left: 10px !important; }
-    
-    /* Metrics Styling */
-    div[data-testid="stMetricValue"] { font-size: 18px !important; font-weight: 800; }
-    div[data-testid="stMetricLabel"] { font-size: 12px; font-weight: bold; color: #444; }
-    
-    h4 { margin: 15px 0px; font-size: 14px; text-transform: uppercase; border-bottom: 2px solid #333; padding-bottom: 5px; }
-    .bull-head { background: #d4edda; color: #155724; padding: 8px; font-weight: bold; border: 1px solid #c3e6cb; margin-top: 10px; }
-    .bear-head { background: #f8d7da; color: #721c24; padding: 8px; font-weight: bold; border: 1px solid #f5c6cb; margin-top: 10px; }
-    </style>
-    """, unsafe_allow_html=True)
-
-# --- 3. DATA CONFIGURATION ---
-def format_ticker(t):
-    t = t.upper().strip()
-    if not t.startswith("^") and not t.endswith(".NS"):
-        return f"{t}.NS"
-    return t
-
-INDICES = {
-    "^NSEI": "NIFTY",
-    "^NSEBANK": "BNKNFY",
-    "^INDIAVIX": "VIX",
-    "^DJI": "DOW",
-    "^IXIC": "NSDQ"
-}
-
-SECTOR_MAP = {
-    "BANK": {"index": "^NSEBANK", "stocks": ["HDFCBANK", "ICICIBANK", "SBIN", "AXISBANK", "KOTAKBANK", "INDUSINDBK", "BANKBARODA", "PNB"]},
-    "IT": {"index": "^CNXIT", "stocks": ["TCS", "INFY", "HCLTECH", "WIPRO", "TECHM", "LTIM", "PERSISTENT", "COFORGE"]},
-    "AUTO": {"index": "^CNXAUTO", "stocks": ["MARUTI", "M&M", "EICHERMOT", "BAJAJ-AUTO", "TVSMOTOR", "ASHOKLEY", "HEROMOTOCO"]},
-    "METAL": {"index": "^CNXMETAL", "stocks": ["TATASTEEL", "JSWSTEEL", "HINDALCO", "VEDL", "JINDALSTEL", "NMDC", "SAIL"]},
-    "PHARMA": {"index": "^CNXPHARMA", "stocks": ["SUNPHARMA", "DRREDDY", "CIPLA", "DIVISLAB", "LUPIN", "AUROPHARMA"]},
-    "FMCG": {"index": "^CNXFMCG", "stocks": ["ITC", "HINDUNILVR", "BRITANNIA", "VBL", "NESTLEIND"]},
-    "ENERGY": {"index": "^CNXENERGY", "stocks": ["RELIANCE", "NTPC", "ONGC", "POWERGRID", "BPCL", "TATAPOWER"]},
-    "REALTY": {"index": "^CNXREALTY", "stocks": ["DLF", "GODREJPROP", "LODHA", "OBEROIRLTY"]}
-}
-
-BROADER_MARKET = [
-    "HAL", "BEL", "BDL", "MAZDOCK", "COCHINSHIP", "GRSE",
-    "RVNL", "IRFC", "IRCON", "TITAGARH", "RAILTEL", "RITES",
-    "ADANIPOWER", "ADANIGREEN", "NHPC", "SJVN", "BHEL", "CGPOWER", "SUZLON",
-    "PFC", "RECLTD", "IREDA", "IOB", "UCOBANK", "MAHABANK", "CANBK",
-    "BAJFINANCE", "CHOLAFIN", "JIOFIN", "MUTHOOTFIN", "MANAPPURAM", "SHRIRAMFIN", "M&MFIN",
-    "DIXON", "POLYCAB", "KAYNES", "HAVELLS", "KEI", "RRKABEL",
-    "SRF", "TATACHEM", "DEEPAKNTR", "AARTIIND", "PIIND", "FACT", "UPL",
-    "ULTRACEMCO", "AMBUJACEM", "SHREECEM", "DALBHARAT", "L&T", "CUMMINSIND", "ABB", "SIEMENS",
-    "BHARTIARTL", "IDEA", "INDIGO", "ZOMATO", "TRENT", "DMART", "PAYTM", "ZENTEC",
-    "ADANIENT", "ADANIPORTS", "ATGL", "AWL",
-    "BOSCHLTD", "MRF", "MOTHERSON", "SONACOMS", "EXIDEIND", "AMARAJABAT"
-]
-
-for k in SECTOR_MAP:
-    SECTOR_MAP[k]['stocks'] = [format_ticker(s) for s in SECTOR_MAP[k]['stocks']]
-BROADER_MARKET = [format_ticker(s) for s in BROADER_MARKET]
-
-# --- 4. LOGIC ---
-def get_minutes_passed():
-    now = datetime.now()
-    if now.weekday() >= 5 or now.time() > dt_time(15, 30):
-        return 375
-    open_time = now.replace(hour=9, minute=15, second=0)
-    diff = (now - open_time).total_seconds() / 60
-    return min(375, max(1, int(diff)))
-
-def fetch_chunk(tickers):
-    try:
-        return yf.download(tickers, period="5d", progress=False, group_by='ticker', threads=False)
-    except: return pd.DataFrame()
-
-@st.cache_data(ttl=60)
-def get_data():
-    all_tickers = list(INDICES.keys()) + list(BROADER_MARKET)
-    for s in SECTOR_MAP.values():
-        all_tickers.append(s['index'])
-        all_tickers.extend(s['stocks'])
-    all_tickers = list(set(all_tickers))
-    chunk_size = 20
-    chunks = [all_tickers[i:i + chunk_size] for i in range(0, len(all_tickers), chunk_size)]
-    results = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-        future_to_chunk = {executor.submit(fetch_chunk, chunk): chunk for chunk in chunks}
-        for future in concurrent.futures.as_completed(future_to_chunk):
-            try:
-                data = future.result()
-                if not data.empty: results.append(data)
-            except: continue
-    if results:
-        final_df = pd.concat(results, axis=1)
-        return final_df.loc[:, ~final_df.columns.duplicated()]
-    return None
-
-def analyze(symbol, full_data, check_bullish=True, force=False):
-    try:
-        if symbol not in full_data.columns.levels[0]: return None
-        df = full_data[symbol].dropna()
-        if len(df) < 2: return None
-        
-        ltp = float(df['Close'].iloc[-1])
-        open_p = float(df['Open'].iloc[-1])
-        prev_c = float(df['Close'].iloc[-2])
-        low = float(df['Low'].iloc[-1])
-        high = float(df['High'].iloc[-1])
-        
-        day_chg = ((ltp - open_p) / open_p) * 100
-        net_chg = ((ltp - prev_c) / prev_c) * 100
-        todays_move = net_chg - day_chg
-
-        avg_vol = df['Volume'].iloc[:-1].mean()
-        curr_vol = float(df['Volume'].iloc[-1])
-        minutes = get_minutes_passed()
-        vol_x = round(curr_vol / ((avg_vol/375) * minutes), 1) if avg_vol > 0 else 0.0
-        vwap = (high + low + ltp) / 3
-
-        if force: check_bullish = day_chg > 0
-        sl, tgt = (low, ltp * 1.02) if check_bullish else (high, ltp * 0.98)
-        status, score = [], 0
-        
-        is_open_low = abs(open_p - low) <= (ltp * 0.003)
-        is_open_high = abs(open_p - high) <= (ltp * 0.003)
-        
-        if day_chg >= 2.0: status.append("BigMove🚀"); score += 3
-        elif day_chg <= -2.0: status.append("BigMove🩸"); score += 3
-
-        if check_bullish:
-            if is_open_low: status.append("O=L🔥"); score += 3
-            if vol_x > 1.0: status.append("VOL🟢"); score += 3
-            if ltp >= high * 0.998 and day_chg > 0.5: status.append("HB🚀"); score += 1
-            if ltp > (low * 1.01) and ltp > vwap: status.append("Rec ⇈"); score += 1
-        else:
-            if is_open_high: status.append("O=H🩸"); score += 3
-            if vol_x > 1.0: status.append("VOL🔴"); score += 3
-            if ltp <= low * 1.002 and day_chg < -0.5: status.append("LB📉"); score += 1
-            if ltp < (high * 0.99) and ltp < vwap: status.append("PB ⇊"); score += 1
-            
-        if not status: return None
-        return {
-            "STOCK": symbol.replace(".NS", ""), "PRICE": f"{ltp:.2f}", "DAY%": f"{day_chg:.2f}",
-            "NET%": f"{net_chg:.2f}", "MOVE": f"{todays_move:.2f}", "SL": f"{sl:.2f}",
-            "TGT": f"{tgt:.2f}", "VOL": f"{vol_x:.1f}x", "STATUS": " ".join(status), "SCORE": score,
-            "VOL_NUM": vol_x
+        * {
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
         }
-    except: return None
+        body {
+            margin: 0;
+            padding: 5px;
+            background-color: #ffffff;
+        }
+        
+        /* Section Titles */
+        .section-header {
+            font-size: 14px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            margin-top: 15px;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
 
-# --- Custom Styling ---
-def highlight_priority(row):
-    score = int(row['SCORE'])
-    day_chg = float(row['DAY%'])
-    if score >= 9:
-        if day_chg >= 0: return ['background-color: #e6fffa; color: #008000; font-weight: 900'] * len(row)
-        else: return ['background-color: #fff5f5; color: #FF0000; font-weight: 900'] * len(row)
-    return ['background-color: white; color: black'] * len(row)
+        /* 1. Dashboard Single Line (Flexbox) */
+        .dashboard-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .dash-item {
+            text-align: center;
+            font-size: 13px; /* Slightly increased */
+            font-weight: bold; /* Bold text */
+        }
+        .dash-val {
+            color: #ccc; /* As per your faded look, change if needed */
+            margin: 3px 0;
+        }
+        .badge-green {
+            background-color: #e6f4ea;
+            color: #1e8e3e;
+            padding: 2px 5px;
+            border-radius: 4px;
+            font-size: 11px;
+        }
 
-def style_move_col(val):
-    try:
-        v = float(val)
-        color, text = ('#d4edda', '#155724') if v >= 0 else ('#f8d7da', '#721c24')
-        return f'background-color: {color}; color: {text}; font-weight: bold'
-    except: return ''
+        /* 2. Table Styles */
+        .table-container {
+            width: 100%;
+            overflow-x: auto; /* Adds scroll if screen is too small, prevents breaking */
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            /* table-layout: fixed; prevents table from expanding beyond screen */
+        }
+        
+        /* 3. White Headers with Black Bold Text */
+        th {
+            background-color: #ffffff; /* White background */
+            color: #000000; /* Black text */
+            font-weight: 900; /* Extra bold for headings */
+            font-size: 11px;
+            padding: 8px 2px;
+            border-bottom: 2px solid #000; /* Black bottom border to separate header */
+            text-align: center;
+            text-transform: uppercase;
+        }
 
-def style_sector_ranks(val):
-    if not isinstance(val, float): return ''
-    color, text = ('#d4edda', '#155724') if val >= 0 else ('#f8d7da', '#721c24')
-    return f'background-color: {color}; color: {text}'
+        /* 4. Table Data - Bold & Size increased without expanding width */
+        td {
+            padding: 6px 2px; /* Reduced padding to fit more text */
+            font-size: 13px; /* Increased font size */
+            font-weight: bold; /* Made text bold */
+            text-align: center;
+            white-space: nowrap; /* Prevents text from breaking into two lines */
+            border-bottom: 1px solid #f0f0f0;
+        }
 
-# --- 5. EXECUTION (TABLES ONE BY ONE) ---
-with st.spinner("Fetching Market Data..."):
-    data = get_data()
+        /* Specific text alignment for Stock Names */
+        td:first-child, th:first-child {
+            text-align: left;
+            padding-left: 5px;
+        }
 
-if data is not None and not data.empty:
-    # 1. DASHBOARD
-    st.markdown("#### 📉 DASHBOARD")
-    m_cols = st.columns(3) # మొబైల్ లో కూడా నీట్ గా కనిపించడానికి 3 వరుసలు
-    nifty_chg = 0.0
-    for idx, (ticker, name) in enumerate(INDICES.items()):
-        try:
-            if ticker in data.columns.levels[0]:
-                df = data[ticker].dropna()
-                ltp = float(df['Close'].iloc[-1])
-                pct = ((ltp - float(df['Close'].iloc[-2])) / float(df['Close'].iloc[-2])) * 100
-                m_cols[idx % 3].metric(name, f"{ltp:.0f}", f"{pct:.1f}%")
-                if name == "NIFTY":
-                    o_now = float(df['Open'].iloc[-1])
-                    nifty_chg = ((ltp - o_now) / o_now) * 100
-        except: continue
-    
-    # 2. SECTOR RANKS (Dashboard కింద)
-    st.markdown("#### 📋 SECTOR RANKS")
-    sec_rows = []
-    for name, info in SECTOR_MAP.items():
-        try:
-            if info['index'] in data.columns.levels[0]:
-                df = data[info['index']].dropna()
-                c_now, c_prev, o_now = float(df['Close'].iloc[-1]), float(df['Close'].iloc[-2]), float(df['Open'].iloc[-1])
-                d_pct, n_pct = ((c_now - o_now) / o_now) * 100, ((c_now - c_prev) / c_prev) * 100
-                sec_rows.append({"SECTOR": name, "DAY%": d_pct, "NET%": n_pct, "MOVE": n_pct - d_pct})
-        except: continue
-    
-    if sec_rows:
-        df_sec = pd.DataFrame(sec_rows).sort_values("DAY%", ascending=False)
-        st.dataframe(df_sec.set_index("SECTOR").T.style.map(style_sector_ranks).format("{:.2f}"), use_container_width=True)
-        top_sec, bot_sec = df_sec.iloc[0].name, df_sec.iloc[-1].name # SECTOR పేరు ఇండెక్స్ నుండి తీసుకుంటుంది
-        top_sec = df_sec.iloc[0]['SECTOR']
-        bot_sec = df_sec.iloc[-1]['SECTOR']
+        /* Colors for specific cells */
+        .text-green { color: #1e8e3e; }
+        .text-red { color: #d93025; }
+        .bg-green-light { background-color: #e6f4ea; }
+        .bg-red-light { background-color: #fce8e6; }
+        
+        /* Section Backgrounds */
+        .bg-buy { background-color: #e6f4ea; padding: 5px; border-radius: 4px; }
+        .bg-sell { background-color: #fce8e6; padding: 5px; border-radius: 4px; }
+    </style>
+</head>
+<body>
 
-    st.divider()
+    <div class="section-header">📈 DASHBOARD</div>
+    <div class="dashboard-container">
+        <div class="dash-item">NIFTY 50 <div class="dash-val">22415.5</div> <span class="badge-green">↑ 0.5%</span></div>
+        <div class="dash-item">BANK NIFTY <div class="dash-val">47172.0</div> <span class="badge-green">↑ 0.7%</span></div>
+        <div class="dash-item">FIN NIFTY <div class="dash-val">20912.0</div> <span class="badge-green">↑ 0.6%</span></div>
+        <div class="dash-item">SENSEX <div class="dash-val">73800.0</div> <span class="badge-green">↑ 0.5%</span></div>
+    </div>
 
-    # 3. BUY & SELL TABLES (ఒకదాని కింద ఒకటి)
-    st.markdown(f"<div class='bull-head'>🚀 BUY: {top_sec}</div>", unsafe_allow_html=True)
-    res_b = [analyze(s, data, True) for s in SECTOR_MAP[top_sec]['stocks']]
-    res_b = [x for x in res_b if x]
-    if res_b:
-        df_b = pd.DataFrame(res_b).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"])
-        st.dataframe(df_b.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['MOVE']), use_container_width=True, hide_index=True)
+    <div class="section-header">📋 SECTOR RANKS</div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th></th>
+                    <th>ENERGY</th>
+                    <th>METAL</th>
+                    <th>BANK</th>
+                    <th>REALTY</th>
+                    <th>FMCG</th>
+                    <th>AUTO</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="background-color: #1a1a2e; color: white;">DAY%</td>
+                    <td class="bg-green-light text-green">1.30</td>
+                    <td class="bg-green-light text-green">1.13</td>
+                    <td class="bg-green-light text-green">0.80</td>
+                    <td class="bg-green-light text-green">0.80</td>
+                    <td class="bg-green-light text-green">0.64</td>
+                    <td class="bg-green-light text-green">0.43</td>
+                </tr>
+                <tr>
+                    <td style="background-color: #1a1a2e; color: white;">NET%</td>
+                    <td class="bg-green-light text-green">1.37</td>
+                    <td class="bg-green-light text-green">1.25</td>
+                    <td class="bg-green-light text-green">0.71</td>
+                    <td class="bg-green-light text-green">0.36</td>
+                    <td class="bg-green-light text-green">0.50</td>
+                    <td class="bg-green-light text-green">0.41</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
 
-    st.markdown(f"<div class='bear-head'>🩸 SELL: {bot_sec}</div>", unsafe_allow_html=True)
-    res_s = [analyze(s, data, False) for s in SECTOR_MAP[bot_sec]['stocks']]
-    res_s = [x for x in res_s if x]
-    if res_s:
-        df_s = pd.DataFrame(res_s).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"])
-        st.dataframe(df_s.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['MOVE']), use_container_width=True, hide_index=True)
+    <div class="section-header bg-buy">🚀 BUY: ENERGY</div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>STOCK</th>
+                    <th>PRICE</th>
+                    <th>DAY%</th>
+                    <th>NET%</th>
+                    <th>MOVE</th>
+                    <th>SL</th>
+                    <th>TGT</th>
+                    <th>VOL</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>NTPC</td>
+                    <td class="text-green">372.95</td>
+                    <td class="text-green">2.80</td>
+                    <td class="text-green">2.68</td>
+                    <td class="bg-red-light text-red">-0.11</td>
+                    <td class="text-green">362.70</td>
+                    <td class="text-green">380.41</td>
+                    <td>3.2x</td>
+                </tr>
+                <tr>
+                    <td>TATAPOWER</td>
+                    <td>378.00</td>
+                    <td>2.55</td>
+                    <td>2.55</td>
+                    <td class="bg-green-light text-green">0.00</td>
+                    <td>369.25</td>
+                    <td>385.56</td>
+                    <td>0.9x</td>
+                </tr>
+                <tr>
+                    <td>BPCL</td>
+                    <td>566.30</td>
+                    <td>0.40</td>
+                    <td>0.37</td>
+                    <td class="bg-red-light text-red">-0.78</td>
+                    <td>560.50</td>
+                    <td>573.53</td>
+                    <td>2.2x</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
 
-    st.divider()
-
-    # 4. INDEPENDENT & BROADER (ఒకదాని కింద ఒకటి)
-    st.markdown("#### 🌟 INDEPENDENT (Top 8)")
-    ind_movers = [analyze(s, data, force=True) for name, info in SECTOR_MAP.items() if name not in [top_sec, bot_sec] for s in info['stocks']]
-    ind_movers = [r for r in ind_movers if r and (float(r['VOL'][:-1]) >= 1.0 or r['SCORE'] >= 1)]
-    if ind_movers:
-        df_ind = pd.DataFrame(ind_movers).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8)
-        st.dataframe(df_ind.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['MOVE']), use_container_width=True, hide_index=True)
-
-    st.markdown("#### 🌌 BROADER MARKET (Top 8)")
-    res_brd = [analyze(s, data, force=True) for s in BROADER_MARKET]
-    res_brd = [x for x in res_brd if x and (float(x['VOL'][:-1]) >= 1.0 or x['SCORE'] >= 1)]
-    if res_brd:
-        df_brd = pd.DataFrame(res_brd).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8)
-        st.dataframe(df_brd.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['MOVE']), use_container_width=True, hide_index=True)
-
-else:
-    st.write("Trying to fetch data...")
+</body>
+</html>
