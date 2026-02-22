@@ -22,6 +22,10 @@ st.markdown("""
     html, body, [class*="css"] { font-family: 'Arial', sans-serif; font-weight: 600; color: #000000 !important; }
     .block-container { padding: 1rem; }
     
+    /* Table Styling - Centered */
+    th { background-color: #222222 !important; color: white !important; font-size: 13px !important; text-align: center !important; }
+    td { font-size: 13px !important; color: #000000 !important; border-bottom: 1px solid #ddd; text-align: center !important; }
+    
     h4 { margin: 15px 0px; font-size: 14px; text-transform: uppercase; border-bottom: 2px solid #333; padding-bottom: 5px; color: #000000 !important; }
     .bull-head { background: #d4edda; color: #155724; padding: 8px; font-weight: bold; border: 1px solid #c3e6cb; margin-top: 10px; }
     .bear-head { background: #f8d7da; color: #721c24; padding: 8px; font-weight: bold; border: 1px solid #f5c6cb; margin-top: 10px; }
@@ -202,6 +206,21 @@ if data is not None and not data.empty:
                     o_now = float(df['Open'].iloc[-1])
                     nifty_chg = ((ltp - o_now) / o_now) * 100
         except: continue
+        
+    # --- BULLISH / BEARISH INDICATOR (Added back) ---
+    if nifty_chg >= 0:
+        market_trend = "BULLISH 🚀"
+        bg_color, text_color = "#e6fffa", "#008000"
+    else:
+        market_trend = "BEARISH 🩸"
+        bg_color, text_color = "#fff5f5", "#FF0000"
+        
+    st.markdown(f"""
+    <div style='text-align: center; padding: 10px; margin-top: 15px; border-radius: 8px; border: 2px solid {text_color};
+                background-color: {bg_color}; color: {text_color}; font-size: 18px; font-weight: 900; box-shadow: 2px 2px 5px rgba(0,0,0,0.1);'>
+        {market_trend}
+    </div>
+    """, unsafe_allow_html=True)
     
     # 2. SECTOR RANKS
     st.markdown("#### 📋 SECTOR RANKS")
@@ -234,7 +253,7 @@ if data is not None and not data.empty:
 
     st.divider()
 
-    # 3. BUY & SELL TABLES
+    # 3. BUY & SELL TABLES (Score Centered)
     st.markdown(f"<div class='bull-head'>🚀 BUY: {top_sec}</div>", unsafe_allow_html=True)
     res_b = [analyze(s, data, True) for s in SECTOR_MAP[top_sec]['stocks']]
     res_b = [x for x in res_b if x]
@@ -263,7 +282,7 @@ if data is not None and not data.empty:
 
     st.divider()
 
-    # 4. INDEPENDENT & BROADER
+    # 4. INDEPENDENT & BROADER (Score Centered)
     st.markdown("#### 🌟 INDEPENDENT (Top 8)")
     ind_movers = [analyze(s, data, force=True) for name, info in SECTOR_MAP.items() if name not in [top_sec, bot_sec] for s in info['stocks']]
     ind_movers = [r for r in ind_movers if r and (float(r['VOL'][:-1]) >= 1.0 or r['SCORE'] >= 1)]
