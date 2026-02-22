@@ -10,7 +10,7 @@ st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
 
-# డాష్‌బోర్డ్ టెక్స్ట్, పర్సంటేజ్ బ్లాక్ కలర్‌లో రావడానికి మరియు టేబుల్స్ సెంటర్‌లో రావడానికి CSS మార్చబడింది.
+# డాష్‌బోర్డ్ టెక్స్ట్ అంతా Black కలర్‌లో రావడానికి మరియు టేబుల్ అలైన్‌మెంట్స్ కోసం CSS
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -27,16 +27,10 @@ st.markdown("""
     th { background-color: #222222 !important; color: white !important; font-size: 13px !important; text-align: center !important; }
     td { font-size: 13px !important; color: #000000 !important; border-bottom: 1px solid #ddd; text-align: center !important; }
     
-    /* Metrics Styling - Forced Black Color */
-    div[data-testid="stMetricValue"] { font-size: 20px !important; font-weight: 900 !important; color: #000000 !important; }
-    div[data-testid="stMetricValue"] > div { color: #000000 !important; }
-    
-    div[data-testid="stMetricLabel"] { font-size: 14px !important; font-weight: bold !important; color: #000000 !important; }
-    div[data-testid="stMetricLabel"] p { color: #000000 !important; font-weight: 800 !important; }
-    
-    div[data-testid="stMetricDelta"] { color: #000000 !important; font-weight: 900 !important; }
-    div[data-testid="stMetricDelta"] > div { color: #000000 !important; }
-    div[data-testid="stMetricDelta"] svg { fill: #000000 !important; color: #000000 !important; }
+    /* Metrics Styling - Forced Black Color for Labels, Values and Deltas */
+    div[data-testid="stMetricValue"], div[data-testid="stMetricValue"] * { font-size: 20px !important; font-weight: 900 !important; color: #000000 !important; }
+    div[data-testid="stMetricLabel"], div[data-testid="stMetricLabel"] * { font-size: 14px !important; font-weight: bold !important; color: #000000 !important; }
+    div[data-testid="stMetricDelta"], div[data-testid="stMetricDelta"] * { color: #000000 !important; font-weight: 900 !important; }
     
     h4 { margin: 15px 0px; font-size: 14px; text-transform: uppercase; border-bottom: 2px solid #333; padding-bottom: 5px; color: #000000 !important; }
     .bull-head { background: #d4edda; color: #155724; padding: 8px; font-weight: bold; border: 1px solid #c3e6cb; margin-top: 10px; }
@@ -182,7 +176,7 @@ def style_move_col(val):
 def style_sector_ranks(val):
     if not isinstance(val, float): return ''
     color, text = ('#d4edda', '#155724') if val >= 0 else ('#f8d7da', '#721c24')
-    return f'background-color: {color}; color: {text}'
+    return f'background-color: {color}; color: {text}; text-align: center;'
 
 # --- 5. EXECUTION ---
 loading_msg = st.empty()
@@ -194,7 +188,7 @@ loading_msg.empty()
 if data is not None and not data.empty:
     # 1. DASHBOARD
     st.markdown("#### 📉 DASHBOARD")
-    m_cols = st.columns(3)
+    m_cols = st.columns(5) # 5 ఇండెక్స్ లు ఒకే లైన్ లో రావడానికి 5 కి మార్చబడింది
     nifty_chg = 0.0
     for idx, (ticker, name) in enumerate(INDICES.items()):
         try:
@@ -202,7 +196,7 @@ if data is not None and not data.empty:
                 df = data[ticker].dropna()
                 ltp = float(df['Close'].iloc[-1])
                 pct = ((ltp - float(df['Close'].iloc[-2])) / float(df['Close'].iloc[-2])) * 100
-                m_cols[idx % 3].metric(name, f"{ltp:.0f}", f"{pct:.1f}%")
+                m_cols[idx].metric(name, f"{ltp:.0f}", f"{pct:.1f}%")
                 if name == "NIFTY":
                     o_now = float(df['Open'].iloc[-1])
                     nifty_chg = ((ltp - o_now) / o_now) * 100
@@ -228,37 +222,37 @@ if data is not None and not data.empty:
 
     st.divider()
 
-    # 3. BUY & SELL TABLES
+    # 3. BUY & SELL TABLES (Score Centered)
     st.markdown(f"<div class='bull-head'>🚀 BUY: {top_sec}</div>", unsafe_allow_html=True)
     res_b = [analyze(s, data, True) for s in SECTOR_MAP[top_sec]['stocks']]
     res_b = [x for x in res_b if x]
     if res_b:
         df_b = pd.DataFrame(res_b).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"])
-        st.dataframe(df_b.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['MOVE']), use_container_width=True, hide_index=True)
+        st.dataframe(df_b.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['MOVE']).set_properties(subset=['SCORE'], **{'text-align': 'center'}), use_container_width=True, hide_index=True)
 
     st.markdown(f"<div class='bear-head'>🩸 SELL: {bot_sec}</div>", unsafe_allow_html=True)
     res_s = [analyze(s, data, False) for s in SECTOR_MAP[bot_sec]['stocks']]
     res_s = [x for x in res_s if x]
     if res_s:
         df_s = pd.DataFrame(res_s).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"])
-        st.dataframe(df_s.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['MOVE']), use_container_width=True, hide_index=True)
+        st.dataframe(df_s.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['MOVE']).set_properties(subset=['SCORE'], **{'text-align': 'center'}), use_container_width=True, hide_index=True)
 
     st.divider()
 
-    # 4. INDEPENDENT & BROADER
+    # 4. INDEPENDENT & BROADER (Score Centered)
     st.markdown("#### 🌟 INDEPENDENT (Top 8)")
     ind_movers = [analyze(s, data, force=True) for name, info in SECTOR_MAP.items() if name not in [top_sec, bot_sec] for s in info['stocks']]
     ind_movers = [r for r in ind_movers if r and (float(r['VOL'][:-1]) >= 1.0 or r['SCORE'] >= 1)]
     if ind_movers:
         df_ind = pd.DataFrame(ind_movers).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8)
-        st.dataframe(df_ind.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['MOVE']), use_container_width=True, hide_index=True)
+        st.dataframe(df_ind.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['MOVE']).set_properties(subset=['SCORE'], **{'text-align': 'center'}), use_container_width=True, hide_index=True)
 
     st.markdown("#### 🌌 BROADER MARKET (Top 8)")
     res_brd = [analyze(s, data, force=True) for s in BROADER_MARKET]
     res_brd = [x for x in res_brd if x and (float(x['VOL'][:-1]) >= 1.0 or x['SCORE'] >= 1)]
     if res_brd:
         df_brd = pd.DataFrame(res_brd).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8)
-        st.dataframe(df_brd.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['MOVE']), use_container_width=True, hide_index=True)
+        st.dataframe(df_brd.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['MOVE']).set_properties(subset=['SCORE'], **{'text-align': 'center'}), use_container_width=True, hide_index=True)
 
 else:
     st.warning("స్టాక్ మార్కెట్ డేటా దొరకలేదు. బహుశా ఇంటర్నెట్ లేదా Yahoo Finance సర్వర్ నెమ్మదిగా ఉండి ఉండొచ్చు.")
