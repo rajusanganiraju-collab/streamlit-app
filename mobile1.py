@@ -143,8 +143,13 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
             if ltp < (high * 0.99) and ltp < vwap: status.append("PB ⇊"); score += 1
             
         if not status: return None
+        
+        # TradingView లింక్ క్రియేట్ చేయడం
+        stock_name = symbol.replace(".NS", "")
+        tv_url = f"https://in.tradingview.com/chart/?symbol=NSE:{stock_name}"
+        
         return {
-            "STOCK": symbol.replace(".NS", ""), "PRICE": f"{ltp:.2f}", "DAY%": f"{day_chg:.2f}",
+            "STOCK": tv_url, "PRICE": f"{ltp:.2f}", "DAY%": f"{day_chg:.2f}",
             "NET%": f"{net_chg:.2f}", "MOVE": f"{todays_move:.2f}", "SL": f"{sl:.2f}",
             "TGT": f"{tgt:.2f}", "VOL": f"{vol_x:.1f}x", "STATUS": " ".join(status), "SCORE": score,
             "VOL_NUM": vol_x
@@ -191,7 +196,6 @@ if data is not None and not data.empty:
                 ltp = float(df['Close'].iloc[-1])
                 pct = ((ltp - float(df['Close'].iloc[-2])) / float(df['Close'].iloc[-2])) * 100
                 
-                # Custom HTML Block (టెక్స్ట్ ఎప్పుడూ నలుపు రంగులో సెంటర్‌లోనే ఉంటుంది)
                 arrow = "↑" if pct >= 0 else "↓"
                 txt_color = "#008000" if pct >= 0 else "#FF0000"
                 m_cols[idx].markdown(f'''
@@ -207,7 +211,7 @@ if data is not None and not data.empty:
                     nifty_chg = ((ltp - o_now) / o_now) * 100
         except: continue
         
-    # --- BULLISH / BEARISH INDICATOR (Added back) ---
+    # --- BULLISH / BEARISH INDICATOR ---
     if nifty_chg >= 0:
         market_trend = "BULLISH 🚀"
         bg_color, text_color = "#e6fffa", "#008000"
@@ -238,7 +242,6 @@ if data is not None and not data.empty:
         df_sec = pd.DataFrame(sec_rows).sort_values("DAY%", ascending=False)
         df_sec_t = df_sec.set_index("SECTOR").T
         
-        # Sector Rankings ని ఖచ్చితంగా సెంటర్‌కి అలైన్ చేయడం
         styled_sec = df_sec_t.style.format("{:.2f}") \
             .map(style_sector_ranks) \
             .set_properties(**{'text-align': 'center', 'font-weight': '600'}) \
@@ -253,19 +256,24 @@ if data is not None and not data.empty:
 
     st.divider()
 
-    # 3. BUY & SELL TABLES (Score Centered)
+    # --- TRADINGVIEW LINK CONFIGURATION ---
+    tv_link_config = {
+        "STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)")
+    }
+
+    # 3. BUY & SELL TABLES
     st.markdown(f"<div class='bull-head'>🚀 BUY: {top_sec}</div>", unsafe_allow_html=True)
     res_b = [analyze(s, data, True) for s in SECTOR_MAP[top_sec]['stocks']]
     res_b = [x for x in res_b if x]
     if res_b:
         df_b = pd.DataFrame(res_b).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"])
-        df_b['SCORE'] = df_b['SCORE'].astype(str) # నంబర్‌కి బదులు స్ట్రింగ్‌గా మార్చి సెంటర్ చేస్తున్నాం
+        df_b['SCORE'] = df_b['SCORE'].astype(str) 
         
         styled_b = df_b.style.apply(highlight_priority, axis=1) \
             .map(style_move_col, subset=['MOVE']) \
-            .set_properties(**{'text-align': 'center'}) # ప్రతి కాలమ్‌ని సెంటర్ చేయడం
+            .set_properties(**{'text-align': 'center'}) 
             
-        st.dataframe(styled_b, use_container_width=True, hide_index=True)
+        st.dataframe(styled_b, column_config=tv_link_config, use_container_width=True, hide_index=True)
 
     st.markdown(f"<div class='bear-head'>🩸 SELL: {bot_sec}</div>", unsafe_allow_html=True)
     res_s = [analyze(s, data, False) for s in SECTOR_MAP[bot_sec]['stocks']]
@@ -278,11 +286,11 @@ if data is not None and not data.empty:
             .map(style_move_col, subset=['MOVE']) \
             .set_properties(**{'text-align': 'center'})
             
-        st.dataframe(styled_s, use_container_width=True, hide_index=True)
+        st.dataframe(styled_s, column_config=tv_link_config, use_container_width=True, hide_index=True)
 
     st.divider()
 
-    # 4. INDEPENDENT & BROADER (Score Centered)
+    # 4. INDEPENDENT & BROADER
     st.markdown("#### 🌟 INDEPENDENT (Top 8)")
     ind_movers = [analyze(s, data, force=True) for name, info in SECTOR_MAP.items() if name not in [top_sec, bot_sec] for s in info['stocks']]
     ind_movers = [r for r in ind_movers if r and (float(r['VOL'][:-1]) >= 1.0 or r['SCORE'] >= 1)]
@@ -294,7 +302,7 @@ if data is not None and not data.empty:
             .map(style_move_col, subset=['MOVE']) \
             .set_properties(**{'text-align': 'center'})
             
-        st.dataframe(styled_ind, use_container_width=True, hide_index=True)
+        st.dataframe(styled_ind, column_config=tv_link_config, use_container_width=True, hide_index=True)
 
     st.markdown("#### 🌌 BROADER MARKET (Top 8)")
     res_brd = [analyze(s, data, force=True) for s in BROADER_MARKET]
@@ -307,7 +315,7 @@ if data is not None and not data.empty:
             .map(style_move_col, subset=['MOVE']) \
             .set_properties(**{'text-align': 'center'})
             
-        st.dataframe(styled_brd, use_container_width=True, hide_index=True)
+        st.dataframe(styled_brd, column_config=tv_link_config, use_container_width=True, hide_index=True)
 
 else:
     st.warning("స్టాక్ మార్కెట్ డేటా దొరకలేదు. బహుశా ఇంటర్నెట్ లేదా Yahoo Finance సర్వర్ నెమ్మదిగా ఉండి ఉండొచ్చు.")
