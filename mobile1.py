@@ -168,7 +168,13 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
             "VOL_NUM": vol_x
         }
     except: return None
+# --- 5. EXECUTION (TABLES ONE BY ONE) ---
+loading_msg = st.empty()
+loading_msg.info("మార్కెట్ డేటా లోడ్ అవుతోంది... దయచేసి 15 సెకన్లు వేచి ఉండండి ⏳")
 
+data = get_data()
+
+loading_msg.empty() # డేటా వచ్చాక ఆ మెసేజ్ మాయం అవుతుంది
 # --- Custom Styling ---
 def highlight_priority(row):
     score = int(row['SCORE'])
@@ -264,3 +270,4 @@ if data is not None and not data.empty:
 
 else:
     st.write("Trying to fetch data...")
+
