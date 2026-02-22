@@ -3,12 +3,11 @@ import yfinance as yf
 import pandas as pd
 from datetime import datetime, time as dt_time
 from streamlit_autorefresh import st_autorefresh
-import concurrent.futures
 
 # --- 1. PAGE CONFIGURATION ---
 st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
 
-# --- 2. AUTO RUN (1 MINUTE) & HIDE REFRESH BUTTON ---
+# --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
 
 st.markdown("""
@@ -90,11 +89,6 @@ def get_minutes_passed():
     diff = (now - open_time).total_seconds() / 60
     return min(375, max(1, int(diff)))
 
-def fetch_chunk(tickers):
-    try:
-        return yf.download(tickers, period="5d", progress=False, group_by='ticker', threads=False)
-    except: return pd.DataFrame()
-
 @st.cache_data(ttl=60)
 def get_data():
     all_tickers = list(INDICES.keys()) + list(BROADER_MARKET)
@@ -102,20 +96,13 @@ def get_data():
         all_tickers.append(s['index'])
         all_tickers.extend(s['stocks'])
     all_tickers = list(set(all_tickers))
-    chunk_size = 20
-    chunks = [all_tickers[i:i + chunk_size] for i in range(0, len(all_tickers), chunk_size)]
-    results = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-        future_to_chunk = {executor.submit(fetch_chunk, chunk): chunk for chunk in chunks}
-        for future in concurrent.futures.as_completed(future_to_chunk):
-            try:
-                data = future.result()
-                if not data.empty: results.append(data)
-            except: continue
-    if results:
-        final_df = pd.concat(results, axis=1)
-        return final_df.loc[:, ~final_df.columns.duplicated()]
-    return None
+    
+    try:
+        # Fetch all data simply without threading to avoid Streamlit limits
+        data = yf.download(all_tickers, period="5d", progress=False, group_by='ticker', threads=False)
+        return data
+    except: 
+        return None
 
 def analyze(symbol, full_data, check_bullish=True, force=False):
     try:
@@ -168,13 +155,7 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
             "VOL_NUM": vol_x
         }
     except: return None
-# --- 5. EXECUTION (TABLES ONE BY ONE) ---
-loading_msg = st.empty()
-loading_msg.info("మార్కెట్ డేటా లోడ్ అవుతోంది... దయచేసి 15 సెకన్లు వేచి ఉండండి ⏳")
 
-data = get_data()
-
-loading_msg.empty() # డేటా వచ్చాక ఆ మెసేజ్ మాయం అవుతుంది
 # --- Custom Styling ---
 def highlight_priority(row):
     score = int(row['SCORE'])
@@ -197,12 +178,19 @@ def style_sector_ranks(val):
     return f'background-color: {color}; color: {text}'
 
 # --- 5. EXECUTION (TABLES ONE BY ONE) ---
+
+# White screen రాకుండా డేటా వచ్చే వరకు ఈ మెసేజ్ కనిపిస్తుంది.
+loading_msg = st.empty()
+loading_msg.info("మార్కెట్ డేటా లోడ్ అవుతోంది... దయచేసి 15 సెకన్లు వేచి ఉండండి ⏳")
+
 data = get_data()
+
+loading_msg.empty() # డేటా వచ్చాక ఆ మెసేజ్ మాయం అవుతుంది
 
 if data is not None and not data.empty:
     # 1. DASHBOARD
     st.markdown("#### 📉 DASHBOARD")
-    m_cols = st.columns(3) # మొబైల్ లో కూడా నీట్ గా కనిపించడానికి 3 వరుసలు
+    m_cols = st.columns(3)
     nifty_chg = 0.0
     for idx, (ticker, name) in enumerate(INDICES.items()):
         try:
@@ -216,7 +204,7 @@ if data is not None and not data.empty:
                     nifty_chg = ((ltp - o_now) / o_now) * 100
         except: continue
     
-    # 2. SECTOR RANKS (Dashboard కింద)
+    # 2. SECTOR RANKS
     st.markdown("#### 📋 SECTOR RANKS")
     sec_rows = []
     for name, info in SECTOR_MAP.items():
@@ -236,7 +224,7 @@ if data is not None and not data.empty:
 
     st.divider()
 
-    # 3. BUY & SELL TABLES (ఒకదాని కింద ఒకటి)
+    # 3. BUY & SELL TABLES
     st.markdown(f"<div class='bull-head'>🚀 BUY: {top_sec}</div>", unsafe_allow_html=True)
     res_b = [analyze(s, data, True) for s in SECTOR_MAP[top_sec]['stocks']]
     res_b = [x for x in res_b if x]
@@ -253,7 +241,7 @@ if data is not None and not data.empty:
 
     st.divider()
 
-    # 4. INDEPENDENT & BROADER (ఒకదాని కింద ఒకటి)
+    # 4. INDEPENDENT & BROADER
     st.markdown("#### 🌟 INDEPENDENT (Top 8)")
     ind_movers = [analyze(s, data, force=True) for name, info in SECTOR_MAP.items() if name not in [top_sec, bot_sec] for s in info['stocks']]
     ind_movers = [r for r in ind_movers if r and (float(r['VOL'][:-1]) >= 1.0 or r['SCORE'] >= 1)]
@@ -269,5 +257,4 @@ if data is not None and not data.empty:
         st.dataframe(df_brd.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['MOVE']), use_container_width=True, hide_index=True)
 
 else:
-    st.write("Trying to fetch data...")
-
+    st.warning("స్టాక్ మార్కెట్ డేటా దొరకలేదు. బహుశా ఇంటర్నెట్ లేదా Yahoo Finance సర్వర్ నెమ్మదిగా ఉండి ఉండొచ్చు.")
