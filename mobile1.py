@@ -10,6 +10,7 @@ st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
 
+# డాష్‌బోర్డ్ టెక్స్ట్, పర్సంటేజ్ బ్లాక్ కలర్‌లో రావడానికి మరియు టేబుల్స్ సెంటర్‌లో రావడానికి CSS మార్చబడింది.
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -19,18 +20,25 @@ st.markdown("""
     [data-testid="stStatusWidget"] {display: none;}
     
     .stApp { background-color: #ffffff; color: #000000; }
-    html, body, [class*="css"] { font-family: 'Arial', sans-serif; font-weight: 600; color: #000000; }
+    html, body, [class*="css"] { font-family: 'Arial', sans-serif; font-weight: 600; color: #000000 !important; }
     .block-container { padding: 1rem; }
     
-    /* Table Styling */
-    th { background-color: #222222 !important; color: white !important; font-size: 13px !important; text-align: left !important; padding-left: 10px !important; }
-    td { font-size: 13px !important; color: #000; border-bottom: 1px solid #ddd; text-align: left !important; padding-left: 10px !important; }
+    /* Table Styling - Centered */
+    th { background-color: #222222 !important; color: white !important; font-size: 13px !important; text-align: center !important; }
+    td { font-size: 13px !important; color: #000000 !important; border-bottom: 1px solid #ddd; text-align: center !important; }
     
-    /* Metrics Styling */
-    div[data-testid="stMetricValue"] { font-size: 18px !important; font-weight: 800; }
-    div[data-testid="stMetricLabel"] { font-size: 12px; font-weight: bold; color: #444; }
+    /* Metrics Styling - Forced Black Color */
+    div[data-testid="stMetricValue"] { font-size: 20px !important; font-weight: 900 !important; color: #000000 !important; }
+    div[data-testid="stMetricValue"] > div { color: #000000 !important; }
     
-    h4 { margin: 15px 0px; font-size: 14px; text-transform: uppercase; border-bottom: 2px solid #333; padding-bottom: 5px; }
+    div[data-testid="stMetricLabel"] { font-size: 14px !important; font-weight: bold !important; color: #000000 !important; }
+    div[data-testid="stMetricLabel"] p { color: #000000 !important; font-weight: 800 !important; }
+    
+    div[data-testid="stMetricDelta"] { color: #000000 !important; font-weight: 900 !important; }
+    div[data-testid="stMetricDelta"] > div { color: #000000 !important; }
+    div[data-testid="stMetricDelta"] svg { fill: #000000 !important; color: #000000 !important; }
+    
+    h4 { margin: 15px 0px; font-size: 14px; text-transform: uppercase; border-bottom: 2px solid #333; padding-bottom: 5px; color: #000000 !important; }
     .bull-head { background: #d4edda; color: #155724; padding: 8px; font-weight: bold; border: 1px solid #c3e6cb; margin-top: 10px; }
     .bear-head { background: #f8d7da; color: #721c24; padding: 8px; font-weight: bold; border: 1px solid #f5c6cb; margin-top: 10px; }
     </style>
@@ -98,7 +106,6 @@ def get_data():
     all_tickers = list(set(all_tickers))
     
     try:
-        # Fetch all data simply without threading to avoid Streamlit limits
         data = yf.download(all_tickers, period="5d", progress=False, group_by='ticker', threads=False)
         return data
     except: 
@@ -177,15 +184,12 @@ def style_sector_ranks(val):
     color, text = ('#d4edda', '#155724') if val >= 0 else ('#f8d7da', '#721c24')
     return f'background-color: {color}; color: {text}'
 
-# --- 5. EXECUTION (TABLES ONE BY ONE) ---
-
-# White screen రాకుండా డేటా వచ్చే వరకు ఈ మెసేజ్ కనిపిస్తుంది.
+# --- 5. EXECUTION ---
 loading_msg = st.empty()
 loading_msg.info("మార్కెట్ డేటా లోడ్ అవుతోంది... దయచేసి 15 సెకన్లు వేచి ఉండండి ⏳")
 
 data = get_data()
-
-loading_msg.empty() # డేటా వచ్చాక ఆ మెసేజ్ మాయం అవుతుంది
+loading_msg.empty()
 
 if data is not None and not data.empty:
     # 1. DASHBOARD
