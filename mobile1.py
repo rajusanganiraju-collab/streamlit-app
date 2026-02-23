@@ -282,7 +282,7 @@ if data is not None and not data.empty:
         "STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)"),
     }
 
-    # 3. BUY & SELL TABLES (Strictly Top 8 with perfect height)
+    # 3. BUY & SELL TABLES (Strictly Top 8 with perfect height 320px)
     c_buy, c_sell = st.columns(2)
     
     with c_buy:
@@ -290,7 +290,6 @@ if data is not None and not data.empty:
         res_b = [analyze(s, data, True) for s in SECTOR_MAP[top_sec]['stocks']]
         res_b = [x for x in res_b if x]
         if res_b:
-            # Added .head(8) to limit to 8 rows max
             df_b = pd.DataFrame(res_b).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8)
             df_b['SCORE'] = df_b['SCORE'].astype(str) 
             
@@ -299,15 +298,14 @@ if data is not None and not data.empty:
                 .set_properties(**{'text-align': 'center', 'font-size': '14px'}) \
                 .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]}])
                 
-            # Adjusted height to 380px to perfectly fit exactly 8 rows
-            st.dataframe(styled_b, column_config=tv_link_config, use_container_width=True, hide_index=True, height=380)
+            # Height reduced to 320 to perfectly fit 8 rows without empty space
+            st.dataframe(styled_b, column_config=tv_link_config, use_container_width=True, hide_index=True, height=320)
 
     with c_sell:
         st.markdown(f"<div class='table-head head-bear'>🩸 SELL: {bot_sec}</div>", unsafe_allow_html=True)
         res_s = [analyze(s, data, False) for s in SECTOR_MAP[bot_sec]['stocks']]
         res_s = [x for x in res_s if x]
         if res_s:
-            # Added .head(8) to limit to 8 rows max
             df_s = pd.DataFrame(res_s).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8)
             df_s['SCORE'] = df_s['SCORE'].astype(str)
             
@@ -316,9 +314,9 @@ if data is not None and not data.empty:
                 .set_properties(**{'text-align': 'center', 'font-size': '14px'}) \
                 .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]}])
                 
-            st.dataframe(styled_s, column_config=tv_link_config, use_container_width=True, hide_index=True, height=380)
+            st.dataframe(styled_s, column_config=tv_link_config, use_container_width=True, hide_index=True, height=320)
 
-    # 4. INDEPENDENT & BROADER (Strictly Top 8 with perfect height)
+    # 4. INDEPENDENT & BROADER (Strictly Top 8 with perfect height 320px)
     c_ind, c_brd = st.columns(2)
     
     with c_ind:
@@ -334,7 +332,7 @@ if data is not None and not data.empty:
                 .set_properties(**{'text-align': 'center', 'font-size': '14px'}) \
                 .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]}])
                 
-            st.dataframe(styled_ind, column_config=tv_link_config, use_container_width=True, hide_index=True, height=380)
+            st.dataframe(styled_ind, column_config=tv_link_config, use_container_width=True, hide_index=True, height=320)
 
     with c_brd:
         st.markdown("<div class='table-head head-neut'>🌌 BROADER MARKET (Top 8)</div>", unsafe_allow_html=True)
@@ -349,7 +347,7 @@ if data is not None and not data.empty:
                 .set_properties(**{'text-align': 'center', 'font-size': '14px'}) \
                 .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]}])
                 
-            st.dataframe(styled_brd, column_config=tv_link_config, use_container_width=True, hide_index=True, height=380)
+            st.dataframe(styled_brd, column_config=tv_link_config, use_container_width=True, hide_index=True, height=320)
 
 else:
     st.warning("స్టాక్ మార్కెట్ డేటా దొరకలేదు. బహుశా ఇంటర్నెట్ లేదా Yahoo Finance సర్వర్ నెమ్మదిగా ఉండి ఉండొచ్చు.")
