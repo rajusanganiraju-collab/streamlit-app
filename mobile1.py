@@ -10,7 +10,7 @@ st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
 
-# పైన స్పేస్ పూర్తిగా తీసేయడానికి CSS
+# పైన స్పేస్ మరియు టేబుల్స్ మధ్య స్పేస్ పూర్తిగా తీసేయడానికి CSS
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -20,13 +20,18 @@ st.markdown("""
     .stApp { background-color: #ffffff; color: #000000; }
     html, body, [class*="css"] { font-family: 'Arial', sans-serif; font-weight: 600; color: #000000 !important; }
     
-    /* Top Space Reduction */
-    .block-container { padding-top: 1rem !important; padding-bottom: 0rem !important; padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
+    /* Top Space Reduction to Zero */
+    .block-container { padding-top: 0rem !important; padding-bottom: 0rem !important; padding-left: 0.5rem !important; padding-right: 0.5rem !important; margin-top: -10px; }
     
-    h4 { margin: 2px 0px 2px 0px; font-size: 15px; text-transform: uppercase; border-bottom: 2px solid #333; padding-bottom: 3px; color: #000000 !important; }
-    .bull-head { background: #d4edda; color: #155724; padding: 6px; font-weight: bold; border: 1px solid #c3e6cb; margin-top: 5px; margin-bottom: 2px; font-size: 15px;}
-    .bear-head { background: #f8d7da; color: #721c24; padding: 6px; font-weight: bold; border: 1px solid #f5c6cb; margin-top: 5px; margin-bottom: 2px; font-size: 15px;}
-    div[data-testid="stDataFrame"] { margin-bottom: -15px; }
+    /* Table Styling - Centered */
+    th { background-color: #ffffff !important; color: #000000 !important; font-size: 14px !important; text-align: center !important; border-bottom: 2px solid #222222 !important; border-top: 2px solid #222222 !important; padding: 6px !important; }
+    td { font-size: 14px !important; color: #000000 !important; border-bottom: 1px solid #ccc !important; text-align: center !important; padding: 4px !important; font-weight: 700 !important; }
+    
+    /* Spacing fixes to make everything compact */
+    h4 { margin: 0px 0px 0px 0px !important; font-size: 15px; text-transform: uppercase; border-bottom: 2px solid #333; padding-bottom: 2px; color: #000000 !important; }
+    .bull-head { background: #d4edda; color: #155724; padding: 4px; font-weight: bold; border: 1px solid #c3e6cb; margin-top: 2px; margin-bottom: 0px; font-size: 14px;}
+    .bear-head { background: #f8d7da; color: #721c24; padding: 4px; font-weight: bold; border: 1px solid #f5c6cb; margin-top: 2px; margin-bottom: 0px; font-size: 14px;}
+    div[data-testid="stDataFrame"] { margin-bottom: -20px !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -204,55 +209,62 @@ data = get_data()
 loading_msg.empty()
 
 if data is not None and not data.empty:
-    # 1. DASHBOARD
-    st.markdown("#### 📉 DASHBOARD")
-    m_cols = st.columns(5)
-    nifty_chg = 0.0
-    for idx, (ticker, name) in enumerate(INDICES.items()):
-        try:
-            if ticker in data.columns.levels[0]:
-                df = data[ticker].dropna()
-                ltp = float(df['Close'].iloc[-1])
-                pct = ((ltp - float(df['Close'].iloc[-2])) / float(df['Close'].iloc[-2])) * 100
-                
-                arrow = "↑" if pct >= 0 else "↓"
-                txt_color = "#008000" if pct >= 0 else "#FF0000"
-                bg_color = "#e6fffa" if pct >= 0 else "#fff5f5"
-                border_color = "#c3e6cb" if pct >= 0 else "#f5c6cb"
-                
-                tv_symbol = TV_INDICES.get(ticker, "")
-                tv_url = f"https://in.tradingview.com/chart/?symbol={tv_symbol}"
-                
-                m_cols[idx].markdown(f'''
-                <a href="{tv_url}" target="_blank" style="text-decoration: none;">
-                    <div style="text-align: center; padding: 6px; border: 2px solid {border_color}; border-radius: 8px; background-color: {bg_color}; cursor: pointer;">
-                        <div style="color: black; font-size: 14px; font-weight: 800;">{name}</div>
-                        <div style="color: black; font-size: 19px; font-weight: 900; margin: 4px 0px;">{ltp:.0f}</div>
-                        <div style="color: {txt_color}; font-size: 14px; font-weight: bold;">{arrow} {pct:.1f}%</div>
-                    </div>
-                </a>
-                ''', unsafe_allow_html=True)
-                
-                if name == "NIFTY":
-                    o_now = float(df['Open'].iloc[-1])
-                    nifty_chg = ((ltp - o_now) / o_now) * 100
-        except: continue
-        
-    if nifty_chg >= 0:
-        market_trend = "BULLISH 🚀"
-        trend_bg, trend_txt = "#e6fffa", "#008000"
-    else:
-        market_trend = "BEARISH 🩸"
-        trend_bg, trend_txt = "#fff5f5", "#FF0000"
-        
-    st.markdown(f"""
-    <div style='text-align: center; padding: 8px; margin-top: 5px; margin-bottom: 5px; border-radius: 8px; border: 2px solid {trend_txt};
-                background-color: {trend_bg}; color: {trend_txt}; font-size: 16px; font-weight: 900; box-shadow: 2px 2px 5px rgba(0,0,0,0.1);'>
-        {market_trend}
-    </div>
-    """, unsafe_allow_html=True)
     
-    # 2. SECTOR RANKS
+    # 1. DASHBOARD - 80% & 20% Layout
+    st.markdown("#### 📉 DASHBOARD")
+    dash_left, dash_right = st.columns([0.8, 0.2]) # 80% (Indices) and 20% (Trend Box)
+    
+    nifty_chg = 0.0
+    
+    with dash_left:
+        m_cols = st.columns(5)
+        for idx, (ticker, name) in enumerate(INDICES.items()):
+            try:
+                if ticker in data.columns.levels[0]:
+                    df = data[ticker].dropna()
+                    ltp = float(df['Close'].iloc[-1])
+                    pct = ((ltp - float(df['Close'].iloc[-2])) / float(df['Close'].iloc[-2])) * 100
+                    
+                    arrow = "↑" if pct >= 0 else "↓"
+                    txt_color = "#008000" if pct >= 0 else "#FF0000"
+                    bg_color = "#e6fffa" if pct >= 0 else "#fff5f5"
+                    border_color = "#c3e6cb" if pct >= 0 else "#f5c6cb"
+                    
+                    tv_symbol = TV_INDICES.get(ticker, "")
+                    tv_url = f"https://in.tradingview.com/chart/?symbol={tv_symbol}"
+                    
+                    m_cols[idx].markdown(f'''
+                    <a href="{tv_url}" target="_blank" style="text-decoration: none;">
+                        <div style="text-align: center; padding: 4px; border: 2px solid {border_color}; border-radius: 6px; background-color: {bg_color}; cursor: pointer; height: 100%;">
+                            <div style="color: black; font-size: 13px; font-weight: 800;">{name}</div>
+                            <div style="color: black; font-size: 17px; font-weight: 900; margin: 2px 0px;">{ltp:.0f}</div>
+                            <div style="color: {txt_color}; font-size: 12px; font-weight: bold;">{arrow} {pct:.1f}%</div>
+                        </div>
+                    </a>
+                    ''', unsafe_allow_html=True)
+                    
+                    if name == "NIFTY":
+                        o_now = float(df['Open'].iloc[-1])
+                        nifty_chg = ((ltp - o_now) / o_now) * 100
+            except: continue
+
+    with dash_right:
+        if nifty_chg >= 0:
+            market_trend = "BULLISH 🚀"
+            trend_bg, trend_txt = "#e6fffa", "#008000"
+        else:
+            market_trend = "BEARISH 🩸"
+            trend_bg, trend_txt = "#fff5f5", "#FF0000"
+            
+        # Box matches the height of the left columns
+        st.markdown(f"""
+        <div style='display: flex; align-items: center; justify-content: center; height: 80px; border-radius: 6px; border: 2px solid {trend_txt};
+                    background-color: {trend_bg}; color: {trend_txt}; font-size: 18px; font-weight: 900; box-shadow: 2px 2px 5px rgba(0,0,0,0.1);'>
+            {market_trend}
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # 2. SECTOR RANKS (Removed divider above it)
     st.markdown("#### 📋 SECTOR RANKS")
     sec_rows = []
     for name, info in SECTOR_MAP.items():
@@ -270,9 +282,9 @@ if data is not None and not data.empty:
         
         styled_sec = df_sec_t.style.format("{:.2f}") \
             .map(style_sector_ranks) \
-            .set_properties(**{'text-align': 'center', 'font-size': '15px', 'font-weight': '600'}) \
+            .set_properties(**{'text-align': 'center', 'font-size': '14px', 'font-weight': '600'}) \
             .set_table_styles([
-                {'selector': 'th', 'props': [('text-align', 'center'), ('background-color', 'white'), ('color', 'black'), ('font-size', '15px')]},
+                {'selector': 'th', 'props': [('text-align', 'center'), ('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]},
                 {'selector': 'td', 'props': [('text-align', 'center')]}
             ])
             
@@ -284,7 +296,7 @@ if data is not None and not data.empty:
         "STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)"),
     }
 
-    # 3. BUY & SELL TABLES (Side by Side)
+    # 3. BUY & SELL TABLES (Removed divider above it)
     c_buy, c_sell = st.columns(2)
     
     with c_buy:
@@ -298,8 +310,8 @@ if data is not None and not data.empty:
             styled_b = df_b.style.apply(highlight_priority, axis=1) \
                 .map(style_move_col, subset=['MOVE']) \
                 .map(style_action_col, subset=['ACTION']) \
-                .set_properties(**{'text-align': 'center', 'font-size': '15px'}) \
-                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '15px')]}])
+                .set_properties(**{'text-align': 'center', 'font-size': '14px'}) \
+                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]}])
                 
             st.dataframe(styled_b, column_config=tv_link_config, use_container_width=True, hide_index=True)
 
@@ -314,14 +326,12 @@ if data is not None and not data.empty:
             styled_s = df_s.style.apply(highlight_priority, axis=1) \
                 .map(style_move_col, subset=['MOVE']) \
                 .map(style_action_col, subset=['ACTION']) \
-                .set_properties(**{'text-align': 'center', 'font-size': '15px'}) \
-                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '15px')]}])
+                .set_properties(**{'text-align': 'center', 'font-size': '14px'}) \
+                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]}])
                 
             st.dataframe(styled_s, column_config=tv_link_config, use_container_width=True, hide_index=True)
 
-    st.divider()
-
-    # 4. INDEPENDENT & BROADER (Side by Side)
+    # 4. INDEPENDENT & BROADER (Removed divider above it)
     c_ind, c_brd = st.columns(2)
     
     with c_ind:
@@ -335,8 +345,8 @@ if data is not None and not data.empty:
             styled_ind = df_ind.style.apply(highlight_priority, axis=1) \
                 .map(style_move_col, subset=['MOVE']) \
                 .map(style_action_col, subset=['ACTION']) \
-                .set_properties(**{'text-align': 'center', 'font-size': '15px'}) \
-                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '15px')]}])
+                .set_properties(**{'text-align': 'center', 'font-size': '14px'}) \
+                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]}])
                 
             st.dataframe(styled_ind, column_config=tv_link_config, use_container_width=True, hide_index=True)
 
@@ -351,8 +361,8 @@ if data is not None and not data.empty:
             styled_brd = df_brd.style.apply(highlight_priority, axis=1) \
                 .map(style_move_col, subset=['MOVE']) \
                 .map(style_action_col, subset=['ACTION']) \
-                .set_properties(**{'text-align': 'center', 'font-size': '15px'}) \
-                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '15px')]}])
+                .set_properties(**{'text-align': 'center', 'font-size': '14px'}) \
+                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]}])
                 
             st.dataframe(styled_brd, column_config=tv_link_config, use_container_width=True, hide_index=True)
 
