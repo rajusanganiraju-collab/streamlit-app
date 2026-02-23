@@ -140,7 +140,6 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         is_open_low = abs(open_p - low) <= (ltp * 0.003)
         is_open_high = abs(open_p - high) <= (ltp * 0.003)
         
-        # ఇక్కడ టెక్స్ట్‌ని చిన్నగా మార్చాను
         if day_chg >= 2.0: status.append("BM🚀"); score += 3
         elif day_chg <= -2.0: status.append("BM🩸"); score += 3
 
@@ -160,7 +159,6 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         stock_name = symbol.replace(".NS", "")
         tv_url = f"https://in.tradingview.com/chart/?symbol=NSE:{stock_name}"
         
-        # ఇక్కడ హెడ్డింగ్ పేర్లను షార్ట్ కట్ లో (LTP, D%, N%, M%, STAT, SCR) మార్చాను
         return {
             "STOCK": tv_url, "LTP": f"{ltp:.2f}", "D%": f"{day_chg:.2f}",
             "N%": f"{net_chg:.2f}", "M%": f"{todays_move:.2f}", 
@@ -207,7 +205,7 @@ loading_msg.empty()
 if data is not None and not data.empty:
     
     # ----------------------------------------------------------------------
-    # 1. డేటాను ముందుగానే క్యాలిక్యులేట్ చేయడం (Buy/Sell కౌంట్ కోసం)
+    # 1. డేటాను ముందుగానే క్యాలిక్యులేట్ చేయడం
     # ----------------------------------------------------------------------
     
     sec_rows = []
@@ -312,8 +310,10 @@ if data is not None and not data.empty:
             ])
         st.dataframe(styled_sec, use_container_width=True)
 
+    # ఇక్కడ STAT కాలమ్ కి width="small" యాడ్ చేసాను. ఇది ఎక్కువ స్పేస్ తీసుకోదు!
     tv_link_config = {
         "STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)"),
+        "STAT": st.column_config.TextColumn("STAT", width="small")
     }
 
     # ----------------------------------------------------------------------
@@ -326,8 +326,8 @@ if data is not None and not data.empty:
         if not df_b.empty:
             styled_b = df_b.style.apply(highlight_priority, axis=1) \
                 .map(style_move_col, subset=['M%']) \
-                .set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 2px'}) \
-                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '12px'), ('padding', '4px 2px')]}])
+                .set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'}) \
+                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '12px'), ('padding', '4px 1px')]}])
             st.dataframe(styled_b, column_config=tv_link_config, use_container_width=True, hide_index=True)
 
     with c_sell:
@@ -335,8 +335,8 @@ if data is not None and not data.empty:
         if not df_s.empty:
             styled_s = df_s.style.apply(highlight_priority, axis=1) \
                 .map(style_move_col, subset=['M%']) \
-                .set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 2px'}) \
-                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '12px'), ('padding', '4px 2px')]}])
+                .set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'}) \
+                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '12px'), ('padding', '4px 1px')]}])
             st.dataframe(styled_s, column_config=tv_link_config, use_container_width=True, hide_index=True)
 
     # ----------------------------------------------------------------------
@@ -349,8 +349,8 @@ if data is not None and not data.empty:
         if not df_ind.empty:
             styled_ind = df_ind.style.apply(highlight_priority, axis=1) \
                 .map(style_move_col, subset=['M%']) \
-                .set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 2px'}) \
-                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '12px'), ('padding', '4px 2px')]}])
+                .set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'}) \
+                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '12px'), ('padding', '4px 1px')]}])
             st.dataframe(styled_ind, column_config=tv_link_config, use_container_width=True, hide_index=True)
 
     with c_brd:
@@ -358,8 +358,8 @@ if data is not None and not data.empty:
         if not df_brd.empty:
             styled_brd = df_brd.style.apply(highlight_priority, axis=1) \
                 .map(style_move_col, subset=['M%']) \
-                .set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 2px'}) \
-                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '12px'), ('padding', '4px 2px')]}])
+                .set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'}) \
+                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '12px'), ('padding', '4px 1px')]}])
             st.dataframe(styled_brd, column_config=tv_link_config, use_container_width=True, hide_index=True)
 
 else:
