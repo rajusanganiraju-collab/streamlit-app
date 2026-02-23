@@ -211,8 +211,8 @@ if data is not None and not data.empty:
     nifty_chg = 0.0
     
     with dash_left:
-        # అన్ని 5 ఇండెక్స్‌లు ఒకే బాక్స్‌లో రావడానికి HTML Flexbox
-        dash_html = """<div style="display: flex; justify-content: space-between; align-items: center; border: 2px solid #ddd; border-radius: 8px; background-color: #f9f9f9; padding: 5px; height: 80px;">"""
+        # ఎర్రర్ రాకుండా HTML అంతా సింగిల్ లైన్ లో యాడ్ చేశాను
+        dash_html = '<div style="display: flex; justify-content: space-between; align-items: center; border: 2px solid #ddd; border-radius: 8px; background-color: #f9f9f9; padding: 5px; height: 80px;">'
         
         for idx, (ticker, name) in enumerate(INDICES.items()):
             try:
@@ -226,16 +226,10 @@ if data is not None and not data.empty:
                     tv_symbol = TV_INDICES.get(ticker, "")
                     tv_url = f"https://in.tradingview.com/chart/?symbol={tv_symbol}"
                     
-                    # ప్రతి ఇండెక్స్ మధ్యలో చిన్న గీత (Border-right)
                     border_style = "border-right: 1px solid #ddd;" if idx < 4 else ""
                     
-                    dash_html += f'''
-                    <a href="{tv_url}" target="_blank" style="text-decoration: none; flex: 1; text-align: center; {border_style}">
-                        <div style="color: #444; font-size: 13px; font-weight: 800;">{name}</div>
-                        <div style="color: black; font-size: 18px; font-weight: 900; margin: 2px 0px;">{ltp:.0f}</div>
-                        <div style="color: {txt_color}; font-size: 14px; font-weight: bold;">{arrow} {pct:.1f}%</div>
-                    </a>
-                    '''
+                    # No newlines in HTML string to prevent markdown rendering issues
+                    dash_html += f'<a href="{tv_url}" target="_blank" style="text-decoration: none; flex: 1; text-align: center; {border_style}"><div style="color: #444; font-size: 13px; font-weight: 800;">{name}</div><div style="color: black; font-size: 18px; font-weight: 900; margin: 2px 0px;">{ltp:.0f}</div><div style="color: {txt_color}; font-size: 14px; font-weight: bold;">{arrow} {pct:.1f}%</div></a>'
                     
                     if name == "NIFTY":
                         o_now = float(df['Open'].iloc[-1])
@@ -254,8 +248,7 @@ if data is not None and not data.empty:
             trend_bg, trend_txt = "#fff5f5", "#FF0000"
             
         st.markdown(f"""
-        <div style='display: flex; align-items: center; justify-content: center; height: 80px; border-radius: 8px; border: 2px solid {trend_txt};
-                    background-color: {trend_bg}; color: {trend_txt}; font-size: 18px; font-weight: 900; box-shadow: 2px 2px 5px rgba(0,0,0,0.1);'>
+        <div style='display: flex; align-items: center; justify-content: center; height: 80px; border-radius: 8px; border: 2px solid {trend_txt}; background-color: {trend_bg}; color: {trend_txt}; font-size: 18px; font-weight: 900; box-shadow: 2px 2px 5px rgba(0,0,0,0.1);'>
             {market_trend}
         </div>
         """, unsafe_allow_html=True)
