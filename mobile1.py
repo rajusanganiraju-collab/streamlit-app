@@ -268,7 +268,6 @@ if data is not None and not data.empty:
         df_sec = pd.DataFrame(sec_rows).sort_values("DAY%", ascending=False)
         df_sec_t = df_sec.set_index("SECTOR").T
         
-        # టెక్స్ట్ సైజ్ 14px కి పెంచబడింది (ముందు 13px ఉండేది)
         styled_sec = df_sec_t.style.format("{:.2f}") \
             .map(style_sector_ranks) \
             .set_properties(**{'text-align': 'center', 'font-size': '15px', 'font-weight': '600'}) \
@@ -285,67 +284,77 @@ if data is not None and not data.empty:
         "STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)"),
     }
 
-    # 3. BUY & SELL TABLES
-    st.markdown(f"<div class='bull-head'>🚀 BUY: {top_sec}</div>", unsafe_allow_html=True)
-    res_b = [analyze(s, data, True) for s in SECTOR_MAP[top_sec]['stocks']]
-    res_b = [x for x in res_b if x]
-    if res_b:
-        df_b = pd.DataFrame(res_b).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"])
-        df_b['SCORE'] = df_b['SCORE'].astype(str) 
-        
-        styled_b = df_b.style.apply(highlight_priority, axis=1) \
-            .map(style_move_col, subset=['MOVE']) \
-            .map(style_action_col, subset=['ACTION']) \
-            .set_properties(**{'text-align': 'center', 'font-size': '15px'}) \
-            .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '15px')]}])
+    # 3. BUY & SELL TABLES (Side by Side)
+    c_buy, c_sell = st.columns(2)
+    
+    with c_buy:
+        st.markdown(f"<div class='bull-head'>🚀 BUY: {top_sec}</div>", unsafe_allow_html=True)
+        res_b = [analyze(s, data, True) for s in SECTOR_MAP[top_sec]['stocks']]
+        res_b = [x for x in res_b if x]
+        if res_b:
+            df_b = pd.DataFrame(res_b).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"])
+            df_b['SCORE'] = df_b['SCORE'].astype(str) 
             
-        st.dataframe(styled_b, column_config=tv_link_config, use_container_width=True, hide_index=True)
+            styled_b = df_b.style.apply(highlight_priority, axis=1) \
+                .map(style_move_col, subset=['MOVE']) \
+                .map(style_action_col, subset=['ACTION']) \
+                .set_properties(**{'text-align': 'center', 'font-size': '15px'}) \
+                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '15px')]}])
+                
+            st.dataframe(styled_b, column_config=tv_link_config, use_container_width=True, hide_index=True)
 
-    st.markdown(f"<div class='bear-head'>🩸 SELL: {bot_sec}</div>", unsafe_allow_html=True)
-    res_s = [analyze(s, data, False) for s in SECTOR_MAP[bot_sec]['stocks']]
-    res_s = [x for x in res_s if x]
-    if res_s:
-        df_s = pd.DataFrame(res_s).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"])
-        df_s['SCORE'] = df_s['SCORE'].astype(str)
-        
-        styled_s = df_s.style.apply(highlight_priority, axis=1) \
-            .map(style_move_col, subset=['MOVE']) \
-            .map(style_action_col, subset=['ACTION']) \
-            .set_properties(**{'text-align': 'center', 'font-size': '15px'}) \
-            .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '15px')]}])
+    with c_sell:
+        st.markdown(f"<div class='bear-head'>🩸 SELL: {bot_sec}</div>", unsafe_allow_html=True)
+        res_s = [analyze(s, data, False) for s in SECTOR_MAP[bot_sec]['stocks']]
+        res_s = [x for x in res_s if x]
+        if res_s:
+            df_s = pd.DataFrame(res_s).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"])
+            df_s['SCORE'] = df_s['SCORE'].astype(str)
             
-        st.dataframe(styled_s, column_config=tv_link_config, use_container_width=True, hide_index=True)
+            styled_s = df_s.style.apply(highlight_priority, axis=1) \
+                .map(style_move_col, subset=['MOVE']) \
+                .map(style_action_col, subset=['ACTION']) \
+                .set_properties(**{'text-align': 'center', 'font-size': '15px'}) \
+                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '15px')]}])
+                
+            st.dataframe(styled_s, column_config=tv_link_config, use_container_width=True, hide_index=True)
 
-    # 4. INDEPENDENT & BROADER
-    st.markdown("#### 🌟 INDEPENDENT (Top 8)")
-    ind_movers = [analyze(s, data, force=True) for name, info in SECTOR_MAP.items() if name not in [top_sec, bot_sec] for s in info['stocks']]
-    ind_movers = [r for r in ind_movers if r and (float(r['VOL'][:-1]) >= 1.0 or r['SCORE'] >= 1)]
-    if ind_movers:
-        df_ind = pd.DataFrame(ind_movers).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8)
-        df_ind['SCORE'] = df_ind['SCORE'].astype(str)
-        
-        styled_ind = df_ind.style.apply(highlight_priority, axis=1) \
-            .map(style_move_col, subset=['MOVE']) \
-            .map(style_action_col, subset=['ACTION']) \
-            .set_properties(**{'text-align': 'center', 'font-size': '15px'}) \
-            .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '15px')]}])
-            
-        st.dataframe(styled_ind, column_config=tv_link_config, use_container_width=True, hide_index=True)
+    st.divider()
 
-    st.markdown("#### 🌌 BROADER MARKET (Top 8)")
-    res_brd = [analyze(s, data, force=True) for s in BROADER_MARKET]
-    res_brd = [x for x in res_brd if x and (float(x['VOL'][:-1]) >= 1.0 or x['SCORE'] >= 1)]
-    if res_brd:
-        df_brd = pd.DataFrame(res_brd).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8)
-        df_brd['SCORE'] = df_brd['SCORE'].astype(str)
-        
-        styled_brd = df_brd.style.apply(highlight_priority, axis=1) \
-            .map(style_move_col, subset=['MOVE']) \
-            .map(style_action_col, subset=['ACTION']) \
-            .set_properties(**{'text-align': 'center', 'font-size': '15px'}) \
-            .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '15px')]}])
+    # 4. INDEPENDENT & BROADER (Side by Side)
+    c_ind, c_brd = st.columns(2)
+    
+    with c_ind:
+        st.markdown("#### 🌟 INDEPENDENT (Top 8)")
+        ind_movers = [analyze(s, data, force=True) for name, info in SECTOR_MAP.items() if name not in [top_sec, bot_sec] for s in info['stocks']]
+        ind_movers = [r for r in ind_movers if r and (float(r['VOL'][:-1]) >= 1.0 or r['SCORE'] >= 1)]
+        if ind_movers:
+            df_ind = pd.DataFrame(ind_movers).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8)
+            df_ind['SCORE'] = df_ind['SCORE'].astype(str)
             
-        st.dataframe(styled_brd, column_config=tv_link_config, use_container_width=True, hide_index=True)
+            styled_ind = df_ind.style.apply(highlight_priority, axis=1) \
+                .map(style_move_col, subset=['MOVE']) \
+                .map(style_action_col, subset=['ACTION']) \
+                .set_properties(**{'text-align': 'center', 'font-size': '15px'}) \
+                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '15px')]}])
+                
+            st.dataframe(styled_ind, column_config=tv_link_config, use_container_width=True, hide_index=True)
+
+    with c_brd:
+        st.markdown("#### 🌌 BROADER MARKET (Top 8)")
+        res_brd = [analyze(s, data, force=True) for s in BROADER_MARKET]
+        res_brd = [x for x in res_brd if x and (float(x['VOL'][:-1]) >= 1.0 or x['SCORE'] >= 1)]
+        if res_brd:
+            df_brd = pd.DataFrame(res_brd).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8)
+            df_brd['SCORE'] = df_brd['SCORE'].astype(str)
+            
+            styled_brd = df_brd.style.apply(highlight_priority, axis=1) \
+                .map(style_move_col, subset=['MOVE']) \
+                .map(style_action_col, subset=['ACTION']) \
+                .set_properties(**{'text-align': 'center', 'font-size': '15px'}) \
+                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '15px')]}])
+                
+            st.dataframe(styled_brd, column_config=tv_link_config, use_container_width=True, hide_index=True)
 
 else:
     st.warning("స్టాక్ మార్కెట్ డేటా దొరకలేదు. బహుశా ఇంటర్నెట్ లేదా Yahoo Finance సర్వర్ నెమ్మదిగా ఉండి ఉండొచ్చు.")
