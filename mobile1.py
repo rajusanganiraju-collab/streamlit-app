@@ -159,12 +159,12 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         stock_name = symbol.replace(".NS", "")
         tv_url = f"https://in.tradingview.com/chart/?symbol=NSE:{stock_name}"
         
-        # Action Column Removed from Here
+        # TREND కీ ని యాడ్ చేసాము, దీని ద్వారా సిగ్నల్ బుల్లిష్ ఆ బేరిష్ ఆ అని కౌంట్ చేస్తాం
         return {
             "STOCK": tv_url, "PRICE": f"{ltp:.2f}", "DAY%": f"{day_chg:.2f}",
             "NET%": f"{net_chg:.2f}", "MOVE": f"{todays_move:.2f}", 
             "VOL": f"{vol_x:.1f}x", "STATUS": " ".join(status), "SCORE": score,
-            "VOL_NUM": vol_x
+            "VOL_NUM": vol_x, "TREND": "BULL" if check_bullish else "BEAR"
         }
     except: return None
 
@@ -205,13 +205,62 @@ loading_msg.empty()
 
 if data is not None and not data.empty:
     
-    # 1. DASHBOARD - 80% & 20% Layout with Single Unified Box for Indices
+    # ----------------------------------------------------------------------
+    # 1. డేటాను ముందుగానే క్యాలిక్యులేట్ చేయడం (Buy/Sell కౌంట్ కోసం)
+    # ----------------------------------------------------------------------
+    
+    # A. SECTOR RANKS
+    sec_rows = []
+    for name, info in SECTOR_MAP.items():
+        try:
+            if info['index'] in data.columns.levels[0]:
+                df = data[info['index']].dropna()
+                c_now, c_prev, o_now = float(df['Close'].iloc[-1]), float(df['Close'].iloc[-2]), float(df['Open'].iloc[-1])
+                d_pct, n_pct = ((c_now - o_now) / o_now) * 100, ((c_now - c_prev) / c_prev) * 100
+                sec_rows.append({"SECTOR": name, "DAY%": d_pct, "NET%": n_pct, "MOVE": n_pct - d_pct})
+        except: continue
+    
+    if sec_rows:
+        df_sec = pd.DataFrame(sec_rows).sort_values("DAY%", ascending=False)
+        top_sec = df_sec.iloc[0]['SECTOR']
+        bot_sec = df_sec.iloc[-1]['SECTOR']
+    else:
+        top_sec, bot_sec, df_sec = "", "", pd.DataFrame()
+
+    # B. TABLES DATA
+    res_b = [analyze(s, data, True) for s in SECTOR_MAP.get(top_sec, {}).get('stocks', [])] if top_sec else []
+    res_b = [x for x in res_b if x]
+    df_b = pd.DataFrame(res_b).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8) if res_b else pd.DataFrame()
+
+    res_s = [analyze(s, data, False) for s in SECTOR_MAP.get(bot_sec, {}).get('stocks', [])] if bot_sec else []
+    res_s = [x for x in res_s if x]
+    df_s = pd.DataFrame(res_s).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8) if res_s else pd.DataFrame()
+
+    ind_movers = [analyze(s, data, force=True) for name, info in SECTOR_MAP.items() if name not in [top_sec, bot_sec] for s in info['stocks']]
+    ind_movers = [r for r in ind_movers if r and (float(r['VOL'][:-1]) >= 1.0 or r['SCORE'] >= 1)]
+    df_ind = pd.DataFrame(ind_movers).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8) if ind_movers else pd.DataFrame()
+
+    res_brd = [analyze(s, data, force=True) for s in BROADER_MARKET]
+    res_brd = [x for x in res_brd if x and (float(x['VOL'][:-1]) >= 1.0 or x['SCORE'] >= 1)]
+    df_brd = pd.DataFrame(res_brd).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8) if res_brd else pd.DataFrame()
+
+    # C. కౌంట్ చేయడం మరియు ఎక్స్‌ట్రా కాలమ్ తీసేయడం
+    total_bulls = 0
+    total_bears = 0
+    
+    for df_ in [df_b, df_s, df_ind, df_brd]:
+        if not df_.empty and "TREND" in df_.columns:
+            total_bulls += (df_['TREND'] == 'BULL').sum()
+            total_bears += (df_['TREND'] == 'BEAR').sum()
+            df_.drop(columns=["TREND"], inplace=True) # UI లో కనిపించకుండా డిలీట్ చేస్తున్నాం
+            df_['SCORE'] = df_['SCORE'].astype(str)
+
+    # ----------------------------------------------------------------------
+    # 2. DASHBOARD - 80% & 20% Layout (మొత్తం కౌంట్ ని బట్టి ట్రెండ్)
+    # ----------------------------------------------------------------------
     dash_left, dash_right = st.columns([0.8, 0.2]) 
     
-    nifty_chg = 0.0
-    
     with dash_left:
-        # ఎర్రర్ రాకుండా HTML అంతా సింగిల్ లైన్ లో యాడ్ చేశాను
         dash_html = '<div style="display: flex; justify-content: space-between; align-items: center; border: 2px solid #ddd; border-radius: 8px; background-color: #f9f9f9; padding: 5px; height: 80px;">'
         
         for idx, (ticker, name) in enumerate(INDICES.items()):
@@ -227,48 +276,36 @@ if data is not None and not data.empty:
                     tv_url = f"https://in.tradingview.com/chart/?symbol={tv_symbol}"
                     
                     border_style = "border-right: 1px solid #ddd;" if idx < 4 else ""
-                    
-                    # No newlines in HTML string to prevent markdown rendering issues
                     dash_html += f'<a href="{tv_url}" target="_blank" style="text-decoration: none; flex: 1; text-align: center; {border_style}"><div style="color: #444; font-size: 13px; font-weight: 800;">{name}</div><div style="color: black; font-size: 18px; font-weight: 900; margin: 2px 0px;">{ltp:.0f}</div><div style="color: {txt_color}; font-size: 14px; font-weight: bold;">{arrow} {pct:.1f}%</div></a>'
-                    
-                    if name == "NIFTY":
-                        o_now = float(df['Open'].iloc[-1])
-                        nifty_chg = ((ltp - o_now) / o_now) * 100
             except: continue
             
         dash_html += "</div>"
         st.markdown(dash_html, unsafe_allow_html=True)
 
     with dash_right:
-        if nifty_chg >= 0:
+        # సిగ్నల్స్ ని బట్టి బుల్లిష్/బేరిష్ బాక్స్
+        if total_bulls >= total_bears:
             market_trend = "BULLISH 🚀"
             trend_bg, trend_txt = "#e6fffa", "#008000"
+            count_color = "#155724"
         else:
             market_trend = "BEARISH 🩸"
             trend_bg, trend_txt = "#fff5f5", "#FF0000"
+            count_color = "#721c24"
             
         st.markdown(f"""
-        <div style='display: flex; align-items: center; justify-content: center; height: 80px; border-radius: 8px; border: 2px solid {trend_txt}; background-color: {trend_bg}; color: {trend_txt}; font-size: 18px; font-weight: 900; box-shadow: 2px 2px 5px rgba(0,0,0,0.1);'>
-            {market_trend}
+        <div style='display: flex; flex-direction: column; align-items: center; justify-content: center; height: 80px; border-radius: 8px; border: 2px solid {trend_txt}; background-color: {trend_bg}; color: {trend_txt}; box-shadow: 2px 2px 5px rgba(0,0,0,0.1);'>
+            <div style='font-size: 18px; font-weight: 900;'>{market_trend}</div>
+            <div style='font-size: 12px; font-weight: 800; margin-top: 3px; color: {count_color};'>BUYS: {total_bulls} | SELLS: {total_bears}</div>
         </div>
         """, unsafe_allow_html=True)
     
-    # 2. SECTOR RANKS
+    # ----------------------------------------------------------------------
+    # 3. SECTOR RANKS DISPLAY
+    # ----------------------------------------------------------------------
     st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
-    sec_rows = []
-    for name, info in SECTOR_MAP.items():
-        try:
-            if info['index'] in data.columns.levels[0]:
-                df = data[info['index']].dropna()
-                c_now, c_prev, o_now = float(df['Close'].iloc[-1]), float(df['Close'].iloc[-2]), float(df['Open'].iloc[-1])
-                d_pct, n_pct = ((c_now - o_now) / o_now) * 100, ((c_now - c_prev) / c_prev) * 100
-                sec_rows.append({"SECTOR": name, "DAY%": d_pct, "NET%": n_pct, "MOVE": n_pct - d_pct})
-        except: continue
-    
-    if sec_rows:
-        df_sec = pd.DataFrame(sec_rows).sort_values("DAY%", ascending=False)
+    if not df_sec.empty:
         df_sec_t = df_sec.set_index("SECTOR").T
-        
         styled_sec = df_sec_t.style.format("{:.2f}") \
             .map(style_sector_ranks) \
             .set_properties(**{'text-align': 'center', 'font-size': '14px', 'font-weight': '600'}) \
@@ -276,83 +313,56 @@ if data is not None and not data.empty:
                 {'selector': 'th', 'props': [('text-align', 'center'), ('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]},
                 {'selector': 'td', 'props': [('text-align', 'center')]}
             ])
-            
         st.dataframe(styled_sec, use_container_width=True)
-        top_sec = df_sec.iloc[0]['SECTOR']
-        bot_sec = df_sec.iloc[-1]['SECTOR']
 
     tv_link_config = {
         "STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)"),
     }
 
-    # 3. BUY & SELL TABLES (Side by Side)
+    # ----------------------------------------------------------------------
+    # 4. BUY & SELL TABLES (Side by Side)
+    # ----------------------------------------------------------------------
     c_buy, c_sell = st.columns(2)
     
     with c_buy:
-        # Uniform Heading
         st.markdown(f"<div class='table-head head-bull'>🚀 BUY: {top_sec}</div>", unsafe_allow_html=True)
-        res_b = [analyze(s, data, True) for s in SECTOR_MAP[top_sec]['stocks']]
-        res_b = [x for x in res_b if x]
-        if res_b:
-            df_b = pd.DataFrame(res_b).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"])
-            df_b['SCORE'] = df_b['SCORE'].astype(str) 
-            
+        if not df_b.empty:
             styled_b = df_b.style.apply(highlight_priority, axis=1) \
                 .map(style_move_col, subset=['MOVE']) \
                 .set_properties(**{'text-align': 'center', 'font-size': '14px'}) \
                 .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]}])
-                
             st.dataframe(styled_b, column_config=tv_link_config, use_container_width=True, hide_index=True)
 
     with c_sell:
-        # Uniform Heading
         st.markdown(f"<div class='table-head head-bear'>🩸 SELL: {bot_sec}</div>", unsafe_allow_html=True)
-        res_s = [analyze(s, data, False) for s in SECTOR_MAP[bot_sec]['stocks']]
-        res_s = [x for x in res_s if x]
-        if res_s:
-            df_s = pd.DataFrame(res_s).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"])
-            df_s['SCORE'] = df_s['SCORE'].astype(str)
-            
+        if not df_s.empty:
             styled_s = df_s.style.apply(highlight_priority, axis=1) \
                 .map(style_move_col, subset=['MOVE']) \
                 .set_properties(**{'text-align': 'center', 'font-size': '14px'}) \
                 .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]}])
-                
             st.dataframe(styled_s, column_config=tv_link_config, use_container_width=True, hide_index=True)
 
-    # 4. INDEPENDENT & BROADER (Side by Side)
+    # ----------------------------------------------------------------------
+    # 5. INDEPENDENT & BROADER (Side by Side)
+    # ----------------------------------------------------------------------
     c_ind, c_brd = st.columns(2)
     
     with c_ind:
-        # Uniform Heading
         st.markdown("<div class='table-head head-neut'>🌟 INDEPENDENT (Top 8)</div>", unsafe_allow_html=True)
-        ind_movers = [analyze(s, data, force=True) for name, info in SECTOR_MAP.items() if name not in [top_sec, bot_sec] for s in info['stocks']]
-        ind_movers = [r for r in ind_movers if r and (float(r['VOL'][:-1]) >= 1.0 or r['SCORE'] >= 1)]
-        if ind_movers:
-            df_ind = pd.DataFrame(ind_movers).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8)
-            df_ind['SCORE'] = df_ind['SCORE'].astype(str)
-            
+        if not df_ind.empty:
             styled_ind = df_ind.style.apply(highlight_priority, axis=1) \
                 .map(style_move_col, subset=['MOVE']) \
                 .set_properties(**{'text-align': 'center', 'font-size': '14px'}) \
                 .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]}])
-                
             st.dataframe(styled_ind, column_config=tv_link_config, use_container_width=True, hide_index=True)
 
     with c_brd:
-        # Uniform Heading
         st.markdown("<div class='table-head head-neut'>🌌 BROADER MARKET (Top 8)</div>", unsafe_allow_html=True)
-        res_brd = [analyze(s, data, force=True) for s in BROADER_MARKET]
-        res_brd = [x for x in res_brd if x and (float(x['VOL'][:-1]) >= 1.0 or x['SCORE'] >= 1)]
-        if res_brd:
-            df_brd = pd.DataFrame(res_brd).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8)
-            df_brd['SCORE'] = df_brd['SCORE'].astype(str)
-            
+        if not df_brd.empty:
             styled_brd = df_brd.style.apply(highlight_priority, axis=1) \
                 .map(style_move_col, subset=['MOVE']) \
                 .set_properties(**{'text-align': 'center', 'font-size': '14px'}) \
                 .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]}])
-                
             st.dataframe(styled_brd, column_config=tv_link_config, use_container_width=True, hide_index=True)
 
 else:
