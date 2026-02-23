@@ -10,28 +10,23 @@ st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
 
-# CSS మార్పులు: పైన స్పేస్ తగ్గింపు, వైట్ టేబుల్ హెడర్స్, పెద్ద అక్షరాలు (15px)
+# పైన స్పేస్ పూర్తిగా తీసేయడానికి CSS
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    header {display: none !important;} /* పైన ఉన్న ఖాళీ స్థలాన్ని పూర్తిగా తీసేస్తుంది */
-    button[title="View fullscreen"] {visibility: hidden;}
-    [data-testid="stStatusWidget"] {display: none;}
+    header {display: none !important;}
     
     .stApp { background-color: #ffffff; color: #000000; }
     html, body, [class*="css"] { font-family: 'Arial', sans-serif; font-weight: 600; color: #000000 !important; }
-    .block-container { padding-top: 0rem !important; padding-bottom: 0.5rem !important; padding-left: 1rem !important; padding-right: 1rem !important; }
     
-    /* Table Styling - White Headers & Bigger Text (15px) */
-    th { background-color: #ffffff !important; color: #000000 !important; font-size: 15px !important; text-align: center !important; border-bottom: 2px solid #222222 !important; border-top: 2px solid #222222 !important; padding: 10px !important; }
-    td { font-size: 15px !important; color: #000000 !important; border-bottom: 1px solid #ccc !important; text-align: center !important; padding: 8px !important; font-weight: 700 !important; }
+    /* Top Space Reduction */
+    .block-container { padding-top: 1rem !important; padding-bottom: 0rem !important; padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
     
-    /* Headings and Spacing */
-    h4 { margin: 5px 0px 5px 0px; font-size: 16px; text-transform: uppercase; border-bottom: 2px solid #333; padding-bottom: 5px; color: #000000 !important; }
-    .bull-head { background: #d4edda; color: #155724; padding: 8px; font-weight: bold; border: 1px solid #c3e6cb; margin-top: 5px; margin-bottom: 2px; font-size: 15px; }
-    .bear-head { background: #f8d7da; color: #721c24; padding: 8px; font-weight: bold; border: 1px solid #f5c6cb; margin-top: 5px; margin-bottom: 2px; font-size: 15px; }
-    div[data-testid="stDataFrame"] { margin-bottom: -10px; }
+    h4 { margin: 2px 0px 2px 0px; font-size: 15px; text-transform: uppercase; border-bottom: 2px solid #333; padding-bottom: 3px; color: #000000 !important; }
+    .bull-head { background: #d4edda; color: #155724; padding: 6px; font-weight: bold; border: 1px solid #c3e6cb; margin-top: 5px; margin-bottom: 2px; font-size: 15px;}
+    .bear-head { background: #f8d7da; color: #721c24; padding: 6px; font-weight: bold; border: 1px solid #f5c6cb; margin-top: 5px; margin-bottom: 2px; font-size: 15px;}
+    div[data-testid="stDataFrame"] { margin-bottom: -15px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -251,7 +246,7 @@ if data is not None and not data.empty:
         trend_bg, trend_txt = "#fff5f5", "#FF0000"
         
     st.markdown(f"""
-    <div style='text-align: center; padding: 8px; margin-top: 10px; margin-bottom: 5px; border-radius: 8px; border: 2px solid {trend_txt};
+    <div style='text-align: center; padding: 8px; margin-top: 5px; margin-bottom: 5px; border-radius: 8px; border: 2px solid {trend_txt};
                 background-color: {trend_bg}; color: {trend_txt}; font-size: 16px; font-weight: 900; box-shadow: 2px 2px 5px rgba(0,0,0,0.1);'>
         {market_trend}
     </div>
@@ -273,9 +268,14 @@ if data is not None and not data.empty:
         df_sec = pd.DataFrame(sec_rows).sort_values("DAY%", ascending=False)
         df_sec_t = df_sec.set_index("SECTOR").T
         
+        # టెక్స్ట్ సైజ్ 14px కి పెంచబడింది (ముందు 13px ఉండేది)
         styled_sec = df_sec_t.style.format("{:.2f}") \
             .map(style_sector_ranks) \
-            .set_properties(**{'text-align': 'center'})
+            .set_properties(**{'text-align': 'center', 'font-size': '15px', 'font-weight': '600'}) \
+            .set_table_styles([
+                {'selector': 'th', 'props': [('text-align', 'center'), ('background-color', 'white'), ('color', 'black'), ('font-size', '15px')]},
+                {'selector': 'td', 'props': [('text-align', 'center')]}
+            ])
             
         st.dataframe(styled_sec, use_container_width=True)
         top_sec = df_sec.iloc[0]['SECTOR']
@@ -296,7 +296,8 @@ if data is not None and not data.empty:
         styled_b = df_b.style.apply(highlight_priority, axis=1) \
             .map(style_move_col, subset=['MOVE']) \
             .map(style_action_col, subset=['ACTION']) \
-            .set_properties(**{'text-align': 'center'}) 
+            .set_properties(**{'text-align': 'center', 'font-size': '15px'}) \
+            .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '15px')]}])
             
         st.dataframe(styled_b, column_config=tv_link_config, use_container_width=True, hide_index=True)
 
@@ -310,7 +311,8 @@ if data is not None and not data.empty:
         styled_s = df_s.style.apply(highlight_priority, axis=1) \
             .map(style_move_col, subset=['MOVE']) \
             .map(style_action_col, subset=['ACTION']) \
-            .set_properties(**{'text-align': 'center'})
+            .set_properties(**{'text-align': 'center', 'font-size': '15px'}) \
+            .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '15px')]}])
             
         st.dataframe(styled_s, column_config=tv_link_config, use_container_width=True, hide_index=True)
 
@@ -325,7 +327,8 @@ if data is not None and not data.empty:
         styled_ind = df_ind.style.apply(highlight_priority, axis=1) \
             .map(style_move_col, subset=['MOVE']) \
             .map(style_action_col, subset=['ACTION']) \
-            .set_properties(**{'text-align': 'center'})
+            .set_properties(**{'text-align': 'center', 'font-size': '15px'}) \
+            .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '15px')]}])
             
         st.dataframe(styled_ind, column_config=tv_link_config, use_container_width=True, hide_index=True)
 
@@ -339,7 +342,8 @@ if data is not None and not data.empty:
         styled_brd = df_brd.style.apply(highlight_priority, axis=1) \
             .map(style_move_col, subset=['MOVE']) \
             .map(style_action_col, subset=['ACTION']) \
-            .set_properties(**{'text-align': 'center'})
+            .set_properties(**{'text-align': 'center', 'font-size': '15px'}) \
+            .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '15px')]}])
             
         st.dataframe(styled_brd, column_config=tv_link_config, use_container_width=True, hide_index=True)
 
