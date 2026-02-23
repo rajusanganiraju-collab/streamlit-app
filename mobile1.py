@@ -159,7 +159,6 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         stock_name = symbol.replace(".NS", "")
         tv_url = f"https://in.tradingview.com/chart/?symbol=NSE:{stock_name}"
         
-        # Action Column Removed from Here
         return {
             "STOCK": tv_url, "PRICE": f"{ltp:.2f}", "DAY%": f"{day_chg:.2f}",
             "NET%": f"{net_chg:.2f}", "MOVE": f"{todays_move:.2f}", 
@@ -205,13 +204,12 @@ loading_msg.empty()
 
 if data is not None and not data.empty:
     
-    # 1. DASHBOARD - 80% & 20% Layout with Single Unified Box for Indices
+    # 1. DASHBOARD - 80% & 20% Layout
     dash_left, dash_right = st.columns([0.8, 0.2]) 
     
     nifty_chg = 0.0
     
     with dash_left:
-        # ఎర్రర్ రాకుండా HTML అంతా సింగిల్ లైన్ లో యాడ్ చేశాను
         dash_html = '<div style="display: flex; justify-content: space-between; align-items: center; border: 2px solid #ddd; border-radius: 8px; background-color: #f9f9f9; padding: 5px; height: 80px;">'
         
         for idx, (ticker, name) in enumerate(INDICES.items()):
@@ -228,7 +226,6 @@ if data is not None and not data.empty:
                     
                     border_style = "border-right: 1px solid #ddd;" if idx < 4 else ""
                     
-                    # No newlines in HTML string to prevent markdown rendering issues
                     dash_html += f'<a href="{tv_url}" target="_blank" style="text-decoration: none; flex: 1; text-align: center; {border_style}"><div style="color: #444; font-size: 13px; font-weight: 800;">{name}</div><div style="color: black; font-size: 18px; font-weight: 900; margin: 2px 0px;">{ltp:.0f}</div><div style="color: {txt_color}; font-size: 14px; font-weight: bold;">{arrow} {pct:.1f}%</div></a>'
                     
                     if name == "NIFTY":
@@ -285,16 +282,16 @@ if data is not None and not data.empty:
         "STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)"),
     }
 
-    # 3. BUY & SELL TABLES (Side by Side)
+    # 3. BUY & SELL TABLES (Strictly Top 8 with perfect height)
     c_buy, c_sell = st.columns(2)
     
     with c_buy:
-        # Uniform Heading
         st.markdown(f"<div class='table-head head-bull'>🚀 BUY: {top_sec}</div>", unsafe_allow_html=True)
         res_b = [analyze(s, data, True) for s in SECTOR_MAP[top_sec]['stocks']]
         res_b = [x for x in res_b if x]
         if res_b:
-            df_b = pd.DataFrame(res_b).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"])
+            # Added .head(8) to limit to 8 rows max
+            df_b = pd.DataFrame(res_b).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8)
             df_b['SCORE'] = df_b['SCORE'].astype(str) 
             
             styled_b = df_b.style.apply(highlight_priority, axis=1) \
@@ -302,15 +299,16 @@ if data is not None and not data.empty:
                 .set_properties(**{'text-align': 'center', 'font-size': '14px'}) \
                 .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]}])
                 
-            st.dataframe(styled_b, column_config=tv_link_config, use_container_width=True, hide_index=True)
+            # Adjusted height to 380px to perfectly fit exactly 8 rows
+            st.dataframe(styled_b, column_config=tv_link_config, use_container_width=True, hide_index=True, height=380)
 
     with c_sell:
-        # Uniform Heading
         st.markdown(f"<div class='table-head head-bear'>🩸 SELL: {bot_sec}</div>", unsafe_allow_html=True)
         res_s = [analyze(s, data, False) for s in SECTOR_MAP[bot_sec]['stocks']]
         res_s = [x for x in res_s if x]
         if res_s:
-            df_s = pd.DataFrame(res_s).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"])
+            # Added .head(8) to limit to 8 rows max
+            df_s = pd.DataFrame(res_s).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8)
             df_s['SCORE'] = df_s['SCORE'].astype(str)
             
             styled_s = df_s.style.apply(highlight_priority, axis=1) \
@@ -318,13 +316,12 @@ if data is not None and not data.empty:
                 .set_properties(**{'text-align': 'center', 'font-size': '14px'}) \
                 .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]}])
                 
-            st.dataframe(styled_s, column_config=tv_link_config, use_container_width=True, hide_index=True)
+            st.dataframe(styled_s, column_config=tv_link_config, use_container_width=True, hide_index=True, height=380)
 
-    # 4. INDEPENDENT & BROADER (Side by Side)
+    # 4. INDEPENDENT & BROADER (Strictly Top 8 with perfect height)
     c_ind, c_brd = st.columns(2)
     
     with c_ind:
-        # Uniform Heading
         st.markdown("<div class='table-head head-neut'>🌟 INDEPENDENT (Top 8)</div>", unsafe_allow_html=True)
         ind_movers = [analyze(s, data, force=True) for name, info in SECTOR_MAP.items() if name not in [top_sec, bot_sec] for s in info['stocks']]
         ind_movers = [r for r in ind_movers if r and (float(r['VOL'][:-1]) >= 1.0 or r['SCORE'] >= 1)]
@@ -337,10 +334,9 @@ if data is not None and not data.empty:
                 .set_properties(**{'text-align': 'center', 'font-size': '14px'}) \
                 .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]}])
                 
-            st.dataframe(styled_ind, column_config=tv_link_config, use_container_width=True, hide_index=True)
+            st.dataframe(styled_ind, column_config=tv_link_config, use_container_width=True, hide_index=True, height=380)
 
     with c_brd:
-        # Uniform Heading
         st.markdown("<div class='table-head head-neut'>🌌 BROADER MARKET (Top 8)</div>", unsafe_allow_html=True)
         res_brd = [analyze(s, data, force=True) for s in BROADER_MARKET]
         res_brd = [x for x in res_brd if x and (float(x['VOL'][:-1]) >= 1.0 or x['SCORE'] >= 1)]
@@ -353,7 +349,7 @@ if data is not None and not data.empty:
                 .set_properties(**{'text-align': 'center', 'font-size': '14px'}) \
                 .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]}])
                 
-            st.dataframe(styled_brd, column_config=tv_link_config, use_container_width=True, hide_index=True)
+            st.dataframe(styled_brd, column_config=tv_link_config, use_container_width=True, hide_index=True, height=380)
 
 else:
     st.warning("స్టాక్ మార్కెట్ డేటా దొరకలేదు. బహుశా ఇంటర్నెట్ లేదా Yahoo Finance సర్వర్ నెమ్మదిగా ఉండి ఉండొచ్చు.")
