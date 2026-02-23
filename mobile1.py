@@ -47,6 +47,15 @@ INDICES = {
     "^IXIC": "NSDQ"
 }
 
+# TradingView లింక్స్ కోసం స్పెషల్ సింబల్స్ మ్యాపింగ్
+TV_INDICES = {
+    "^NSEI": "NSE:NIFTY",
+    "^NSEBANK": "NSE:BANKNIFTY",
+    "^INDIAVIX": "NSE:INDIAVIX",
+    "^DJI": "TVC:DJI",
+    "^IXIC": "NASDAQ:IXIC"
+}
+
 SECTOR_MAP = {
     "BANK": {"index": "^NSEBANK", "stocks": ["HDFCBANK", "ICICIBANK", "SBIN", "AXISBANK", "KOTAKBANK", "INDUSINDBK", "BANKBARODA", "PNB"]},
     "IT": {"index": "^CNXIT", "stocks": ["TCS", "INFY", "HCLTECH", "WIPRO", "TECHM", "LTIM", "PERSISTENT", "COFORGE"]},
@@ -187,7 +196,7 @@ loading_msg.empty()
 if data is not None and not data.empty:
     # 1. DASHBOARD
     st.markdown("#### 📉 DASHBOARD")
-    m_cols = st.columns(5) # 5 కాలమ్స్ ఒకే లైన్‌లో వస్తాయి
+    m_cols = st.columns(5)
     nifty_chg = 0.0
     for idx, (ticker, name) in enumerate(INDICES.items()):
         try:
@@ -198,12 +207,22 @@ if data is not None and not data.empty:
                 
                 arrow = "↑" if pct >= 0 else "↓"
                 txt_color = "#008000" if pct >= 0 else "#FF0000"
+                bg_color = "#e6fffa" if pct >= 0 else "#fff5f5"  # Green or Red Background
+                border_color = "#c3e6cb" if pct >= 0 else "#f5c6cb"
+                
+                # TradingView లింక్ క్రియేట్ చేయడం
+                tv_symbol = TV_INDICES.get(ticker, "")
+                tv_url = f"https://in.tradingview.com/chart/?symbol={tv_symbol}"
+                
+                # Custom HTML Block with Link
                 m_cols[idx].markdown(f'''
-                <div style="text-align: center; padding: 5px; border: 1px solid #ddd; border-radius: 8px; background-color: #f9f9f9;">
-                    <div style="color: black; font-size: 13px; font-weight: 800;">{name}</div>
-                    <div style="color: black; font-size: 18px; font-weight: 900; margin: 4px 0px;">{ltp:.0f}</div>
-                    <div style="color: {txt_color}; font-size: 13px; font-weight: bold;">{arrow} {pct:.1f}%</div>
-                </div>
+                <a href="{tv_url}" target="_blank" style="text-decoration: none;">
+                    <div style="text-align: center; padding: 5px; border: 2px solid {border_color}; border-radius: 8px; background-color: {bg_color}; cursor: pointer;">
+                        <div style="color: black; font-size: 13px; font-weight: 800;">{name}</div>
+                        <div style="color: black; font-size: 18px; font-weight: 900; margin: 4px 0px;">{ltp:.0f}</div>
+                        <div style="color: {txt_color}; font-size: 13px; font-weight: bold;">{arrow} {pct:.1f}%</div>
+                    </div>
+                </a>
                 ''', unsafe_allow_html=True)
                 
                 if name == "NIFTY":
@@ -214,14 +233,14 @@ if data is not None and not data.empty:
     # --- BULLISH / BEARISH INDICATOR ---
     if nifty_chg >= 0:
         market_trend = "BULLISH 🚀"
-        bg_color, text_color = "#e6fffa", "#008000"
+        trend_bg, trend_txt = "#e6fffa", "#008000"
     else:
         market_trend = "BEARISH 🩸"
-        bg_color, text_color = "#fff5f5", "#FF0000"
+        trend_bg, trend_txt = "#fff5f5", "#FF0000"
         
     st.markdown(f"""
-    <div style='text-align: center; padding: 10px; margin-top: 15px; border-radius: 8px; border: 2px solid {text_color};
-                background-color: {bg_color}; color: {text_color}; font-size: 18px; font-weight: 900; box-shadow: 2px 2px 5px rgba(0,0,0,0.1);'>
+    <div style='text-align: center; padding: 10px; margin-top: 15px; border-radius: 8px; border: 2px solid {trend_txt};
+                background-color: {trend_bg}; color: {trend_txt}; font-size: 18px; font-weight: 900; box-shadow: 2px 2px 5px rgba(0,0,0,0.1);'>
         {market_trend}
     </div>
     """, unsafe_allow_html=True)
@@ -256,7 +275,7 @@ if data is not None and not data.empty:
 
     st.divider()
 
-    # --- TRADINGVIEW LINK CONFIGURATION ---
+    # --- TRADINGVIEW LINK CONFIGURATION FOR TABLES ---
     tv_link_config = {
         "STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)")
     }
