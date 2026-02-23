@@ -47,7 +47,7 @@ INDICES = {
     "^IXIC": "NSDQ"
 }
 
-# TradingView లింక్స్ కోసం స్పెషల్ సింబల్స్ మ్యాపింగ్
+# TradingView లింక్స్ కోసం
 TV_INDICES = {
     "^NSEI": "NSE:NIFTY",
     "^NSEBANK": "NSE:BANKNIFTY",
@@ -131,7 +131,6 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         vwap = (high + low + ltp) / 3
 
         if force: check_bullish = day_chg > 0
-        sl, tgt = (low, ltp * 1.02) if check_bullish else (high, ltp * 0.98)
         status, score = [], 0
         
         is_open_low = abs(open_p - low) <= (ltp * 0.003)
@@ -157,21 +156,34 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         stock_name = symbol.replace(".NS", "")
         tv_url = f"https://in.tradingview.com/chart/?symbol=NSE:{stock_name}"
         
+        # Zerodha Kite లింక్ క్రియేట్ చేయడం
+        action_word = "BUY" if check_bullish else "SELL"
+        kite_url = f"https://kite.zerodha.com/chart/web/tvc/NSE/{stock_name}#{action_word}"
+        
         return {
             "STOCK": tv_url, "PRICE": f"{ltp:.2f}", "DAY%": f"{day_chg:.2f}",
-            "NET%": f"{net_chg:.2f}", "MOVE": f"{todays_move:.2f}", "SL": f"{sl:.2f}",
-            "TGT": f"{tgt:.2f}", "VOL": f"{vol_x:.1f}x", "STATUS": " ".join(status), "SCORE": score,
+            "NET%": f"{net_chg:.2f}", "MOVE": f"{todays_move:.2f}", 
+            "VOL": f"{vol_x:.1f}x", "STATUS": " ".join(status), "SCORE": score, "ACTION": kite_url,
             "VOL_NUM": vol_x
         }
     except: return None
 
-# --- Custom Styling ---
+# --- Custom Styling (Fixed Background Logic) ---
 def highlight_priority(row):
-    score = int(row['SCORE'])
+    status_str = str(row['STATUS'])
     day_chg = float(row['DAY%'])
-    if score >= 9:
+    
+    # ముఖ్యమైన 3 కండిషన్స్ లో ఏవైనా 2 వస్తే హైలైట్ అవ్వడానికి లాజిక్
+    major_conditions = 0
+    if "BigMove" in status_str: major_conditions += 1
+    if "O=L" in status_str or "O=H" in status_str: major_conditions += 1
+    if "VOL" in status_str: major_conditions += 1
+    
+    # 2 లేదా అంతకంటే ఎక్కువ కండిషన్స్ సాటిస్ఫై అయితే...
+    if major_conditions >= 2:
         if day_chg >= 0: return ['background-color: #e6fffa; color: #008000; font-weight: 900'] * len(row)
         else: return ['background-color: #fff5f5; color: #FF0000; font-weight: 900'] * len(row)
+        
     return ['background-color: white; color: black'] * len(row)
 
 def style_move_col(val):
@@ -207,14 +219,12 @@ if data is not None and not data.empty:
                 
                 arrow = "↑" if pct >= 0 else "↓"
                 txt_color = "#008000" if pct >= 0 else "#FF0000"
-                bg_color = "#e6fffa" if pct >= 0 else "#fff5f5"  # Green or Red Background
+                bg_color = "#e6fffa" if pct >= 0 else "#fff5f5"
                 border_color = "#c3e6cb" if pct >= 0 else "#f5c6cb"
                 
-                # TradingView లింక్ క్రియేట్ చేయడం
                 tv_symbol = TV_INDICES.get(ticker, "")
                 tv_url = f"https://in.tradingview.com/chart/?symbol={tv_symbol}"
                 
-                # Custom HTML Block with Link
                 m_cols[idx].markdown(f'''
                 <a href="{tv_url}" target="_blank" style="text-decoration: none;">
                     <div style="text-align: center; padding: 5px; border: 2px solid {border_color}; border-radius: 8px; background-color: {bg_color}; cursor: pointer;">
@@ -275,9 +285,10 @@ if data is not None and not data.empty:
 
     st.divider()
 
-    # --- TRADINGVIEW LINK CONFIGURATION FOR TABLES ---
+    # --- LINK CONFIGURATION FOR TABLES ---
     tv_link_config = {
-        "STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)")
+        "STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)"),
+        "ACTION": st.column_config.LinkColumn("ACTION", display_text=r".*#(.*)")
     }
 
     # 3. BUY & SELL TABLES
