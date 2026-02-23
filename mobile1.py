@@ -10,6 +10,7 @@ st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
 
+# టేబుల్స్ మధ్య స్పేస్ తగ్గించడానికి CSS లో మార్జిన్స్ మార్చబడ్డాయి
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -20,15 +21,17 @@ st.markdown("""
     
     .stApp { background-color: #ffffff; color: #000000; }
     html, body, [class*="css"] { font-family: 'Arial', sans-serif; font-weight: 600; color: #000000 !important; }
-    .block-container { padding: 1rem; }
+    .block-container { padding: 0.5rem 1rem; }
     
     /* Table Styling - Centered */
     th { background-color: #222222 !important; color: white !important; font-size: 13px !important; text-align: center !important; }
     td { font-size: 13px !important; color: #000000 !important; border-bottom: 1px solid #ddd; text-align: center !important; }
     
-    h4 { margin: 15px 0px; font-size: 14px; text-transform: uppercase; border-bottom: 2px solid #333; padding-bottom: 5px; color: #000000 !important; }
-    .bull-head { background: #d4edda; color: #155724; padding: 8px; font-weight: bold; border: 1px solid #c3e6cb; margin-top: 10px; }
-    .bear-head { background: #f8d7da; color: #721c24; padding: 8px; font-weight: bold; border: 1px solid #f5c6cb; margin-top: 10px; }
+    /* Headings and Spacing reduction */
+    h4 { margin: 10px 0px 5px 0px; font-size: 14px; text-transform: uppercase; border-bottom: 2px solid #333; padding-bottom: 5px; color: #000000 !important; }
+    .bull-head { background: #d4edda; color: #155724; padding: 6px; font-weight: bold; border: 1px solid #c3e6cb; margin-top: 5px; margin-bottom: 2px; }
+    .bear-head { background: #f8d7da; color: #721c24; padding: 6px; font-weight: bold; border: 1px solid #f5c6cb; margin-top: 5px; margin-bottom: 2px; }
+    div[data-testid="stDataFrame"] { margin-bottom: -10px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -47,7 +50,6 @@ INDICES = {
     "^IXIC": "NSDQ"
 }
 
-# TradingView లింక్స్ కోసం
 TV_INDICES = {
     "^NSEI": "NSE:NIFTY",
     "^NSEBANK": "NSE:BANKNIFTY",
@@ -152,34 +154,28 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
             
         if not status: return None
         
-        # TradingView లింక్ క్రియేట్ చేయడం
         stock_name = symbol.replace(".NS", "")
         tv_url = f"https://in.tradingview.com/chart/?symbol=NSE:{stock_name}"
-        
-        # Zerodha Kite లింక్ క్రియేట్ చేయడం
         action_word = "BUY" if check_bullish else "SELL"
-        kite_url = f"https://kite.zerodha.com/chart/web/tvc/NSE/{stock_name}#{action_word}"
         
         return {
             "STOCK": tv_url, "PRICE": f"{ltp:.2f}", "DAY%": f"{day_chg:.2f}",
             "NET%": f"{net_chg:.2f}", "MOVE": f"{todays_move:.2f}", 
-            "VOL": f"{vol_x:.1f}x", "STATUS": " ".join(status), "SCORE": score, "ACTION": kite_url,
+            "VOL": f"{vol_x:.1f}x", "STATUS": " ".join(status), "SCORE": score, "ACTION": action_word,
             "VOL_NUM": vol_x
         }
     except: return None
 
-# --- Custom Styling (Fixed Background Logic) ---
+# --- Custom Styling ---
 def highlight_priority(row):
     status_str = str(row['STATUS'])
     day_chg = float(row['DAY%'])
     
-    # ముఖ్యమైన 3 కండిషన్స్ లో ఏవైనా 2 వస్తే హైలైట్ అవ్వడానికి లాజిక్
     major_conditions = 0
     if "BigMove" in status_str: major_conditions += 1
     if "O=L" in status_str or "O=H" in status_str: major_conditions += 1
     if "VOL" in status_str: major_conditions += 1
     
-    # 2 లేదా అంతకంటే ఎక్కువ కండిషన్స్ సాటిస్ఫై అయితే...
     if major_conditions >= 2:
         if day_chg >= 0: return ['background-color: #e6fffa; color: #008000; font-weight: 900'] * len(row)
         else: return ['background-color: #fff5f5; color: #FF0000; font-weight: 900'] * len(row)
@@ -192,6 +188,13 @@ def style_move_col(val):
         color, text = ('#d4edda', '#155724') if v >= 0 else ('#f8d7da', '#721c24')
         return f'background-color: {color}; color: {text}; font-weight: bold;'
     except: return ''
+
+def style_action_col(val):
+    if val == "BUY":
+        return 'color: #008000; font-weight: 900;'
+    elif val == "SELL":
+        return 'color: #FF0000; font-weight: 900;'
+    return ''
 
 def style_sector_ranks(val):
     if not isinstance(val, float): return ''
@@ -240,7 +243,6 @@ if data is not None and not data.empty:
                     nifty_chg = ((ltp - o_now) / o_now) * 100
         except: continue
         
-    # --- BULLISH / BEARISH INDICATOR ---
     if nifty_chg >= 0:
         market_trend = "BULLISH 🚀"
         trend_bg, trend_txt = "#e6fffa", "#008000"
@@ -249,8 +251,8 @@ if data is not None and not data.empty:
         trend_bg, trend_txt = "#fff5f5", "#FF0000"
         
     st.markdown(f"""
-    <div style='text-align: center; padding: 10px; margin-top: 15px; border-radius: 8px; border: 2px solid {trend_txt};
-                background-color: {trend_bg}; color: {trend_txt}; font-size: 18px; font-weight: 900; box-shadow: 2px 2px 5px rgba(0,0,0,0.1);'>
+    <div style='text-align: center; padding: 6px; margin-top: 10px; margin-bottom: 5px; border-radius: 8px; border: 2px solid {trend_txt};
+                background-color: {trend_bg}; color: {trend_txt}; font-size: 16px; font-weight: 900; box-shadow: 2px 2px 5px rgba(0,0,0,0.1);'>
         {market_trend}
     </div>
     """, unsafe_allow_html=True)
@@ -283,12 +285,8 @@ if data is not None and not data.empty:
         top_sec = df_sec.iloc[0]['SECTOR']
         bot_sec = df_sec.iloc[-1]['SECTOR']
 
-    st.divider()
-
-    # --- LINK CONFIGURATION FOR TABLES ---
     tv_link_config = {
         "STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)"),
-        "ACTION": st.column_config.LinkColumn("ACTION", display_text=r".*#(.*)")
     }
 
     # 3. BUY & SELL TABLES
@@ -301,6 +299,7 @@ if data is not None and not data.empty:
         
         styled_b = df_b.style.apply(highlight_priority, axis=1) \
             .map(style_move_col, subset=['MOVE']) \
+            .map(style_action_col, subset=['ACTION']) \
             .set_properties(**{'text-align': 'center'}) 
             
         st.dataframe(styled_b, column_config=tv_link_config, use_container_width=True, hide_index=True)
@@ -314,11 +313,10 @@ if data is not None and not data.empty:
         
         styled_s = df_s.style.apply(highlight_priority, axis=1) \
             .map(style_move_col, subset=['MOVE']) \
+            .map(style_action_col, subset=['ACTION']) \
             .set_properties(**{'text-align': 'center'})
             
         st.dataframe(styled_s, column_config=tv_link_config, use_container_width=True, hide_index=True)
-
-    st.divider()
 
     # 4. INDEPENDENT & BROADER
     st.markdown("#### 🌟 INDEPENDENT (Top 8)")
@@ -330,6 +328,7 @@ if data is not None and not data.empty:
         
         styled_ind = df_ind.style.apply(highlight_priority, axis=1) \
             .map(style_move_col, subset=['MOVE']) \
+            .map(style_action_col, subset=['ACTION']) \
             .set_properties(**{'text-align': 'center'})
             
         st.dataframe(styled_ind, column_config=tv_link_config, use_container_width=True, hide_index=True)
@@ -343,6 +342,7 @@ if data is not None and not data.empty:
         
         styled_brd = df_brd.style.apply(highlight_priority, axis=1) \
             .map(style_move_col, subset=['MOVE']) \
+            .map(style_action_col, subset=['ACTION']) \
             .set_properties(**{'text-align': 'center'})
             
         st.dataframe(styled_brd, column_config=tv_link_config, use_container_width=True, hide_index=True)
