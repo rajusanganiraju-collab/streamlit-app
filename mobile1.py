@@ -10,27 +10,27 @@ st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
 
-# టేబుల్స్ మధ్య స్పేస్ తగ్గించడానికి CSS లో మార్జిన్స్ మార్చబడ్డాయి
+# CSS మార్పులు: పైన స్పేస్ తగ్గింపు, వైట్ టేబుల్ హెడర్స్, పెద్ద అక్షరాలు (15px)
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    header {visibility: hidden;}
+    header {display: none !important;} /* పైన ఉన్న ఖాళీ స్థలాన్ని పూర్తిగా తీసేస్తుంది */
     button[title="View fullscreen"] {visibility: hidden;}
     [data-testid="stStatusWidget"] {display: none;}
     
     .stApp { background-color: #ffffff; color: #000000; }
     html, body, [class*="css"] { font-family: 'Arial', sans-serif; font-weight: 600; color: #000000 !important; }
-    .block-container { padding: 0.5rem 1rem; }
+    .block-container { padding-top: 0rem !important; padding-bottom: 0.5rem !important; padding-left: 1rem !important; padding-right: 1rem !important; }
     
-    /* Table Styling - Centered */
-    th { background-color: #222222 !important; color: white !important; font-size: 13px !important; text-align: center !important; }
-    td { font-size: 13px !important; color: #000000 !important; border-bottom: 1px solid #ddd; text-align: center !important; }
+    /* Table Styling - White Headers & Bigger Text (15px) */
+    th { background-color: #ffffff !important; color: #000000 !important; font-size: 15px !important; text-align: center !important; border-bottom: 2px solid #222222 !important; border-top: 2px solid #222222 !important; padding: 10px !important; }
+    td { font-size: 15px !important; color: #000000 !important; border-bottom: 1px solid #ccc !important; text-align: center !important; padding: 8px !important; font-weight: 700 !important; }
     
-    /* Headings and Spacing reduction */
-    h4 { margin: 10px 0px 5px 0px; font-size: 14px; text-transform: uppercase; border-bottom: 2px solid #333; padding-bottom: 5px; color: #000000 !important; }
-    .bull-head { background: #d4edda; color: #155724; padding: 6px; font-weight: bold; border: 1px solid #c3e6cb; margin-top: 5px; margin-bottom: 2px; }
-    .bear-head { background: #f8d7da; color: #721c24; padding: 6px; font-weight: bold; border: 1px solid #f5c6cb; margin-top: 5px; margin-bottom: 2px; }
+    /* Headings and Spacing */
+    h4 { margin: 5px 0px 5px 0px; font-size: 16px; text-transform: uppercase; border-bottom: 2px solid #333; padding-bottom: 5px; color: #000000 !important; }
+    .bull-head { background: #d4edda; color: #155724; padding: 8px; font-weight: bold; border: 1px solid #c3e6cb; margin-top: 5px; margin-bottom: 2px; font-size: 15px; }
+    .bear-head { background: #f8d7da; color: #721c24; padding: 8px; font-weight: bold; border: 1px solid #f5c6cb; margin-top: 5px; margin-bottom: 2px; font-size: 15px; }
     div[data-testid="stDataFrame"] { margin-bottom: -10px; }
     </style>
     """, unsafe_allow_html=True)
@@ -186,7 +186,7 @@ def style_move_col(val):
     try:
         v = float(val)
         color, text = ('#d4edda', '#155724') if v >= 0 else ('#f8d7da', '#721c24')
-        return f'background-color: {color}; color: {text}; font-weight: bold;'
+        return f'background-color: {color}; color: {text}; font-weight: 800;'
     except: return ''
 
 def style_action_col(val):
@@ -199,7 +199,7 @@ def style_action_col(val):
 def style_sector_ranks(val):
     if not isinstance(val, float): return ''
     color, text = ('#d4edda', '#155724') if val >= 0 else ('#f8d7da', '#721c24')
-    return f'background-color: {color}; color: {text};'
+    return f'background-color: {color}; color: {text}; font-weight: 700;'
 
 # --- 5. EXECUTION ---
 loading_msg = st.empty()
@@ -230,10 +230,10 @@ if data is not None and not data.empty:
                 
                 m_cols[idx].markdown(f'''
                 <a href="{tv_url}" target="_blank" style="text-decoration: none;">
-                    <div style="text-align: center; padding: 5px; border: 2px solid {border_color}; border-radius: 8px; background-color: {bg_color}; cursor: pointer;">
-                        <div style="color: black; font-size: 13px; font-weight: 800;">{name}</div>
-                        <div style="color: black; font-size: 18px; font-weight: 900; margin: 4px 0px;">{ltp:.0f}</div>
-                        <div style="color: {txt_color}; font-size: 13px; font-weight: bold;">{arrow} {pct:.1f}%</div>
+                    <div style="text-align: center; padding: 6px; border: 2px solid {border_color}; border-radius: 8px; background-color: {bg_color}; cursor: pointer;">
+                        <div style="color: black; font-size: 14px; font-weight: 800;">{name}</div>
+                        <div style="color: black; font-size: 19px; font-weight: 900; margin: 4px 0px;">{ltp:.0f}</div>
+                        <div style="color: {txt_color}; font-size: 14px; font-weight: bold;">{arrow} {pct:.1f}%</div>
                     </div>
                 </a>
                 ''', unsafe_allow_html=True)
@@ -251,7 +251,7 @@ if data is not None and not data.empty:
         trend_bg, trend_txt = "#fff5f5", "#FF0000"
         
     st.markdown(f"""
-    <div style='text-align: center; padding: 6px; margin-top: 10px; margin-bottom: 5px; border-radius: 8px; border: 2px solid {trend_txt};
+    <div style='text-align: center; padding: 8px; margin-top: 10px; margin-bottom: 5px; border-radius: 8px; border: 2px solid {trend_txt};
                 background-color: {trend_bg}; color: {trend_txt}; font-size: 16px; font-weight: 900; box-shadow: 2px 2px 5px rgba(0,0,0,0.1);'>
         {market_trend}
     </div>
@@ -275,11 +275,7 @@ if data is not None and not data.empty:
         
         styled_sec = df_sec_t.style.format("{:.2f}") \
             .map(style_sector_ranks) \
-            .set_properties(**{'text-align': 'center', 'font-weight': '600'}) \
-            .set_table_styles([
-                {'selector': 'th', 'props': [('text-align', 'center')]},
-                {'selector': 'td', 'props': [('text-align', 'center')]}
-            ])
+            .set_properties(**{'text-align': 'center'})
             
         st.dataframe(styled_sec, use_container_width=True)
         top_sec = df_sec.iloc[0]['SECTOR']
