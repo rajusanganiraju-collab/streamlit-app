@@ -24,8 +24,8 @@ st.markdown("""
     .block-container { padding-top: 0.5rem !important; padding-bottom: 0rem !important; padding-left: 0.5rem !important; padding-right: 0.5rem !important; margin-top: -10px; }
     
     /* Table Styling - Centered */
-    th { background-color: #ffffff !important; color: #000000 !important; font-size: 14px !important; text-align: center !important; border-bottom: 2px solid #222222 !important; border-top: 2px solid #222222 !important; padding: 6px !important; }
-    td { font-size: 14px !important; color: #000000 !important; border-bottom: 1px solid #ccc !important; text-align: center !important; padding: 4px !important; font-weight: 700 !important; }
+    th { background-color: #ffffff !important; color: #000000 !important; font-size: 16px !important; text-align: center !important; border-bottom: 2px solid #222222 !important; border-top: 2px solid #222222 !important; padding: 10px !important; }
+    td { font-size: 16px !important; color: #000000 !important; border-bottom: 1px solid #ccc !important; text-align: center !important; padding: 8px !important; font-weight: 700 !important; }
     
     /* UNIFIED TABLE HEADINGS (All Equal Size & Font) */
     .table-head { padding: 6px 10px; font-weight: 900; font-size: 15px; text-transform: uppercase; margin-top: 8px; margin-bottom: 2px; border-radius: 4px; text-align: left; }
@@ -268,9 +268,9 @@ if data is not None and not data.empty:
         
         styled_sec = df_sec_t.style.format("{:.2f}") \
             .map(style_sector_ranks) \
-            .set_properties(**{'text-align': 'center', 'font-size': '14px', 'font-weight': '600'}) \
+            .set_properties(**{'text-align': 'center', 'font-size': '15px', 'font-weight': '600', 'padding': '8px'}) \
             .set_table_styles([
-                {'selector': 'th', 'props': [('text-align', 'center'), ('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]},
+                {'selector': 'th', 'props': [('text-align', 'center'), ('background-color', 'white'), ('color', 'black'), ('font-size', '15px')]},
                 {'selector': 'td', 'props': [('text-align', 'center')]}
             ])
             
@@ -282,7 +282,7 @@ if data is not None and not data.empty:
         "STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)"),
     }
 
-    # 3. BUY & SELL TABLES (Strictly Top 8 with perfect height 320px)
+    # 3. BUY & SELL TABLES (Bigger Text - 16px, Height adjusted to cover space)
     c_buy, c_sell = st.columns(2)
     
     with c_buy:
@@ -295,11 +295,11 @@ if data is not None and not data.empty:
             
             styled_b = df_b.style.apply(highlight_priority, axis=1) \
                 .map(style_move_col, subset=['MOVE']) \
-                .set_properties(**{'text-align': 'center', 'font-size': '14px'}) \
-                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]}])
+                .set_properties(**{'text-align': 'center', 'font-size': '16px', 'padding': '10px 5px'}) \
+                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '16px')]}])
                 
-            # Height reduced to 320 to perfectly fit 8 rows without empty space
-            st.dataframe(styled_b, column_config=tv_link_config, use_container_width=True, hide_index=True, height=320)
+            # Height set to 420px to nicely fit 8 bold/bigger rows
+            st.dataframe(styled_b, column_config=tv_link_config, use_container_width=True, hide_index=True, height=420)
 
     with c_sell:
         st.markdown(f"<div class='table-head head-bear'>🩸 SELL: {bot_sec}</div>", unsafe_allow_html=True)
@@ -311,12 +311,12 @@ if data is not None and not data.empty:
             
             styled_s = df_s.style.apply(highlight_priority, axis=1) \
                 .map(style_move_col, subset=['MOVE']) \
-                .set_properties(**{'text-align': 'center', 'font-size': '14px'}) \
-                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]}])
+                .set_properties(**{'text-align': 'center', 'font-size': '16px', 'padding': '10px 5px'}) \
+                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '16px')]}])
                 
-            st.dataframe(styled_s, column_config=tv_link_config, use_container_width=True, hide_index=True, height=320)
+            st.dataframe(styled_s, column_config=tv_link_config, use_container_width=True, hide_index=True, height=420)
 
-    # 4. INDEPENDENT & BROADER (Strictly Top 8 with perfect height 320px)
+    # 4. INDEPENDENT & BROADER
     c_ind, c_brd = st.columns(2)
     
     with c_ind:
@@ -329,10 +329,10 @@ if data is not None and not data.empty:
             
             styled_ind = df_ind.style.apply(highlight_priority, axis=1) \
                 .map(style_move_col, subset=['MOVE']) \
-                .set_properties(**{'text-align': 'center', 'font-size': '14px'}) \
-                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]}])
+                .set_properties(**{'text-align': 'center', 'font-size': '16px', 'padding': '10px 5px'}) \
+                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '16px')]}])
                 
-            st.dataframe(styled_ind, column_config=tv_link_config, use_container_width=True, hide_index=True, height=320)
+            st.dataframe(styled_ind, column_config=tv_link_config, use_container_width=True, hide_index=True, height=420)
 
     with c_brd:
         st.markdown("<div class='table-head head-neut'>🌌 BROADER MARKET (Top 8)</div>", unsafe_allow_html=True)
@@ -344,10 +344,10 @@ if data is not None and not data.empty:
             
             styled_brd = df_brd.style.apply(highlight_priority, axis=1) \
                 .map(style_move_col, subset=['MOVE']) \
-                .set_properties(**{'text-align': 'center', 'font-size': '14px'}) \
-                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]}])
+                .set_properties(**{'text-align': 'center', 'font-size': '16px', 'padding': '10px 5px'}) \
+                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '16px')]}])
                 
-            st.dataframe(styled_brd, column_config=tv_link_config, use_container_width=True, hide_index=True, height=320)
+            st.dataframe(styled_brd, column_config=tv_link_config, use_container_width=True, hide_index=True, height=420)
 
 else:
     st.warning("స్టాక్ మార్కెట్ డేటా దొరకలేదు. బహుశా ఇంటర్నెట్ లేదా Yahoo Finance సర్వర్ నెమ్మదిగా ఉండి ఉండొచ్చు.")
