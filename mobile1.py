@@ -8,7 +8,7 @@ from streamlit_autorefresh import st_autorefresh
 st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
 st_autorefresh(interval=60000, key="datarefresh")
 
-# CSS - Unified Layout
+# CSS - స్థిరమైన లేఅవుట్ సెట్టింగ్స్
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
@@ -35,14 +35,12 @@ INDICES = {"^NSEI": "NIFTY", "^NSEBANK": "BNKNFY", "^INDIAVIX": "VIX", "^DJI": "
 TV_INDICES = {"^NSEI": "NSE:NIFTY", "^NSEBANK": "NSE:BANKNIFTY", "^INDIAVIX": "NSE:INDIAVIX", "^DJI": "TVC:DJI", "^IXIC": "NASDAQ:IXIC"}
 
 SECTOR_MAP = {
-    "BANK": {"index": "^NSEBANK", "stocks": ["HDFCBANK", "ICICIBANK", "SBIN", "AXISBANK", "KOTAKBANK", "INDUSINDBK", "BANKBARODA", "PNB"]},
-    "IT": {"index": "^CNXIT", "stocks": ["TCS", "INFY", "HCLTECH", "WIPRO", "TECHM", "LTIM", "PERSISTENT", "COFORGE"]},
-    "AUTO": {"index": "^CNXAUTO", "stocks": ["MARUTI", "M&M", "EICHERMOT", "BAJAJ-AUTO", "TVSMOTOR", "ASHOKLEY", "HEROMOTOCO"]},
-    "METAL": {"index": "^CNXMETAL", "stocks": ["TATASTEEL", "JSWSTEEL", "HINDALCO", "VEDL", "JINDALSTEL", "NMDC", "SAIL"]},
-    "PHARMA": {"index": "^CNXPHARMA", "stocks": ["SUNPHARMA", "DRREDDY", "CIPLA", "DIVISLAB", "LUPIN", "AUROPHARMA"]},
-    "FMCG": {"index": "^CNXFMCG", "stocks": ["ITC", "HINDUNILVR", "BRITANNIA", "VBL", "NESTLEIND"]},
-    "ENERGY": {"index": "^CNXENERGY", "stocks": ["RELIANCE", "NTPC", "ONGC", "POWERGRID", "BPCL", "TATAPOWER"]},
-    "REALTY": {"index": "^CNXREALTY", "stocks": ["DLF", "GODREJPROP", "LODHA", "OBEROIRLTY"]}
+    "BANK": ["HDFCBANK", "ICICIBANK", "SBIN", "AXISBANK", "KOTAKBANK", "INDUSINDBK", "BANKBARODA", "PNB"],
+    "IT": ["TCS", "INFY", "HCLTECH", "WIPRO", "TECHM", "LTIM", "PERSISTENT", "COFORGE"],
+    "AUTO": ["MARUTI", "M&M", "EICHERMOT", "BAJAJ-AUTO", "TVSMOTOR", "ASHOKLEY", "HEROMOTOCO"],
+    "METAL": ["TATASTEEL", "JSWSTEEL", "HINDALCO", "VEDL", "JINDALSTEL", "NMDC", "SAIL"],
+    "PHARMA": ["SUNPHARMA", "DRREDDY", "CIPLA", "DIVISLAB", "LUPIN", "AUROPHARMA"],
+    "ENERGY": ["RELIANCE", "NTPC", "ONGC", "POWERGRID", "BPCL", "TATAPOWER"]
 }
 
 BROADER_MARKET = ["HAL", "BEL", "BDL", "RVNL", "IRFC", "DIXON", "POLYCAB", "LT", "BAJFINANCE", "ZOMATO", "TRENT", "ADANIENT", "RELIANCE"]
@@ -50,10 +48,8 @@ BROADER_MARKET = [format_ticker(s) for s in BROADER_MARKET]
 
 @st.cache_data(ttl=60)
 def get_data():
-    all_tickers = list(INDICES.keys()) + BROADER_MARKET
-    for s in SECTOR_MAP.values():
-        all_tickers.append(s['index'])
-        all_tickers.extend([format_ticker(stk) for stk in s['stocks']])
+    all_stocks = [format_ticker(s) for group in SECTOR_MAP.values() for s in group]
+    all_tickers = list(INDICES.keys()) + BROADER_MARKET + all_stocks
     all_tickers = list(set(all_tickers))
     try:
         data = yf.download(all_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=False)
@@ -71,27 +67,23 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         df['VWAP'] = df['CVP'] / df['CV']
         today_df = df[df.index.date == df.index.date[-1]].copy()
         if today_df.empty: return None
-        ltp = float(today_df['Close'].iloc[-1]); op = float(today_df['Open'].iloc[0]); vwap = float(today_df['VWAP'].iloc[-1])
-        day_chg = ((ltp - op) / op) * 100; is_bull = ltp > vwap
+        ltp, op, vwap = float(today_df['Close'].iloc[-1]), float(today_df['Open'].iloc[0]), float(today_df['VWAP'].iloc[-1])
+        day_chg, is_bull = ((ltp-op)/op)*100, ltp > vwap
         if not force and ((check_bullish and not is_bull) or (not check_bullish and is_bull)): return None
+        # ⚡ ACCUMULATOR LOGIC
         if is_bull: today_df['Valid'] = (today_df['Close'] > today_df['VWAP']) & (today_df['Close'] > today_df['EMA10'])
         else: today_df['Valid'] = (today_df['Close'] < today_df['VWAP']) & (today_df['Close'] < today_df['EMA10'])
         valid_candles = int(today_df['Valid'].sum())
         if valid_candles < 1: return None
         time_str = f"{(valid_candles*5)//60}h {(valid_candles*5)%60}m" if (valid_candles*5)>=60 else f"{valid_candles*5}m"
-        first_c, first_v = today_df['Close'].iloc[0], today_df['VWAP'].iloc[0]
-        tag = "VWAP-Trap" if (is_bull and first_c < first_v) or (not is_bull and first_c > first_v) else "VWAP-Pure"
-        return {"STOCK": f"https://in.tradingview.com/chart/?symbol=NSE:{symbol.replace('.NS','')}", "PRICE": f"{ltp:.2f}", "DAY%": f"{day_chg:.2f}", "STAT": f"{'🚀' if is_bull else '🩸'} {tag} ({time_str})", "CANDLES": int(valid_candles)}
+        return {"STOCK": f"https://in.tradingview.com/chart/?symbol=NSE:{symbol.replace('.NS','')}", "PRICE": f"{ltp:.2f}", "DAY%": f"{day_chg:.2f}", "STAT": f"{'🚀' if is_bull else '🩸'} ({time_str})", "CANDLES": int(valid_candles)}
     except: return None
 
-# ⚡ SAFE STYLING: ఎర్రర్ రాకుండా కాలమ్ చెక్ చేస్తుంది
 def highlight_priority(row):
     try:
-        if 'DAY%' in row:
-            day_chg = float(row['DAY%'])
-            return ['background-color: #e6fffa; color: #008000; font-weight: 900'] * len(row) if day_chg >= 0 else ['background-color: #fff5f5; color: #FF0000; font-weight: 900'] * len(row)
-    except: pass
-    return ['background-color: white; color: black'] * len(row)
+        day_chg = float(row['DAY%'])
+        return ['background-color: #e6fffa; color: #008000; font-weight: 900'] * len(row) if day_chg >= 0 else ['background-color: #fff5f5; color: #FF0000; font-weight: 900'] * len(row)
+    except: return ['background-color: white; color: black'] * len(row)
 
 # --- 3. EXECUTION ---
 data = get_data()
@@ -112,49 +104,39 @@ if data is not None:
     with dash_right:
         st.markdown(f"<div style='display: flex; align-items: center; justify-content: center; height: 80px; border-radius: 8px; border: 2px solid {"#008000" if nifty_chg>=0 else "#FF0000"}; background-color: {"#e6fffa" if nifty_chg>=0 else "#fff5f5"}; color: {"#008000" if nifty_chg>=0 else "#FF0000"}; font-size: 18px; font-weight: 900;'>{'BULLISH 🚀' if nifty_chg>=0 else 'BEARISH 🩸'}</div>", unsafe_allow_html=True)
 
-    # SNIPER SEARCH (Restored)
+    # SNIPER SEARCH
     st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
     sniper_ticker = st.text_input("🎯 SNIPER SEARCH:", placeholder="Type symbol (e.g. BAJFINANCE)")
     if sniper_ticker:
-        s_res = analyze(format_ticker(sniper_ticker), data, force=True)
-        if s_res:
+        res = analyze(format_ticker(sniper_ticker), data, force=True)
+        if res:
             st.markdown(f"<div class='table-head head-sniper'>🎯 SNIPER TARGET: {sniper_ticker.upper()}</div>", unsafe_allow_html=True)
-            st.dataframe(pd.DataFrame([s_res]).style.apply(highlight_priority, axis=1), column_config={"STOCK": st.column_config.LinkColumn("STOCK", display_text=r"NSE:(.*)")}, use_container_width=True, hide_index=True)
+            st.dataframe(pd.DataFrame([res]).style.apply(highlight_priority, axis=1), column_config={"STOCK": st.column_config.LinkColumn("STOCK", display_text=r"NSE:(.*)")}, use_container_width=True, hide_index=True)
 
-    # SECTOR MAPPING
-    sec_rows = []
-    for name, info in SECTOR_MAP.items():
-        try:
-            if info['index'] in data.columns.levels[0]:
-                d = data[info['index']].dropna(); op, ltp = float(d['Open'].iloc[-1]), float(d['Close'].iloc[-1])
-                sec_rows.append({"SECTOR": name, "DAY%": ((ltp-op)/op)*100})
-        except: pass
-    df_sec = pd.DataFrame(sec_rows).sort_values("DAY%", ascending=False) if sec_rows else pd.DataFrame()
-    top_sec = df_sec.iloc[0]['SECTOR'] if not df_sec.empty else "N/A"
-    bot_sec = df_sec.iloc[-1]['SECTOR'] if not df_sec.empty else "N/A"
-
-    # 4 TABLES DISPLAY
+    # PROCESS ALL STOCKS (Independence from Sector Data)
+    all_analysed = [analyze(format_ticker(s), data, force=True) for group in SECTOR_MAP.values() for s in group]
+    all_analysed = [x for x in all_analysed if x]
+    
+    df_all = pd.DataFrame(all_analysed)
     tv_cfg = {"STOCK": st.column_config.LinkColumn("STOCK", display_text=r"NSE:(.*)"), "CANDLES": st.column_config.NumberColumn("CANDLES", width="small")}
+
     c1, c2 = st.columns(2)
     with c1:
-        st.markdown(f"<div class='table-head head-bull'>🚀 BUY: {top_sec}</div>", unsafe_allow_html=True)
-        stocks = SECTOR_MAP.get(top_sec, {}).get('stocks', [])
-        df_b = pd.DataFrame([res for s in stocks if (res := analyze(s, data, True))])
-        if not df_b.empty: st.dataframe(df_b.sort_values("CANDLES", ascending=False).style.apply(highlight_priority, axis=1), column_config=tv_cfg, use_container_width=True, hide_index=True)
+        st.markdown(f"<div class='table-head head-bull'>🚀 TOP BUY OPPORTUNITIES</div>", unsafe_allow_html=True)
+        df_b = df_all[df_all['STAT'].str.contains('🚀')].sort_values("CANDLES", ascending=False).head(15)
+        if not df_b.empty: st.dataframe(df_b.style.apply(highlight_priority, axis=1), column_config=tv_cfg, use_container_width=True, hide_index=True)
     with c2:
-        st.markdown(f"<div class='table-head head-bear'>🩸 SELL: {bot_sec}</div>", unsafe_allow_html=True)
-        stocks = SECTOR_MAP.get(bot_sec, {}).get('stocks', [])
-        df_s = pd.DataFrame([res for s in stocks if (res := analyze(s, data, False))])
-        if not df_s.empty: st.dataframe(df_s.sort_values("CANDLES", ascending=False).style.apply(highlight_priority, axis=1), column_config=tv_cfg, use_container_width=True, hide_index=True)
+        st.markdown(f"<div class='table-head head-bear'>🩸 TOP SELL OPPORTUNITIES</div>", unsafe_allow_html=True)
+        df_s = df_all[df_all['STAT'].str.contains('🩸')].sort_values("CANDLES", ascending=False).head(15)
+        if not df_s.empty: st.dataframe(df_s.style.apply(highlight_priority, axis=1), column_config=tv_cfg, use_container_width=True, hide_index=True)
 
     c3, c4 = st.columns(2)
     with c3:
-        st.markdown("<div class='table-head head-neut'>🌟 INDEPENDENT movers</div>", unsafe_allow_html=True)
-        ind_stocks = [s for n, i in SECTOR_MAP.items() if n not in [top_sec, bot_sec] for s in i['stocks']]
-        df_ind = pd.DataFrame([res for s in ind_stocks if (res := analyze(s, data, force=True))])
-        if not df_ind.empty: st.dataframe(df_ind.sort_values("CANDLES", ascending=False).head(15).style.apply(highlight_priority, axis=1), column_config=tv_cfg, use_container_width=True, hide_index=True)
+        st.markdown("<div class='table-head head-neut'>🌟 QUALITY MOVERS</div>", unsafe_allow_html=True)
+        df_q = df_all.sort_values("CANDLES", ascending=False).head(15)
+        if not df_q.empty: st.dataframe(df_q.style.apply(highlight_priority, axis=1), column_config=tv_cfg, use_container_width=True, hide_index=True)
     with c4:
         st.markdown("<div class='table-head head-neut'>🌌 BROADER MARKET</div>", unsafe_allow_html=True)
         df_brd = pd.DataFrame([res for s in BROADER_MARKET if (res := analyze(s, data, force=True))])
-        if not df_brd.empty: st.dataframe(df_brd.sort_values("CANDLES", ascending=False).head(15).style.apply(highlight_priority, axis=1), column_config=tv_cfg, use_container_width=True, hide_index=True)
+        if not df_brd.empty: st.dataframe(df_brd.sort_values("CANDLES", ascending=False).style.apply(highlight_priority, axis=1), column_config=tv_cfg, use_container_width=True, hide_index=True)
 else: st.error("డేటా లోడ్ అవ్వడం లేదు. ఇంటర్నెట్ చెక్ చేయండి.")
