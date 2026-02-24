@@ -10,7 +10,7 @@ st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
 
-# CSS 
+# CSS
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -134,7 +134,6 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         today_data['Cum_Vol'] = today_data['Volume'].cumsum()
         vwap = float(today_data['Cum_Vol_Price'].iloc[-1] / today_data['Cum_Vol'].iloc[-1]) if today_data['Cum_Vol'].iloc[-1] > 0 else ltp
 
-        ema10 = float(df['EMA10'].iloc[-1])
         ema50 = float(df['EMA50'].iloc[-1])
         ema200 = float(df['EMA200'].iloc[-1])
         rsi25 = float(df['RSI25'].iloc[-1])
@@ -143,23 +142,14 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         is_gap_up = (open_p > prev_c) and (actual_gap_percent >= 0.50)
         is_gap_down = (open_p < prev_c) and (actual_gap_percent >= 0.50)
 
+        # ---------------------------------------------------------
+        # PURE 10 EMA TIME LOGIC (Best Option)
+        # ---------------------------------------------------------
         total_above_10 = int((today_data['Close'] > today_data['EMA10']).sum())
         total_below_10 = int((today_data['Close'] < today_data['EMA10']).sum())
+        
         time_above_mins = total_above_10 * 5
         time_below_mins = total_below_10 * 5
-
-        # ---------------------------------------------------------
-        # THE PULLBACK REJECTION LOGIC (మీ మాస్టర్ మైండ్ లాజిక్)
-        # ---------------------------------------------------------
-        recent_data = today_data.iloc[-8:] if len(today_data) >= 8 else today_data
-        
-        # Bullish Pullback: Trend up (>30 mins), touched 50 EMA recently, now closed back above 10 EMA
-        touched_50_bull = (recent_data['Low'] <= recent_data['EMA50']).any()
-        is_pb_bull = touched_50_bull and (ltp > ema10) and (total_above_10 >= 6)
-        
-        # Bearish Pullback: Trend down (>30 mins), touched 50 EMA recently, now closed back below 10 EMA
-        touched_50_bear = (recent_data['High'] >= recent_data['EMA50']).any()
-        is_pb_bear = touched_50_bear and (ltp < ema10) and (total_below_10 >= 6)
         # ---------------------------------------------------------
 
         if force: check_bullish = day_chg > 0
@@ -177,13 +167,10 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
             if ltp > vwap: status.append("W🟢"); score += 2     
             if ltp >= high * 0.998 and day_chg > 0.5: status.append("HB🚀"); score += 1
             
-            # PULLBACK 50 BONUS SCORE!
-            if is_pb_bull:
-                status.append("PB50🚀"); score += 5
-                
+            # Pure Trend Riding Score
             if time_above_mins > 0:
                 bonus_pts = min(time_above_mins // 30, 4) 
-                score += (1 + bonus_pts) 
+                score += (1 + bonus_pts) # Base 1 + Bonus
                 if time_above_mins >= 60:
                     hrs = time_above_mins // 60
                     mins = time_above_mins % 60
@@ -205,10 +192,7 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
             if ltp < vwap: status.append("W🔴"); score += 2     
             if ltp <= low * 1.002 and day_chg < -0.5: status.append("LB📉"); score += 1
             
-            # PULLBACK 50 BONUS SCORE!
-            if is_pb_bear:
-                status.append("PB50🩸"); score += 5
-                
+            # Pure Trend Riding Score
             if time_below_mins > 0:
                 bonus_pts = min(time_below_mins // 30, 4) 
                 score += (1 + bonus_pts) 
@@ -251,7 +235,6 @@ def highlight_priority(row):
     if "V🟢" in status_str or "V🔴" in status_str: major_conditions += 1
     if "W🟢" in status_str or "W🔴" in status_str: major_conditions += 1
     if "GapBuy" in status_str or "GapSell" in status_str: major_conditions += 2 
-    if "PB50" in status_str: major_conditions += 2 # Pullback కి అత్యధిక ప్రాధాన్యత
     
     if major_conditions >= 2:
         if day_chg >= 0: return ['background-color: #e6fffa; color: #008000; font-weight: 900'] * len(row)
@@ -273,7 +256,7 @@ def style_sector_ranks(val):
 
 # --- 5. EXECUTION ---
 loading_msg = st.empty()
-loading_msg.info("5-Min ఇంట్రాడే డేటా (Pullback Setup & VWAP) లోడ్ అవుతోంది... ⏳")
+loading_msg.info("5-Min ఇంట్రాడే డేటా (Pure Trend Riding & VWAP) లోడ్ అవుతోంది... ⏳")
 
 data = get_data()
 loading_msg.empty()
