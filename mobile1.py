@@ -357,27 +357,3 @@ if data is not None and not data.empty:
 
 else:
     st.warning("స్టాక్ మార్కెట్ డేటా దొరకలేదు. బహుశా ఇంటర్నెట్ లేదా Yahoo Finance సర్వర్ నెమ్మదిగా ఉండి ఉండొచ్చు.")
-# --- 6. SEARCH OPTION (Add this at the end of your script) ---
-st.markdown("---")
-st.markdown("### 🔍 Stock Search")
-search_query = st.text_input("స్టాక్ పేరును ఎంటర్ చేయండి (e.g., RELIANCE, TCS, SBIN):", "").upper().strip()
-
-if search_query:
-    formatted_search = format_ticker(search_query)
-    # Search logic: check bullish first, if not try bearish
-    search_res = analyze(formatted_search, data, check_bullish=True, force=True)
-    
-    if search_res:
-        st.write(f"Showing results for: **{search_query}**")
-        df_search = pd.DataFrame([search_res]).drop(columns=["VOL_NUM"])
-        df_search['SCORE'] = df_search['SCORE'].astype(str)
-        
-        # Applying the same styling as your tables
-        styled_search = df_search.style.apply(highlight_priority, axis=1) \
-            .map(style_move_col, subset=['MOVE']) \
-            .set_properties(**{'text-align': 'center', 'font-size': '16px'}) \
-            .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '15px')]}])
-            
-        st.dataframe(styled_search, column_config=tv_link_config, use_container_width=True, hide_index=True)
-    else:
-        st.error(f"'{search_query}' కి సంబంధించిన డేటా లేదా టెక్నికల్ సిగ్నల్స్ దొరకలేదు. దయచేసి స్పెల్లింగ్ సరిచూసుకోండి.")
