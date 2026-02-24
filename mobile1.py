@@ -29,6 +29,7 @@ st.markdown("""
     .head-bull { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
     .head-bear { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
     .head-neut { background: #e2e3e5; color: #383d41; border: 1px solid #d6d8db; }
+    .head-sniper { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
     
     div[data-testid="stDataFrame"] { margin-bottom: -15px !important; }
     </style>
@@ -86,17 +87,21 @@ def get_data():
     all_tickers = list(set(all_tickers))
     
     try:
-        # ⚠️ FIX: threads=False పెట్టాను. దీనివల్ల Yahoo ఏ స్టాక్ ని వదిలేయదు.
-        data = yf.download(all_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=False)
-        return data, all_tickers
+        data = yf.download(all_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=True)
+        return data
     except: 
-        return None, all_tickers
+        return None
 
 def analyze(symbol, full_data, check_bullish=True, force=False):
     try:
-        if symbol not in full_data.columns.levels[0]: return None
-        df = full_data[symbol].dropna()
-        if len(df) < 50: return None 
+        # Sniper Mode ఫీచర్ కోసం Single Ticker మరియు Multi Ticker కి తేడా సెట్ చేశాను 
+        if isinstance(full_data.columns, pd.MultiIndex):
+            if symbol not in full_data.columns.levels[0]: return None
+            df = full_data[symbol].dropna()
+        else:
+            df = full_data.dropna()
+            
+        if len(df) < 30: return None 
         
         df['EMA10'] = df['Close'].ewm(span=10, adjust=False).mean()
         df['EMA50'] = df['Close'].ewm(span=50, adjust=False).mean()
@@ -143,6 +148,7 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         is_gap_up = (open_p > prev_c) and (actual_gap_percent >= 0.50)
         is_gap_down = (open_p < prev_c) and (actual_gap_percent >= 0.50)
 
+        # 10 EMA TIME LOGIC
         total_above_10 = int((today_data['Close'] > today_data['EMA10']).sum())
         total_below_10 = int((today_data['Close'] < today_data['EMA10']).sum())
         
@@ -251,13 +257,42 @@ def create_sorted_df(res_list, limit=15):
 
 # --- 5. EXECUTION ---
 loading_msg = st.empty()
-loading_msg.info("5-Min ఇంట్రాడే డేటా లోడ్ అవుతోంది... (Missing Stocks ఫిల్టర్ తో) ⏳")
+loading_msg.info("5-Min ఇంట్రాడే డేటా లోడ్ అవుతోంది... ⏳")
 
-data, all_tickers = get_data()
+data = get_data()
 loading_msg.empty()
 
 if data is not None and not data.empty:
     
+    dash_left, dash_right = st.columns([0.8, 0.2]) 
+    
+    with dash_left:
+        dash_html = '<div style="display: flex; justify-content: space-between; align-items: center; border: 2px solid #ddd; border-radius: 8px; background-color: #f9f9f9; padding: 5px; height: 80px;">'
+        for idx, (ticker, name) in enumerate(INDICES.items()):
+            try:
+                if ticker in data.columns.levels[0]:
+                    df = data[ticker].dropna()
+                    if len(df) < 2: continue
+                    df['Date'] = df.index.date
+                    current_date = df['Date'].iloc[-1]
+                    today_data = df[df['Date'] == current_date]
+                    if len(today_data) == 0: continue
+                    
+                    ltp = float(today_data['Close'].iloc[-1])
+                    o_today = float(today_data['Open'].iloc[0]) 
+                    pct = ((ltp - o_today) / o_today) * 100
+                    
+                    arrow = "↑" if pct >= 0 else "↓"
+                    txt_color = "#008000" if pct >= 0 else "#FF0000"
+                    tv_symbol = TV_INDICES.get(ticker, "")
+                    tv_url = f"https://in.tradingview.com/chart/?symbol={tv_symbol}"
+                    
+                    border_style = "border-right: 1px solid #ddd;" if idx < 4 else ""
+                    dash_html += f'<a href="{tv_url}" target="_blank" style="text-decoration: none; flex: 1; text-align: center; {border_style}"><div style="color: #444; font-size: 13px; font-weight: 800;">{name}</div><div style="color: black; font-size: 18px; font-weight: 900; margin: 2px 0px;">{ltp:.0f}</div><div style="color: {txt_color}; font-size: 14px; font-weight: bold;">{arrow} {pct:.1f}%</div></a>'
+            except: continue
+        dash_html += "</div>"
+        st.markdown(dash_html, unsafe_allow_html=True)
+
     sec_rows = []
     for name, info in SECTOR_MAP.items():
         try:
@@ -296,42 +331,12 @@ if data is not None and not data.empty:
 
     total_bulls = 0
     total_bears = 0
-    
     for df_ in [df_b, df_s, df_ind, df_brd]:
         if not df_.empty and "TREND" in df_.columns:
             total_bulls += (df_['TREND'] == 'BULL').sum()
             total_bears += (df_['TREND'] == 'BEAR').sum()
             df_.drop(columns=["TREND"], inplace=True)
             df_['SCORE'] = df_['SCORE'].astype(str)
-
-    dash_left, dash_right = st.columns([0.8, 0.2]) 
-    
-    with dash_left:
-        dash_html = '<div style="display: flex; justify-content: space-between; align-items: center; border: 2px solid #ddd; border-radius: 8px; background-color: #f9f9f9; padding: 5px; height: 80px;">'
-        for idx, (ticker, name) in enumerate(INDICES.items()):
-            try:
-                if ticker in data.columns.levels[0]:
-                    df = data[ticker].dropna()
-                    if len(df) < 2: continue
-                    df['Date'] = df.index.date
-                    current_date = df['Date'].iloc[-1]
-                    today_data = df[df['Date'] == current_date]
-                    if len(today_data) == 0: continue
-                    
-                    ltp = float(today_data['Close'].iloc[-1])
-                    o_today = float(today_data['Open'].iloc[0]) 
-                    pct = ((ltp - o_today) / o_today) * 100
-                    
-                    arrow = "↑" if pct >= 0 else "↓"
-                    txt_color = "#008000" if pct >= 0 else "#FF0000"
-                    tv_symbol = TV_INDICES.get(ticker, "")
-                    tv_url = f"https://in.tradingview.com/chart/?symbol={tv_symbol}"
-                    
-                    border_style = "border-right: 1px solid #ddd;" if idx < 4 else ""
-                    dash_html += f'<a href="{tv_url}" target="_blank" style="text-decoration: none; flex: 1; text-align: center; {border_style}"><div style="color: #444; font-size: 13px; font-weight: 800;">{name}</div><div style="color: black; font-size: 18px; font-weight: 900; margin: 2px 0px;">{ltp:.0f}</div><div style="color: {txt_color}; font-size: 14px; font-weight: bold;">{arrow} {pct:.1f}%</div></a>'
-            except: continue
-        dash_html += "</div>"
-        st.markdown(dash_html, unsafe_allow_html=True)
 
     with dash_right:
         if total_bulls >= total_bears:
@@ -350,7 +355,44 @@ if data is not None and not data.empty:
         </div>
         """, unsafe_allow_html=True)
     
-    st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
+    # 🎯 SNIPER SEARCH BOX
+    st.markdown("<hr style='margin: 10px 0px;'>", unsafe_allow_html=True)
+    sniper_col1, sniper_col2 = st.columns([0.3, 0.7])
+    with sniper_col1:
+        sniper_ticker = st.text_input("🎯 SNIPER SEARCH:", placeholder="Type symbol here (e.g. LT)")
+    
+    with sniper_col2:
+        if sniper_ticker:
+            s_sym = format_ticker(sniper_ticker)
+            try:
+                s_data = yf.download(s_sym, period="5d", interval="5m", progress=False)
+                if not s_data.empty:
+                    s_res = analyze(s_sym, s_data, force=True)
+                    if s_res:
+                        st.markdown(f"<div class='table-head head-sniper'>🎯 SNIPER TARGET: {s_sym.replace('.NS', '')}</div>", unsafe_allow_html=True)
+                        # Remove TREND column if exists to display cleanly
+                        if "TREND" in s_res: del s_res["TREND"]
+                        df_s_disp = pd.DataFrame([s_res])
+                        styled_s_disp = df_s_disp.style.apply(highlight_priority, axis=1) \
+                            .map(style_move_col, subset=['M%']) \
+                            .set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'}) \
+                            .set_table_styles([{'selector': 'th', 'props': [('background-color', '#fff3cd'), ('color', '#856404'), ('font-size', '12px')]}])
+                        
+                        # Snipper Link Config
+                        tv_link_config_sniper = {
+                            "STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)"),
+                            "STAT": st.column_config.TextColumn("STAT", width="medium"),
+                            "SCORE": st.column_config.TextColumn("SCORE", width="small")
+                        }
+                        st.dataframe(styled_s_disp, column_config=tv_link_config_sniper, use_container_width=True, hide_index=True)
+                    else:
+                        st.warning(f"⚠️ {sniper_ticker.upper()} కు ప్రస్తుతం సరైన ట్రెండ్ లేదు (SCORE 5 కంటే తక్కువ).")
+                else:
+                    st.error("Invalid Symbol or Data not found!")
+            except:
+                st.error("Error fetching data from Yahoo Finance.")
+    st.markdown("<hr style='margin: 10px 0px;'>", unsafe_allow_html=True)
+
     if not df_sec.empty:
         df_sec_t = df_sec.set_index("SECTOR").T
         styled_sec = df_sec_t.style.format("{:.2f}") \
@@ -368,50 +410,32 @@ if data is not None and not data.empty:
         "SCORE": st.column_config.TextColumn("SCORE", width="small")
     }
 
+    # ⚠️ టేబుల్ హైట్ పెంచాను (Height=600), ఇప్పుడు స్క్రోల్ బార్ లేకుండా 15 స్టాక్స్ డైరెక్ట్ గా కనిపిస్తాయి!
     c_buy, c_sell = st.columns(2)
     with c_buy:
         st.markdown(f"<div class='table-head head-bull'>🚀 BUY: {top_sec}</div>", unsafe_allow_html=True)
         if not df_b.empty:
-            styled_b = df_b.style.apply(highlight_priority, axis=1) \
-                .map(style_move_col, subset=['M%']) \
-                .set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'}) \
-                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '12px'), ('padding', '4px 1px')]}])
-            st.dataframe(styled_b, column_config=tv_link_config, use_container_width=True, hide_index=True)
+            styled_b = df_b.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['M%']).set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'})
+            st.dataframe(styled_b, column_config=tv_link_config, use_container_width=True, hide_index=True, height=350)
 
     with c_sell:
         st.markdown(f"<div class='table-head head-bear'>🩸 SELL: {bot_sec}</div>", unsafe_allow_html=True)
         if not df_s.empty:
-            styled_s = df_s.style.apply(highlight_priority, axis=1) \
-                .map(style_move_col, subset=['M%']) \
-                .set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'}) \
-                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '12px'), ('padding', '4px 1px')]}])
-            st.dataframe(styled_s, column_config=tv_link_config, use_container_width=True, hide_index=True)
+            styled_s = df_s.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['M%']).set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'})
+            st.dataframe(styled_s, column_config=tv_link_config, use_container_width=True, hide_index=True, height=350)
 
     c_ind, c_brd = st.columns(2)
     with c_ind:
         st.markdown("<div class='table-head head-neut'>🌟 INDEPENDENT (Top 15)</div>", unsafe_allow_html=True)
         if not df_ind.empty:
-            styled_ind = df_ind.style.apply(highlight_priority, axis=1) \
-                .map(style_move_col, subset=['M%']) \
-                .set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'}) \
-                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '12px'), ('padding', '4px 1px')]}])
-            st.dataframe(styled_ind, column_config=tv_link_config, use_container_width=True, hide_index=True)
+            styled_ind = df_ind.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['M%']).set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'})
+            st.dataframe(styled_ind, column_config=tv_link_config, use_container_width=True, hide_index=True, height=580)
 
     with c_brd:
         st.markdown("<div class='table-head head-neut'>🌌 BROADER MARKET (Top 15)</div>", unsafe_allow_html=True)
         if not df_brd.empty:
-            styled_brd = df_brd.style.apply(highlight_priority, axis=1) \
-                .map(style_move_col, subset=['M%']) \
-                .set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'}) \
-                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '12px'), ('padding', '4px 1px')]}])
-            st.dataframe(styled_brd, column_config=tv_link_config, use_container_width=True, hide_index=True)
-
-    # ⚠️ Missing Stocks Alert: ఇది యాప్ అడుగు భాగంలో డిస్‌ప్లే అవుతుంది
-    if isinstance(data.columns, pd.MultiIndex):
-        downloaded = data.columns.levels[0]
-        missing_stocks = [t.replace(".NS", "") for t in all_tickers if t not in downloaded]
-        if missing_stocks:
-            st.markdown(f"<div style='text-align: center; color: #ff4b4b; font-size: 11px; margin-top: 20px;'>⚠️ <b>Yahoo Finance Failed to Download:</b> {', '.join(missing_stocks)}</div>", unsafe_allow_html=True)
+            styled_brd = df_brd.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['M%']).set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'})
+            st.dataframe(styled_brd, column_config=tv_link_config, use_container_width=True, hide_index=True, height=580)
 
 else:
     st.warning("స్టాక్ మార్కెట్ డేటా దొరకలేదు. బహుశా ఇంటర్నెట్ లేదా Yahoo Finance సర్వర్ నెమ్మదిగా ఉండి ఉండొచ్చు.")
