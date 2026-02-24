@@ -8,7 +8,7 @@ from streamlit_autorefresh import st_autorefresh
 st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
 st_autorefresh(interval=60000, key="datarefresh")
 
-# CSS - పాత డిజైన్ ని మళ్ళీ సెట్ చేశాను
+# CSS - పాత డిజైన్ (Boxes & Grid) ని పక్కాగా సెట్ చేశాను
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
@@ -21,6 +21,7 @@ st.markdown("""
     .head-bull { background: #d4edda; color: #155724; }
     .head-bear { background: #f8d7da; color: #721c24; }
     .head-neut { background: #e2e3e5; color: #383d41; }
+    .head-sniper { background: #fff3cd; color: #856404; }
     div[data-testid="stDataFrame"] { margin-bottom: -15px !important; }
     </style>
     """, unsafe_allow_html=True)
@@ -72,6 +73,7 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         if not force and ((check_bullish and not is_bull) or (not check_bullish and is_bull)): return None
 
         # ⚡ THE ACCUMULATOR LOGIC (గ్యాప్స్ ఒమిట్ చేసి లెక్కించే లాజిక్)
+        # ఇక్కడ రోజంతా జరిగిన క్యాండిల్స్ లో ఏవైతే VWAP మరియు 10EMA కి ఒకే వైపు ఉన్నాయో వాటిని మాత్రమే లెక్కబెడుతుంది.
         if is_bull:
             today_df['Valid'] = (today_df['Close'] > today_df['VWAP']) & (today_df['Close'] > today_df['EMA10'])
         else:
@@ -80,7 +82,12 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         valid_candles = int(today_df['Valid'].sum())
         if valid_candles < 2: return None
 
-        time_str = f"{(valid_candles*5)//60}h {(valid_candles*5)%60}m" if (valid_candles*5)>=60 else f"{valid_candles*5}m"
+        score_mins = valid_candles * 5
+        time_str = f"{score_mins//60}h {score_mins%60}m" if score_mins>=60 else f"{score_mins}m"
+        
+        # Kill Switch - ఒకవేళ ప్రస్తుతం VWAP బ్రేక్ అయితే లిస్ట్ లోంచి తీసేయ్
+        if (is_bull and ltp < vwap) or (not is_bull and ltp > vwap): return None
+
         return {
             "STOCK": f"https://in.tradingview.com/chart/?symbol=NSE:{symbol.replace('.NS','')}",
             "LTP": f"{ltp:.2f}", "D%": f"{day_chg:.2f}", "STAT": f"{'🚀' if is_bull else '🩸'} ({time_str})",
@@ -104,7 +111,7 @@ def create_sorted_df(res_list, limit=15):
 # --- 4. EXECUTION ---
 data, all_ticks = get_data()
 if data is not None:
-    # ⭐️ INDICES DASHBOARD RESTORATION
+    # ⭐️ INDICES BOXES RESTORED
     dash_html = '<div style="display: flex; justify-content: space-between; border: 2px solid #ddd; border-radius: 8px; background-color: #f9f9f9; padding: 5px; height: 80px;">'
     for ticker, name in INDICES.items():
         try:
@@ -114,6 +121,16 @@ if data is not None:
         except: pass
     dash_html += "</div>"
     st.markdown(dash_html, unsafe_allow_html=True)
+
+    # SNIPER SEARCH RESTORED
+    st.markdown("<hr style='margin: 10px 0px;'>", unsafe_allow_html=True)
+    sniper_ticker = st.text_input("🎯 SNIPER SEARCH (e.g. BAJFINANCE):")
+    if sniper_ticker:
+        s_sym = format_ticker(sniper_ticker)
+        s_res = analyze(s_sym, data, force=True)
+        if s_res:
+            st.markdown(f"<div class='table-head head-sniper'>🎯 SNIPER TARGET: {sniper_ticker.upper()}</div>", unsafe_allow_html=True)
+            st.dataframe(pd.DataFrame([s_res]), column_config={"STOCK": st.column_config.LinkColumn("STOCK", display_text=r"NSE:(.*)")}, use_container_width=True, hide_index=True)
 
     # SECTOR ANALYSIS
     sec_rows = []
@@ -126,7 +143,7 @@ if data is not None:
     df_sec = pd.DataFrame(sec_rows).sort_values("D%", ascending=False) if sec_rows else pd.DataFrame()
     top_sec = df_sec.iloc[0]['SECTOR'] if not df_sec.empty else ""; bot_sec = df_sec.iloc[-1]['SECTOR'] if not df_sec.empty else ""
 
-    # CALCULATING DATA FOR ALL TABLES
+    # CALCULATING DATA FOR 4 TABLES
     df_b = create_sorted_df([analyze(s, data, True) for s in SECTOR_MAP.get(top_sec, {}).get('stocks', [])])
     df_s = create_sorted_df([analyze(s, data, False) for s in SECTOR_MAP.get(bot_sec, {}).get('stocks', [])])
     df_ind = create_sorted_df([analyze(s, data, force=True) for n, i in SECTOR_MAP.items() if n not in [top_sec, bot_sec] for s in i['stocks']])
@@ -134,7 +151,7 @@ if data is not None:
 
     tv_cfg = {"STOCK": st.column_config.LinkColumn("STOCK", display_text=r"NSE:(.*)"), "CANDLES": st.column_config.NumberColumn("CANDLES", width="small")}
     
-    # ⭐️ 2x2 TABLE GRID RESTORATION
+    # ⭐️ 2x2 GRID RESTORED
     c1, c2 = st.columns(2)
     with c1:
         st.markdown(f"<div class='table-head head-bull'>🚀 BUY: {top_sec}</div>", unsafe_allow_html=True)
