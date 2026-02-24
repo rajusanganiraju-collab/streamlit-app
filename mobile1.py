@@ -10,7 +10,7 @@ st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
 
-# CSS for styling
+# CSS Styling
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -194,7 +194,6 @@ search_query = st.text_input("🔍 Search Any Stock (e.g. RELIANCE, TCS, ZOMATO)
 
 if search_query:
     s_ticker = format_ticker(search_query)
-    # Fast download for single stock
     s_raw = yf.download(s_ticker, period="5d", progress=False, group_by='ticker')
     if not s_raw.empty:
         s_res = analyze(s_ticker, s_raw, force=True)
@@ -209,7 +208,7 @@ if search_query:
         else:
             st.info(f"{search_query} లో ప్రస్తుతానికి ఎలాంటి సిగ్నల్స్ లేవు.")
     else:
-        st.error("స్టాక్ డేటా లభించలేదు. సింబల్ సరిచూసుకోండి.")
+        st.error("స్టాక్ డేటా లభించలేదు.")
 
 # --- 5. EXECUTION ---
 loading_msg = st.empty()
@@ -218,7 +217,7 @@ data = get_data()
 loading_msg.empty()
 
 if data is not None and not data.empty:
-    # Dashboard
+    # Indices Dashboard
     dash_left, dash_right = st.columns([0.8, 0.2]) 
     nifty_chg = 0.0
     with dash_left:
@@ -259,12 +258,12 @@ if data is not None and not data.empty:
     
     if sec_rows:
         df_sec = pd.DataFrame(sec_rows).sort_values("DAY%", ascending=False)
-        st.dataframe(df_sec.set_index("SECTOR").T.style.format("{:.2f}").map(style_sector_ranks), use_container_width=True)
+        st.dataframe(df_sec.set_index("SECTOR").T.style.format("{:.2f}").map(style_sector_ranks).set_properties(**{'text-align': 'center'}), use_container_width=True)
         top_sec, bot_sec = df_sec.iloc[0]['SECTOR'], df_sec.iloc[-1]['SECTOR']
 
     tv_link_config = {"STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)")}
     
-    # Tables
+    # Tables with Centered Score Values
     c_buy, c_sell = st.columns(2)
     with c_buy:
         st.markdown(f"<div class='table-head head-bull'>🚀 BUY: {top_sec}</div>", unsafe_allow_html=True)
@@ -272,7 +271,7 @@ if data is not None and not data.empty:
         res_b = [x for x in res_b if x]
         if res_b:
             df_b = pd.DataFrame(res_b).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"])
-            st.dataframe(df_b.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['MOVE']), column_config=tv_link_config, use_container_width=True, hide_index=True)
+            st.dataframe(df_b.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['MOVE']).set_properties(**{'text-align': 'center'}), column_config=tv_link_config, use_container_width=True, hide_index=True)
 
     with c_sell:
         st.markdown(f"<div class='table-head head-bear'>🩸 SELL: {bot_sec}</div>", unsafe_allow_html=True)
@@ -280,7 +279,7 @@ if data is not None and not data.empty:
         res_s = [x for x in res_s if x]
         if res_s:
             df_s = pd.DataFrame(res_s).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"])
-            st.dataframe(df_s.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['MOVE']), column_config=tv_link_config, use_container_width=True, hide_index=True)
+            st.dataframe(df_s.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['MOVE']).set_properties(**{'text-align': 'center'}), column_config=tv_link_config, use_container_width=True, hide_index=True)
 
     c_ind, c_brd = st.columns(2)
     with c_ind:
@@ -289,7 +288,7 @@ if data is not None and not data.empty:
         ind_movers = [r for r in ind_movers if r and (float(r['VOL'][:-1]) >= 1.0 or r['SCORE'] >= 1)]
         if ind_movers:
             df_ind = pd.DataFrame(ind_movers).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8)
-            st.dataframe(df_ind.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['MOVE']), column_config=tv_link_config, use_container_width=True, hide_index=True)
+            st.dataframe(df_ind.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['MOVE']).set_properties(**{'text-align': 'center'}), column_config=tv_link_config, use_container_width=True, hide_index=True)
 
     with c_brd:
         st.markdown("<div class='table-head head-neut'>🌌 BROADER MARKET (Top 8)</div>", unsafe_allow_html=True)
@@ -297,6 +296,6 @@ if data is not None and not data.empty:
         res_brd = [x for x in res_brd if x and (float(x['VOL'][:-1]) >= 1.0 or x['SCORE'] >= 1)]
         if res_brd:
             df_brd = pd.DataFrame(res_brd).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8)
-            st.dataframe(df_brd.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['MOVE']), column_config=tv_link_config, use_container_width=True, hide_index=True)
+            st.dataframe(df_brd.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['MOVE']).set_properties(**{'text-align': 'center'}), column_config=tv_link_config, use_container_width=True, hide_index=True)
 else:
-    st.warning("డేటా అందుబాటులో లేదు.")
+    st.warning("డేటా లోడ్ కాలేదు.")
