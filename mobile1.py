@@ -149,27 +149,15 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         is_gap_down = (open_p < prev_c) and (actual_gap_percent >= 0.50)
 
         # ---------------------------------------------------------
-        # NEW DYNAMIC 10 EMA TIME LOGIC
+        # NEW DYNAMIC 10 EMA TIME LOGIC (OVERALL TIME TODAY)
+        # ఉదయం నుండి మొత్తంగా ఎన్ని క్యాండిల్స్ 10 EMA పైన/కింద ఉన్నాయో లెక్కింపు
         # ---------------------------------------------------------
-        consecutive_above_10 = 0
-        consecutive_below_10 = 0
+        total_above_10 = int((today_data['Close'] > today_data['EMA10']).sum())
+        total_below_10 = int((today_data['Close'] < today_data['EMA10']).sum())
         
-        # Counting how many consecutive 5-min candles stayed ABOVE 10 EMA today
-        for i in range(len(today_data)-1, -1, -1):
-            if today_data['Close'].iloc[i] > today_data['EMA10'].iloc[i]:
-                consecutive_above_10 += 1
-            else:
-                break
-                
-        # Counting how many consecutive 5-min candles stayed BELOW 10 EMA today
-        for i in range(len(today_data)-1, -1, -1):
-            if today_data['Close'].iloc[i] < today_data['EMA10'].iloc[i]:
-                consecutive_below_10 += 1
-            else:
-                break
-                
-        time_above_mins = consecutive_above_10 * 5
-        time_below_mins = consecutive_below_10 * 5
+        # ఒక క్యాండిల్ = 5 నిమిషాలు
+        time_above_mins = total_above_10 * 5
+        time_below_mins = total_below_10 * 5
         # ---------------------------------------------------------
 
         if force: check_bullish = day_chg > 0
@@ -186,9 +174,9 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
             if vol_x > 1.0: status.append("V🟢"); score += 2
             if ltp >= high * 0.998 and day_chg > 0.5: status.append("HB🚀"); score += 1
             
-            # --- EMA 10 DYNAMIC SCORING (BULLISH) ---
+            # --- EMA 10 DYNAMIC SCORING (OVERALL TIME BULLISH) ---
             if time_above_mins > 0:
-                bonus_pts = min(time_above_mins // 30, 4) # Prathi 30 mins ki +1 extra point (Max +4 bonus)
+                bonus_pts = min(time_above_mins // 30, 4) # ప్రతి 30 నిమిషాలకి +1 పాయింట్ (గరిష్టంగా +4 బోనస్)
                 score += (1 + bonus_pts) # Base 1 + Bonus
                 
                 if time_above_mins >= 60:
@@ -211,9 +199,9 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
             if vol_x > 1.0: status.append("V🔴"); score += 2
             if ltp <= low * 1.002 and day_chg < -0.5: status.append("LB📉"); score += 1
             
-            # --- EMA 10 DYNAMIC SCORING (BEARISH) ---
+            # --- EMA 10 DYNAMIC SCORING (OVERALL TIME BEARISH) ---
             if time_below_mins > 0:
-                bonus_pts = min(time_below_mins // 30, 4) # Prathi 30 mins ki +1 extra point (Max +4 bonus)
+                bonus_pts = min(time_below_mins // 30, 4) # ప్రతి 30 నిమిషాలకి +1 పాయింట్ (గరిష్టంగా +4 బోనస్)
                 score += (1 + bonus_pts) # Base 1 + Bonus
                 
                 if time_below_mins >= 60:
@@ -275,7 +263,7 @@ def style_sector_ranks(val):
 
 # --- 5. EXECUTION ---
 loading_msg = st.empty()
-loading_msg.info("5-Min ఇంట్రాడే డేటా (EMA Time Calculator, RSI, VWAP) లోడ్ అవుతోంది... దయచేసి వేచి ఉండండి ⏳")
+loading_msg.info("5-Min ఇంట్రాడే డేటా (EMA Total Time, RSI, VWAP) లోడ్ అవుతోంది... దయచేసి వేచి ఉండండి ⏳")
 
 data = get_data()
 loading_msg.empty()
