@@ -142,6 +142,7 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         is_gap_up = (open_p > prev_c) and (actual_gap_percent >= 0.50)
         is_gap_down = (open_p < prev_c) and (actual_gap_percent >= 0.50)
 
+        # ఉదయం నుండి మొత్తంగా ఎన్ని 5-నిమిషాల క్యాండిల్స్ 10 EMA పైన/కింద ఉన్నాయో లెక్కింపు
         total_above_10 = int((today_data['Close'] > today_data['EMA10']).sum())
         total_below_10 = int((today_data['Close'] < today_data['EMA10']).sum())
         
@@ -153,19 +154,12 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         
         is_open_low = abs(open_p - low) <= (ltp * 0.003)
         is_open_high = abs(open_p - high) <= (ltp * 0.003)
-        
-        if day_chg >= 2.0: status.append("BM🚀"); score += 2
-        elif day_chg <= -2.0: status.append("BM🩸"); score += 2
 
         if check_bullish:
-            if is_open_low: status.append("O=L🔥"); score += 3  
-            if vol_x > 1.0: status.append("V🟢"); score += 3    
-            if ltp > vwap: status.append("W🟢"); score += 2     
-            if ltp >= high * 0.998 and day_chg > 0.5: status.append("HB🚀"); score += 1
+            # ⭐️ 10 EMA TIME SCORING (HERO): ప్రతి 5 నిమిషాలకు +1 పాయింట్
+            score += total_above_10 
             
             if time_above_mins > 0:
-                bonus_pts = min(time_above_mins // 30, 4) 
-                score += (1 + bonus_pts)
                 if time_above_mins >= 60:
                     hrs = time_above_mins // 60
                     mins = time_above_mins % 60
@@ -174,22 +168,21 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
                     time_str = f"{time_above_mins}m"
                 status.append(f"E10🟢({time_str})")
             
+            # ⭐️ SUPPORTING INDICATORS SCORING (VERY LOW MARKS)
+            if is_open_low: status.append("O=L🔥"); score += 2  
+            if vol_x > 1.0: status.append("V🟢"); score += 2    
+            if ltp > vwap: status.append("W🟢"); score += 2     
             if ltp > ema50: status.append("E50🟢"); score += 1   
             if ltp > ema200: status.append("E200🟢"); score += 1 
             if rsi25 > 14: score += 1 
-            
-            if is_gap_down and ltp > vwap:
-                status.append("GapBuy🔥"); score += 4
+            if day_chg >= 2.0: status.append("BM🚀"); score += 1
+            if is_gap_down and ltp > vwap: status.append("GapBuy🔥"); score += 3
                 
         else:
-            if is_open_high: status.append("O=H🩸"); score += 3 
-            if vol_x > 1.0: status.append("V🔴"); score += 3    
-            if ltp < vwap: status.append("W🔴"); score += 2     
-            if ltp <= low * 1.002 and day_chg < -0.5: status.append("LB📉"); score += 1
+            # ⭐️ 10 EMA TIME SCORING (HERO): ప్రతి 5 నిమిషాలకు +1 పాయింట్
+            score += total_below_10 
             
             if time_below_mins > 0:
-                bonus_pts = min(time_below_mins // 30, 4) 
-                score += (1 + bonus_pts) 
                 if time_below_mins >= 60:
                     hrs = time_below_mins // 60
                     mins = time_below_mins % 60
@@ -198,15 +191,19 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
                     time_str = f"{time_below_mins}m"
                 status.append(f"E10🔴({time_str})")
             
+            # ⭐️ SUPPORTING INDICATORS SCORING (VERY LOW MARKS)
+            if is_open_high: status.append("O=H🩸"); score += 2 
+            if vol_x > 1.0: status.append("V🔴"); score += 2    
+            if ltp < vwap: status.append("W🔴"); score += 2     
             if ltp < ema50: status.append("E50🔴"); score += 1   
             if ltp < ema200: status.append("E200🔴"); score += 1 
             if rsi25 < 86: score += 1
+            if day_chg <= -2.0: status.append("BM🩸"); score += 1
+            if is_gap_up and ltp < vwap: status.append("GapSell🩸"); score += 3
             
-            if is_gap_up and ltp < vwap:
-                status.append("GapSell🩸"); score += 4
-            
-        if not status: 
-            status.append("⏳")
+        # స్కోర్ కనీసం 5 లేకపోతే (అంటే ఏమాత్రం ట్రెండ్ లేకపోతే) వెయిట్ చేయమని చూపిస్తుంది
+        if score < 5: 
+            status = ["⏳ Wait"]
             score = 0
         
         stock_name = symbol.replace(".NS", "")
@@ -226,14 +223,12 @@ def highlight_priority(row):
     day_chg = float(row['D%'])
     
     if "⏳" in status_str:
-        return ['background-color: white; color: gray'] * len(row)
+        return ['background-color: white; color: #a9a9a9'] * len(row)
         
     major_conditions = 0
-    if "BM" in status_str: major_conditions += 1
+    if "E10" in status_str: major_conditions += 2 # E10 ఉంటే డైరెక్ట్ గా కలర్ బూస్ట్ వస్తుంది
     if "O=L" in status_str or "O=H" in status_str: major_conditions += 1
     if "V🟢" in status_str or "V🔴" in status_str: major_conditions += 1
-    if "W🟢" in status_str or "W🔴" in status_str: major_conditions += 1
-    if "GapBuy" in status_str or "GapSell" in status_str: major_conditions += 2 
     
     if major_conditions >= 2:
         if day_chg >= 0: return ['background-color: #e6fffa; color: #008000; font-weight: 900'] * len(row)
@@ -255,7 +250,7 @@ def style_sector_ranks(val):
 
 # --- 5. EXECUTION ---
 loading_msg = st.empty()
-loading_msg.info("5-Min ఇంట్రాడే డేటా (Live Day Change Update) లోడ్ అవుతోంది... ⏳")
+loading_msg.info("5-Min ఇంట్రాడే డేటా (One Direction Trend Engine) లోడ్ అవుతోంది... ⏳")
 
 data = get_data()
 loading_msg.empty()
@@ -271,16 +266,15 @@ if data is not None and not data.empty:
                 df['Date'] = df.index.date
                 current_date = df['Date'].iloc[-1]
                 today_data = df[df['Date'] == current_date]
-                prev_data = df[df['Date'] < current_date]
-                if len(today_data) == 0 or len(prev_data) == 0: continue
                 
-                c_now = float(today_data['Close'].iloc[-1])
-                o_now = float(today_data['Open'].iloc[0])
-                c_prev = float(prev_data['Close'].iloc[-1])
+                if len(today_data) == 0: continue
                 
-                d_pct = ((c_now - o_now) / o_now) * 100
-                n_pct = ((c_now - c_prev) / c_prev) * 100
-                sec_rows.append({"SECTOR": name, "D%": d_pct, "N%": n_pct, "M%": n_pct - d_pct})
+                ltp = float(today_data['Close'].iloc[-1])
+                o_today = float(today_data['Open'].iloc[0]) 
+                
+                # ఇండెక్స్ కోసం డైరెక్ట్ Today's Open To LTP క్యాలిక్యులేషన్ 
+                d_pct = ((ltp - o_today) / o_today) * 100
+                sec_rows.append({"SECTOR": name, "D%": d_pct, "N%": d_pct, "M%": d_pct})
         except: continue
     
     if sec_rows:
@@ -333,9 +327,8 @@ if data is not None and not data.empty:
                     if len(today_data) == 0: continue
                     
                     ltp = float(today_data['Close'].iloc[-1])
-                    o_today = float(today_data['Open'].iloc[0]) # పక్కాగా ఈరోజు 9:15 ఓపెన్ ప్రైస్
+                    o_today = float(today_data['Open'].iloc[0]) 
                     
-                    # ⚠️ ఇక్కడ మార్పు జరిగింది: ఈరోజు ఓపెన్ ప్రైస్ తో పోల్చి చూస్తున్నాం (Day Change %)
                     pct = ((ltp - o_today) / o_today) * 100
                     
                     arrow = "↑" if pct >= 0 else "↓"
