@@ -3,6 +3,7 @@ import yfinance as yf
 import pandas as pd
 from datetime import datetime, time as dt_time
 from streamlit_autorefresh import st_autorefresh
+import streamlit.components.v1 as components # కొత్తగా యాడ్ చేసిన లైన్
 
 # --- 1. PAGE CONFIGURATION ---
 st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
@@ -204,10 +205,6 @@ loading_msg.empty()
 
 if data is not None and not data.empty:
     
-    # ----------------------------------------------------------------------
-    # 1. డేటాను ముందుగానే క్యాలిక్యులేట్ చేయడం
-    # ----------------------------------------------------------------------
-    
     sec_rows = []
     for name, info in SECTOR_MAP.items():
         try:
@@ -251,9 +248,6 @@ if data is not None and not data.empty:
             df_.drop(columns=["TREND"], inplace=True)
             df_['SCR'] = df_['SCR'].astype(str)
 
-    # ----------------------------------------------------------------------
-    # 2. DASHBOARD - 80% & 20% Layout
-    # ----------------------------------------------------------------------
     dash_left, dash_right = st.columns([0.8, 0.2]) 
     
     with dash_left:
@@ -295,9 +289,6 @@ if data is not None and not data.empty:
         </div>
         """, unsafe_allow_html=True)
     
-    # ----------------------------------------------------------------------
-    # 3. SECTOR RANKS DISPLAY
-    # ----------------------------------------------------------------------
     st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
     if not df_sec.empty:
         df_sec_t = df_sec.set_index("SECTOR").T
@@ -310,15 +301,11 @@ if data is not None and not data.empty:
             ])
         st.dataframe(styled_sec, use_container_width=True)
 
-    # ఇక్కడ STAT కాలమ్ కి width="small" యాడ్ చేసాను. ఇది ఎక్కువ స్పేస్ తీసుకోదు!
     tv_link_config = {
         "STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)"),
         "STAT": st.column_config.TextColumn("STAT", width="small")
     }
 
-    # ----------------------------------------------------------------------
-    # 4. BUY & SELL TABLES 
-    # ----------------------------------------------------------------------
     c_buy, c_sell = st.columns(2)
     
     with c_buy:
@@ -339,9 +326,6 @@ if data is not None and not data.empty:
                 .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '12px'), ('padding', '4px 1px')]}])
             st.dataframe(styled_s, column_config=tv_link_config, use_container_width=True, hide_index=True)
 
-    # ----------------------------------------------------------------------
-    # 5. INDEPENDENT & BROADER
-    # ----------------------------------------------------------------------
     c_ind, c_brd = st.columns(2)
     
     with c_ind:
@@ -361,6 +345,45 @@ if data is not None and not data.empty:
                 .set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'}) \
                 .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '12px'), ('padding', '4px 1px')]}])
             st.dataframe(styled_brd, column_config=tv_link_config, use_container_width=True, hide_index=True)
+
+    # ----------------------------------------------------------------------
+    # 6. LIVE TRADINGVIEW CHART (కొత్తగా యాడ్ చేసిన భాగం)
+    # ----------------------------------------------------------------------
+    st.markdown("<div class='table-head head-neut'>📊 LIVE CHART (TRADINGVIEW)</div>", unsafe_allow_html=True)
+    
+    # యూజర్ కి నచ్చిన స్టాక్ పేరు టైప్ చేయడానికి సెర్చ్ బాక్స్
+    chart_symbol = st.text_input("Enter Stock Symbol (e.g., RELIANCE, HDFCBANK):", "NIFTY")
+    
+    # ఎంటర్ చేసిన పేరుని TradingView ఫార్మాట్ లోకి మార్చడం
+    tv_symbol = f"NSE:{chart_symbol.upper().strip()}" if chart_symbol.upper().strip() != "NIFTY" else "NSE:NIFTY"
+
+    # TradingView వాళ్ళ అఫీషియల్ HTML కోడ్
+    tv_html = f"""
+    <div class="tradingview-widget-container">
+      <div id="tradingview_chart"></div>
+      <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+      <script type="text/javascript">
+      new TradingView.widget(
+      {{
+      "width": "100%",
+      "height": 500,
+      "symbol": "{tv_symbol}",
+      "interval": "5",
+      "timezone": "Asia/Kolkata",
+      "theme": "light",
+      "style": "1",
+      "locale": "en",
+      "enable_publishing": false,
+      "allow_symbol_change": true,
+      "container_id": "tradingview_chart"
+    }}
+      );
+      </script>
+    </div>
+    """
+    
+    # ఆ HTML కోడ్ ని మన యాప్ లోకి పంపించడం
+    components.html(tv_html, height=500)
 
 else:
     st.warning("స్టాక్ మార్కెట్ డేటా దొరకలేదు. బహుశా ఇంటర్నెట్ లేదా Yahoo Finance సర్వర్ నెమ్మదిగా ఉండి ఉండొచ్చు.")
