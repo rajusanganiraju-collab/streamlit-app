@@ -5,7 +5,7 @@ from datetime import datetime, time as dt_time
 from streamlit_autorefresh import st_autorefresh
 
 # --- 1. PAGE CONFIGURATION ---
-st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
+st.set_page_config(page_title="Terminal", page_icon="🎯", layout="wide")
 
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
@@ -100,18 +100,8 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         else:
             df = full_data.copy().dropna()
             
-        if len(df) < 30: return None 
+        if len(df) < 10: return None 
         
-        df['EMA10'] = df['Close'].ewm(span=10, adjust=False).mean()
-        df['EMA50'] = df['Close'].ewm(span=50, adjust=False).mean()
-        df['EMA200'] = df['Close'].ewm(span=200, adjust=False).mean()
-        
-        delta = df['Close'].diff()
-        gain = delta.where(delta > 0, 0).ewm(alpha=1/25, adjust=False).mean()
-        loss = (-delta.where(delta < 0, 0)).ewm(alpha=1/25, adjust=False).mean()
-        rs = gain / loss
-        df['RSI25'] = 100 - (100 / (1 + rs))
-
         df['Date'] = df.index.date
         current_date = df['Date'].iloc[-1]
         today_data = df[df['Date'] == current_date].copy()
@@ -122,8 +112,6 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         ltp = float(today_data['Close'].iloc[-1])
         open_p = float(today_data['Open'].iloc[0]) 
         prev_c = float(prev_data['Close'].iloc[-1]) 
-        low = float(today_data['Low'].min())
-        high = float(today_data['High'].max())
         
         day_chg = ((ltp - open_p) / open_p) * 100
         net_chg = ((ltp - prev_c) / prev_c) * 100
@@ -134,89 +122,61 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         minutes = get_minutes_passed()
         vol_x = round(curr_vol / ((avg_daily_vol/375) * minutes), 1) if avg_daily_vol > 0 else 0.0
         
+        # ⭐️ VWAP CALCULATION
         today_data['Typical_Price'] = (today_data['High'] + today_data['Low'] + today_data['Close']) / 3
         today_data['Cum_Vol_Price'] = (today_data['Typical_Price'] * today_data['Volume']).cumsum()
         today_data['Cum_Vol'] = today_data['Volume'].cumsum()
-        vwap = float(today_data['Cum_Vol_Price'].iloc[-1] / today_data['Cum_Vol'].iloc[-1]) if today_data['Cum_Vol'].iloc[-1] > 0 else ltp
+        today_data['VWAP'] = today_data['Cum_Vol_Price'] / today_data['Cum_Vol']
 
-        ema50 = float(df['EMA50'].iloc[-1])
-        ema200 = float(df['EMA200'].iloc[-1])
-        rsi25 = float(df['RSI25'].iloc[-1])
+        closes = today_data['Close'].values
+        vwaps = today_data['VWAP'].values
         
-        actual_gap_percent = abs(open_p - prev_c) / prev_c * 100
-        is_gap_up = (open_p > prev_c) and (actual_gap_percent >= 0.50)
-        is_gap_down = (open_p < prev_c) and (actual_gap_percent >= 0.50)
-
-        # Candle Body Logic
-        total_above_10 = int(((today_data['Close'] > today_data['EMA10']) | (today_data['Open'] > today_data['EMA10'])).sum())
-        total_below_10 = int(((today_data['Close'] < today_data['EMA10']) | (today_data['Open'] < today_data['EMA10'])).sum())
+        curr_close = closes[-1]
+        curr_vwap = vwaps[-1]
         
-        time_above_mins = total_above_10 * 5
-        time_below_mins = total_below_10 * 5
-
-        if force: check_bullish = day_chg > 0
-        status_text = ""
-        score = 0
+        # ⭐️ PURE VWAP STREAK LOGIC (The Master Engine)
+        is_bullish_trend = curr_close > curr_vwap
         
-        is_open_low = abs(open_p - low) <= (ltp * 0.003)
-        is_open_high = abs(open_p - high) <= (ltp * 0.003)
+        # టేబుల్ రిక్వైర్మెంట్ కి మ్యాచ్ అవ్వకపోతే (Buy టేబుల్ లో Sell స్టాక్ ఉంటే) రిజెక్ట్ చేయి
+        if not force:
+            if check_bullish and not is_bullish_trend: return None
+            if not check_bullish and is_bullish_trend: return None
 
-        if check_bullish:
-            score += total_above_10 
-            if time_above_mins > 0:
-                if time_above_mins >= 60:
-                    hrs = time_above_mins // 60
-                    mins = time_above_mins % 60
-                    time_str = f"{hrs}h" if mins == 0 else f"{hrs}h{mins}m"
-                else:
-                    time_str = f"{time_above_mins}m"
-                status_text = f"E10🟢 ({time_str})"
+        streak = 0
+        # ప్రస్తుత క్యాండిల్ నుండి వెనక్కి (ఉదయం వైపుకి) లెక్కిస్తుంది...
+        for i in range(len(closes)-1, -1, -1):
+            if is_bullish_trend:
+                if closes[i] > vwaps[i]: streak += 1
+                else: break # VWAP ని తాకినా, బ్రేక్ చేసినా కౌంటింగ్ ఆగిపోతుంది!
+            else:
+                if closes[i] < vwaps[i]: streak += 1
+                else: break # VWAP ని తాకినా, బ్రేక్ చేసినా కౌంటింగ్ ఆగిపోతుంది!
+        
+        streak_mins = streak * 5
+        score = streak_mins # స్కోర్ అంటే డైరెక్ట్ గా నిమిషాలే!
+        
+        # ⚡ THE KILL SWITCH: కనీసం 15 నిమిషాలు (3 క్యాండిల్స్) VWAP కింద ఉంటేనే లిస్ట్ లో వస్తుంది.
+        # ఒకవేళ ప్రైస్ VWAP పైకి వెళ్తే దెబ్బకు ఈ స్కోర్ 0 అయిపోయి లిస్ట్ లో నుండి మాయం అయిపోతుంది!
+        if streak < 3: 
+            return None
             
-            if is_open_low: score += 2  
-            if vol_x > 1.0: score += 2    
-            if ltp > ema50: score += 1   
-            if ltp > ema200: score += 1 
-            if rsi25 > 14: score += 1 
-            if day_chg >= 2.0: score += 1
-            if is_gap_down and ltp > vwap: score += 3
-                
+        # Trap Identifier: రోజంతా ఒకే సైడ్ ఉందా? లేక క్రాస్ ఓవర్ ఇచ్చి ట్రాప్ చేసిందా?
+        if streak == len(closes):
+            tag = "VWAP-Pure" # మొదటి నిమిషం నుండి ఒకే ట్రెండ్
         else:
-            score += total_below_10 
-            if time_below_mins > 0:
-                if time_below_mins >= 60:
-                    hrs = time_below_mins // 60
-                    mins = time_below_mins % 60
-                    time_str = f"{hrs}h" if mins == 0 else f"{hrs}h{mins}m"
-                else:
-                    time_str = f"{time_below_mins}m"
-                status_text = f"E10🔴 ({time_str})"
+            tag = "VWAP-Trap" # ఉదయం ఆపోజిట్ డైరెక్షన్ లో ఉండి, బ్రేక్ అయ్యి పడుతోంది (Like LT!)
+
+        # Time Formatting
+        hrs = streak_mins // 60
+        mins = streak_mins % 60
+        time_str = f"{hrs}h" if mins == 0 else f"{hrs}h {mins}m"
+        if hrs == 0: time_str = f"{mins}m"
+
+        if is_bullish_trend:
+            status_text = f"🚀 {tag} ({time_str})"
+        else:
+            status_text = f"🩸 {tag} ({time_str})"
             
-            if is_open_high: score += 2 
-            if vol_x > 1.0: score += 2    
-            if ltp < ema50: score += 1   
-            if ltp < ema200: score += 1 
-            if rsi25 < 86: score += 1
-            if day_chg <= -2.0: score += 1
-            if is_gap_up and ltp < vwap: score += 3
-            
-        # ⚡ VWAP & SCORE KILL SWITCH (Auto-Remove) ⚡
-        
-        # 1. బుల్లిష్ స్టాక్ (Buy) VWAP కిందకు వస్తే, టేబుల్ నుండి ఔట్!
-        if check_bullish and ltp < vwap:
-            return None
-            
-        # 2. బేరిష్ స్టాక్ (Sell) VWAP పైకి వెళ్తే, టేబుల్ నుండి ఔట్!
-        if not check_bullish and ltp > vwap:
-            return None
-            
-        # 3. స్కోర్ 5 కంటే తక్కువ ఉంటే (అంటే ట్రెండ్ లేకపోతే), టేబుల్ నుండి ఔట్!
-        if score < 5: 
-            return None
-            
-        # 4. సిగ్నల్ (E10) ఫామ్ అవ్వకపోతే, టేబుల్ నుండి ఔట్!
-        if status_text == "":
-            return None
-        
         stock_name = symbol.replace(".NS", "")
         tv_url = f"https://in.tradingview.com/chart/?symbol=NSE:{stock_name}"
         
@@ -224,17 +184,15 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
             "STOCK": tv_url, "LTP": f"{ltp:.2f}", "D%": f"{day_chg:.2f}",
             "N%": f"{net_chg:.2f}", "M%": f"{todays_move:.2f}", 
             "VOL": f"{vol_x:.1f}x", "STAT": status_text, "SCORE": int(score),
-            "VOL_NUM": vol_x, "TREND": "BULL" if check_bullish else "BEAR"
+            "VOL_NUM": vol_x, "TREND": "BULL" if is_bullish_trend else "BEAR"
         }
     except: return None
 
 def highlight_priority(row):
     status_str = str(row['STAT'])
-    try: score = int(row['SCORE'])
-    except: score = 0
     day_chg = float(row['D%'])
         
-    if score >= 12:
+    if "VWAP" in status_str:
         if day_chg >= 0: return ['background-color: #e6fffa; color: #008000; font-weight: 900'] * len(row)
         else: return ['background-color: #fff5f5; color: #FF0000; font-weight: 900'] * len(row)
         
@@ -261,7 +219,7 @@ def create_sorted_df(res_list, limit=15):
 
 # --- 5. EXECUTION ---
 loading_msg = st.empty()
-loading_msg.info("5-Min ఇంట్రాడే డేటా లోడ్ అవుతోంది... (Auto-Remove Active ⚡) ⏳")
+loading_msg.info("🎯 VWAP Trap Engine (Institutional Setup) లోడ్ అవుతోంది... ⏳")
 
 data, all_tickers = get_data()
 loading_msg.empty()
@@ -385,11 +343,11 @@ if data is not None and not data.empty:
                         tv_link_config_sniper = {
                             "STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)"),
                             "STAT": st.column_config.TextColumn("STAT", width="medium"),
-                            "SCORE": st.column_config.TextColumn("SCORE", width="small")
+                            "SCORE": st.column_config.TextColumn("MINS", width="small")
                         }
                         st.dataframe(styled_s_disp, column_config=tv_link_config_sniper, use_container_width=True, hide_index=True)
                     else:
-                        st.warning(f"⚠️ {sniper_ticker.upper()} కి ఇప్పుడు సరైన ట్రెండ్ లేదు, లేదా VWAP బ్రేక్ అయ్యింది.")
+                        st.warning(f"⚠️ {sniper_ticker.upper()} స్టాక్ VWAP బ్రేక్ చేసింది, లేదా ట్రెండ్ లో లేదు (కనీసం 15 నిమిషాలు VWAP కింద/పైన ఉండాలి).")
                 else:
                     st.error(f"⚠️ {s_sym} డేటా రాలేదు! బహుశా ఈ స్టాక్ పేరు తప్పు అయ్యుండొచ్చు.")
             except Exception as e:
@@ -410,33 +368,33 @@ if data is not None and not data.empty:
     tv_link_config = {
         "STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)"),
         "STAT": st.column_config.TextColumn("STAT", width="medium"),
-        "SCORE": st.column_config.TextColumn("SCORE", width="small")
+        "SCORE": st.column_config.TextColumn("MINS", width="small")
     }
 
     c_buy, c_sell = st.columns(2)
     with c_buy:
         st.markdown(f"<div class='table-head head-bull'>🚀 BUY: {top_sec}</div>", unsafe_allow_html=True)
         if not df_b.empty:
-            styled_b = df_b.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['M%']).set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'})
+            styled_b = df_b.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['M%']).rename(columns={"SCORE": "MINS"}).set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'})
             st.dataframe(styled_b, column_config=tv_link_config, use_container_width=True, hide_index=True, height=350)
 
     with c_sell:
         st.markdown(f"<div class='table-head head-bear'>🩸 SELL: {bot_sec}</div>", unsafe_allow_html=True)
         if not df_s.empty:
-            styled_s = df_s.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['M%']).set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'})
+            styled_s = df_s.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['M%']).rename(columns={"SCORE": "MINS"}).set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'})
             st.dataframe(styled_s, column_config=tv_link_config, use_container_width=True, hide_index=True, height=350)
 
     c_ind, c_brd = st.columns(2)
     with c_ind:
         st.markdown("<div class='table-head head-neut'>🌟 INDEPENDENT (Top 15)</div>", unsafe_allow_html=True)
         if not df_ind.empty:
-            styled_ind = df_ind.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['M%']).set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'})
+            styled_ind = df_ind.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['M%']).rename(columns={"SCORE": "MINS"}).set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'})
             st.dataframe(styled_ind, column_config=tv_link_config, use_container_width=True, hide_index=True, height=580)
 
     with c_brd:
         st.markdown("<div class='table-head head-neut'>🌌 BROADER MARKET (Top 15)</div>", unsafe_allow_html=True)
         if not df_brd.empty:
-            styled_brd = df_brd.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['M%']).set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'})
+            styled_brd = df_brd.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['M%']).rename(columns={"SCORE": "MINS"}).set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'})
             st.dataframe(styled_brd, column_config=tv_link_config, use_container_width=True, hide_index=True, height=580)
 
     if isinstance(data.columns, pd.MultiIndex):
