@@ -86,10 +86,11 @@ def get_data():
     all_tickers = list(set(all_tickers))
     
     try:
-        data = yf.download(all_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=True)
-        return data
+        # ⚠️ FIX: threads=False పెట్టాను. దీనివల్ల Yahoo ఏ స్టాక్ ని వదిలేయదు.
+        data = yf.download(all_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=False)
+        return data, all_tickers
     except: 
-        return None
+        return None, all_tickers
 
 def analyze(symbol, full_data, check_bullish=True, force=False):
     try:
@@ -142,7 +143,6 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         is_gap_up = (open_p > prev_c) and (actual_gap_percent >= 0.50)
         is_gap_down = (open_p < prev_c) and (actual_gap_percent >= 0.50)
 
-        # 10 EMA TIME LOGIC
         total_above_10 = int((today_data['Close'] > today_data['EMA10']).sum())
         total_below_10 = int((today_data['Close'] < today_data['EMA10']).sum())
         
@@ -215,7 +215,6 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         }
     except: return None
 
-# --- Custom Styling ---
 def highlight_priority(row):
     status_str = str(row['STAT'])
     try: score = int(row['SCORE'])
@@ -243,20 +242,18 @@ def style_sector_ranks(val):
     color, text = ('#d4edda', '#155724') if val >= 0 else ('#f8d7da', '#721c24')
     return f'background-color: {color}; color: {text}; font-weight: 700;'
 
-# --- Helper Function to Create Sorted Tables (Top 15 instead of Top 8) ---
 def create_sorted_df(res_list, limit=15):
     res_list = [x for x in res_list if x]
     if not res_list: return pd.DataFrame()
     df = pd.DataFrame(res_list)
-    # Double sorting: First by SCORE, then by Day Change % (Absolute)
     df['ABS_D'] = df['D%'].astype(float).abs()
     return df.sort_values(by=["SCORE", "ABS_D"], ascending=[False, False]).drop(columns=["VOL_NUM", "ABS_D"]).head(limit)
 
 # --- 5. EXECUTION ---
 loading_msg = st.empty()
-loading_msg.info("5-Min ఇంట్రాడే డేటా (Top 15 & Pro Sorting) లోడ్ అవుతోంది... ⏳")
+loading_msg.info("5-Min ఇంట్రాడే డేటా లోడ్ అవుతోంది... (Missing Stocks ఫిల్టర్ తో) ⏳")
 
-data = get_data()
+data, all_tickers = get_data()
 loading_msg.empty()
 
 if data is not None and not data.empty:
@@ -270,12 +267,10 @@ if data is not None and not data.empty:
                 df['Date'] = df.index.date
                 current_date = df['Date'].iloc[-1]
                 today_data = df[df['Date'] == current_date]
-                
                 if len(today_data) == 0: continue
                 
                 ltp = float(today_data['Close'].iloc[-1])
                 o_today = float(today_data['Open'].iloc[0]) 
-                
                 d_pct = ((ltp - o_today) / o_today) * 100
                 sec_rows.append({"SECTOR": name, "D%": d_pct, "N%": d_pct, "M%": d_pct})
         except: continue
@@ -313,7 +308,6 @@ if data is not None and not data.empty:
     
     with dash_left:
         dash_html = '<div style="display: flex; justify-content: space-between; align-items: center; border: 2px solid #ddd; border-radius: 8px; background-color: #f9f9f9; padding: 5px; height: 80px;">'
-        
         for idx, (ticker, name) in enumerate(INDICES.items()):
             try:
                 if ticker in data.columns.levels[0]:
@@ -322,12 +316,10 @@ if data is not None and not data.empty:
                     df['Date'] = df.index.date
                     current_date = df['Date'].iloc[-1]
                     today_data = df[df['Date'] == current_date]
-                    
                     if len(today_data) == 0: continue
                     
                     ltp = float(today_data['Close'].iloc[-1])
                     o_today = float(today_data['Open'].iloc[0]) 
-                    
                     pct = ((ltp - o_today) / o_today) * 100
                     
                     arrow = "↑" if pct >= 0 else "↓"
@@ -338,7 +330,6 @@ if data is not None and not data.empty:
                     border_style = "border-right: 1px solid #ddd;" if idx < 4 else ""
                     dash_html += f'<a href="{tv_url}" target="_blank" style="text-decoration: none; flex: 1; text-align: center; {border_style}"><div style="color: #444; font-size: 13px; font-weight: 800;">{name}</div><div style="color: black; font-size: 18px; font-weight: 900; margin: 2px 0px;">{ltp:.0f}</div><div style="color: {txt_color}; font-size: 14px; font-weight: bold;">{arrow} {pct:.1f}%</div></a>'
             except: continue
-            
         dash_html += "</div>"
         st.markdown(dash_html, unsafe_allow_html=True)
 
@@ -378,7 +369,6 @@ if data is not None and not data.empty:
     }
 
     c_buy, c_sell = st.columns(2)
-    
     with c_buy:
         st.markdown(f"<div class='table-head head-bull'>🚀 BUY: {top_sec}</div>", unsafe_allow_html=True)
         if not df_b.empty:
@@ -398,7 +388,6 @@ if data is not None and not data.empty:
             st.dataframe(styled_s, column_config=tv_link_config, use_container_width=True, hide_index=True)
 
     c_ind, c_brd = st.columns(2)
-    
     with c_ind:
         st.markdown("<div class='table-head head-neut'>🌟 INDEPENDENT (Top 15)</div>", unsafe_allow_html=True)
         if not df_ind.empty:
@@ -416,6 +405,13 @@ if data is not None and not data.empty:
                 .set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'}) \
                 .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '12px'), ('padding', '4px 1px')]}])
             st.dataframe(styled_brd, column_config=tv_link_config, use_container_width=True, hide_index=True)
+
+    # ⚠️ Missing Stocks Alert: ఇది యాప్ అడుగు భాగంలో డిస్‌ప్లే అవుతుంది
+    if isinstance(data.columns, pd.MultiIndex):
+        downloaded = data.columns.levels[0]
+        missing_stocks = [t.replace(".NS", "") for t in all_tickers if t not in downloaded]
+        if missing_stocks:
+            st.markdown(f"<div style='text-align: center; color: #ff4b4b; font-size: 11px; margin-top: 20px;'>⚠️ <b>Yahoo Finance Failed to Download:</b> {', '.join(missing_stocks)}</div>", unsafe_allow_html=True)
 
 else:
     st.warning("స్టాక్ మార్కెట్ డేటా దొరకలేదు. బహుశా ఇంటర్నెట్ లేదా Yahoo Finance సర్వర్ నెమ్మదిగా ఉండి ఉండొచ్చు.")
