@@ -142,7 +142,7 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         is_gap_up = (open_p > prev_c) and (actual_gap_percent >= 0.50)
         is_gap_down = (open_p < prev_c) and (actual_gap_percent >= 0.50)
 
-        # ఉదయం నుండి మొత్తంగా ఎన్ని 5-నిమిషాల క్యాండిల్స్ 10 EMA పైన/కింద ఉన్నాయో లెక్కింపు
+        # 10 EMA TIME LOGIC 
         total_above_10 = int((today_data['Close'] > today_data['EMA10']).sum())
         total_below_10 = int((today_data['Close'] < today_data['EMA10']).sum())
         
@@ -150,15 +150,17 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         time_below_mins = total_below_10 * 5
 
         if force: check_bullish = day_chg > 0
-        status, score = [], 0
+        status_text = ""
+        score = 0
         
         is_open_low = abs(open_p - low) <= (ltp * 0.003)
         is_open_high = abs(open_p - high) <= (ltp * 0.003)
 
         if check_bullish:
-            # ⭐️ 10 EMA TIME SCORING (HERO): ప్రతి 5 నిమిషాలకు +1 పాయింట్
+            # ⭐️ SCORE: ప్రతి 5 నిమిషాలకు +1 పాయింట్
             score += total_above_10 
             
+            # ⭐️ STATUS: కేవలం E10 సమయం మాత్రమే యాడ్ అవుతుంది (మిగతావి రావు)
             if time_above_mins > 0:
                 if time_above_mins >= 60:
                     hrs = time_above_mins // 60
@@ -166,22 +168,23 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
                     time_str = f"{hrs}h" if mins == 0 else f"{hrs}h{mins}m"
                 else:
                     time_str = f"{time_above_mins}m"
-                status.append(f"E10🟢({time_str})")
+                status_text = f"E10🟢 ({time_str})"
             
-            # ⭐️ SUPPORTING INDICATORS SCORING (VERY LOW MARKS)
-            if is_open_low: status.append("O=L🔥"); score += 2  
-            if vol_x > 1.0: status.append("V🟢"); score += 2    
-            if ltp > vwap: status.append("W🟢"); score += 2     
-            if ltp > ema50: status.append("E50🟢"); score += 1   
-            if ltp > ema200: status.append("E200🟢"); score += 1 
+            # ⭐️ HIDDEN BONUSES: ఇవన్నీ కేవలం స్కోర్ పెంచుతాయి, పేర్లు స్క్రీన్ పైకి రావు!
+            if is_open_low: score += 2  
+            if vol_x > 1.0: score += 2    
+            if ltp > vwap: score += 2     
+            if ltp > ema50: score += 1   
+            if ltp > ema200: score += 1 
             if rsi25 > 14: score += 1 
-            if day_chg >= 2.0: status.append("BM🚀"); score += 1
-            if is_gap_down and ltp > vwap: status.append("GapBuy🔥"); score += 3
+            if day_chg >= 2.0: score += 1
+            if is_gap_down and ltp > vwap: score += 3
                 
         else:
-            # ⭐️ 10 EMA TIME SCORING (HERO): ప్రతి 5 నిమిషాలకు +1 పాయింట్
+            # ⭐️ SCORE: ప్రతి 5 నిమిషాలకు +1 పాయింట్
             score += total_below_10 
             
+            # ⭐️ STATUS: కేవలం E10 సమయం మాత్రమే యాడ్ అవుతుంది
             if time_below_mins > 0:
                 if time_below_mins >= 60:
                     hrs = time_below_mins // 60
@@ -189,21 +192,26 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
                     time_str = f"{hrs}h" if mins == 0 else f"{hrs}h{mins}m"
                 else:
                     time_str = f"{time_below_mins}m"
-                status.append(f"E10🔴({time_str})")
+                status_text = f"E10🔴 ({time_str})"
             
-            # ⭐️ SUPPORTING INDICATORS SCORING (VERY LOW MARKS)
-            if is_open_high: status.append("O=H🩸"); score += 2 
-            if vol_x > 1.0: status.append("V🔴"); score += 2    
-            if ltp < vwap: status.append("W🔴"); score += 2     
-            if ltp < ema50: status.append("E50🔴"); score += 1   
-            if ltp < ema200: status.append("E200🔴"); score += 1 
+            # ⭐️ HIDDEN BONUSES: ఇవన్నీ కేవలం స్కోర్ పెంచుతాయి, పేర్లు స్క్రీన్ పైకి రావు!
+            if is_open_high: score += 2 
+            if vol_x > 1.0: score += 2    
+            if ltp < vwap: score += 2     
+            if ltp < ema50: score += 1   
+            if ltp < ema200: score += 1 
             if rsi25 < 86: score += 1
-            if day_chg <= -2.0: status.append("BM🩸"); score += 1
-            if is_gap_up and ltp < vwap: status.append("GapSell🩸"); score += 3
+            if day_chg <= -2.0: score += 1
+            if is_gap_up and ltp < vwap: score += 3
             
-        # స్కోర్ కనీసం 5 లేకపోతే (అంటే ఏమాత్రం ట్రెండ్ లేకపోతే) వెయిట్ చేయమని చూపిస్తుంది
+        # స్కోర్ 5 కంటే తక్కువ ఉంటే దాన్ని ట్రేడ్ చేయకూడదు (Wait)
         if score < 5: 
-            status = ["⏳ Wait"]
+            status_text = "⏳ Wait"
+            score = 0
+            
+        # ఒకవేళ E10 సిగ్నల్ ఫామ్ అవ్వకపోతే..
+        if status_text == "":
+            status_text = "⏳ Wait"
             score = 0
         
         stock_name = symbol.replace(".NS", "")
@@ -212,7 +220,7 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         return {
             "STOCK": tv_url, "LTP": f"{ltp:.2f}", "D%": f"{day_chg:.2f}",
             "N%": f"{net_chg:.2f}", "M%": f"{todays_move:.2f}", 
-            "VOL": f"{vol_x:.1f}x", "STAT": " ".join(status), "SCORE": score,
+            "VOL": f"{vol_x:.1f}x", "STAT": status_text, "SCORE": int(score),
             "VOL_NUM": vol_x, "TREND": "BULL" if check_bullish else "BEAR"
         }
     except: return None
@@ -220,17 +228,17 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
 # --- Custom Styling ---
 def highlight_priority(row):
     status_str = str(row['STAT'])
+    try:
+        score = int(row['SCORE'])
+    except:
+        score = 0
     day_chg = float(row['D%'])
     
     if "⏳" in status_str:
         return ['background-color: white; color: #a9a9a9'] * len(row)
         
-    major_conditions = 0
-    if "E10" in status_str: major_conditions += 2 # E10 ఉంటే డైరెక్ట్ గా కలర్ బూస్ట్ వస్తుంది
-    if "O=L" in status_str or "O=H" in status_str: major_conditions += 1
-    if "V🟢" in status_str or "V🔴" in status_str: major_conditions += 1
-    
-    if major_conditions >= 2:
+    # స్కోర్ 12 దాటితే (అంటే కనీసం గంటసేపు ట్రెండ్ + బోనస్ ఉంటేనే) కలర్ హైలైట్ వస్తుంది!
+    if score >= 12:
         if day_chg >= 0: return ['background-color: #e6fffa; color: #008000; font-weight: 900'] * len(row)
         else: return ['background-color: #fff5f5; color: #FF0000; font-weight: 900'] * len(row)
         
@@ -250,7 +258,7 @@ def style_sector_ranks(val):
 
 # --- 5. EXECUTION ---
 loading_msg = st.empty()
-loading_msg.info("5-Min ఇంట్రాడే డేటా (One Direction Trend Engine) లోడ్ అవుతోంది... ⏳")
+loading_msg.info("5-Min ఇంట్రాడే డేటా (Super Clean E10 Strategy) లోడ్ అవుతోంది... ⏳")
 
 data = get_data()
 loading_msg.empty()
@@ -272,7 +280,6 @@ if data is not None and not data.empty:
                 ltp = float(today_data['Close'].iloc[-1])
                 o_today = float(today_data['Open'].iloc[0]) 
                 
-                # ఇండెక్స్ కోసం డైరెక్ట్ Today's Open To LTP క్యాలిక్యులేషన్ 
                 d_pct = ((ltp - o_today) / o_today) * 100
                 sec_rows.append({"SECTOR": name, "D%": d_pct, "N%": d_pct, "M%": d_pct})
         except: continue
@@ -374,7 +381,7 @@ if data is not None and not data.empty:
 
     tv_link_config = {
         "STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)"),
-        "STAT": st.column_config.TextColumn("STAT", width="small"),
+        "STAT": st.column_config.TextColumn("STAT", width="medium"),
         "SCORE": st.column_config.TextColumn("SCORE", width="small")
     }
 
