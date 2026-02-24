@@ -3,7 +3,6 @@ import yfinance as yf
 import pandas as pd
 from datetime import datetime, time as dt_time
 from streamlit_autorefresh import st_autorefresh
-import streamlit.components.v1 as components # కొత్తగా యాడ్ చేసిన లైన్
 
 # --- 1. PAGE CONFIGURATION ---
 st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
@@ -11,7 +10,7 @@ st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
 
-# పైన స్పేస్ తగ్గించడానికి, మొబైల్ ఆప్టిమైజేషన్ కి CSS
+# CSS
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -21,14 +20,11 @@ st.markdown("""
     .stApp { background-color: #ffffff; color: #000000; }
     html, body, [class*="css"] { font-family: 'Arial', sans-serif; font-weight: 600; color: #000000 !important; }
     
-    /* మొబైల్ కోసం మార్జిన్స్ బాగా తగ్గించబడ్డాయి */
     .block-container { padding-top: 0.5rem !important; padding-bottom: 0rem !important; padding-left: 0.1rem !important; padding-right: 0.1rem !important; margin-top: -10px; }
     
-    /* Table Styling - Centered */
     th { background-color: #ffffff !important; color: #000000 !important; font-size: 12px !important; text-align: center !important; border-bottom: 2px solid #222222 !important; border-top: 2px solid #222222 !important; padding: 4px 2px !important; }
     td { font-size: 12px !important; color: #000000 !important; border-bottom: 1px solid #ccc !important; text-align: center !important; padding: 4px 2px !important; font-weight: 700 !important; }
     
-    /* UNIFIED TABLE HEADINGS */
     .table-head { padding: 6px 10px; font-weight: 900; font-size: 14px; text-transform: uppercase; margin-top: 8px; margin-bottom: 2px; border-radius: 4px; text-align: left; }
     .head-bull { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
     .head-bear { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
@@ -45,21 +41,8 @@ def format_ticker(t):
         return f"{t}.NS"
     return t
 
-INDICES = {
-    "^NSEI": "NIFTY",
-    "^NSEBANK": "BNKNFY",
-    "^INDIAVIX": "VIX",
-    "^DJI": "DOW",
-    "^IXIC": "NSDQ"
-}
-
-TV_INDICES = {
-    "^NSEI": "NSE:NIFTY",
-    "^NSEBANK": "NSE:BANKNIFTY",
-    "^INDIAVIX": "NSE:INDIAVIX",
-    "^DJI": "TVC:DJI",
-    "^IXIC": "NASDAQ:IXIC"
-}
+INDICES = {"^NSEI": "NIFTY", "^NSEBANK": "BNKNFY", "^INDIAVIX": "VIX", "^DJI": "DOW", "^IXIC": "NSDQ"}
+TV_INDICES = {"^NSEI": "NSE:NIFTY", "^NSEBANK": "NSE:BANKNIFTY", "^INDIAVIX": "NSE:INDIAVIX", "^DJI": "TVC:DJI", "^IXIC": "NASDAQ:IXIC"}
 
 SECTOR_MAP = {
     "BANK": {"index": "^NSEBANK", "stocks": ["HDFCBANK", "ICICIBANK", "SBIN", "AXISBANK", "KOTAKBANK", "INDUSINDBK", "BANKBARODA", "PNB"]},
@@ -73,16 +56,11 @@ SECTOR_MAP = {
 }
 
 BROADER_MARKET = [
-    "HAL", "BEL", "BDL", "MAZDOCK", "COCHINSHIP", "GRSE",
-    "RVNL", "IRFC", "IRCON", "TITAGARH", "RAILTEL", "RITES",
-    "ADANIPOWER", "ADANIGREEN", "NHPC", "SJVN", "BHEL", "CGPOWER", "SUZLON",
-    "PFC", "RECLTD", "IREDA", "IOB", "UCOBANK", "MAHABANK", "CANBK",
-    "BAJFINANCE", "CHOLAFIN", "JIOFIN", "MUTHOOTFIN", "MANAPPURAM", "SHRIRAMFIN", "M&MFIN",
-    "DIXON", "POLYCAB", "KAYNES", "HAVELLS", "KEI", "RRKABEL",
-    "SRF", "TATACHEM", "DEEPAKNTR", "AARTIIND", "PIIND", "FACT", "UPL",
-    "ULTRACEMCO", "AMBUJACEM", "SHREECEM", "DALBHARAT", "L&T", "CUMMINSIND", "ABB", "SIEMENS",
-    "BHARTIARTL", "IDEA", "INDIGO", "ZOMATO", "TRENT", "DMART", "PAYTM", "ZENTEC",
-    "ADANIENT", "ADANIPORTS", "ATGL", "AWL",
+    "HAL", "BEL", "BDL", "MAZDOCK", "COCHINSHIP", "GRSE", "RVNL", "IRFC", "IRCON", "TITAGARH", "RAILTEL", "RITES",
+    "ADANIPOWER", "ADANIGREEN", "NHPC", "SJVN", "BHEL", "CGPOWER", "SUZLON", "PFC", "RECLTD", "IREDA", "IOB", "UCOBANK", "MAHABANK", "CANBK",
+    "BAJFINANCE", "CHOLAFIN", "JIOFIN", "MUTHOOTFIN", "MANAPPURAM", "SHRIRAMFIN", "M&MFIN", "DIXON", "POLYCAB", "KAYNES", "HAVELLS", "KEI", "RRKABEL",
+    "SRF", "TATACHEM", "DEEPAKNTR", "AARTIIND", "PIIND", "FACT", "UPL", "ULTRACEMCO", "AMBUJACEM", "SHREECEM", "DALBHARAT", "L&T", "CUMMINSIND", "ABB", "SIEMENS",
+    "BHARTIARTL", "IDEA", "INDIGO", "ZOMATO", "TRENT", "DMART", "PAYTM", "ZENTEC", "ADANIENT", "ADANIPORTS", "ATGL", "AWL",
     "BOSCHLTD", "MRF", "MOTHERSON", "SONACOMS", "EXIDEIND", "AMARAJABAT"
 ]
 
@@ -108,7 +86,8 @@ def get_data():
     all_tickers = list(set(all_tickers))
     
     try:
-        data = yf.download(all_tickers, period="5d", progress=False, group_by='ticker', threads=False)
+        # పక్కా 5-నిమిషాల డేటా (5-minute timeframe)
+        data = yf.download(all_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=True)
         return data
     except: 
         return None
@@ -117,23 +96,61 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
     try:
         if symbol not in full_data.columns.levels[0]: return None
         df = full_data[symbol].dropna()
-        if len(df) < 2: return None
+        if len(df) < 200: return None # EMA 200 కోసం కనీసం 200 5m క్యాండిల్స్ కావాలి
         
-        ltp = float(df['Close'].iloc[-1])
-        open_p = float(df['Open'].iloc[-1])
-        prev_c = float(df['Close'].iloc[-2])
-        low = float(df['Low'].iloc[-1])
-        high = float(df['High'].iloc[-1])
+        # డేటాని ఈరోజుకి మరియు నిన్నటికి విడదీయడం (For Gaps & Day High/Low)
+        df['Date'] = df.index.date
+        current_date = df['Date'].iloc[-1]
+        today_data = df[df['Date'] == current_date].copy()
+        prev_data = df[df['Date'] < current_date]
+        
+        if len(today_data) == 0 or len(prev_data) == 0: return None
+        
+        ltp = float(today_data['Close'].iloc[-1])
+        open_p = float(today_data['Open'].iloc[0]) # ఈరోజు 9:15 క్యాండిల్ ఓపెన్ ప్రైస్
+        prev_c = float(prev_data['Close'].iloc[-1]) # నిన్నటి 3:25 క్యాండిల్ క్లోజింగ్ ప్రైస్
+        low = float(today_data['Low'].min())
+        high = float(today_data['High'].max())
         
         day_chg = ((ltp - open_p) / open_p) * 100
         net_chg = ((ltp - prev_c) / prev_c) * 100
         todays_move = net_chg - day_chg
 
-        avg_vol = df['Volume'].iloc[:-1].mean()
-        curr_vol = float(df['Volume'].iloc[-1])
+        # డైలీ వాల్యూమ్ క్యాలిక్యులేషన్
+        avg_daily_vol = prev_data['Volume'].sum() / prev_data['Date'].nunique()
+        curr_vol = today_data['Volume'].sum()
         minutes = get_minutes_passed()
-        vol_x = round(curr_vol / ((avg_vol/375) * minutes), 1) if avg_vol > 0 else 0.0
-        vwap = (high + low + ltp) / 3
+        vol_x = round(curr_vol / ((avg_daily_vol/375) * minutes), 1) if avg_daily_vol > 0 else 0.0
+        
+        # ---------------------------------------------------------
+        # PINE SCRIPT INTRADAY INDICATORS (5-Minute Timeframe)
+        # ---------------------------------------------------------
+        # 1. LIVE INTRADAY VWAP (ప్రతిరోజూ ఉదయం రీసెట్ అవుతుంది)
+        today_data['Typical_Price'] = (today_data['High'] + today_data['Low'] + today_data['Close']) / 3
+        today_data['Cum_Vol_Price'] = (today_data['Typical_Price'] * today_data['Volume']).cumsum()
+        today_data['Cum_Vol'] = today_data['Volume'].cumsum()
+        vwap = float(today_data['Cum_Vol_Price'].iloc[-1] / today_data['Cum_Vol'].iloc[-1]) if today_data['Cum_Vol'].iloc[-1] > 0 else ltp
+
+        # 2. 5-Min EMAs (50 & 200)
+        df['EMA50'] = df['Close'].ewm(span=50, adjust=False).mean()
+        df['EMA200'] = df['Close'].ewm(span=200, adjust=False).mean()
+        
+        # 3. 5-Min RSI (25 Length)
+        delta = df['Close'].diff()
+        gain = delta.where(delta > 0, 0).ewm(alpha=1/25, adjust=False).mean()
+        loss = (-delta.where(delta < 0, 0)).ewm(alpha=1/25, adjust=False).mean()
+        rs = gain / loss
+        df['RSI25'] = 100 - (100 / (1 + rs))
+        
+        ema50 = float(df['EMA50'].iloc[-1])
+        ema200 = float(df['EMA200'].iloc[-1])
+        rsi25 = float(df['RSI25'].iloc[-1])
+        
+        # 4. Gap Strategy (0.50% Threshold)
+        actual_gap_percent = abs(open_p - prev_c) / prev_c * 100
+        is_gap_up = (open_p > prev_c) and (actual_gap_percent >= 0.50)
+        is_gap_down = (open_p < prev_c) and (actual_gap_percent >= 0.50)
+        # ---------------------------------------------------------
 
         if force: check_bullish = day_chg > 0
         status, score = [], 0
@@ -141,19 +158,38 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         is_open_low = abs(open_p - low) <= (ltp * 0.003)
         is_open_high = abs(open_p - high) <= (ltp * 0.003)
         
-        if day_chg >= 2.0: status.append("BM🚀"); score += 3
-        elif day_chg <= -2.0: status.append("BM🩸"); score += 3
+        if day_chg >= 2.0: status.append("BM🚀"); score += 2
+        elif day_chg <= -2.0: status.append("BM🩸"); score += 2
 
         if check_bullish:
-            if is_open_low: status.append("O=L🔥"); score += 3
-            if vol_x > 1.0: status.append("V🟢"); score += 3
+            # Basic Price Action
+            if is_open_low: status.append("O=L🔥"); score += 2
+            if vol_x > 1.0: status.append("V🟢"); score += 2
             if ltp >= high * 0.998 and day_chg > 0.5: status.append("HB🚀"); score += 1
-            if ltp > (low * 1.01) and ltp > vwap: status.append("R⇈"); score += 1
+            
+            # --- 5-MIN PINE SCRIPT BULLISH CONDITIONS ---
+            if ltp > ema50: status.append("E50🟢"); score += 1
+            if ltp > ema200: status.append("E200🟢"); score += 1
+            if rsi25 > 14: score += 1 # RSI Condition
+            
+            # ఇంట్రాడే గ్యాప్ జాక్‌పాట్: గ్యాప్ డౌన్ + VWAP పైన ఉంటే..
+            if is_gap_down and ltp > vwap:
+                status.append("GapBuy🔥"); score += 4
+                
         else:
-            if is_open_high: status.append("O=H🩸"); score += 3
-            if vol_x > 1.0: status.append("V🔴"); score += 3
+            # Basic Price Action
+            if is_open_high: status.append("O=H🩸"); score += 2
+            if vol_x > 1.0: status.append("V🔴"); score += 2
             if ltp <= low * 1.002 and day_chg < -0.5: status.append("LB📉"); score += 1
-            if ltp < (high * 0.99) and ltp < vwap: status.append("P⇊"); score += 1
+            
+            # --- 5-MIN PINE SCRIPT BEARISH CONDITIONS ---
+            if ltp < ema50: status.append("E50🔴"); score += 1
+            if ltp < ema200: status.append("E200🔴"); score += 1
+            if rsi25 < 86: score += 1
+            
+            # ఇంట్రాడే గ్యాప్ జాక్‌పాట్: గ్యాప్ అప్ + VWAP కింద ఉంటే..
+            if is_gap_up and ltp < vwap:
+                status.append("GapSell🩸"); score += 4
             
         if not status: return None
         
@@ -177,6 +213,7 @@ def highlight_priority(row):
     if "BM" in status_str: major_conditions += 1
     if "O=L" in status_str or "O=H" in status_str: major_conditions += 1
     if "V🟢" in status_str or "V🔴" in status_str: major_conditions += 1
+    if "GapBuy" in status_str or "GapSell" in status_str: major_conditions += 2 
     
     if major_conditions >= 2:
         if day_chg >= 0: return ['background-color: #e6fffa; color: #008000; font-weight: 900'] * len(row)
@@ -198,7 +235,7 @@ def style_sector_ranks(val):
 
 # --- 5. EXECUTION ---
 loading_msg = st.empty()
-loading_msg.info("మార్కెట్ డేటా లోడ్ అవుతోంది... దయచేసి 15 సెకన్లు వేచి ఉండండి ⏳")
+loading_msg.info("5-Min ఇంట్రాడే డేటా (EMA, RSI, VWAP) లోడ్ అవుతోంది... దయచేసి వేచి ఉండండి ⏳")
 
 data = get_data()
 loading_msg.empty()
@@ -210,8 +247,20 @@ if data is not None and not data.empty:
         try:
             if info['index'] in data.columns.levels[0]:
                 df = data[info['index']].dropna()
-                c_now, c_prev, o_now = float(df['Close'].iloc[-1]), float(df['Close'].iloc[-2]), float(df['Open'].iloc[-1])
-                d_pct, n_pct = ((c_now - o_now) / o_now) * 100, ((c_now - c_prev) / c_prev) * 100
+                if len(df) < 2: continue
+                # సెక్టార్ కి కూడా 5 నిమిషాల డేటా తీసుకుంటున్నాం
+                df['Date'] = df.index.date
+                current_date = df['Date'].iloc[-1]
+                today_data = df[df['Date'] == current_date]
+                prev_data = df[df['Date'] < current_date]
+                if len(today_data) == 0 or len(prev_data) == 0: continue
+                
+                c_now = float(today_data['Close'].iloc[-1])
+                o_now = float(today_data['Open'].iloc[0])
+                c_prev = float(prev_data['Close'].iloc[-1])
+                
+                d_pct = ((c_now - o_now) / o_now) * 100
+                n_pct = ((c_now - c_prev) / c_prev) * 100
                 sec_rows.append({"SECTOR": name, "D%": d_pct, "N%": n_pct, "M%": n_pct - d_pct})
         except: continue
     
@@ -257,8 +306,16 @@ if data is not None and not data.empty:
             try:
                 if ticker in data.columns.levels[0]:
                     df = data[ticker].dropna()
-                    ltp = float(df['Close'].iloc[-1])
-                    pct = ((ltp - float(df['Close'].iloc[-2])) / float(df['Close'].iloc[-2])) * 100
+                    if len(df) < 2: continue
+                    df['Date'] = df.index.date
+                    current_date = df['Date'].iloc[-1]
+                    today_data = df[df['Date'] == current_date]
+                    prev_data = df[df['Date'] < current_date]
+                    if len(today_data) == 0 or len(prev_data) == 0: continue
+                    
+                    ltp = float(today_data['Close'].iloc[-1])
+                    c_prev = float(prev_data['Close'].iloc[-1])
+                    pct = ((ltp - c_prev) / c_prev) * 100
                     
                     arrow = "↑" if pct >= 0 else "↓"
                     txt_color = "#008000" if pct >= 0 else "#FF0000"
@@ -345,45 +402,6 @@ if data is not None and not data.empty:
                 .set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'}) \
                 .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '12px'), ('padding', '4px 1px')]}])
             st.dataframe(styled_brd, column_config=tv_link_config, use_container_width=True, hide_index=True)
-
-    # ----------------------------------------------------------------------
-    # 6. LIVE TRADINGVIEW CHART (కొత్తగా యాడ్ చేసిన భాగం)
-    # ----------------------------------------------------------------------
-    st.markdown("<div class='table-head head-neut'>📊 LIVE CHART (TRADINGVIEW)</div>", unsafe_allow_html=True)
-    
-    # యూజర్ కి నచ్చిన స్టాక్ పేరు టైప్ చేయడానికి సెర్చ్ బాక్స్
-    chart_symbol = st.text_input("Enter Stock Symbol (e.g., RELIANCE, HDFCBANK):", "NIFTY")
-    
-    # ఎంటర్ చేసిన పేరుని TradingView ఫార్మాట్ లోకి మార్చడం
-    tv_symbol = f"NSE:{chart_symbol.upper().strip()}" if chart_symbol.upper().strip() != "NIFTY" else "NSE:NIFTY"
-
-    # TradingView వాళ్ళ అఫీషియల్ HTML కోడ్
-    tv_html = f"""
-    <div class="tradingview-widget-container">
-      <div id="tradingview_chart"></div>
-      <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
-      <script type="text/javascript">
-      new TradingView.widget(
-      {{
-      "width": "100%",
-      "height": 500,
-      "symbol": "{tv_symbol}",
-      "interval": "5",
-      "timezone": "Asia/Kolkata",
-      "theme": "light",
-      "style": "1",
-      "locale": "en",
-      "enable_publishing": false,
-      "allow_symbol_change": true,
-      "container_id": "tradingview_chart"
-    }}
-      );
-      </script>
-    </div>
-    """
-    
-    # ఆ HTML కోడ్ ని మన యాప్ లోకి పంపించడం
-    components.html(tv_html, height=500)
 
 else:
     st.warning("స్టాక్ మార్కెట్ డేటా దొరకలేదు. బహుశా ఇంటర్నెట్ లేదా Yahoo Finance సర్వర్ నెమ్మదిగా ఉండి ఉండొచ్చు.")
