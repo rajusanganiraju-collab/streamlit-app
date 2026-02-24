@@ -139,15 +139,11 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
             if check_bullish and not is_bullish_trend: return None
             if not check_bullish and is_bullish_trend: return None
 
-        # ⚡ NEW DOUBLE LOGIC: VWAP మరియు 10EMA కింద ఉన్న క్యాండిల్స్ లెక్కింపు
+        # ⚡ NEW: STRICT CLOSE BASIS LOGIC ⚡
+        # కేవలం Close ప్రైస్ మాత్రమే పక్కాగా VWAP మరియు 10EMA కంటే పైన/కింద ఉండాలి.
         
-        # Bullish (Buy) అయితే: Price > VWAP AND Price > 10EMA
-        today_data['Bull_Candle'] = ((today_data['Close'] > today_data['VWAP']) | (today_data['Open'] > today_data['VWAP'])) & \
-                                    ((today_data['Close'] > today_data['EMA10']) | (today_data['Open'] > today_data['EMA10']))
-                                    
-        # Bearish (Sell) అయితే: Price < VWAP AND Price < 10EMA                            
-        today_data['Bear_Candle'] = ((today_data['Close'] < today_data['VWAP']) | (today_data['Open'] < today_data['VWAP'])) & \
-                                    ((today_data['Close'] < today_data['EMA10']) | (today_data['Open'] < today_data['EMA10']))
+        today_data['Bull_Candle'] = (today_data['Close'] > today_data['VWAP']) & (today_data['Close'] > today_data['EMA10'])
+        today_data['Bear_Candle'] = (today_data['Close'] < today_data['VWAP']) & (today_data['Close'] < today_data['EMA10'])
 
         if is_bullish_trend:
             valid_candles = int(today_data['Bull_Candle'].sum())
@@ -157,16 +153,24 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         score_mins = valid_candles * 5
         score = score_mins 
         
-        # THE KILL SWITCH
-        # 1. తక్కువ క్యాండిల్స్ ఉంటే అవుట్
-        if valid_candles < 3: 
+        # THE KILL SWITCH (VWAP Break)
+        closes = today_data['Close'].values
+        vwaps = today_data['VWAP'].values
+        
+        streak = 0
+        for i in range(len(closes)-1, -1, -1):
+            if is_bullish_trend:
+                if closes[i] > vwaps[i]: streak += 1
+                else: break
+            else:
+                if closes[i] < vwaps[i]: streak += 1
+                else: break 
+                
+        # కనీసం 3 క్యాండిల్స్ (15 నిమిషాలు) కంటిన్యూస్ గా VWAP కింద లేకపోతే లిస్ట్ లోంచి అవుట్!
+        if streak < 3: 
             return None
             
-        # 2. VWAP బ్రేక్ అయితే అవుట్
-        if is_bullish_trend and ltp < curr_vwap: return None
-        if not is_bullish_trend and ltp > curr_vwap: return None
-
-        # Trap Identifier (తొలి క్యాండిల్ ఎటు ఉందో చూసి ట్రాప్ ని డిసైడ్ చేస్తుంది)
+        # Trap Identifier (తొలి క్యాండిల్ ఎక్కడ క్లోజ్ అయిందో చూసి డిసైడ్ చేస్తుంది)
         first_close = today_data['Close'].iloc[0]
         first_vwap = today_data['VWAP'].iloc[0]
         
@@ -230,7 +234,7 @@ def create_sorted_df(res_list, limit=15):
 
 # --- 5. EXECUTION ---
 loading_msg = st.empty()
-loading_msg.info("🎯 Double Engine (VWAP + 10 EMA) లోడ్ అవుతోంది... ⏳")
+loading_msg.info("🎯 Strict Close Basis Engine (VWAP + 10 EMA) లోడ్ అవుతోంది... ⏳")
 
 data, all_tickers = get_data()
 loading_msg.empty()
