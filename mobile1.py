@@ -86,7 +86,6 @@ def get_data():
     all_tickers = list(set(all_tickers))
     
     try:
-        # పక్కా 5-నిమిషాల డేటా (5-minute timeframe)
         data = yf.download(all_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=True)
         return data
     except: 
@@ -98,7 +97,20 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         df = full_data[symbol].dropna()
         if len(df) < 200: return None 
         
-        # డేటాని ఈరోజుకి మరియు నిన్నటికి విడదీయడం (For Gaps & Day High/Low)
+        # ---------------------------------------------------------
+        # INDICATORS CALCULATION ON FULL DATA
+        # ---------------------------------------------------------
+        df['EMA10'] = df['Close'].ewm(span=10, adjust=False).mean()
+        df['EMA50'] = df['Close'].ewm(span=50, adjust=False).mean()
+        df['EMA200'] = df['Close'].ewm(span=200, adjust=False).mean()
+        
+        delta = df['Close'].diff()
+        gain = delta.where(delta > 0, 0).ewm(alpha=1/25, adjust=False).mean()
+        loss = (-delta.where(delta < 0, 0)).ewm(alpha=1/25, adjust=False).mean()
+        rs = gain / loss
+        df['RSI25'] = 100 - (100 / (1 + rs))
+
+        # SLICING TODAY'S DATA
         df['Date'] = df.index.date
         current_date = df['Date'].iloc[-1]
         today_data = df[df['Date'] == current_date].copy()
@@ -116,42 +128,48 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         net_chg = ((ltp - prev_c) / prev_c) * 100
         todays_move = net_chg - day_chg
 
-        # డైలీ వాల్యూమ్ క్యాలిక్యులేషన్
         avg_daily_vol = prev_data['Volume'].sum() / prev_data['Date'].nunique()
         curr_vol = today_data['Volume'].sum()
         minutes = get_minutes_passed()
         vol_x = round(curr_vol / ((avg_daily_vol/375) * minutes), 1) if avg_daily_vol > 0 else 0.0
         
-        # ---------------------------------------------------------
-        # PINE SCRIPT INTRADAY INDICATORS (5-Minute Timeframe)
-        # ---------------------------------------------------------
-        # 1. LIVE INTRADAY VWAP
+        # VWAP
         today_data['Typical_Price'] = (today_data['High'] + today_data['Low'] + today_data['Close']) / 3
         today_data['Cum_Vol_Price'] = (today_data['Typical_Price'] * today_data['Volume']).cumsum()
         today_data['Cum_Vol'] = today_data['Volume'].cumsum()
         vwap = float(today_data['Cum_Vol_Price'].iloc[-1] / today_data['Cum_Vol'].iloc[-1]) if today_data['Cum_Vol'].iloc[-1] > 0 else ltp
 
-        # 2. 5-Min EMAs (10, 50 & 200) - కొత్తగా EMA 10 యాడ్ చేశాం!
-        df['EMA10'] = df['Close'].ewm(span=10, adjust=False).mean()
-        df['EMA50'] = df['Close'].ewm(span=50, adjust=False).mean()
-        df['EMA200'] = df['Close'].ewm(span=200, adjust=False).mean()
-        
-        # 3. 5-Min RSI (25 Length)
-        delta = df['Close'].diff()
-        gain = delta.where(delta > 0, 0).ewm(alpha=1/25, adjust=False).mean()
-        loss = (-delta.where(delta < 0, 0)).ewm(alpha=1/25, adjust=False).mean()
-        rs = gain / loss
-        df['RSI25'] = 100 - (100 / (1 + rs))
-        
-        ema10 = float(df['EMA10'].iloc[-1])
         ema50 = float(df['EMA50'].iloc[-1])
         ema200 = float(df['EMA200'].iloc[-1])
         rsi25 = float(df['RSI25'].iloc[-1])
         
-        # 4. Gap Strategy (0.50% Threshold)
+        # Gap Strategy
         actual_gap_percent = abs(open_p - prev_c) / prev_c * 100
         is_gap_up = (open_p > prev_c) and (actual_gap_percent >= 0.50)
         is_gap_down = (open_p < prev_c) and (actual_gap_percent >= 0.50)
+
+        # ---------------------------------------------------------
+        # NEW DYNAMIC 10 EMA TIME LOGIC
+        # ---------------------------------------------------------
+        consecutive_above_10 = 0
+        consecutive_below_10 = 0
+        
+        # Counting how many consecutive 5-min candles stayed ABOVE 10 EMA today
+        for i in range(len(today_data)-1, -1, -1):
+            if today_data['Close'].iloc[i] > today_data['EMA10'].iloc[i]:
+                consecutive_above_10 += 1
+            else:
+                break
+                
+        # Counting how many consecutive 5-min candles stayed BELOW 10 EMA today
+        for i in range(len(today_data)-1, -1, -1):
+            if today_data['Close'].iloc[i] < today_data['EMA10'].iloc[i]:
+                consecutive_below_10 += 1
+            else:
+                break
+                
+        time_above_mins = consecutive_above_10 * 5
+        time_below_mins = consecutive_below_10 * 5
         # ---------------------------------------------------------
 
         if force: check_bullish = day_chg > 0
@@ -164,34 +182,52 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         elif day_chg <= -2.0: status.append("BM🩸"); score += 2
 
         if check_bullish:
-            # Basic Price Action
             if is_open_low: status.append("O=L🔥"); score += 2
             if vol_x > 1.0: status.append("V🟢"); score += 2
             if ltp >= high * 0.998 and day_chg > 0.5: status.append("HB🚀"); score += 1
             
-            # --- 5-MIN PINE SCRIPT BULLISH CONDITIONS ---
-            if ltp > ema10: status.append("E10🟢"); score += 1  # EMA 10 Condition
+            # --- EMA 10 DYNAMIC SCORING (BULLISH) ---
+            if time_above_mins > 0:
+                bonus_pts = min(time_above_mins // 30, 4) # Prathi 30 mins ki +1 extra point (Max +4 bonus)
+                score += (1 + bonus_pts) # Base 1 + Bonus
+                
+                if time_above_mins >= 60:
+                    hrs = time_above_mins // 60
+                    mins = time_above_mins % 60
+                    time_str = f"{hrs}h" if mins == 0 else f"{hrs}h{mins}m"
+                else:
+                    time_str = f"{time_above_mins}m"
+                status.append(f"E10🟢({time_str})")
+            
             if ltp > ema50: status.append("E50🟢"); score += 1
             if ltp > ema200: status.append("E200🟢"); score += 1
             if rsi25 > 14: score += 1 
             
-            # ఇంట్రాడే గ్యాప్ జాక్‌పాట్: గ్యాప్ డౌన్ + VWAP పైన ఉంటే..
             if is_gap_down and ltp > vwap:
                 status.append("GapBuy🔥"); score += 4
                 
         else:
-            # Basic Price Action
             if is_open_high: status.append("O=H🩸"); score += 2
             if vol_x > 1.0: status.append("V🔴"); score += 2
             if ltp <= low * 1.002 and day_chg < -0.5: status.append("LB📉"); score += 1
             
-            # --- 5-MIN PINE SCRIPT BEARISH CONDITIONS ---
-            if ltp < ema10: status.append("E10🔴"); score += 1  # EMA 10 Condition
+            # --- EMA 10 DYNAMIC SCORING (BEARISH) ---
+            if time_below_mins > 0:
+                bonus_pts = min(time_below_mins // 30, 4) # Prathi 30 mins ki +1 extra point (Max +4 bonus)
+                score += (1 + bonus_pts) # Base 1 + Bonus
+                
+                if time_below_mins >= 60:
+                    hrs = time_below_mins // 60
+                    mins = time_below_mins % 60
+                    time_str = f"{hrs}h" if mins == 0 else f"{hrs}h{mins}m"
+                else:
+                    time_str = f"{time_below_mins}m"
+                status.append(f"E10🔴({time_str})")
+            
             if ltp < ema50: status.append("E50🔴"); score += 1
             if ltp < ema200: status.append("E200🔴"); score += 1
             if rsi25 < 86: score += 1
             
-            # ఇంట్రాడే గ్యాప్ జాక్‌పాట్: గ్యాప్ అప్ + VWAP కింద ఉంటే..
             if is_gap_up and ltp < vwap:
                 status.append("GapSell🩸"); score += 4
             
@@ -239,7 +275,7 @@ def style_sector_ranks(val):
 
 # --- 5. EXECUTION ---
 loading_msg = st.empty()
-loading_msg.info("5-Min ఇంట్రాడే డేటా (EMA 10, 50, 200, RSI, VWAP) లోడ్ అవుతోంది... దయచేసి వేచి ఉండండి ⏳")
+loading_msg.info("5-Min ఇంట్రాడే డేటా (EMA Time Calculator, RSI, VWAP) లోడ్ అవుతోంది... దయచేసి వేచి ఉండండి ⏳")
 
 data = get_data()
 loading_msg.empty()
