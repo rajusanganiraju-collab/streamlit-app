@@ -139,9 +139,7 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
             if check_bullish and not is_bullish_trend: return None
             if not check_bullish and is_bullish_trend: return None
 
-        # ⚡ NEW: STRICT CLOSE BASIS LOGIC ⚡
-        # కేవలం Close ప్రైస్ మాత్రమే పక్కాగా VWAP మరియు 10EMA కంటే పైన/కింద ఉండాలి.
-        
+        # ⚡ STRICT CLOSE BASIS LOGIC ⚡
         today_data['Bull_Candle'] = (today_data['Close'] > today_data['VWAP']) & (today_data['Close'] > today_data['EMA10'])
         today_data['Bear_Candle'] = (today_data['Close'] < today_data['VWAP']) & (today_data['Close'] < today_data['EMA10'])
 
@@ -150,8 +148,8 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         else:
             valid_candles = int(today_data['Bear_Candle'].sum())
             
-        score_mins = valid_candles * 5
-        score = score_mins 
+        # ⚠️ మార్పు: ఇక్కడ డైరెక్ట్ గా valid_candles నే స్కోర్ గా సెట్ చేశాను.
+        score = valid_candles 
         
         # THE KILL SWITCH (VWAP Break)
         closes = today_data['Close'].values
@@ -170,7 +168,6 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         if streak < 3: 
             return None
             
-        # Trap Identifier (తొలి క్యాండిల్ ఎక్కడ క్లోజ్ అయిందో చూసి డిసైడ్ చేస్తుంది)
         first_close = today_data['Close'].iloc[0]
         first_vwap = today_data['VWAP'].iloc[0]
         
@@ -181,7 +178,8 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
             if first_close > first_vwap: tag = "VWAP-Trap"
             else: tag = "VWAP-Pure"
 
-        # Time Formatting
+        # Time Formatting for STAT column (STAT కాలమ్ లో టైమ్ చూపిస్తుంది, లాస్ట్ కాలమ్ లో నెంబర్ వస్తుంది)
+        score_mins = valid_candles * 5
         hrs = score_mins // 60
         mins = score_mins % 60
         time_str = f"{hrs}h" if mins == 0 else f"{hrs}h {mins}m"
@@ -350,7 +348,8 @@ if data is not None and not data.empty:
                         st.markdown(f"<div class='table-head head-sniper'>🎯 SNIPER TARGET: {s_sym.replace('.NS', '')}</div>", unsafe_allow_html=True)
                         if "TREND" in s_res: del s_res["TREND"]
                         df_s_disp = pd.DataFrame([s_res])
-                        styled_s_disp = df_s_disp.style.apply(highlight_priority, axis=1) \
+                        # ⚠️ ఎర్రర్ లేకుండా rename వాడాను.
+                        styled_s_disp = df_s_disp.rename(columns={"SCORE": "CANDLES"}).style.apply(highlight_priority, axis=1) \
                             .map(style_move_col, subset=['M%']) \
                             .set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'}) \
                             .set_table_styles([{'selector': 'th', 'props': [('background-color', '#fff3cd'), ('color', '#856404'), ('font-size', '12px')]}])
@@ -358,7 +357,7 @@ if data is not None and not data.empty:
                         tv_link_config_sniper = {
                             "STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)"),
                             "STAT": st.column_config.TextColumn("STAT", width="medium"),
-                            "SCORE": st.column_config.TextColumn("MINS", width="small")
+                            "CANDLES": st.column_config.TextColumn("CANDLES", width="small")
                         }
                         st.dataframe(styled_s_disp, column_config=tv_link_config_sniper, use_container_width=True, hide_index=True)
                     else:
@@ -383,33 +382,34 @@ if data is not None and not data.empty:
     tv_link_config = {
         "STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)"),
         "STAT": st.column_config.TextColumn("STAT", width="medium"),
-        "SCORE": st.column_config.TextColumn("MINS", width="small")
+        "CANDLES": st.column_config.TextColumn("CANDLES", width="small")
     }
 
     c_buy, c_sell = st.columns(2)
     with c_buy:
         st.markdown(f"<div class='table-head head-bull'>🚀 BUY: {top_sec}</div>", unsafe_allow_html=True)
         if not df_b.empty:
-            styled_b = df_b.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['M%']).set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'})
+            # ⚠️ SCORE ని CANDLES కింద rename చేశాను
+            styled_b = df_b.rename(columns={"SCORE": "CANDLES"}).style.apply(highlight_priority, axis=1).map(style_move_col, subset=['M%']).set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'})
             st.dataframe(styled_b, column_config=tv_link_config, use_container_width=True, hide_index=True, height=350)
 
     with c_sell:
         st.markdown(f"<div class='table-head head-bear'>🩸 SELL: {bot_sec}</div>", unsafe_allow_html=True)
         if not df_s.empty:
-            styled_s = df_s.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['M%']).set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'})
+            styled_s = df_s.rename(columns={"SCORE": "CANDLES"}).style.apply(highlight_priority, axis=1).map(style_move_col, subset=['M%']).set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'})
             st.dataframe(styled_s, column_config=tv_link_config, use_container_width=True, hide_index=True, height=350)
 
     c_ind, c_brd = st.columns(2)
     with c_ind:
         st.markdown("<div class='table-head head-neut'>🌟 INDEPENDENT (Top 15)</div>", unsafe_allow_html=True)
         if not df_ind.empty:
-            styled_ind = df_ind.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['M%']).set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'})
+            styled_ind = df_ind.rename(columns={"SCORE": "CANDLES"}).style.apply(highlight_priority, axis=1).map(style_move_col, subset=['M%']).set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'})
             st.dataframe(styled_ind, column_config=tv_link_config, use_container_width=True, hide_index=True, height=580)
 
     with c_brd:
         st.markdown("<div class='table-head head-neut'>🌌 BROADER MARKET (Top 15)</div>", unsafe_allow_html=True)
         if not df_brd.empty:
-            styled_brd = df_brd.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['M%']).set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'})
+            styled_brd = df_brd.rename(columns={"SCORE": "CANDLES"}).style.apply(highlight_priority, axis=1).map(style_move_col, subset=['M%']).set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'})
             st.dataframe(styled_brd, column_config=tv_link_config, use_container_width=True, hide_index=True, height=580)
 
     if isinstance(data.columns, pd.MultiIndex):
