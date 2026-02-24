@@ -205,7 +205,6 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
             if is_gap_up and ltp < vwap:
                 status.append("GapSell🩸"); score += 4
             
-        # ⚠️ పాత కోడ్‌లో లాగా కాకుండా, ఇప్పుడు స్టాక్‌కి సిగ్నల్ రాకపోతే దాన్ని తీసేయకుండా "⏳" చూపిస్తుంది
         if not status: 
             status.append("⏳")
             score = 0
@@ -300,7 +299,6 @@ if data is not None and not data.empty:
     df_s = pd.DataFrame(res_s).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8) if res_s else pd.DataFrame()
 
     ind_movers = [analyze(s, data, force=True) for name, info in SECTOR_MAP.items() if name not in [top_sec, bot_sec] for s in info['stocks']]
-    # ⚠️ ఇక్కడ పాత ఫిల్టర్ ని తీసేసాను, దీనివల్ల స్కోర్ 0 ఉన్నా కూడా మార్నింగ్ టైమ్ లో లిస్ట్ కనిపిస్తుంది
     ind_movers = [r for r in ind_movers if r] 
     df_ind = pd.DataFrame(ind_movers).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8) if ind_movers else pd.DataFrame()
 
@@ -381,4 +379,49 @@ if data is not None and not data.empty:
 
     tv_link_config = {
         "STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)"),
-        "STAT
+        "STAT": st.column_config.TextColumn("STAT", width="small"),
+        "SCORE": st.column_config.TextColumn("SCORE", width="small")
+    }
+
+    c_buy, c_sell = st.columns(2)
+    
+    with c_buy:
+        st.markdown(f"<div class='table-head head-bull'>🚀 BUY: {top_sec}</div>", unsafe_allow_html=True)
+        if not df_b.empty:
+            styled_b = df_b.style.apply(highlight_priority, axis=1) \
+                .map(style_move_col, subset=['M%']) \
+                .set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'}) \
+                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '12px'), ('padding', '4px 1px')]}])
+            st.dataframe(styled_b, column_config=tv_link_config, use_container_width=True, hide_index=True)
+
+    with c_sell:
+        st.markdown(f"<div class='table-head head-bear'>🩸 SELL: {bot_sec}</div>", unsafe_allow_html=True)
+        if not df_s.empty:
+            styled_s = df_s.style.apply(highlight_priority, axis=1) \
+                .map(style_move_col, subset=['M%']) \
+                .set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'}) \
+                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '12px'), ('padding', '4px 1px')]}])
+            st.dataframe(styled_s, column_config=tv_link_config, use_container_width=True, hide_index=True)
+
+    c_ind, c_brd = st.columns(2)
+    
+    with c_ind:
+        st.markdown("<div class='table-head head-neut'>🌟 INDEPENDENT (Top 8)</div>", unsafe_allow_html=True)
+        if not df_ind.empty:
+            styled_ind = df_ind.style.apply(highlight_priority, axis=1) \
+                .map(style_move_col, subset=['M%']) \
+                .set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'}) \
+                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '12px'), ('padding', '4px 1px')]}])
+            st.dataframe(styled_ind, column_config=tv_link_config, use_container_width=True, hide_index=True)
+
+    with c_brd:
+        st.markdown("<div class='table-head head-neut'>🌌 BROADER MARKET (Top 8)</div>", unsafe_allow_html=True)
+        if not df_brd.empty:
+            styled_brd = df_brd.style.apply(highlight_priority, axis=1) \
+                .map(style_move_col, subset=['M%']) \
+                .set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'}) \
+                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '12px'), ('padding', '4px 1px')]}])
+            st.dataframe(styled_brd, column_config=tv_link_config, use_container_width=True, hide_index=True)
+
+else:
+    st.warning("స్టాక్ మార్కెట్ డేటా దొరకలేదు. బహుశా ఇంటర్నెట్ లేదా Yahoo Finance సర్వర్ నెమ్మదిగా ఉండి ఉండొచ్చు.")
