@@ -10,7 +10,7 @@ st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
 
-# CSS
+# CSS 
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -255,7 +255,7 @@ def style_sector_ranks(val):
 
 # --- 5. EXECUTION ---
 loading_msg = st.empty()
-loading_msg.info("5-Min ఇంట్రాడే డేటా (Pure Trend Riding) లోడ్ అవుతోంది... ⏳")
+loading_msg.info("5-Min ఇంట్రాడే డేటా (Live Day Change Update) లోడ్ అవుతోంది... ⏳")
 
 data = get_data()
 loading_msg.empty()
@@ -329,12 +329,14 @@ if data is not None and not data.empty:
                     df['Date'] = df.index.date
                     current_date = df['Date'].iloc[-1]
                     today_data = df[df['Date'] == current_date]
-                    prev_data = df[df['Date'] < current_date]
-                    if len(today_data) == 0 or len(prev_data) == 0: continue
+                    
+                    if len(today_data) == 0: continue
                     
                     ltp = float(today_data['Close'].iloc[-1])
-                    c_prev = float(prev_data['Close'].iloc[-1])
-                    pct = ((ltp - c_prev) / c_prev) * 100
+                    o_today = float(today_data['Open'].iloc[0]) # పక్కాగా ఈరోజు 9:15 ఓపెన్ ప్రైస్
+                    
+                    # ⚠️ ఇక్కడ మార్పు జరిగింది: ఈరోజు ఓపెన్ ప్రైస్ తో పోల్చి చూస్తున్నాం (Day Change %)
+                    pct = ((ltp - o_today) / o_today) * 100
                     
                     arrow = "↑" if pct >= 0 else "↓"
                     txt_color = "#008000" if pct >= 0 else "#FF0000"
