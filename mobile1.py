@@ -96,7 +96,7 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
     try:
         if symbol not in full_data.columns.levels[0]: return None
         df = full_data[symbol].dropna()
-        if len(df) < 200: return None # EMA 200 కోసం కనీసం 200 5m క్యాండిల్స్ కావాలి
+        if len(df) < 200: return None 
         
         # డేటాని ఈరోజుకి మరియు నిన్నటికి విడదీయడం (For Gaps & Day High/Low)
         df['Date'] = df.index.date
@@ -107,8 +107,8 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         if len(today_data) == 0 or len(prev_data) == 0: return None
         
         ltp = float(today_data['Close'].iloc[-1])
-        open_p = float(today_data['Open'].iloc[0]) # ఈరోజు 9:15 క్యాండిల్ ఓపెన్ ప్రైస్
-        prev_c = float(prev_data['Close'].iloc[-1]) # నిన్నటి 3:25 క్యాండిల్ క్లోజింగ్ ప్రైస్
+        open_p = float(today_data['Open'].iloc[0]) 
+        prev_c = float(prev_data['Close'].iloc[-1]) 
         low = float(today_data['Low'].min())
         high = float(today_data['High'].max())
         
@@ -125,13 +125,14 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         # ---------------------------------------------------------
         # PINE SCRIPT INTRADAY INDICATORS (5-Minute Timeframe)
         # ---------------------------------------------------------
-        # 1. LIVE INTRADAY VWAP (ప్రతిరోజూ ఉదయం రీసెట్ అవుతుంది)
+        # 1. LIVE INTRADAY VWAP
         today_data['Typical_Price'] = (today_data['High'] + today_data['Low'] + today_data['Close']) / 3
         today_data['Cum_Vol_Price'] = (today_data['Typical_Price'] * today_data['Volume']).cumsum()
         today_data['Cum_Vol'] = today_data['Volume'].cumsum()
         vwap = float(today_data['Cum_Vol_Price'].iloc[-1] / today_data['Cum_Vol'].iloc[-1]) if today_data['Cum_Vol'].iloc[-1] > 0 else ltp
 
-        # 2. 5-Min EMAs (50 & 200)
+        # 2. 5-Min EMAs (10, 50 & 200) - కొత్తగా EMA 10 యాడ్ చేశాం!
+        df['EMA10'] = df['Close'].ewm(span=10, adjust=False).mean()
         df['EMA50'] = df['Close'].ewm(span=50, adjust=False).mean()
         df['EMA200'] = df['Close'].ewm(span=200, adjust=False).mean()
         
@@ -142,6 +143,7 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         rs = gain / loss
         df['RSI25'] = 100 - (100 / (1 + rs))
         
+        ema10 = float(df['EMA10'].iloc[-1])
         ema50 = float(df['EMA50'].iloc[-1])
         ema200 = float(df['EMA200'].iloc[-1])
         rsi25 = float(df['RSI25'].iloc[-1])
@@ -168,9 +170,10 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
             if ltp >= high * 0.998 and day_chg > 0.5: status.append("HB🚀"); score += 1
             
             # --- 5-MIN PINE SCRIPT BULLISH CONDITIONS ---
+            if ltp > ema10: status.append("E10🟢"); score += 1  # EMA 10 Condition
             if ltp > ema50: status.append("E50🟢"); score += 1
             if ltp > ema200: status.append("E200🟢"); score += 1
-            if rsi25 > 14: score += 1 # RSI Condition
+            if rsi25 > 14: score += 1 
             
             # ఇంట్రాడే గ్యాప్ జాక్‌పాట్: గ్యాప్ డౌన్ + VWAP పైన ఉంటే..
             if is_gap_down and ltp > vwap:
@@ -183,6 +186,7 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
             if ltp <= low * 1.002 and day_chg < -0.5: status.append("LB📉"); score += 1
             
             # --- 5-MIN PINE SCRIPT BEARISH CONDITIONS ---
+            if ltp < ema10: status.append("E10🔴"); score += 1  # EMA 10 Condition
             if ltp < ema50: status.append("E50🔴"); score += 1
             if ltp < ema200: status.append("E200🔴"); score += 1
             if rsi25 < 86: score += 1
@@ -235,7 +239,7 @@ def style_sector_ranks(val):
 
 # --- 5. EXECUTION ---
 loading_msg = st.empty()
-loading_msg.info("5-Min ఇంట్రాడే డేటా (EMA, RSI, VWAP) లోడ్ అవుతోంది... దయచేసి వేచి ఉండండి ⏳")
+loading_msg.info("5-Min ఇంట్రాడే డేటా (EMA 10, 50, 200, RSI, VWAP) లోడ్ అవుతోంది... దయచేసి వేచి ఉండండి ⏳")
 
 data = get_data()
 loading_msg.empty()
@@ -248,7 +252,6 @@ if data is not None and not data.empty:
             if info['index'] in data.columns.levels[0]:
                 df = data[info['index']].dropna()
                 if len(df) < 2: continue
-                # సెక్టార్ కి కూడా 5 నిమిషాల డేటా తీసుకుంటున్నాం
                 df['Date'] = df.index.date
                 current_date = df['Date'].iloc[-1]
                 today_data = df[df['Date'] == current_date]
