@@ -10,7 +10,7 @@ st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
 
-# CSS - మొబైల్ కోసం మరింత కుదించబడిన ప్యాడింగ్
+# CSS
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -97,9 +97,6 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         df = full_data[symbol].dropna()
         if len(df) < 200: return None 
         
-        # ---------------------------------------------------------
-        # INDICATORS CALCULATION ON FULL DATA
-        # ---------------------------------------------------------
         df['EMA10'] = df['Close'].ewm(span=10, adjust=False).mean()
         df['EMA50'] = df['Close'].ewm(span=50, adjust=False).mean()
         df['EMA200'] = df['Close'].ewm(span=200, adjust=False).mean()
@@ -110,7 +107,6 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         rs = gain / loss
         df['RSI25'] = 100 - (100 / (1 + rs))
 
-        # SLICING TODAY'S DATA
         df['Date'] = df.index.date
         current_date = df['Date'].iloc[-1]
         today_data = df[df['Date'] == current_date].copy()
@@ -133,7 +129,6 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         minutes = get_minutes_passed()
         vol_x = round(curr_vol / ((avg_daily_vol/375) * minutes), 1) if avg_daily_vol > 0 else 0.0
         
-        # VWAP
         today_data['Typical_Price'] = (today_data['High'] + today_data['Low'] + today_data['Close']) / 3
         today_data['Cum_Vol_Price'] = (today_data['Typical_Price'] * today_data['Volume']).cumsum()
         today_data['Cum_Vol'] = today_data['Volume'].cumsum()
@@ -143,20 +138,15 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         ema200 = float(df['EMA200'].iloc[-1])
         rsi25 = float(df['RSI25'].iloc[-1])
         
-        # Gap Strategy
         actual_gap_percent = abs(open_p - prev_c) / prev_c * 100
         is_gap_up = (open_p > prev_c) and (actual_gap_percent >= 0.50)
         is_gap_down = (open_p < prev_c) and (actual_gap_percent >= 0.50)
 
-        # ---------------------------------------------------------
-        # OVERALL TIME TREND (10 EMA)
-        # ---------------------------------------------------------
         total_above_10 = int((today_data['Close'] > today_data['EMA10']).sum())
         total_below_10 = int((today_data['Close'] < today_data['EMA10']).sum())
         
         time_above_mins = total_above_10 * 5
         time_below_mins = total_below_10 * 5
-        # ---------------------------------------------------------
 
         if force: check_bullish = day_chg > 0
         status, score = [], 0
@@ -164,17 +154,19 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         is_open_low = abs(open_p - low) <= (ltp * 0.003)
         is_open_high = abs(open_p - high) <= (ltp * 0.003)
         
+        # స్కోరింగ్ రీ-డిజైన్ (PERFECT WEIGHTAGE)
         if day_chg >= 2.0: status.append("BM🚀"); score += 2
         elif day_chg <= -2.0: status.append("BM🩸"); score += 2
 
         if check_bullish:
-            if is_open_low: status.append("O=L🔥"); score += 2
-            if vol_x > 1.0: status.append("V🟢"); score += 2
+            if is_open_low: status.append("O=L🔥"); score += 3  # Tier-1 (+3)
+            if vol_x > 1.0: status.append("V🟢"); score += 3    # Tier-1 (+3)
+            if ltp > vwap: status.append("W🟢"); score += 2     # Tier-2 (+2)
             if ltp >= high * 0.998 and day_chg > 0.5: status.append("HB🚀"); score += 1
             
             if time_above_mins > 0:
                 bonus_pts = min(time_above_mins // 30, 4) 
-                score += (1 + bonus_pts) 
+                score += (1 + bonus_pts) # Base 1 + Bonus
                 if time_above_mins >= 60:
                     hrs = time_above_mins // 60
                     mins = time_above_mins % 60
@@ -183,16 +175,17 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
                     time_str = f"{time_above_mins}m"
                 status.append(f"E10🟢({time_str})")
             
-            if ltp > ema50: status.append("E50🟢"); score += 1
-            if ltp > ema200: status.append("E200🟢"); score += 1
+            if ltp > ema50: status.append("E50🟢"); score += 1   # Tier-3 (+1)
+            if ltp > ema200: status.append("E200🟢"); score += 1 # Tier-3 (+1)
             if rsi25 > 14: score += 1 
             
             if is_gap_down and ltp > vwap:
                 status.append("GapBuy🔥"); score += 4
                 
         else:
-            if is_open_high: status.append("O=H🩸"); score += 2
-            if vol_x > 1.0: status.append("V🔴"); score += 2
+            if is_open_high: status.append("O=H🩸"); score += 3 # Tier-1 (+3)
+            if vol_x > 1.0: status.append("V🔴"); score += 3    # Tier-1 (+3)
+            if ltp < vwap: status.append("W🔴"); score += 2     # Tier-2 (+2)
             if ltp <= low * 1.002 and day_chg < -0.5: status.append("LB📉"); score += 1
             
             if time_below_mins > 0:
@@ -206,8 +199,8 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
                     time_str = f"{time_below_mins}m"
                 status.append(f"E10🔴({time_str})")
             
-            if ltp < ema50: status.append("E50🔴"); score += 1
-            if ltp < ema200: status.append("E200🔴"); score += 1
+            if ltp < ema50: status.append("E50🔴"); score += 1   # Tier-3 (+1)
+            if ltp < ema200: status.append("E200🔴"); score += 1 # Tier-3 (+1)
             if rsi25 < 86: score += 1
             
             if is_gap_up and ltp < vwap:
@@ -218,7 +211,6 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         stock_name = symbol.replace(".NS", "")
         tv_url = f"https://in.tradingview.com/chart/?symbol=NSE:{stock_name}"
         
-        # 'SCR' బదులు పక్కాగా 'SCORE' అని మార్చాను
         return {
             "STOCK": tv_url, "LTP": f"{ltp:.2f}", "D%": f"{day_chg:.2f}",
             "N%": f"{net_chg:.2f}", "M%": f"{todays_move:.2f}", 
@@ -236,6 +228,7 @@ def highlight_priority(row):
     if "BM" in status_str: major_conditions += 1
     if "O=L" in status_str or "O=H" in status_str: major_conditions += 1
     if "V🟢" in status_str or "V🔴" in status_str: major_conditions += 1
+    if "W🟢" in status_str or "W🔴" in status_str: major_conditions += 1
     if "GapBuy" in status_str or "GapSell" in status_str: major_conditions += 2 
     
     if major_conditions >= 2:
@@ -258,7 +251,7 @@ def style_sector_ranks(val):
 
 # --- 5. EXECUTION ---
 loading_msg = st.empty()
-loading_msg.info("5-Min ఇంట్రాడే డేటా (EMA Total Time, RSI, VWAP) లోడ్ అవుతోంది... దయచేసి వేచి ఉండండి ⏳")
+loading_msg.info("5-Min ఇంట్రాడే డేటా (Optimized Scoring & VWAP) లోడ్ అవుతోంది... ⏳")
 
 data = get_data()
 loading_msg.empty()
@@ -380,7 +373,6 @@ if data is not None and not data.empty:
             ])
         st.dataframe(styled_sec, use_container_width=True)
 
-    # ఇక్కడ STAT కాలమ్ సైజ్ బాగా తగ్గించి, SCORE కాలమ్ కి ఎక్కువ ప్రయారిటీ ఇచ్చాం
     tv_link_config = {
         "STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)"),
         "STAT": st.column_config.TextColumn("STAT", width="small"),
