@@ -87,19 +87,18 @@ def get_data():
     all_tickers = list(set(all_tickers))
     
     try:
-        data = yf.download(all_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=True)
-        return data
+        data = yf.download(all_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=False)
+        return data, all_tickers
     except: 
-        return None
+        return None, all_tickers
 
 def analyze(symbol, full_data, check_bullish=True, force=False):
     try:
-        # Sniper Mode ఫీచర్ కోసం Single Ticker మరియు Multi Ticker కి తేడా సెట్ చేశాను 
         if isinstance(full_data.columns, pd.MultiIndex):
             if symbol not in full_data.columns.levels[0]: return None
-            df = full_data[symbol].dropna()
+            df = full_data[symbol].copy().dropna()
         else:
-            df = full_data.dropna()
+            df = full_data.copy().dropna()
             
         if len(df) < 30: return None 
         
@@ -148,7 +147,6 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         is_gap_up = (open_p > prev_c) and (actual_gap_percent >= 0.50)
         is_gap_down = (open_p < prev_c) and (actual_gap_percent >= 0.50)
 
-        # 10 EMA TIME LOGIC
         total_above_10 = int((today_data['Close'] > today_data['EMA10']).sum())
         total_below_10 = int((today_data['Close'] < today_data['EMA10']).sum())
         
@@ -259,7 +257,7 @@ def create_sorted_df(res_list, limit=15):
 loading_msg = st.empty()
 loading_msg.info("5-Min ఇంట్రాడే డేటా లోడ్ అవుతోంది... ⏳")
 
-data = get_data()
+data, all_tickers = get_data()
 loading_msg.empty()
 
 if data is not None and not data.empty:
@@ -355,7 +353,7 @@ if data is not None and not data.empty:
         </div>
         """, unsafe_allow_html=True)
     
-    # 🎯 SNIPER SEARCH BOX
+    # 🎯 SNIPER SEARCH BOX (UPDATED)
     st.markdown("<hr style='margin: 10px 0px;'>", unsafe_allow_html=True)
     sniper_col1, sniper_col2 = st.columns([0.3, 0.7])
     with sniper_col1:
@@ -365,12 +363,14 @@ if data is not None and not data.empty:
         if sniper_ticker:
             s_sym = format_ticker(sniper_ticker)
             try:
-                s_data = yf.download(s_sym, period="5d", interval="5m", progress=False)
+                # ⚠️ FIX: yf.download కు బదులు yf.Ticker() వాడాను. ఇది సింగిల్ స్టాక్స్ కి ఎప్పుడూ క్రాష్ అవ్వదు!
+                s_ticker_obj = yf.Ticker(s_sym)
+                s_data = s_ticker_obj.history(period="5d", interval="5m")
+                
                 if not s_data.empty:
                     s_res = analyze(s_sym, s_data, force=True)
                     if s_res:
                         st.markdown(f"<div class='table-head head-sniper'>🎯 SNIPER TARGET: {s_sym.replace('.NS', '')}</div>", unsafe_allow_html=True)
-                        # Remove TREND column if exists to display cleanly
                         if "TREND" in s_res: del s_res["TREND"]
                         df_s_disp = pd.DataFrame([s_res])
                         styled_s_disp = df_s_disp.style.apply(highlight_priority, axis=1) \
@@ -378,7 +378,6 @@ if data is not None and not data.empty:
                             .set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'}) \
                             .set_table_styles([{'selector': 'th', 'props': [('background-color', '#fff3cd'), ('color', '#856404'), ('font-size', '12px')]}])
                         
-                        # Snipper Link Config
                         tv_link_config_sniper = {
                             "STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)"),
                             "STAT": st.column_config.TextColumn("STAT", width="medium"),
@@ -388,9 +387,9 @@ if data is not None and not data.empty:
                     else:
                         st.warning(f"⚠️ {sniper_ticker.upper()} కు ప్రస్తుతం సరైన ట్రెండ్ లేదు (SCORE 5 కంటే తక్కువ).")
                 else:
-                    st.error("Invalid Symbol or Data not found!")
-            except:
-                st.error("Error fetching data from Yahoo Finance.")
+                    st.error(f"⚠️ {s_sym} డేటా రాలేదు! బహుశా ఈ స్టాక్ పేరు తప్పు అయ్యుండొచ్చు.")
+            except Exception as e:
+                st.error("⚠️ Yahoo Finance సర్వర్ ఎర్రర్. మళ్లీ ట్రై చేయండి.")
     st.markdown("<hr style='margin: 10px 0px;'>", unsafe_allow_html=True)
 
     if not df_sec.empty:
@@ -410,7 +409,6 @@ if data is not None and not data.empty:
         "SCORE": st.column_config.TextColumn("SCORE", width="small")
     }
 
-    # ⚠️ టేబుల్ హైట్ పెంచాను (Height=600), ఇప్పుడు స్క్రోల్ బార్ లేకుండా 15 స్టాక్స్ డైరెక్ట్ గా కనిపిస్తాయి!
     c_buy, c_sell = st.columns(2)
     with c_buy:
         st.markdown(f"<div class='table-head head-bull'>🚀 BUY: {top_sec}</div>", unsafe_allow_html=True)
@@ -436,6 +434,12 @@ if data is not None and not data.empty:
         if not df_brd.empty:
             styled_brd = df_brd.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['M%']).set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'})
             st.dataframe(styled_brd, column_config=tv_link_config, use_container_width=True, hide_index=True, height=580)
+
+    if isinstance(data.columns, pd.MultiIndex):
+        downloaded = data.columns.levels[0]
+        missing_stocks = [t.replace(".NS", "") for t in all_tickers if t not in downloaded]
+        if missing_stocks:
+            st.markdown(f"<div style='text-align: center; color: #ff4b4b; font-size: 11px; margin-top: 20px;'>⚠️ <b>Yahoo Finance Failed to Download:</b> {', '.join(missing_stocks)}</div>", unsafe_allow_html=True)
 
 else:
     st.warning("స్టాక్ మార్కెట్ డేటా దొరకలేదు. బహుశా ఇంటర్నెట్ లేదా Yahoo Finance సర్వర్ నెమ్మదిగా ఉండి ఉండొచ్చు.")
