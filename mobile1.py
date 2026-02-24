@@ -8,15 +8,15 @@ from streamlit_autorefresh import st_autorefresh
 st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
 st_autorefresh(interval=60000, key="datarefresh")
 
-# CSS - పాత డిజైన్ & టేబుల్ స్టైలింగ్
+# CSS - పక్కా లేఅవుట్ సెట్టింగ్స్
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
     .stApp { background-color: #ffffff; color: #000000; }
     html, body, [class*="css"] { font-family: 'Arial', sans-serif; font-weight: 600; color: #000000 !important; }
-    .block-container { padding-top: 0.5rem !important; padding-bottom: 0rem !important; padding-left: 0.5rem !important; padding-right: 0.5rem !important; margin-top: -10px; }
-    th { background-color: #ffffff !important; color: #000000 !important; font-size: 14px !important; text-align: center !important; border-bottom: 2px solid #222222 !important; border-top: 2px solid #222222 !important; padding: 6px !important; }
-    td { font-size: 14px !important; color: #000000 !important; border-bottom: 1px solid #ccc !important; text-align: center !important; padding: 4px !important; font-weight: 700 !important; }
+    .block-container { padding: 0.5rem 0.5rem 0rem !important; margin-top: -10px; }
+    th { background-color: #ffffff !important; color: #000000 !important; font-size: 14px !important; text-align: center !important; border-bottom: 2px solid #222 !important; border-top: 2px solid #222 !important; padding: 6px !important; }
+    td { font-size: 14px !important; color: #000000 !important; border-bottom: 1px solid #ccc !important; text-align: center !important; font-weight: 700 !important; }
     .table-head { padding: 6px 10px; font-weight: 900; font-size: 15px; text-transform: uppercase; margin-top: 8px; margin-bottom: 2px; border-radius: 4px; text-align: left; }
     .head-bull { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
     .head-bear { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
@@ -45,7 +45,7 @@ SECTOR_MAP = {
     "REALTY": {"index": "^CNXREALTY", "stocks": ["DLF", "GODREJPROP", "LODHA", "OBEROIRLTY"]}
 }
 
-BROADER_MARKET = ["HAL", "BEL", "BDL", "MAZDOCK", "COCHINSHIP", "GRSE", "RVNL", "IRFC", "IRCON", "TITAGARH", "RAILTEL", "RITES", "ADANIPOWER", "BHEL", "CGPOWER", "BAJFINANCE", "DIXON", "POLYCAB", "LT", "ZOMATO", "TRENT", "ADANIENT", "RELIANCE"]
+BROADER_MARKET = ["HAL", "BEL", "BDL", "RVNL", "IRFC", "DIXON", "POLYCAB", "LT", "BAJFINANCE", "ZOMATO", "TRENT", "ADANIENT", "RELIANCE"]
 BROADER_MARKET = [format_ticker(s) for s in BROADER_MARKET]
 
 @st.cache_data(ttl=60)
@@ -56,7 +56,6 @@ def get_data():
         all_tickers.extend([format_ticker(stk) for stk in s['stocks']])
     all_tickers = list(set(all_tickers))
     try:
-        # 5-min డేటా కోసం కచ్చితంగా interval ఉండాలి
         data = yf.download(all_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=False)
         return data
     except: return None
@@ -66,43 +65,24 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         if symbol not in full_data.columns.levels[0]: return None
         df = full_data[symbol].dropna()
         if len(df) < 10: return None
-        
-        # EMA & VWAP Calculation
         df['EMA10'] = df['Close'].ewm(span=10, adjust=False).mean()
         df['TP'] = (df['High'] + df['Low'] + df['Close']) / 3
         df['CVP'] = (df['TP'] * df['Volume']).cumsum(); df['CV'] = df['Volume'].cumsum()
         df['VWAP'] = df['CVP'] / df['CV']
-        
         today_df = df[df.index.date == df.index.date[-1]].copy()
         if today_df.empty: return None
-        
         ltp = float(today_df['Close'].iloc[-1]); op = float(today_df['Open'].iloc[0]); vwap = float(today_df['VWAP'].iloc[-1])
-        day_chg = ((ltp - op) / op) * 100; net_chg = ((ltp - float(df['Close'].iloc[-2])) / float(df['Close'].iloc[-2])) * 100
-        
-        is_bull = ltp > vwap
+        day_chg = ((ltp - op) / op) * 100; is_bull = ltp > vwap
         if not force and ((check_bullish and not is_bull) or (not check_bullish and is_bull)): return None
-
-        # ⚡ ACCUMULATOR LOGIC (గ్యాప్ ఒమిషన్)
-        if is_bull:
-            today_df['Valid'] = (today_df['Close'] > today_df['VWAP']) & (today_df['Close'] > today_df['EMA10'])
-        else:
-            today_df['Valid'] = (today_df['Close'] < today_df['VWAP']) & (today_df['Close'] < today_df['EMA10'])
-        
+        # ACCUMULATOR LOGIC
+        if is_bull: today_df['Valid'] = (today_df['Close'] > today_df['VWAP']) & (today_df['Close'] > today_df['EMA10'])
+        else: today_df['Valid'] = (today_df['Close'] < today_df['VWAP']) & (today_df['Close'] < today_df['EMA10'])
         valid_candles = int(today_df['Valid'].sum())
         if valid_candles < 2: return None
-
-        # Institutional Trap Tagging
-        first_c = today_df['Close'].iloc[0]; first_v = today_df['VWAP'].iloc[0]
-        tag = "VWAP-Trap" if (is_bull and first_c < first_v) or (not is_bull and first_c > first_v) else "VWAP-Pure"
-        
         time_str = f"{(valid_candles*5)//60}h {(valid_candles*5)%60}m" if (valid_candles*5)>=60 else f"{valid_candles*5}m"
-        
-        return {
-            "STOCK": f"https://in.tradingview.com/chart/?symbol=NSE:{symbol.replace('.NS','')}",
-            "PRICE": f"{ltp:.2f}", "DAY%": f"{day_chg:.2f}", "MOVE": f"{net_chg - day_chg:.2f}",
-            "STAT": f"{'🚀' if is_bull else '🩸'} {tag} ({time_str})",
-            "CANDLES": int(valid_candles), "TREND": "BULL" if is_bull else "BEAR"
-        }
+        first_c, first_v = today_df['Close'].iloc[0], today_df['VWAP'].iloc[0]
+        tag = "VWAP-Trap" if (is_bull and first_c < first_v) or (not is_bull and first_c > first_v) else "VWAP-Pure"
+        return {"STOCK": f"https://in.tradingview.com/chart/?symbol=NSE:{symbol.replace('.NS','')}", "PRICE": f"{ltp:.2f}", "DAY%": f"{day_chg:.2f}", "MOVE": f"{float(today_df['Close'].iloc[-1]) - float(df['Close'].iloc[-2]):.2f}", "STAT": f"{'🚀' if is_bull else '🩸'} {tag} ({time_str})", "CANDLES": int(valid_candles), "TREND": "BULL" if is_bull else "BEAR"}
     except: return None
 
 def highlight_priority(row):
@@ -111,22 +91,10 @@ def highlight_priority(row):
         return ['background-color: #e6fffa; color: #008000; font-weight: 900'] * len(row) if day_chg >= 0 else ['background-color: #fff5f5; color: #FF0000; font-weight: 900'] * len(row)
     except: return ['background-color: white; color: black'] * len(row)
 
-def style_sector_ranks(val):
-    try:
-        v = float(val); color, text = ('#d4edda', '#155724') if v >= 0 else ('#f8d7da', '#721c24')
-        return f'background-color: {color}; color: {text}; font-weight: 700;'
-    except: return ''
-
-def create_sorted_df(res_list, limit=15):
-    res_list = [x for x in res_list if x]
-    if not res_list: return pd.DataFrame()
-    df = pd.DataFrame(res_list); df['ABS_D'] = df['DAY%'].astype(float).abs()
-    return df.sort_values(by=["CANDLES", "ABS_D"], ascending=[False, False]).drop(columns=["ABS_D", "TREND"]).head(limit)
-
 # --- 3. EXECUTION ---
 data = get_data()
 if data is not None:
-    # INDICES BOXES
+    # INDICES
     dash_left, dash_right = st.columns([0.8, 0.2])
     nifty_chg = 0.0
     with dash_left:
@@ -135,59 +103,56 @@ if data is not None:
             try:
                 if ticker in data.columns.levels[0]:
                     d = data[ticker].dropna(); ltp = float(d['Close'].iloc[-1]); pct = ((ltp - float(d['Close'].iloc[-2])) / float(d['Close'].iloc[-2])) * 100
-                    arrow = "↑" if pct >= 0 else "↓"; txt_color = "#008000" if pct >= 0 else "#FF0000"
-                    dash_html += f'<a href="https://in.tradingview.com/chart/?symbol={TV_INDICES[ticker]}" target="_blank" style="text-decoration: none; flex: 1; text-align: center; {"border-right: 1px solid #ddd;" if idx < 4 else ""}"><div style="color: #444; font-size: 13px; font-weight: 800;">{name}</div><div style="color: black; font-size: 18px; font-weight: 900;">{ltp:.0f}</div><div style="color: {txt_color}; font-size: 14px;">{arrow} {pct:.1f}%</div></a>'
+                    dash_html += f'<a href="https://in.tradingview.com/chart/?symbol={TV_INDICES[ticker]}" target="_blank" style="text-decoration: none; flex: 1; text-align: center; {"border-right: 1px solid #ddd;" if idx < 4 else ""}"><div style="color: #444; font-size: 13px; font-weight: 800;">{name}</div><div style="color: black; font-size: 18px; font-weight: 900;">{ltp:.0f}</div><div style="color: {"#008000" if pct>=0 else "#FF0000"}; font-size: 14px;">{"↑" if pct>=0 else "↓"} {pct:.1f}%</div></a>'
                     if name == "NIFTY": nifty_chg = pct
             except: pass
-        dash_html += "</div>"; st.markdown(dash_html, unsafe_allow_html=True)
+        st.markdown(dash_html + "</div>", unsafe_allow_html=True)
     with dash_right:
-        market_trend = "BULLISH 🚀" if nifty_chg >= 0 else "BEARISH 🩸"; trend_bg = "#e6fffa" if nifty_chg >= 0 else "#fff5f5"; trend_txt = "#008000" if nifty_chg >= 0 else "#FF0000"
-        st.markdown(f"<div style='display: flex; align-items: center; justify-content: center; height: 80px; border-radius: 8px; border: 2px solid {trend_txt}; background-color: {trend_bg}; color: {trend_txt}; font-size: 18px; font-weight: 900;'>{market_trend}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='display: flex; align-items: center; justify-content: center; height: 80px; border-radius: 8px; border: 2px solid {"#008000" if nifty_chg>=0 else "#FF0000"}; background-color: {"#e6fffa" if nifty_chg>=0 else "#fff5f5"}; color: {"#008000" if nifty_chg>=0 else "#FF0000"}; font-size: 18px; font-weight: 900;'>{'BULLISH 🚀' if nifty_chg>=0 else 'BEARISH 🩸'}</div>", unsafe_allow_html=True)
 
-    # SNIPER SEARCH
+    # SNIPER
     st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
-    sn_col1, sn_col2 = st.columns([0.3, 0.7])
-    with sn_col1: sniper_ticker = st.text_input("🎯 SNIPER SEARCH:", placeholder="Type symbol (e.g. BAJFINANCE)")
-    with sn_col2:
-        if sniper_ticker:
-            s_res = analyze(format_ticker(sniper_ticker), data, force=True)
-            if s_res:
-                st.markdown(f"<div class='table-head head-sniper'>🎯 SNIPER TARGET: {sniper_ticker.upper()}</div>", unsafe_allow_html=True)
-                st.dataframe(pd.DataFrame([s_res]), column_config={"STOCK": st.column_config.LinkColumn("STOCK", display_text=r"NSE:(.*)")}, use_container_width=True, hide_index=True)
+    sniper_ticker = st.text_input("🎯 SNIPER SEARCH:", placeholder="Type symbol (e.g. BAJFINANCE)")
+    if sniper_ticker:
+        s_res = analyze(format_ticker(sniper_ticker), data, force=True)
+        if s_res:
+            st.markdown(f"<div class='table-head head-sniper'>🎯 SNIPER TARGET: {sniper_ticker.upper()}</div>", unsafe_allow_html=True)
+            st.dataframe(pd.DataFrame([s_res]), column_config={"STOCK": st.column_config.LinkColumn("STOCK", display_text=r"NSE:(.*)")}, use_container_width=True, hide_index=True)
 
-    # SECTOR RANKS
+    # SECTOR ANALYSIS
     sec_rows = []
     for name, info in SECTOR_MAP.items():
         try:
             if info['index'] in data.columns.levels[0]:
-                d = data[info['index']].dropna(); c_now, c_prev = float(d['Close'].iloc[-1]), float(d['Close'].iloc[-2])
-                sec_rows.append({"SECTOR": name, "DAY%": ((c_now - float(d['Open'].iloc[-1]))/float(d['Open'].iloc[-1]))*100})
+                d = data[info['index']].dropna(); op = float(d['Open'].iloc[-1]); ltp = float(d['Close'].iloc[-1])
+                sec_rows.append({"SECTOR": name, "DAY%": ((ltp-op)/op)*100})
         except: pass
     df_sec = pd.DataFrame(sec_rows).sort_values("DAY%", ascending=False) if sec_rows else pd.DataFrame()
-    if not df_sec.empty:
-        st.dataframe(df_sec.set_index("SECTOR").T.style.format("{:.2f}").map(style_sector_ranks), use_container_width=True)
-        top_sec, bot_sec = df_sec.iloc[0]['SECTOR'], df_sec.iloc[-1]['SECTOR']
-        
-        # TABLES GRID
-        tv_cfg = {"STOCK": st.column_config.LinkColumn("STOCK", display_text=r"NSE:(.*)"), "CANDLES": st.column_config.NumberColumn("CANDLES", width="small")}
-        c1, c2 = st.columns(2)
-        with c1:
-            st.markdown(f"<div class='table-head head-bull'>🚀 BUY: {top_sec}</div>", unsafe_allow_html=True)
-            df_b = create_sorted_df([analyze(s, data, True) for s in SECTOR_MAP[top_sec]['stocks']])
-            if not df_b.empty: st.dataframe(df_b.style.apply(highlight_priority, axis=1), column_config=tv_cfg, use_container_width=True, hide_index=True, height=350)
-        with c2:
-            st.markdown(f"<div class='table-head head-bear'>🩸 SELL: {bot_sec}</div>", unsafe_allow_html=True)
-            df_s = create_sorted_df([analyze(s, data, False) for s in SECTOR_MAP[bot_sec]['stocks']])
-            if not df_s.empty: st.dataframe(df_s.style.apply(highlight_priority, axis=1), column_config=tv_cfg, use_container_width=True, hide_index=True, height=350)
-        
-        c3, c4 = st.columns(2)
-        with c3:
-            st.markdown("<div class='table-head head-neut'>🌟 INDEPENDENT movers</div>", unsafe_allow_html=True)
-            df_ind = create_sorted_df([analyze(s, data, force=True) for n, i in SECTOR_MAP.items() if n not in [top_sec, bot_sec] for s in i['stocks']])
-            if not df_ind.empty: st.dataframe(df_ind.style.apply(highlight_priority, axis=1), column_config=tv_cfg, use_container_width=True, hide_index=True, height=580)
-        with c4:
-            st.markdown("<div class='table-head head-neut'>🌌 BROADER MARKET</div>", unsafe_allow_html=True)
-            df_brd = create_sorted_df([analyze(s, data, force=True) for s in BROADER_MARKET])
-            if not df_brd.empty: st.dataframe(df_brd.style.apply(highlight_priority, axis=1), column_config=tv_cfg, use_container_width=True, hide_index=True, height=580)
-else:
-    st.error("డేటా లోడ్ అవ్వడం లేదు. ఇంటర్నెట్ చెక్ చేయండి.")
+    top_sec = df_sec.iloc[0]['SECTOR'] if not df_sec.empty else "N/A"
+    bot_sec = df_sec.iloc[-1]['SECTOR'] if not df_sec.empty else "N/A"
+
+    # 4 TABLES GRID - ఎప్పుడూ కనిపించేలా సెట్ చేశాను
+    tv_cfg = {"STOCK": st.column_config.LinkColumn("STOCK", display_text=r"NSE:(.*)"), "CANDLES": st.column_config.NumberColumn("CANDLES", width="small")}
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown(f"<div class='table-head head-bull'>🚀 BUY: {top_sec}</div>", unsafe_allow_html=True)
+        stocks = SECTOR_MAP.get(top_sec, {}).get('stocks', [])
+        df_b = pd.DataFrame([analyze(s, data, True) for s in stocks if analyze(s, data, True)])
+        if not df_b.empty: st.dataframe(df_b.sort_values("CANDLES", ascending=False).style.apply(highlight_priority, axis=1), column_config=tv_cfg, use_container_width=True, hide_index=True)
+    with c2:
+        st.markdown(f"<div class='table-head head-bear'>🩸 SELL: {bot_sec}</div>", unsafe_allow_html=True)
+        stocks = SECTOR_MAP.get(bot_sec, {}).get('stocks', [])
+        df_s = pd.DataFrame([analyze(s, data, False) for s in stocks if analyze(s, data, False)])
+        if not df_s.empty: st.dataframe(df_s.sort_values("CANDLES", ascending=False).style.apply(highlight_priority, axis=1), column_config=tv_cfg, use_container_width=True, hide_index=True)
+
+    c3, c4 = st.columns(2)
+    with c3:
+        st.markdown("<div class='table-head head-neut'>🌟 INDEPENDENT movers</div>", unsafe_allow_html=True)
+        ind_stocks = [s for n, i in SECTOR_MAP.items() if n not in [top_sec, bot_sec] for s in i['stocks']]
+        df_ind = pd.DataFrame([analyze(s, data, force=True) for s in ind_stocks if analyze(s, data, force=True)])
+        if not df_ind.empty: st.dataframe(df_ind.sort_values("CANDLES", ascending=False).head(15).style.apply(highlight_priority, axis=1), column_config=tv_cfg, use_container_width=True, hide_index=True)
+    with c4:
+        st.markdown("<div class='table-head head-neut'>🌌 BROADER MARKET</div>", unsafe_allow_html=True)
+        df_brd = pd.DataFrame([analyze(s, data, force=True) for s in BROADER_MARKET if analyze(s, data, force=True)])
+        if not df_brd.empty: st.dataframe(df_brd.sort_values("CANDLES", ascending=False).head(15).style.apply(highlight_priority, axis=1), column_config=tv_cfg, use_container_width=True, hide_index=True)
+else: st.error("డేటా లోడ్ అవ్వడం లేదు. ఇంటర్నెట్ చెక్ చేయండి.")
