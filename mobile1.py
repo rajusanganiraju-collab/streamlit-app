@@ -147,8 +147,9 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         is_gap_up = (open_p > prev_c) and (actual_gap_percent >= 0.50)
         is_gap_down = (open_p < prev_c) and (actual_gap_percent >= 0.50)
 
-        total_above_10 = int((today_data['Close'] > today_data['EMA10']).sum())
-        total_below_10 = int((today_data['Close'] < today_data['EMA10']).sum())
+        # Candle Body Logic (Open or Close పైన/కింద ఉన్నా సరే కౌంట్ అవుతుంది)
+        total_above_10 = int(((today_data['Close'] > today_data['EMA10']) | (today_data['Open'] > today_data['EMA10'])).sum())
+        total_below_10 = int(((today_data['Close'] < today_data['EMA10']) | (today_data['Open'] < today_data['EMA10'])).sum())
         
         time_above_mins = total_above_10 * 5
         time_below_mins = total_below_10 * 5
@@ -173,7 +174,6 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
             
             if is_open_low: score += 2  
             if vol_x > 1.0: score += 2    
-            if ltp > vwap: score += 2     
             if ltp > ema50: score += 1   
             if ltp > ema200: score += 1 
             if rsi25 > 14: score += 1 
@@ -193,13 +193,24 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
             
             if is_open_high: score += 2 
             if vol_x > 1.0: score += 2    
-            if ltp < vwap: score += 2     
             if ltp < ema50: score += 1   
             if ltp < ema200: score += 1 
             if rsi25 < 86: score += 1
             if day_chg <= -2.0: score += 1
             if is_gap_up and ltp < vwap: score += 3
             
+        # ⚡ VWAP KILL SWITCH (The Ultimate Filter) ⚡
+        # బుల్లిష్ స్టాక్ (Buy) VWAP కిందకు వస్తే కిల్!
+        if check_bullish and ltp < vwap:
+            status_text = "⏳ Wait"
+            score = 0
+            
+        # బేరిష్ స్టాక్ (Sell) VWAP పైకి వెళ్తే కిల్!
+        if not check_bullish and ltp > vwap:
+            status_text = "⏳ Wait"
+            score = 0
+            
+        # కనీసం స్కోర్ 5 లేకపోతే వెయిట్ 
         if score < 5: 
             status_text = "⏳ Wait"
             score = 0
@@ -255,7 +266,7 @@ def create_sorted_df(res_list, limit=15):
 
 # --- 5. EXECUTION ---
 loading_msg = st.empty()
-loading_msg.info("5-Min ఇంట్రాడే డేటా లోడ్ అవుతోంది... ⏳")
+loading_msg.info("5-Min ఇంట్రాడే డేటా లోడ్ అవుతోంది... (VWAP Kill Switch Active ⚡) ⏳")
 
 data, all_tickers = get_data()
 loading_msg.empty()
@@ -353,7 +364,6 @@ if data is not None and not data.empty:
         </div>
         """, unsafe_allow_html=True)
     
-    # 🎯 SNIPER SEARCH BOX (UPDATED)
     st.markdown("<hr style='margin: 10px 0px;'>", unsafe_allow_html=True)
     sniper_col1, sniper_col2 = st.columns([0.3, 0.7])
     with sniper_col1:
@@ -363,7 +373,6 @@ if data is not None and not data.empty:
         if sniper_ticker:
             s_sym = format_ticker(sniper_ticker)
             try:
-                # ⚠️ FIX: yf.download కు బదులు yf.Ticker() వాడాను. ఇది సింగిల్ స్టాక్స్ కి ఎప్పుడూ క్రాష్ అవ్వదు!
                 s_ticker_obj = yf.Ticker(s_sym)
                 s_data = s_ticker_obj.history(period="5d", interval="5m")
                 
