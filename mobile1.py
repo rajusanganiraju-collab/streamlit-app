@@ -55,7 +55,6 @@ SECTOR_MAP = {
     "REALTY": {"index": "^CNXREALTY", "stocks": ["DLF", "GODREJPROP", "LODHA", "OBEROIRLTY"]}
 }
 
-# ⚠️ L&T ని LT గా మార్చాను
 BROADER_MARKET = [
     "HAL", "BEL", "BDL", "MAZDOCK", "COCHINSHIP", "GRSE", "RVNL", "IRFC", "IRCON", "TITAGARH", "RAILTEL", "RITES",
     "ADANIPOWER", "ADANIGREEN", "NHPC", "SJVN", "BHEL", "CGPOWER", "SUZLON", "PFC", "RECLTD", "IREDA", "IOB", "UCOBANK", "MAHABANK", "CANBK",
@@ -143,7 +142,7 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         is_gap_up = (open_p > prev_c) and (actual_gap_percent >= 0.50)
         is_gap_down = (open_p < prev_c) and (actual_gap_percent >= 0.50)
 
-        # 10 EMA TIME LOGIC 
+        # 10 EMA TIME LOGIC
         total_above_10 = int((today_data['Close'] > today_data['EMA10']).sum())
         total_below_10 = int((today_data['Close'] < today_data['EMA10']).sum())
         
@@ -158,10 +157,7 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         is_open_high = abs(open_p - high) <= (ltp * 0.003)
 
         if check_bullish:
-            # ⭐️ SCORE: ప్రతి 5 నిమిషాలకు +1 పాయింట్
             score += total_above_10 
-            
-            # ⭐️ STATUS: కేవలం E10 సమయం మాత్రమే యాడ్ అవుతుంది (మిగతావి రావు)
             if time_above_mins > 0:
                 if time_above_mins >= 60:
                     hrs = time_above_mins // 60
@@ -171,7 +167,6 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
                     time_str = f"{time_above_mins}m"
                 status_text = f"E10🟢 ({time_str})"
             
-            # ⭐️ HIDDEN BONUSES: ఇవన్నీ కేవలం స్కోర్ పెంచుతాయి, పేర్లు స్క్రీన్ పైకి రావు!
             if is_open_low: score += 2  
             if vol_x > 1.0: score += 2    
             if ltp > vwap: score += 2     
@@ -182,10 +177,7 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
             if is_gap_down and ltp > vwap: score += 3
                 
         else:
-            # ⭐️ SCORE: ప్రతి 5 నిమిషాలకు +1 పాయింట్
             score += total_below_10 
-            
-            # ⭐️ STATUS: కేవలం E10 సమయం మాత్రమే యాడ్ అవుతుంది
             if time_below_mins > 0:
                 if time_below_mins >= 60:
                     hrs = time_below_mins // 60
@@ -195,7 +187,6 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
                     time_str = f"{time_below_mins}m"
                 status_text = f"E10🔴 ({time_str})"
             
-            # ⭐️ HIDDEN BONUSES: ఇవన్నీ కేవలం స్కోర్ పెంచుతాయి, పేర్లు స్క్రీన్ పైకి రావు!
             if is_open_high: score += 2 
             if vol_x > 1.0: score += 2    
             if ltp < vwap: score += 2     
@@ -205,12 +196,10 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
             if day_chg <= -2.0: score += 1
             if is_gap_up and ltp < vwap: score += 3
             
-        # స్కోర్ 5 కంటే తక్కువ ఉంటే దాన్ని ట్రేడ్ చేయకూడదు (Wait)
         if score < 5: 
             status_text = "⏳ Wait"
             score = 0
             
-        # ఒకవేళ E10 సిగ్నల్ ఫామ్ అవ్వకపోతే..
         if status_text == "":
             status_text = "⏳ Wait"
             score = 0
@@ -229,16 +218,13 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
 # --- Custom Styling ---
 def highlight_priority(row):
     status_str = str(row['STAT'])
-    try:
-        score = int(row['SCORE'])
-    except:
-        score = 0
+    try: score = int(row['SCORE'])
+    except: score = 0
     day_chg = float(row['D%'])
     
     if "⏳" in status_str:
         return ['background-color: white; color: #a9a9a9'] * len(row)
         
-    # స్కోర్ 12 దాటితే (అంటే కనీసం గంటసేపు ట్రెండ్ + బోనస్ ఉంటేనే) కలర్ హైలైట్ వస్తుంది!
     if score >= 12:
         if day_chg >= 0: return ['background-color: #e6fffa; color: #008000; font-weight: 900'] * len(row)
         else: return ['background-color: #fff5f5; color: #FF0000; font-weight: 900'] * len(row)
@@ -257,9 +243,18 @@ def style_sector_ranks(val):
     color, text = ('#d4edda', '#155724') if val >= 0 else ('#f8d7da', '#721c24')
     return f'background-color: {color}; color: {text}; font-weight: 700;'
 
+# --- Helper Function to Create Sorted Tables (Top 15 instead of Top 8) ---
+def create_sorted_df(res_list, limit=15):
+    res_list = [x for x in res_list if x]
+    if not res_list: return pd.DataFrame()
+    df = pd.DataFrame(res_list)
+    # Double sorting: First by SCORE, then by Day Change % (Absolute)
+    df['ABS_D'] = df['D%'].astype(float).abs()
+    return df.sort_values(by=["SCORE", "ABS_D"], ascending=[False, False]).drop(columns=["VOL_NUM", "ABS_D"]).head(limit)
+
 # --- 5. EXECUTION ---
 loading_msg = st.empty()
-loading_msg.info("5-Min ఇంట్రాడే డేటా (Pure E10 Trend Logic) లోడ్ అవుతోంది... ⏳")
+loading_msg.info("5-Min ఇంట్రాడే డేటా (Top 15 & Pro Sorting) లోడ్ అవుతోంది... ⏳")
 
 data = get_data()
 loading_msg.empty()
@@ -292,21 +287,17 @@ if data is not None and not data.empty:
     else:
         top_sec, bot_sec, df_sec = "", "", pd.DataFrame()
 
-    res_b = [analyze(s, data, True) for s in SECTOR_MAP.get(top_sec, {}).get('stocks', [])] if top_sec else []
-    res_b = [x for x in res_b if x]
-    df_b = pd.DataFrame(res_b).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8) if res_b else pd.DataFrame()
+    raw_b = [analyze(s, data, True) for s in SECTOR_MAP.get(top_sec, {}).get('stocks', [])] if top_sec else []
+    df_b = create_sorted_df(raw_b, 15)
 
-    res_s = [analyze(s, data, False) for s in SECTOR_MAP.get(bot_sec, {}).get('stocks', [])] if bot_sec else []
-    res_s = [x for x in res_s if x]
-    df_s = pd.DataFrame(res_s).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8) if res_s else pd.DataFrame()
+    raw_s = [analyze(s, data, False) for s in SECTOR_MAP.get(bot_sec, {}).get('stocks', [])] if bot_sec else []
+    df_s = create_sorted_df(raw_s, 15)
 
-    ind_movers = [analyze(s, data, force=True) for name, info in SECTOR_MAP.items() if name not in [top_sec, bot_sec] for s in info['stocks']]
-    ind_movers = [r for r in ind_movers if r] 
-    df_ind = pd.DataFrame(ind_movers).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8) if ind_movers else pd.DataFrame()
+    raw_ind = [analyze(s, data, force=True) for name, info in SECTOR_MAP.items() if name not in [top_sec, bot_sec] for s in info['stocks']]
+    df_ind = create_sorted_df(raw_ind, 15)
 
-    res_brd = [analyze(s, data, force=True) for s in BROADER_MARKET]
-    res_brd = [x for x in res_brd if x] 
-    df_brd = pd.DataFrame(res_brd).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8) if res_brd else pd.DataFrame()
+    raw_brd = [analyze(s, data, force=True) for s in BROADER_MARKET]
+    df_brd = create_sorted_df(raw_brd, 15)
 
     total_bulls = 0
     total_bears = 0
@@ -409,7 +400,7 @@ if data is not None and not data.empty:
     c_ind, c_brd = st.columns(2)
     
     with c_ind:
-        st.markdown("<div class='table-head head-neut'>🌟 INDEPENDENT (Top 8)</div>", unsafe_allow_html=True)
+        st.markdown("<div class='table-head head-neut'>🌟 INDEPENDENT (Top 15)</div>", unsafe_allow_html=True)
         if not df_ind.empty:
             styled_ind = df_ind.style.apply(highlight_priority, axis=1) \
                 .map(style_move_col, subset=['M%']) \
@@ -418,7 +409,7 @@ if data is not None and not data.empty:
             st.dataframe(styled_ind, column_config=tv_link_config, use_container_width=True, hide_index=True)
 
     with c_brd:
-        st.markdown("<div class='table-head head-neut'>🌌 BROADER MARKET (Top 8)</div>", unsafe_allow_html=True)
+        st.markdown("<div class='table-head head-neut'>🌌 BROADER MARKET (Top 15)</div>", unsafe_allow_html=True)
         if not df_brd.empty:
             styled_brd = df_brd.style.apply(highlight_priority, axis=1) \
                 .map(style_move_col, subset=['M%']) \
