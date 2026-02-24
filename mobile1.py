@@ -61,34 +61,49 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         if symbol not in full_data.columns.levels[0]: return None
         df = full_data[symbol].dropna()
         if len(df) < 10: return None
+        
+        # 10 EMA Calculation
         df['EMA10'] = df['Close'].ewm(span=10, adjust=False).mean()
-        df['TP'] = (df['High'] + df['Low'] + df['Close']) / 3
-        df['CVP'] = (df['TP'] * df['Volume']).cumsum(); df['CV'] = df['Volume'].cumsum()
-        df['VWAP'] = df['CVP'] / df['CV']
+        
+        # Extract Today's Data for Daily VWAP
         today_df = df[df.index.date == df.index.date[-1]].copy()
         if today_df.empty: return None
+        
+        # ⚡ DAILY VWAP RESET (9:15 AM Logic)
+        today_df['TP'] = (today_df['High'] + today_df['Low'] + today_df['Close']) / 3
+        today_df['CVP'] = (today_df['TP'] * today_df['Volume']).cumsum()
+        today_df['CV'] = today_df['Volume'].cumsum()
+        today_df['VWAP'] = today_df['CVP'] / today_df['CV']
+        
         ltp, op, vwap = float(today_df['Close'].iloc[-1]), float(today_df['Open'].iloc[0]), float(today_df['VWAP'].iloc[-1])
         day_chg, is_bull = ((ltp-op)/op)*100, ltp > vwap
+        
         if not force and ((check_bullish and not is_bull) or (not check_bullish and is_bull)): return None
-        # ⚡ ACCUMULATOR LOGIC
+        
+        # ⚡ PURE ACCUMULATOR LOGIC (Omit Gaps)
+        # Sums all valid candles today, regardless of continuity.
         if is_bull: today_df['Valid'] = (today_df['Close'] > today_df['VWAP']) & (today_df['Close'] > today_df['EMA10'])
         else: today_df['Valid'] = (today_df['Close'] < today_df['VWAP']) & (today_df['Close'] < today_df['EMA10'])
+        
         valid_candles = int(today_df['Valid'].sum())
         if valid_candles < 1: return None
+        
         time_str = f"{(valid_candles*5)//60}h {(valid_candles*5)%60}m" if (valid_candles*5)>=60 else f"{valid_candles*5}m"
         return {"STOCK": f"https://in.tradingview.com/chart/?symbol=NSE:{symbol.replace('.NS','')}", "PRICE": f"{ltp:.2f}", "DAY%": f"{day_chg:.2f}", "STAT": f"{'🚀' if is_bull else '🩸'} ({time_str})", "CANDLES": int(valid_candles)}
     except: return None
 
 def highlight_priority(row):
     try:
-        day_chg = float(row['DAY%'])
-        return ['background-color: #e6fffa; color: #008000; font-weight: 900'] * len(row) if day_chg >= 0 else ['background-color: #fff5f5; color: #FF0000; font-weight: 900'] * len(row)
-    except: return ['background-color: white; color: black'] * len(row)
+        if 'DAY%' in row:
+            day_chg = float(row['DAY%'])
+            return ['background-color: #e6fffa; color: #008000; font-weight: 900'] * len(row) if day_chg >= 0 else ['background-color: #fff5f5; color: #FF0000; font-weight: 900'] * len(row)
+    except: pass
+    return ['background-color: white; color: black'] * len(row)
 
 # --- 3. EXECUTION ---
 data = get_data()
 if data is not None:
-    # INDICES
+    # INDICES DASHBOARD
     dash_left, dash_right = st.columns([0.8, 0.2])
     nifty_chg = 0.0
     with dash_left:
@@ -104,7 +119,7 @@ if data is not None:
     with dash_right:
         st.markdown(f"<div style='display: flex; align-items: center; justify-content: center; height: 80px; border-radius: 8px; border: 2px solid {"#008000" if nifty_chg>=0 else "#FF0000"}; background-color: {"#e6fffa" if nifty_chg>=0 else "#fff5f5"}; color: {"#008000" if nifty_chg>=0 else "#FF0000"}; font-size: 18px; font-weight: 900;'>{'BULLISH 🚀' if nifty_chg>=0 else 'BEARISH 🩸'}</div>", unsafe_allow_html=True)
 
-    # SNIPER SEARCH
+    # SNIPER SEARCH (Always Visible)
     st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
     sniper_ticker = st.text_input("🎯 SNIPER SEARCH:", placeholder="Type symbol (e.g. BAJFINANCE)")
     if sniper_ticker:
@@ -113,28 +128,30 @@ if data is not None:
             st.markdown(f"<div class='table-head head-sniper'>🎯 SNIPER TARGET: {sniper_ticker.upper()}</div>", unsafe_allow_html=True)
             st.dataframe(pd.DataFrame([res]).style.apply(highlight_priority, axis=1), column_config={"STOCK": st.column_config.LinkColumn("STOCK", display_text=r"NSE:(.*)")}, use_container_width=True, hide_index=True)
 
-    # PROCESS ALL STOCKS (Independence from Sector Data)
+    # PROCESS ALL STOCKS
     all_analysed = [analyze(format_ticker(s), data, force=True) for group in SECTOR_MAP.values() for s in group]
     all_analysed = [x for x in all_analysed if x]
-    
     df_all = pd.DataFrame(all_analysed)
     tv_cfg = {"STOCK": st.column_config.LinkColumn("STOCK", display_text=r"NSE:(.*)"), "CANDLES": st.column_config.NumberColumn("CANDLES", width="small")}
 
     c1, c2 = st.columns(2)
     with c1:
         st.markdown(f"<div class='table-head head-bull'>🚀 TOP BUY OPPORTUNITIES</div>", unsafe_allow_html=True)
-        df_b = df_all[df_all['STAT'].str.contains('🚀')].sort_values("CANDLES", ascending=False).head(15)
-        if not df_b.empty: st.dataframe(df_b.style.apply(highlight_priority, axis=1), column_config=tv_cfg, use_container_width=True, hide_index=True)
+        if not df_all.empty:
+            df_b = df_all[df_all['STAT'].str.contains('🚀')].sort_values("CANDLES", ascending=False).head(15)
+            if not df_b.empty: st.dataframe(df_b.style.apply(highlight_priority, axis=1), column_config=tv_cfg, use_container_width=True, hide_index=True)
     with c2:
         st.markdown(f"<div class='table-head head-bear'>🩸 TOP SELL OPPORTUNITIES</div>", unsafe_allow_html=True)
-        df_s = df_all[df_all['STAT'].str.contains('🩸')].sort_values("CANDLES", ascending=False).head(15)
-        if not df_s.empty: st.dataframe(df_s.style.apply(highlight_priority, axis=1), column_config=tv_cfg, use_container_width=True, hide_index=True)
+        if not df_all.empty:
+            df_s = df_all[df_all['STAT'].str.contains('🩸')].sort_values("CANDLES", ascending=False).head(15)
+            if not df_s.empty: st.dataframe(df_s.style.apply(highlight_priority, axis=1), column_config=tv_cfg, use_container_width=True, hide_index=True)
 
     c3, c4 = st.columns(2)
     with c3:
         st.markdown("<div class='table-head head-neut'>🌟 QUALITY MOVERS</div>", unsafe_allow_html=True)
-        df_q = df_all.sort_values("CANDLES", ascending=False).head(15)
-        if not df_q.empty: st.dataframe(df_q.style.apply(highlight_priority, axis=1), column_config=tv_cfg, use_container_width=True, hide_index=True)
+        if not df_all.empty:
+            df_q = df_all.sort_values("CANDLES", ascending=False).head(15)
+            if not df_q.empty: st.dataframe(df_q.style.apply(highlight_priority, axis=1), column_config=tv_cfg, use_container_width=True, hide_index=True)
     with c4:
         st.markdown("<div class='table-head head-neut'>🌌 BROADER MARKET</div>", unsafe_allow_html=True)
         df_brd = pd.DataFrame([res for s in BROADER_MARKET if (res := analyze(s, data, force=True))])
