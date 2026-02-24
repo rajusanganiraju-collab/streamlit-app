@@ -95,7 +95,7 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
     try:
         if symbol not in full_data.columns.levels[0]: return None
         df = full_data[symbol].dropna()
-        if len(df) < 200: return None 
+        if len(df) < 50: return None 
         
         df['EMA10'] = df['Close'].ewm(span=10, adjust=False).mean()
         df['EMA50'] = df['Close'].ewm(span=50, adjust=False).mean()
@@ -142,15 +142,11 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         is_gap_up = (open_p > prev_c) and (actual_gap_percent >= 0.50)
         is_gap_down = (open_p < prev_c) and (actual_gap_percent >= 0.50)
 
-        # ---------------------------------------------------------
-        # PURE 10 EMA TIME LOGIC (Best Option)
-        # ---------------------------------------------------------
         total_above_10 = int((today_data['Close'] > today_data['EMA10']).sum())
         total_below_10 = int((today_data['Close'] < today_data['EMA10']).sum())
         
         time_above_mins = total_above_10 * 5
         time_below_mins = total_below_10 * 5
-        # ---------------------------------------------------------
 
         if force: check_bullish = day_chg > 0
         status, score = [], 0
@@ -167,10 +163,9 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
             if ltp > vwap: status.append("W🟢"); score += 2     
             if ltp >= high * 0.998 and day_chg > 0.5: status.append("HB🚀"); score += 1
             
-            # Pure Trend Riding Score
             if time_above_mins > 0:
                 bonus_pts = min(time_above_mins // 30, 4) 
-                score += (1 + bonus_pts) # Base 1 + Bonus
+                score += (1 + bonus_pts)
                 if time_above_mins >= 60:
                     hrs = time_above_mins // 60
                     mins = time_above_mins % 60
@@ -192,7 +187,6 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
             if ltp < vwap: status.append("W🔴"); score += 2     
             if ltp <= low * 1.002 and day_chg < -0.5: status.append("LB📉"); score += 1
             
-            # Pure Trend Riding Score
             if time_below_mins > 0:
                 bonus_pts = min(time_below_mins // 30, 4) 
                 score += (1 + bonus_pts) 
@@ -211,7 +205,10 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
             if is_gap_up and ltp < vwap:
                 status.append("GapSell🩸"); score += 4
             
-        if not status: return None
+        # ⚠️ పాత కోడ్‌లో లాగా కాకుండా, ఇప్పుడు స్టాక్‌కి సిగ్నల్ రాకపోతే దాన్ని తీసేయకుండా "⏳" చూపిస్తుంది
+        if not status: 
+            status.append("⏳")
+            score = 0
         
         stock_name = symbol.replace(".NS", "")
         tv_url = f"https://in.tradingview.com/chart/?symbol=NSE:{stock_name}"
@@ -229,6 +226,9 @@ def highlight_priority(row):
     status_str = str(row['STAT'])
     day_chg = float(row['D%'])
     
+    if "⏳" in status_str:
+        return ['background-color: white; color: gray'] * len(row)
+        
     major_conditions = 0
     if "BM" in status_str: major_conditions += 1
     if "O=L" in status_str or "O=H" in status_str: major_conditions += 1
@@ -256,7 +256,7 @@ def style_sector_ranks(val):
 
 # --- 5. EXECUTION ---
 loading_msg = st.empty()
-loading_msg.info("5-Min ఇంట్రాడే డేటా (Pure Trend Riding & VWAP) లోడ్ అవుతోంది... ⏳")
+loading_msg.info("5-Min ఇంట్రాడే డేటా (Pure Trend Riding) లోడ్ అవుతోంది... ⏳")
 
 data = get_data()
 loading_msg.empty()
@@ -300,11 +300,12 @@ if data is not None and not data.empty:
     df_s = pd.DataFrame(res_s).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8) if res_s else pd.DataFrame()
 
     ind_movers = [analyze(s, data, force=True) for name, info in SECTOR_MAP.items() if name not in [top_sec, bot_sec] for s in info['stocks']]
-    ind_movers = [r for r in ind_movers if r and (float(r['VOL'][:-1]) >= 1.0 or r['SCORE'] >= 1)]
+    # ⚠️ ఇక్కడ పాత ఫిల్టర్ ని తీసేసాను, దీనివల్ల స్కోర్ 0 ఉన్నా కూడా మార్నింగ్ టైమ్ లో లిస్ట్ కనిపిస్తుంది
+    ind_movers = [r for r in ind_movers if r] 
     df_ind = pd.DataFrame(ind_movers).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8) if ind_movers else pd.DataFrame()
 
     res_brd = [analyze(s, data, force=True) for s in BROADER_MARKET]
-    res_brd = [x for x in res_brd if x and (float(x['VOL'][:-1]) >= 1.0 or x['SCORE'] >= 1)]
+    res_brd = [x for x in res_brd if x] 
     df_brd = pd.DataFrame(res_brd).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8) if res_brd else pd.DataFrame()
 
     total_bulls = 0
@@ -380,49 +381,4 @@ if data is not None and not data.empty:
 
     tv_link_config = {
         "STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)"),
-        "STAT": st.column_config.TextColumn("STAT", width="small"),
-        "SCORE": st.column_config.TextColumn("SCORE", width="small")
-    }
-
-    c_buy, c_sell = st.columns(2)
-    
-    with c_buy:
-        st.markdown(f"<div class='table-head head-bull'>🚀 BUY: {top_sec}</div>", unsafe_allow_html=True)
-        if not df_b.empty:
-            styled_b = df_b.style.apply(highlight_priority, axis=1) \
-                .map(style_move_col, subset=['M%']) \
-                .set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'}) \
-                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '12px'), ('padding', '4px 1px')]}])
-            st.dataframe(styled_b, column_config=tv_link_config, use_container_width=True, hide_index=True)
-
-    with c_sell:
-        st.markdown(f"<div class='table-head head-bear'>🩸 SELL: {bot_sec}</div>", unsafe_allow_html=True)
-        if not df_s.empty:
-            styled_s = df_s.style.apply(highlight_priority, axis=1) \
-                .map(style_move_col, subset=['M%']) \
-                .set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'}) \
-                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '12px'), ('padding', '4px 1px')]}])
-            st.dataframe(styled_s, column_config=tv_link_config, use_container_width=True, hide_index=True)
-
-    c_ind, c_brd = st.columns(2)
-    
-    with c_ind:
-        st.markdown("<div class='table-head head-neut'>🌟 INDEPENDENT (Top 8)</div>", unsafe_allow_html=True)
-        if not df_ind.empty:
-            styled_ind = df_ind.style.apply(highlight_priority, axis=1) \
-                .map(style_move_col, subset=['M%']) \
-                .set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'}) \
-                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '12px'), ('padding', '4px 1px')]}])
-            st.dataframe(styled_ind, column_config=tv_link_config, use_container_width=True, hide_index=True)
-
-    with c_brd:
-        st.markdown("<div class='table-head head-neut'>🌌 BROADER MARKET (Top 8)</div>", unsafe_allow_html=True)
-        if not df_brd.empty:
-            styled_brd = df_brd.style.apply(highlight_priority, axis=1) \
-                .map(style_move_col, subset=['M%']) \
-                .set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'}) \
-                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '12px'), ('padding', '4px 1px')]}])
-            st.dataframe(styled_brd, column_config=tv_link_config, use_container_width=True, hide_index=True)
-
-else:
-    st.warning("స్టాక్ మార్కెట్ డేటా దొరకలేదు. బహుశా ఇంటర్నెట్ లేదా Yahoo Finance సర్వర్ నెమ్మదిగా ఉండి ఉండొచ్చు.")
+        "STAT
