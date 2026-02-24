@@ -8,7 +8,7 @@ from streamlit_autorefresh import st_autorefresh
 st.set_page_config(page_title="Terminal", page_icon="🎯", layout="wide")
 st_autorefresh(interval=60000, key="datarefresh")
 
-# CSS - స్థిరమైన లేఅవుట్ & టేబుల్ స్టైలింగ్
+# CSS - పక్కా లేఅవుట్ & టేబుల్ స్టైలింగ్
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
@@ -21,6 +21,7 @@ st.markdown("""
     .head-bull { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
     .head-bear { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
     .head-neut { background: #e2e3e5; color: #383d41; border: 1px solid #d6d8db; }
+    .head-sniper { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
     div[data-testid="stDataFrame"] { margin-bottom: -15px !important; }
     </style>
     """, unsafe_allow_html=True)
@@ -74,3 +75,80 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         # ⚡ TRIPLE ENGINE: VWAP + 10 EMA + 200 EMA
         if is_bull: 
             today_df['Valid'] = (today_df['Close'] > today_df['VWAP']) & (today_df['Close'] > today_df['EMA10']) & (today_df['Close'] > today_df['EMA200'])
+        else: 
+            today_df['Valid'] = (today_df['Close'] < today_df['VWAP']) & (today_df['Close'] < today_df['EMA10']) & (today_df['Close'] < today_df['EMA200'])
+        
+        valid_count = int(today_df['Valid'].sum())
+        if valid_count < 1: return None
+        time_str = f"{(valid_count*5)//60}h {(valid_count*5)%60}m"
+        return {"STOCK": f"https://in.tradingview.com/chart/?symbol=NSE:{symbol.replace('.NS','')}", "PRICE": f"{ltp:.2f}", "DAY%": f"{((ltp-float(today_df['Open'].iloc[0]))/float(today_df['Open'].iloc[0]))*100:.2f}", "STAT": f"{'🚀' if is_bull else '🩸'} ({time_str})", "CANDLES": int(valid_count)}
+    except:
+        return None
+
+def style_sector_ranks(val):
+    try:
+        v = float(val); color, text = ('#d4edda', '#155724') if v >= 0 else ('#f8d7da', '#721c24')
+        return f'background-color: {color}; color: {text}; font-weight: 700;'
+    except: return ''
+
+def highlight_priority(row):
+    try:
+        day_chg = float(row['DAY%'])
+        return ['background-color: #e6fffa; color: #008000; font-weight: 900'] * len(row) if day_chg >= 0 else ['background-color: #fff5f5; color: #FF0000; font-weight: 900'] * len(row)
+    except: return ['background-color: white; color: black'] * len(row)
+
+# --- 3. EXECUTION ---
+data = get_data()
+if data is not None:
+    # 1. INDICES
+    dash_html = '<div style="display: flex; justify-content: space-between; border: 2px solid #ddd; border-radius: 8px; background-color: #f9f9f9; padding: 5px; height: 80px;">'
+    for idx, (ticker, name) in enumerate(INDICES.items()):
+        try:
+            if ticker in data.columns.levels[0]:
+                d = data[ticker].dropna(); ltp = float(d['Close'].iloc[-1]); pct = ((ltp - float(d['Close'].iloc[-2])) / float(d['Close'].iloc[-2])) * 100
+                dash_html += f'<div style="flex: 1; text-align: center;"><div style="color: #444; font-size: 13px; font-weight: 800;">{name}</div><div style="color: black; font-size: 18px; font-weight: 900;">{ltp:.0f}</div><div style="color: {"#008000" if pct>=0 else "#FF0000"}; font-size: 14px;">{pct:.1f}%</div></div>'
+        except: pass
+    st.markdown(dash_html + "</div>", unsafe_allow_html=True)
+
+    # 2. SECTOR SCREENER TABLE
+    sec_rows = []
+    for name, info in SECTOR_MAP.items():
+        try:
+            if info['index'] in data.columns.levels[0]:
+                d = data[info['index']].dropna(); op, ltp = float(d['Open'].iloc[-1]), float(d['Close'].iloc[-1])
+                sec_rows.append({"SECTOR": name, "DAY%": ((ltp-op)/op)*100})
+        except: pass
+    df_sec = pd.DataFrame(sec_rows).sort_values("DAY%", ascending=False) if sec_rows else pd.DataFrame()
+    
+    if not df_sec.empty:
+        st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
+        st.dataframe(df_sec.set_index("SECTOR").T.style.format("{:.2f}").map(style_sector_ranks), use_container_width=True)
+        top_sec, bot_sec = df_sec.iloc[0]['SECTOR'], df_sec.iloc[-1]['SECTOR']
+    else:
+        top_sec, bot_sec = "BANK", "IT"
+
+    # 3. 4-TABLE GRID
+    tv_cfg = {"STOCK": st.column_config.LinkColumn("STOCK", display_text=r"NSE:(.*)"), "CANDLES": st.column_config.NumberColumn("CANDLES", width="small")}
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown(f"<div class='table-head head-bull'>🚀 BUY: {top_sec}</div>", unsafe_allow_html=True)
+        stocks = SECTOR_MAP.get(top_sec, {}).get('stocks', [])
+        df_b = pd.DataFrame([res for s in stocks if (res := analyze(format_ticker(s), data, True))])
+        if not df_b.empty: st.dataframe(df_b.sort_values("CANDLES", ascending=False).style.apply(highlight_priority, axis=1), column_config=tv_cfg, use_container_width=True, hide_index=True)
+    with c2:
+        st.markdown(f"<div class='table-head head-bear'>🩸 SELL: {bot_sec}</div>", unsafe_allow_html=True)
+        stocks = SECTOR_MAP.get(bot_sec, {}).get('stocks', [])
+        df_s = pd.DataFrame([res for s in stocks if (res := analyze(format_ticker(s), data, False))])
+        if not df_s.empty: st.dataframe(df_s.sort_values("CANDLES", ascending=False).style.apply(highlight_priority, axis=1), column_config=tv_cfg, use_container_width=True, hide_index=True)
+
+    c3, c4 = st.columns(2)
+    with c3:
+        st.markdown("<div class='table-head head-neut'>🌟 INDEPENDENT MOVERS</div>", unsafe_allow_html=True)
+        ind_stocks = [s for n, i in SECTOR_MAP.items() if n not in [top_sec, bot_sec] for s in i['stocks']]
+        df_ind = pd.DataFrame([res for s in ind_stocks if (res := analyze(format_ticker(s), data, force=True))])
+        if not df_ind.empty: st.dataframe(df_ind.sort_values("CANDLES", ascending=False).head(15).style.apply(highlight_priority, axis=1), column_config=tv_cfg, use_container_width=True, hide_index=True)
+    with c4:
+        st.markdown("<div class='table-head head-neut'>🌌 BROADER MARKET</div>", unsafe_allow_html=True)
+        df_brd = pd.DataFrame([res for s in BROADER_MARKET if (res := analyze(s, data, force=True))])
+        if not df_brd.empty: st.dataframe(df_brd.sort_values("CANDLES", ascending=False).style.apply(highlight_priority, axis=1), column_config=tv_cfg, use_container_width=True, hide_index=True)
+else: st.error("డేటా లోడ్ అవ్వడం లేదు. ఇంటర్నెట్ చెక్ చేయండి.")
