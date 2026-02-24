@@ -261,9 +261,19 @@ if data is not None and not data.empty:
         st.dataframe(df_sec.set_index("SECTOR").T.style.format("{:.2f}").map(style_sector_ranks).set_properties(**{'text-align': 'center'}), use_container_width=True)
         top_sec, bot_sec = df_sec.iloc[0]['SECTOR'], df_sec.iloc[-1]['SECTOR']
 
-    tv_link_config = {"STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)")}
+    # Updated Config to center all columns including SCORE
+    tv_link_config = {
+        "STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)"),
+        "PRICE": st.column_config.TextColumn("PRICE", alignment="center"),
+        "DAY%": st.column_config.TextColumn("DAY%", alignment="center"),
+        "NET%": st.column_config.TextColumn("NET%", alignment="center"),
+        "MOVE": st.column_config.TextColumn("MOVE", alignment="center"),
+        "VOL": st.column_config.TextColumn("VOL", alignment="center"),
+        "STATUS": st.column_config.TextColumn("STATUS", alignment="center"),
+        "SCORE": st.column_config.NumberColumn("SCORE", alignment="center")
+    }
     
-    # Tables with Centered Score Values
+    # Tables
     c_buy, c_sell = st.columns(2)
     with c_buy:
         st.markdown(f"<div class='table-head head-bull'>🚀 BUY: {top_sec}</div>", unsafe_allow_html=True)
