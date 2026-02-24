@@ -147,7 +147,7 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         is_gap_up = (open_p > prev_c) and (actual_gap_percent >= 0.50)
         is_gap_down = (open_p < prev_c) and (actual_gap_percent >= 0.50)
 
-        # Candle Body Logic (Open or Close పైన/కింద ఉన్నా సరే కౌంట్ అవుతుంది)
+        # Candle Body Logic
         total_above_10 = int(((today_data['Close'] > today_data['EMA10']) | (today_data['Open'] > today_data['EMA10'])).sum())
         total_below_10 = int(((today_data['Close'] < today_data['EMA10']) | (today_data['Open'] < today_data['EMA10'])).sum())
         
@@ -199,25 +199,23 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
             if day_chg <= -2.0: score += 1
             if is_gap_up and ltp < vwap: score += 3
             
-        # ⚡ VWAP KILL SWITCH (The Ultimate Filter) ⚡
-        # బుల్లిష్ స్టాక్ (Buy) VWAP కిందకు వస్తే కిల్!
+        # ⚡ VWAP & SCORE KILL SWITCH (Auto-Remove) ⚡
+        
+        # 1. బుల్లిష్ స్టాక్ (Buy) VWAP కిందకు వస్తే, టేబుల్ నుండి ఔట్!
         if check_bullish and ltp < vwap:
-            status_text = "⏳ Wait"
-            score = 0
+            return None
             
-        # బేరిష్ స్టాక్ (Sell) VWAP పైకి వెళ్తే కిల్!
+        # 2. బేరిష్ స్టాక్ (Sell) VWAP పైకి వెళ్తే, టేబుల్ నుండి ఔట్!
         if not check_bullish and ltp > vwap:
-            status_text = "⏳ Wait"
-            score = 0
+            return None
             
-        # కనీసం స్కోర్ 5 లేకపోతే వెయిట్ 
+        # 3. స్కోర్ 5 కంటే తక్కువ ఉంటే (అంటే ట్రెండ్ లేకపోతే), టేబుల్ నుండి ఔట్!
         if score < 5: 
-            status_text = "⏳ Wait"
-            score = 0
+            return None
             
+        # 4. సిగ్నల్ (E10) ఫామ్ అవ్వకపోతే, టేబుల్ నుండి ఔట్!
         if status_text == "":
-            status_text = "⏳ Wait"
-            score = 0
+            return None
         
         stock_name = symbol.replace(".NS", "")
         tv_url = f"https://in.tradingview.com/chart/?symbol=NSE:{stock_name}"
@@ -235,9 +233,6 @@ def highlight_priority(row):
     try: score = int(row['SCORE'])
     except: score = 0
     day_chg = float(row['D%'])
-    
-    if "⏳" in status_str:
-        return ['background-color: white; color: #a9a9a9'] * len(row)
         
     if score >= 12:
         if day_chg >= 0: return ['background-color: #e6fffa; color: #008000; font-weight: 900'] * len(row)
@@ -266,7 +261,7 @@ def create_sorted_df(res_list, limit=15):
 
 # --- 5. EXECUTION ---
 loading_msg = st.empty()
-loading_msg.info("5-Min ఇంట్రాడే డేటా లోడ్ అవుతోంది... (VWAP Kill Switch Active ⚡) ⏳")
+loading_msg.info("5-Min ఇంట్రాడే డేటా లోడ్ అవుతోంది... (Auto-Remove Active ⚡) ⏳")
 
 data, all_tickers = get_data()
 loading_msg.empty()
@@ -394,7 +389,7 @@ if data is not None and not data.empty:
                         }
                         st.dataframe(styled_s_disp, column_config=tv_link_config_sniper, use_container_width=True, hide_index=True)
                     else:
-                        st.warning(f"⚠️ {sniper_ticker.upper()} కు ప్రస్తుతం సరైన ట్రెండ్ లేదు (SCORE 5 కంటే తక్కువ).")
+                        st.warning(f"⚠️ {sniper_ticker.upper()} కి ఇప్పుడు సరైన ట్రెండ్ లేదు, లేదా VWAP బ్రేక్ అయ్యింది.")
                 else:
                     st.error(f"⚠️ {s_sym} డేటా రాలేదు! బహుశా ఈ స్టాక్ పేరు తప్పు అయ్యుండొచ్చు.")
             except Exception as e:
