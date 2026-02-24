@@ -386,26 +386,26 @@ if data is not None and not data.empty:
     with c_buy:
         st.markdown(f"<div class='table-head head-bull'>🚀 BUY: {top_sec}</div>", unsafe_allow_html=True)
         if not df_b.empty:
-            styled_b = df_b.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['M%']).rename(columns={"SCORE": "MINS"}).set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'})
+            styled_b = df_b.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['M%']).set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'})
             st.dataframe(styled_b, column_config=tv_link_config, use_container_width=True, hide_index=True, height=350)
 
     with c_sell:
         st.markdown(f"<div class='table-head head-bear'>🩸 SELL: {bot_sec}</div>", unsafe_allow_html=True)
         if not df_s.empty:
-            styled_s = df_s.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['M%']).rename(columns={"SCORE": "MINS"}).set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'})
+            styled_s = df_s.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['M%']).set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'})
             st.dataframe(styled_s, column_config=tv_link_config, use_container_width=True, hide_index=True, height=350)
 
     c_ind, c_brd = st.columns(2)
     with c_ind:
         st.markdown("<div class='table-head head-neut'>🌟 INDEPENDENT (Top 15)</div>", unsafe_allow_html=True)
         if not df_ind.empty:
-            styled_ind = df_ind.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['M%']).rename(columns={"SCORE": "MINS"}).set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'})
+            styled_ind = df_ind.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['M%']).set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'})
             st.dataframe(styled_ind, column_config=tv_link_config, use_container_width=True, hide_index=True, height=580)
 
     with c_brd:
         st.markdown("<div class='table-head head-neut'>🌌 BROADER MARKET (Top 15)</div>", unsafe_allow_html=True)
         if not df_brd.empty:
-            styled_brd = df_brd.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['M%']).rename(columns={"SCORE": "MINS"}).set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'})
+            styled_brd = df_brd.style.apply(highlight_priority, axis=1).map(style_move_col, subset=['M%']).set_properties(**{'text-align': 'center', 'font-size': '12px', 'padding': '6px 1px'})
             st.dataframe(styled_brd, column_config=tv_link_config, use_container_width=True, hide_index=True, height=580)
 
     if isinstance(data.columns, pd.MultiIndex):
