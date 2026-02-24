@@ -6,32 +6,60 @@ from streamlit_autorefresh import st_autorefresh
 
 # --- 1. PAGE CONFIGURATION ---
 st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
+
+# --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
 
-# CSS - పాత డిజైన్ (Boxes & Grid) ని పక్కాగా సెట్ చేశాను
+# పైన స్పేస్, టేబుల్ హెడ్డింగ్స్ సమానంగా ఉండటానికి CSS
 st.markdown("""
     <style>
-    #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {display: none !important;}
+    
     .stApp { background-color: #ffffff; color: #000000; }
     html, body, [class*="css"] { font-family: 'Arial', sans-serif; font-weight: 600; color: #000000 !important; }
-    .block-container { padding: 0.5rem 0.1rem -10px !important; }
-    th { background-color: #ffffff !important; color: #000000 !important; font-size: 12px !important; border-bottom: 2px solid #222 !important; text-align: center !important; }
-    td { font-size: 12px !important; color: #000000 !important; border-bottom: 1px solid #ccc !important; text-align: center !important; font-weight: 700 !important; }
-    .table-head { padding: 6px 10px; font-weight: 900; font-size: 14px; text-transform: uppercase; border-radius: 4px; text-align: left; margin-top: 5px; }
-    .head-bull { background: #d4edda; color: #155724; }
-    .head-bear { background: #f8d7da; color: #721c24; }
-    .head-neut { background: #e2e3e5; color: #383d41; }
-    .head-sniper { background: #fff3cd; color: #856404; }
+    
+    /* Top Space Reduction to Zero */
+    .block-container { padding-top: 0.5rem !important; padding-bottom: 0rem !important; padding-left: 0.5rem !important; padding-right: 0.5rem !important; margin-top: -10px; }
+    
+    /* Table Styling - Centered */
+    th { background-color: #ffffff !important; color: #000000 !important; font-size: 14px !important; text-align: center !important; border-bottom: 2px solid #222222 !important; border-top: 2px solid #222222 !important; padding: 6px !important; }
+    td { font-size: 14px !important; color: #000000 !important; border-bottom: 1px solid #ccc !important; text-align: center !important; padding: 4px !important; font-weight: 700 !important; }
+    
+    /* UNIFIED TABLE HEADINGS (All Equal Size & Font) */
+    .table-head { padding: 6px 10px; font-weight: 900; font-size: 15px; text-transform: uppercase; margin-top: 8px; margin-bottom: 2px; border-radius: 4px; text-align: left; }
+    .head-bull { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .head-bear { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .head-neut { background: #e2e3e5; color: #383d41; border: 1px solid #d6d8db; }
+    
     div[data-testid="stDataFrame"] { margin-bottom: -15px !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. DATA CONFIGURATION ---
+# --- 3. DATA CONFIGURATION ---
 def format_ticker(t):
     t = t.upper().strip()
-    return f"{t}.NS" if not t.startswith("^") and not t.endswith(".NS") else t
+    if not t.startswith("^") and not t.endswith(".NS"):
+        return f"{t}.NS"
+    return t
 
-INDICES = {"^NSEI": "NIFTY", "^NSEBANK": "BNKNFY", "^INDIAVIX": "VIX", "^DJI": "DOW", "^IXIC": "NSDQ"}
+INDICES = {
+    "^NSEI": "NIFTY",
+    "^NSEBANK": "BNKNFY",
+    "^INDIAVIX": "VIX",
+    "^DJI": "DOW",
+    "^IXIC": "NSDQ"
+}
+
+TV_INDICES = {
+    "^NSEI": "NSE:NIFTY",
+    "^NSEBANK": "NSE:BANKNIFTY",
+    "^INDIAVIX": "NSE:INDIAVIX",
+    "^DJI": "TVC:DJI",
+    "^IXIC": "NASDAQ:IXIC"
+}
+
 SECTOR_MAP = {
     "BANK": {"index": "^NSEBANK", "stocks": ["HDFCBANK", "ICICIBANK", "SBIN", "AXISBANK", "KOTAKBANK", "INDUSINDBK", "BANKBARODA", "PNB"]},
     "IT": {"index": "^CNXIT", "stocks": ["TCS", "INFY", "HCLTECH", "WIPRO", "TECHM", "LTIM", "PERSISTENT", "COFORGE"]},
@@ -42,124 +70,290 @@ SECTOR_MAP = {
     "ENERGY": {"index": "^CNXENERGY", "stocks": ["RELIANCE", "NTPC", "ONGC", "POWERGRID", "BPCL", "TATAPOWER"]},
     "REALTY": {"index": "^CNXREALTY", "stocks": ["DLF", "GODREJPROP", "LODHA", "OBEROIRLTY"]}
 }
-BROADER_MARKET = ["HAL", "BEL", "RVNL", "IRFC", "DIXON", "POLYCAB", "LT", "BAJFINANCE", "ZOMATO", "TRENT", "ADANIENT", "RELIANCE"]
+
+BROADER_MARKET = [
+    "HAL", "BEL", "BDL", "MAZDOCK", "COCHINSHIP", "GRSE",
+    "RVNL", "IRFC", "IRCON", "TITAGARH", "RAILTEL", "RITES",
+    "ADANIPOWER", "ADANIGREEN", "NHPC", "SJVN", "BHEL", "CGPOWER", "SUZLON",
+    "PFC", "RECLTD", "IREDA", "IOB", "UCOBANK", "MAHABANK", "CANBK",
+    "BAJFINANCE", "CHOLAFIN", "JIOFIN", "MUTHOOTFIN", "MANAPPURAM", "SHRIRAMFIN", "M&MFIN",
+    "DIXON", "POLYCAB", "KAYNES", "HAVELLS", "KEI", "RRKABEL",
+    "SRF", "TATACHEM", "DEEPAKNTR", "AARTIIND", "PIIND", "FACT", "UPL",
+    "ULTRACEMCO", "AMBUJACEM", "SHREECEM", "DALBHARAT", "L&T", "CUMMINSIND", "ABB", "SIEMENS",
+    "BHARTIARTL", "IDEA", "INDIGO", "ZOMATO", "TRENT", "DMART", "PAYTM", "ZENTEC",
+    "ADANIENT", "ADANIPORTS", "ATGL", "AWL",
+    "BOSCHLTD", "MRF", "MOTHERSON", "SONACOMS", "EXIDEIND", "AMARAJABAT"
+]
+
+for k in SECTOR_MAP:
+    SECTOR_MAP[k]['stocks'] = [format_ticker(s) for s in SECTOR_MAP[k]['stocks']]
 BROADER_MARKET = [format_ticker(s) for s in BROADER_MARKET]
+
+# --- 4. LOGIC ---
+def get_minutes_passed():
+    now = datetime.now()
+    if now.weekday() >= 5 or now.time() > dt_time(15, 30):
+        return 375
+    open_time = now.replace(hour=9, minute=15, second=0)
+    diff = (now - open_time).total_seconds() / 60
+    return min(375, max(1, int(diff)))
 
 @st.cache_data(ttl=60)
 def get_data():
-    all_tickers = list(INDICES.keys()) + BROADER_MARKET
+    all_tickers = list(INDICES.keys()) + list(BROADER_MARKET)
     for s in SECTOR_MAP.values():
         all_tickers.append(s['index'])
-        all_tickers.extend([format_ticker(stk) for stk in s['stocks']])
+        all_tickers.extend(s['stocks'])
     all_tickers = list(set(all_tickers))
+    
     try:
-        data = yf.download(all_tickers, period="2d", interval="5m", progress=False, group_by='ticker', threads=False)
-        return data, all_tickers
-    except: return None, all_tickers
+        data = yf.download(all_tickers, period="5d", progress=False, group_by='ticker', threads=False)
+        return data
+    except: 
+        return None
 
 def analyze(symbol, full_data, check_bullish=True, force=False):
     try:
-        df = full_data[symbol].copy().dropna()
-        if len(df) < 10: return None
-        df['EMA10'] = df['Close'].ewm(span=10, adjust=False).mean()
-        df['TP'] = (df['High'] + df['Low'] + df['Close']) / 3
-        df['CVP'] = (df['TP'] * df['Volume']).cumsum(); df['CV'] = df['Volume'].cumsum()
-        df['VWAP'] = df['CVP'] / df['CV']
-        today_df = df[df.index.date == df.index.date[-1]].copy()
-        if today_df.empty: return None
+        if symbol not in full_data.columns.levels[0]: return None
+        df = full_data[symbol].dropna()
+        if len(df) < 2: return None
         
-        ltp = float(today_df['Close'].iloc[-1]); op = float(today_df['Open'].iloc[0]); vwap = float(today_df['VWAP'].iloc[-1])
-        day_chg = ((ltp - op) / op) * 100; is_bull = ltp > vwap
-        if not force and ((check_bullish and not is_bull) or (not check_bullish and is_bull)): return None
+        ltp = float(df['Close'].iloc[-1])
+        open_p = float(df['Open'].iloc[-1])
+        prev_c = float(df['Close'].iloc[-2])
+        low = float(df['Low'].iloc[-1])
+        high = float(df['High'].iloc[-1])
+        
+        day_chg = ((ltp - open_p) / open_p) * 100
+        net_chg = ((ltp - prev_c) / prev_c) * 100
+        todays_move = net_chg - day_chg
 
-        # ⚡ ACCUMULATOR LOGIC (గ్యాప్స్ ఒమిట్ చేసి లెక్కించే లాజిక్)
-        if is_bull:
-            today_df['Valid'] = (today_df['Close'] > today_df['VWAP']) & (today_df['Close'] > today_df['EMA10'])
+        avg_vol = df['Volume'].iloc[:-1].mean()
+        curr_vol = float(df['Volume'].iloc[-1])
+        minutes = get_minutes_passed()
+        vol_x = round(curr_vol / ((avg_vol/375) * minutes), 1) if avg_vol > 0 else 0.0
+        vwap = (high + low + ltp) / 3
+
+        if force: check_bullish = day_chg > 0
+        status, score = [], 0
+        
+        is_open_low = abs(open_p - low) <= (ltp * 0.003)
+        is_open_high = abs(open_p - high) <= (ltp * 0.003)
+        
+        if day_chg >= 2.0: status.append("BigMove🚀"); score += 3
+        elif day_chg <= -2.0: status.append("BigMove🩸"); score += 3
+
+        if check_bullish:
+            if is_open_low: status.append("O=L🔥"); score += 3
+            if vol_x > 1.0: status.append("VOL🟢"); score += 3
+            if ltp >= high * 0.998 and day_chg > 0.5: status.append("HB🚀"); score += 1
+            if ltp > (low * 1.01) and ltp > vwap: status.append("Rec ⇈"); score += 1
         else:
-            today_df['Valid'] = (today_df['Close'] < today_df['VWAP']) & (today_df['Close'] < today_df['EMA10'])
+            if is_open_high: status.append("O=H🩸"); score += 3
+            if vol_x > 1.0: status.append("VOL🔴"); score += 3
+            if ltp <= low * 1.002 and day_chg < -0.5: status.append("LB📉"); score += 1
+            if ltp < (high * 0.99) and ltp < vwap: status.append("PB ⇊"); score += 1
+            
+        if not status: return None
         
-        valid_candles = int(today_df['Valid'].sum())
-        if valid_candles < 2: return None
-
-        score_mins = valid_candles * 5
-        time_str = f"{score_mins//60}h {score_mins%60}m" if score_mins>=60 else f"{score_mins}m"
+        stock_name = symbol.replace(".NS", "")
+        tv_url = f"https://in.tradingview.com/chart/?symbol=NSE:{stock_name}"
         
+        # Action Column Removed from Here
         return {
-            "STOCK": f"https://in.tradingview.com/chart/?symbol=NSE:{symbol.replace('.NS','')}",
-            "LTP": f"{ltp:.2f}", "D%": f"{day_chg:.2f}", "STAT": f"{'🚀' if is_bull else '🩸'} ({time_str})",
-            "CANDLES": int(valid_candles), "TREND": "BULL" if is_bull else "BEAR"
+            "STOCK": tv_url, "PRICE": f"{ltp:.2f}", "DAY%": f"{day_chg:.2f}",
+            "NET%": f"{net_chg:.2f}", "MOVE": f"{todays_move:.2f}", 
+            "VOL": f"{vol_x:.1f}x", "STATUS": " ".join(status), "SCORE": score,
+            "VOL_NUM": vol_x
         }
     except: return None
 
+# --- Custom Styling ---
 def highlight_priority(row):
-    try:
-        day_chg = float(row['D%'])
-        return ['background-color: #e6fffa; color: #008000; font-weight: 900'] * len(row) if day_chg >= 0 else ['background-color: #fff5f5; color: #FF0000; font-weight: 900'] * len(row)
-    except: pass
+    status_str = str(row['STATUS'])
+    day_chg = float(row['DAY%'])
+    
+    major_conditions = 0
+    if "BigMove" in status_str: major_conditions += 1
+    if "O=L" in status_str or "O=H" in status_str: major_conditions += 1
+    if "VOL" in status_str: major_conditions += 1
+    
+    if major_conditions >= 2:
+        if day_chg >= 0: return ['background-color: #e6fffa; color: #008000; font-weight: 900'] * len(row)
+        else: return ['background-color: #fff5f5; color: #FF0000; font-weight: 900'] * len(row)
+        
     return ['background-color: white; color: black'] * len(row)
 
-def create_sorted_df(res_list, limit=15):
-    res_list = [x for x in res_list if x]
-    if not res_list: return pd.DataFrame()
-    df = pd.DataFrame(res_list); df['ABS_D'] = df['D%'].astype(float).abs()
-    return df.sort_values(by=["CANDLES", "ABS_D"], ascending=[False, False]).drop(columns=["ABS_D", "TREND"]).head(limit)
+def style_move_col(val):
+    try:
+        v = float(val)
+        color, text = ('#d4edda', '#155724') if v >= 0 else ('#f8d7da', '#721c24')
+        return f'background-color: {color}; color: {text}; font-weight: 800;'
+    except: return ''
 
-# --- 4. EXECUTION ---
-data, all_ticks = get_data()
-if data is not None:
-    # ⭐️ INDICES DASHBOARD RESTORATION
-    dash_html = '<div style="display: flex; justify-content: space-between; border: 2px solid #ddd; border-radius: 8px; background-color: #f9f9f9; padding: 5px; height: 80px;">'
-    for ticker, name in INDICES.items():
-        try:
-            if ticker in data.columns.levels[0]:
-                d = data[ticker].dropna(); ltp = d['Close'].iloc[-1]; op = d['Open'].iloc[0]; pct = ((ltp-op)/op)*100
-                dash_html += f'<div style="flex: 1; text-align: center;"><div style="color: #444; font-size: 13px; font-weight: 800;">{name}</div><div style="color: black; font-size: 18px; font-weight: 900; margin: 2px 0px;">{ltp:.0f}</div><div style="color: {"#008000" if pct>=0 else "#FF0000"}; font-size: 14px; font-weight: bold;">{"↑" if pct>=0 else "↓"} {pct:.1f}%</div></div>'
-        except: pass
-    dash_html += "</div>"
-    st.markdown(dash_html, unsafe_allow_html=True)
+def style_sector_ranks(val):
+    if not isinstance(val, float): return ''
+    color, text = ('#d4edda', '#155724') if val >= 0 else ('#f8d7da', '#721c24')
+    return f'background-color: {color}; color: {text}; font-weight: 700;'
 
-    # ⭐️ SNIPER SEARCH RESTORATION
-    st.markdown("<hr style='margin: 10px 0px;'>", unsafe_allow_html=True)
-    sniper_ticker = st.text_input("🎯 SNIPER SEARCH (e.g. BAJFINANCE):", placeholder="Type symbol here...")
-    if sniper_ticker:
-        s_sym = format_ticker(sniper_ticker)
-        s_res = analyze(s_sym, data, force=True)
-        if s_res:
-            st.markdown(f"<div class='table-head head-sniper'>🎯 SNIPER TARGET: {sniper_ticker.upper()}</div>", unsafe_allow_html=True)
-            st.dataframe(pd.DataFrame([s_res]), column_config={"STOCK": st.column_config.LinkColumn("STOCK", display_text=r"NSE:(.*)"), "CANDLES": st.column_config.NumberColumn("CANDLES", width="small")}, use_container_width=True, hide_index=True)
+# --- 5. EXECUTION ---
+loading_msg = st.empty()
+loading_msg.info("మార్కెట్ డేటా లోడ్ అవుతోంది... దయచేసి 15 సెకన్లు వేచి ఉండండి ⏳")
 
-    # SECTOR ANALYSIS
+data = get_data()
+loading_msg.empty()
+
+if data is not None and not data.empty:
+    
+    # 1. DASHBOARD - 80% & 20% Layout with Single Unified Box for Indices
+    dash_left, dash_right = st.columns([0.8, 0.2]) 
+    
+    nifty_chg = 0.0
+    
+    with dash_left:
+        # ఎర్రర్ రాకుండా HTML అంతా సింగిల్ లైన్ లో యాడ్ చేశాను
+        dash_html = '<div style="display: flex; justify-content: space-between; align-items: center; border: 2px solid #ddd; border-radius: 8px; background-color: #f9f9f9; padding: 5px; height: 80px;">'
+        
+        for idx, (ticker, name) in enumerate(INDICES.items()):
+            try:
+                if ticker in data.columns.levels[0]:
+                    df = data[ticker].dropna()
+                    ltp = float(df['Close'].iloc[-1])
+                    pct = ((ltp - float(df['Close'].iloc[-2])) / float(df['Close'].iloc[-2])) * 100
+                    
+                    arrow = "↑" if pct >= 0 else "↓"
+                    txt_color = "#008000" if pct >= 0 else "#FF0000"
+                    tv_symbol = TV_INDICES.get(ticker, "")
+                    tv_url = f"https://in.tradingview.com/chart/?symbol={tv_symbol}"
+                    
+                    border_style = "border-right: 1px solid #ddd;" if idx < 4 else ""
+                    
+                    # No newlines in HTML string to prevent markdown rendering issues
+                    dash_html += f'<a href="{tv_url}" target="_blank" style="text-decoration: none; flex: 1; text-align: center; {border_style}"><div style="color: #444; font-size: 13px; font-weight: 800;">{name}</div><div style="color: black; font-size: 18px; font-weight: 900; margin: 2px 0px;">{ltp:.0f}</div><div style="color: {txt_color}; font-size: 14px; font-weight: bold;">{arrow} {pct:.1f}%</div></a>'
+                    
+                    if name == "NIFTY":
+                        o_now = float(df['Open'].iloc[-1])
+                        nifty_chg = ((ltp - o_now) / o_now) * 100
+            except: continue
+            
+        dash_html += "</div>"
+        st.markdown(dash_html, unsafe_allow_html=True)
+
+    with dash_right:
+        if nifty_chg >= 0:
+            market_trend = "BULLISH 🚀"
+            trend_bg, trend_txt = "#e6fffa", "#008000"
+        else:
+            market_trend = "BEARISH 🩸"
+            trend_bg, trend_txt = "#fff5f5", "#FF0000"
+            
+        st.markdown(f"""
+        <div style='display: flex; align-items: center; justify-content: center; height: 80px; border-radius: 8px; border: 2px solid {trend_txt}; background-color: {trend_bg}; color: {trend_txt}; font-size: 18px; font-weight: 900; box-shadow: 2px 2px 5px rgba(0,0,0,0.1);'>
+            {market_trend}
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # 2. SECTOR RANKS
+    st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
     sec_rows = []
     for name, info in SECTOR_MAP.items():
         try:
             if info['index'] in data.columns.levels[0]:
-                d = data[info['index']].dropna(); ltp = d['Close'].iloc[-1]; op = d['Open'].iloc[0]; d_pct = ((ltp-op)/op)*100
-                sec_rows.append({"SECTOR": name, "D%": d_pct})
-        except: pass
-    df_sec = pd.DataFrame(sec_rows).sort_values("D%", ascending=False) if sec_rows else pd.DataFrame()
-    top_sec = df_sec.iloc[0]['SECTOR'] if not df_sec.empty else ""; bot_sec = df_sec.iloc[-1]['SECTOR'] if not df_sec.empty else ""
-
-    # CALCULATING DATA FOR 4 TABLES
-    df_b = create_sorted_df([analyze(s, data, True) for s in SECTOR_MAP.get(top_sec, {}).get('stocks', [])])
-    df_s = create_sorted_df([analyze(s, data, False) for s in SECTOR_MAP.get(bot_sec, {}).get('stocks', [])])
-    df_ind = create_sorted_df([analyze(s, data, force=True) for n, i in SECTOR_MAP.items() if n not in [top_sec, bot_sec] for s in i['stocks']])
-    df_brd = create_sorted_df([analyze(s, data, force=True) for s in BROADER_MARKET])
-
-    tv_cfg = {"STOCK": st.column_config.LinkColumn("STOCK", display_text=r"NSE:(.*)"), "CANDLES": st.column_config.NumberColumn("CANDLES", width="small")}
+                df = data[info['index']].dropna()
+                c_now, c_prev, o_now = float(df['Close'].iloc[-1]), float(df['Close'].iloc[-2]), float(df['Open'].iloc[-1])
+                d_pct, n_pct = ((c_now - o_now) / o_now) * 100, ((c_now - c_prev) / c_prev) * 100
+                sec_rows.append({"SECTOR": name, "DAY%": d_pct, "NET%": n_pct, "MOVE": n_pct - d_pct})
+        except: continue
     
-    # ⭐️ 2x2 GRID RESTORATION
-    c1, c2 = st.columns(2)
-    with c1:
-        st.markdown(f"<div class='table-head head-bull'>🚀 BUY: {top_sec}</div>", unsafe_allow_html=True)
-        if not df_b.empty: st.dataframe(df_b.style.apply(highlight_priority, axis=1), column_config=tv_cfg, use_container_width=True, hide_index=True, height=350)
-    with c2:
-        st.markdown(f"<div class='table-head head-bear'>🩸 SELL: {bot_sec}</div>", unsafe_allow_html=True)
-        if not df_s.empty: st.dataframe(df_s.style.apply(highlight_priority, axis=1), column_config=tv_cfg, use_container_width=True, hide_index=True, height=350)
+    if sec_rows:
+        df_sec = pd.DataFrame(sec_rows).sort_values("DAY%", ascending=False)
+        df_sec_t = df_sec.set_index("SECTOR").T
+        
+        styled_sec = df_sec_t.style.format("{:.2f}") \
+            .map(style_sector_ranks) \
+            .set_properties(**{'text-align': 'center', 'font-size': '14px', 'font-weight': '600'}) \
+            .set_table_styles([
+                {'selector': 'th', 'props': [('text-align', 'center'), ('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]},
+                {'selector': 'td', 'props': [('text-align', 'center')]}
+            ])
+            
+        st.dataframe(styled_sec, use_container_width=True)
+        top_sec = df_sec.iloc[0]['SECTOR']
+        bot_sec = df_sec.iloc[-1]['SECTOR']
 
-    c3, c4 = st.columns(2)
-    with c3:
-        st.markdown("<div class='table-head head-neut'>🌟 INDEPENDENT</div>", unsafe_allow_html=True)
-        if not df_ind.empty: st.dataframe(df_ind.style.apply(highlight_priority, axis=1), column_config=tv_cfg, use_container_width=True, hide_index=True, height=580)
-    with c4:
-        st.markdown("<div class='table-head head-neut'>🌌 BROADER MARKET</div>", unsafe_allow_html=True)
-        if not df_brd.empty: st.dataframe(df_brd.style.apply(highlight_priority, axis=1), column_config=tv_cfg, use_container_width=True, hide_index=True, height=580)
+    tv_link_config = {
+        "STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)"),
+    }
+
+    # 3. BUY & SELL TABLES (Side by Side)
+    c_buy, c_sell = st.columns(2)
+    
+    with c_buy:
+        # Uniform Heading
+        st.markdown(f"<div class='table-head head-bull'>🚀 BUY: {top_sec}</div>", unsafe_allow_html=True)
+        res_b = [analyze(s, data, True) for s in SECTOR_MAP[top_sec]['stocks']]
+        res_b = [x for x in res_b if x]
+        if res_b:
+            df_b = pd.DataFrame(res_b).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"])
+            df_b['SCORE'] = df_b['SCORE'].astype(str) 
+            
+            styled_b = df_b.style.apply(highlight_priority, axis=1) \
+                .map(style_move_col, subset=['MOVE']) \
+                .set_properties(**{'text-align': 'center', 'font-size': '14px'}) \
+                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]}])
+                
+            st.dataframe(styled_b, column_config=tv_link_config, use_container_width=True, hide_index=True)
+
+    with c_sell:
+        # Uniform Heading
+        st.markdown(f"<div class='table-head head-bear'>🩸 SELL: {bot_sec}</div>", unsafe_allow_html=True)
+        res_s = [analyze(s, data, False) for s in SECTOR_MAP[bot_sec]['stocks']]
+        res_s = [x for x in res_s if x]
+        if res_s:
+            df_s = pd.DataFrame(res_s).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"])
+            df_s['SCORE'] = df_s['SCORE'].astype(str)
+            
+            styled_s = df_s.style.apply(highlight_priority, axis=1) \
+                .map(style_move_col, subset=['MOVE']) \
+                .set_properties(**{'text-align': 'center', 'font-size': '14px'}) \
+                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]}])
+                
+            st.dataframe(styled_s, column_config=tv_link_config, use_container_width=True, hide_index=True)
+
+    # 4. INDEPENDENT & BROADER (Side by Side)
+    c_ind, c_brd = st.columns(2)
+    
+    with c_ind:
+        # Uniform Heading
+        st.markdown("<div class='table-head head-neut'>🌟 INDEPENDENT (Top 8)</div>", unsafe_allow_html=True)
+        ind_movers = [analyze(s, data, force=True) for name, info in SECTOR_MAP.items() if name not in [top_sec, bot_sec] for s in info['stocks']]
+        ind_movers = [r for r in ind_movers if r and (float(r['VOL'][:-1]) >= 1.0 or r['SCORE'] >= 1)]
+        if ind_movers:
+            df_ind = pd.DataFrame(ind_movers).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8)
+            df_ind['SCORE'] = df_ind['SCORE'].astype(str)
+            
+            styled_ind = df_ind.style.apply(highlight_priority, axis=1) \
+                .map(style_move_col, subset=['MOVE']) \
+                .set_properties(**{'text-align': 'center', 'font-size': '14px'}) \
+                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]}])
+                
+            st.dataframe(styled_ind, column_config=tv_link_config, use_container_width=True, hide_index=True)
+
+    with c_brd:
+        # Uniform Heading
+        st.markdown("<div class='table-head head-neut'>🌌 BROADER MARKET (Top 8)</div>", unsafe_allow_html=True)
+        res_brd = [analyze(s, data, force=True) for s in BROADER_MARKET]
+        res_brd = [x for x in res_brd if x and (float(x['VOL'][:-1]) >= 1.0 or x['SCORE'] >= 1)]
+        if res_brd:
+            df_brd = pd.DataFrame(res_brd).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8)
+            df_brd['SCORE'] = df_brd['SCORE'].astype(str)
+            
+            styled_brd = df_brd.style.apply(highlight_priority, axis=1) \
+                .map(style_move_col, subset=['MOVE']) \
+                .set_properties(**{'text-align': 'center', 'font-size': '14px'}) \
+                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]}])
+                
+            st.dataframe(styled_brd, column_config=tv_link_config, use_container_width=True, hide_index=True)
+
+else:
+    st.warning("స్టాక్ మార్కెట్ డేటా దొరకలేదు. బహుశా ఇంటర్నెట్ లేదా Yahoo Finance సర్వర్ నెమ్మదిగా ఉండి ఉండొచ్చు.")
