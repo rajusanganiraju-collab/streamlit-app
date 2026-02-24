@@ -8,7 +8,7 @@ from streamlit_autorefresh import st_autorefresh
 st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
 st_autorefresh(interval=60000, key="datarefresh")
 
-# CSS - పాత లుక్ ని (Sectors & Grid) మళ్ళీ సెట్ చేశాను
+# CSS - పాత డిజైన్ (Boxes & Grid) ని పక్కాగా సెట్ చేశాను
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
@@ -21,6 +21,7 @@ st.markdown("""
     .head-bull { background: #d4edda; color: #155724; }
     .head-bear { background: #f8d7da; color: #721c24; }
     .head-neut { background: #e2e3e5; color: #383d41; }
+    .head-sniper { background: #fff3cd; color: #856404; }
     div[data-testid="stDataFrame"] { margin-bottom: -15px !important; }
     </style>
     """, unsafe_allow_html=True)
@@ -65,12 +66,13 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         df['CVP'] = (df['TP'] * df['Volume']).cumsum(); df['CV'] = df['Volume'].cumsum()
         df['VWAP'] = df['CVP'] / df['CV']
         today_df = df[df.index.date == df.index.date[-1]].copy()
+        if today_df.empty: return None
         
         ltp = float(today_df['Close'].iloc[-1]); op = float(today_df['Open'].iloc[0]); vwap = float(today_df['VWAP'].iloc[-1])
         day_chg = ((ltp - op) / op) * 100; is_bull = ltp > vwap
         if not force and ((check_bullish and not is_bull) or (not check_bullish and is_bull)): return None
 
-        # ⚡ ACCUMULATOR LOGIC: గ్యాప్స్ ఒమిట్ చేసి రోజంతా ఉన్న క్వాలిటీ క్యాండిల్స్ ని లెక్కిస్తుంది.
+        # ⚡ ACCUMULATOR LOGIC (గ్యాప్స్ ఒమిట్ చేసి లెక్కించే లాజిక్)
         if is_bull:
             today_df['Valid'] = (today_df['Close'] > today_df['VWAP']) & (today_df['Close'] > today_df['EMA10'])
         else:
@@ -102,20 +104,31 @@ def create_sorted_df(res_list, limit=15):
     df = pd.DataFrame(res_list); df['ABS_D'] = df['D%'].astype(float).abs()
     return df.sort_values(by=["CANDLES", "ABS_D"], ascending=[False, False]).drop(columns=["ABS_D", "TREND"]).head(limit)
 
-# --- 3. EXECUTION ---
+# --- 4. EXECUTION ---
 data, all_ticks = get_data()
 if data is not None:
-    # INDICES BOXES
+    # ⭐️ INDICES DASHBOARD RESTORATION
     dash_html = '<div style="display: flex; justify-content: space-between; border: 2px solid #ddd; border-radius: 8px; background-color: #f9f9f9; padding: 5px; height: 80px;">'
     for ticker, name in INDICES.items():
         try:
             if ticker in data.columns.levels[0]:
                 d = data[ticker].dropna(); ltp = d['Close'].iloc[-1]; op = d['Open'].iloc[0]; pct = ((ltp-op)/op)*100
-                dash_html += f'<div style="flex: 1; text-align: center;"><div style="color: #444; font-size: 13px; font-weight: 800;">{name}</div><div style="color: black; font-size: 18px; font-weight: 900; margin: 2px 0px;">{ltp:.0f}</div><div style="color: {"#008000" if pct>=0 else "#FF0000"}; font-size: 14px; font-weight: bold;">{"↑" if pct>=0 else "↓"} {pct:.1f} %</div></div>'
+                dash_html += f'<div style="flex: 1; text-align: center;"><div style="color: #444; font-size: 13px; font-weight: 800;">{name}</div><div style="color: black; font-size: 18px; font-weight: 900; margin: 2px 0px;">{ltp:.0f}</div><div style="color: {"#008000" if pct>=0 else "#FF0000"}; font-size: 14px; font-weight: bold;">{"↑" if pct>=0 else "↓"} {pct:.1f}%</div></div>'
         except: pass
-    dash_html += "</div>"; st.markdown(dash_html, unsafe_allow_html=True)
+    dash_html += "</div>"
+    st.markdown(dash_html, unsafe_allow_html=True)
 
-    # SECTOR ANALYSIS (Finding Top and Bottom)
+    # ⭐️ SNIPER SEARCH RESTORATION
+    st.markdown("<hr style='margin: 10px 0px;'>", unsafe_allow_html=True)
+    sniper_ticker = st.text_input("🎯 SNIPER SEARCH (e.g. BAJFINANCE):", placeholder="Type symbol here...")
+    if sniper_ticker:
+        s_sym = format_ticker(sniper_ticker)
+        s_res = analyze(s_sym, data, force=True)
+        if s_res:
+            st.markdown(f"<div class='table-head head-sniper'>🎯 SNIPER TARGET: {sniper_ticker.upper()}</div>", unsafe_allow_html=True)
+            st.dataframe(pd.DataFrame([s_res]), column_config={"STOCK": st.column_config.LinkColumn("STOCK", display_text=r"NSE:(.*)"), "CANDLES": st.column_config.NumberColumn("CANDLES", width="small")}, use_container_width=True, hide_index=True)
+
+    # SECTOR ANALYSIS
     sec_rows = []
     for name, info in SECTOR_MAP.items():
         try:
@@ -126,7 +139,7 @@ if data is not None:
     df_sec = pd.DataFrame(sec_rows).sort_values("D%", ascending=False) if sec_rows else pd.DataFrame()
     top_sec = df_sec.iloc[0]['SECTOR'] if not df_sec.empty else ""; bot_sec = df_sec.iloc[-1]['SECTOR'] if not df_sec.empty else ""
 
-    # CREATING TABLES
+    # CALCULATING DATA FOR 4 TABLES
     df_b = create_sorted_df([analyze(s, data, True) for s in SECTOR_MAP.get(top_sec, {}).get('stocks', [])])
     df_s = create_sorted_df([analyze(s, data, False) for s in SECTOR_MAP.get(bot_sec, {}).get('stocks', [])])
     df_ind = create_sorted_df([analyze(s, data, force=True) for n, i in SECTOR_MAP.items() if n not in [top_sec, bot_sec] for s in i['stocks']])
@@ -134,7 +147,7 @@ if data is not None:
 
     tv_cfg = {"STOCK": st.column_config.LinkColumn("STOCK", display_text=r"NSE:(.*)"), "CANDLES": st.column_config.NumberColumn("CANDLES", width="small")}
     
-    # DISPLAYING IN 2x2 GRID
+    # ⭐️ 2x2 GRID RESTORATION
     c1, c2 = st.columns(2)
     with c1:
         st.markdown(f"<div class='table-head head-bull'>🚀 BUY: {top_sec}</div>", unsafe_allow_html=True)
