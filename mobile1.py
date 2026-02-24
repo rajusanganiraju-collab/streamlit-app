@@ -10,7 +10,7 @@ st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
 
-# CSS
+# CSS - మొబైల్ కోసం మరింత కుదించబడిన ప్యాడింగ్
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -22,8 +22,8 @@ st.markdown("""
     
     .block-container { padding-top: 0.5rem !important; padding-bottom: 0rem !important; padding-left: 0.1rem !important; padding-right: 0.1rem !important; margin-top: -10px; }
     
-    th { background-color: #ffffff !important; color: #000000 !important; font-size: 12px !important; text-align: center !important; border-bottom: 2px solid #222222 !important; border-top: 2px solid #222222 !important; padding: 4px 2px !important; }
-    td { font-size: 12px !important; color: #000000 !important; border-bottom: 1px solid #ccc !important; text-align: center !important; padding: 4px 2px !important; font-weight: 700 !important; }
+    th { background-color: #ffffff !important; color: #000000 !important; font-size: 12px !important; text-align: center !important; border-bottom: 2px solid #222222 !important; border-top: 2px solid #222222 !important; padding: 4px 1px !important; }
+    td { font-size: 12px !important; color: #000000 !important; border-bottom: 1px solid #ccc !important; text-align: center !important; padding: 4px 1px !important; font-weight: 700 !important; }
     
     .table-head { padding: 6px 10px; font-weight: 900; font-size: 14px; text-transform: uppercase; margin-top: 8px; margin-bottom: 2px; border-radius: 4px; text-align: left; }
     .head-bull { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
@@ -149,13 +149,11 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         is_gap_down = (open_p < prev_c) and (actual_gap_percent >= 0.50)
 
         # ---------------------------------------------------------
-        # NEW DYNAMIC 10 EMA TIME LOGIC (OVERALL TIME TODAY)
-        # ఉదయం నుండి మొత్తంగా ఎన్ని క్యాండిల్స్ 10 EMA పైన/కింద ఉన్నాయో లెక్కింపు
+        # OVERALL TIME TREND (10 EMA)
         # ---------------------------------------------------------
         total_above_10 = int((today_data['Close'] > today_data['EMA10']).sum())
         total_below_10 = int((today_data['Close'] < today_data['EMA10']).sum())
         
-        # ఒక క్యాండిల్ = 5 నిమిషాలు
         time_above_mins = total_above_10 * 5
         time_below_mins = total_below_10 * 5
         # ---------------------------------------------------------
@@ -174,11 +172,9 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
             if vol_x > 1.0: status.append("V🟢"); score += 2
             if ltp >= high * 0.998 and day_chg > 0.5: status.append("HB🚀"); score += 1
             
-            # --- EMA 10 DYNAMIC SCORING (OVERALL TIME BULLISH) ---
             if time_above_mins > 0:
-                bonus_pts = min(time_above_mins // 30, 4) # ప్రతి 30 నిమిషాలకి +1 పాయింట్ (గరిష్టంగా +4 బోనస్)
-                score += (1 + bonus_pts) # Base 1 + Bonus
-                
+                bonus_pts = min(time_above_mins // 30, 4) 
+                score += (1 + bonus_pts) 
                 if time_above_mins >= 60:
                     hrs = time_above_mins // 60
                     mins = time_above_mins % 60
@@ -199,11 +195,9 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
             if vol_x > 1.0: status.append("V🔴"); score += 2
             if ltp <= low * 1.002 and day_chg < -0.5: status.append("LB📉"); score += 1
             
-            # --- EMA 10 DYNAMIC SCORING (OVERALL TIME BEARISH) ---
             if time_below_mins > 0:
-                bonus_pts = min(time_below_mins // 30, 4) # ప్రతి 30 నిమిషాలకి +1 పాయింట్ (గరిష్టంగా +4 బోనస్)
-                score += (1 + bonus_pts) # Base 1 + Bonus
-                
+                bonus_pts = min(time_below_mins // 30, 4) 
+                score += (1 + bonus_pts) 
                 if time_below_mins >= 60:
                     hrs = time_below_mins // 60
                     mins = time_below_mins % 60
@@ -224,10 +218,11 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         stock_name = symbol.replace(".NS", "")
         tv_url = f"https://in.tradingview.com/chart/?symbol=NSE:{stock_name}"
         
+        # 'SCR' బదులు పక్కాగా 'SCORE' అని మార్చాను
         return {
             "STOCK": tv_url, "LTP": f"{ltp:.2f}", "D%": f"{day_chg:.2f}",
             "N%": f"{net_chg:.2f}", "M%": f"{todays_move:.2f}", 
-            "VOL": f"{vol_x:.1f}x", "STAT": " ".join(status), "SCR": score,
+            "VOL": f"{vol_x:.1f}x", "STAT": " ".join(status), "SCORE": score,
             "VOL_NUM": vol_x, "TREND": "BULL" if check_bullish else "BEAR"
         }
     except: return None
@@ -300,19 +295,19 @@ if data is not None and not data.empty:
 
     res_b = [analyze(s, data, True) for s in SECTOR_MAP.get(top_sec, {}).get('stocks', [])] if top_sec else []
     res_b = [x for x in res_b if x]
-    df_b = pd.DataFrame(res_b).sort_values(by=["SCR", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8) if res_b else pd.DataFrame()
+    df_b = pd.DataFrame(res_b).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8) if res_b else pd.DataFrame()
 
     res_s = [analyze(s, data, False) for s in SECTOR_MAP.get(bot_sec, {}).get('stocks', [])] if bot_sec else []
     res_s = [x for x in res_s if x]
-    df_s = pd.DataFrame(res_s).sort_values(by=["SCR", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8) if res_s else pd.DataFrame()
+    df_s = pd.DataFrame(res_s).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8) if res_s else pd.DataFrame()
 
     ind_movers = [analyze(s, data, force=True) for name, info in SECTOR_MAP.items() if name not in [top_sec, bot_sec] for s in info['stocks']]
-    ind_movers = [r for r in ind_movers if r and (float(r['VOL'][:-1]) >= 1.0 or r['SCR'] >= 1)]
-    df_ind = pd.DataFrame(ind_movers).sort_values(by=["SCR", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8) if ind_movers else pd.DataFrame()
+    ind_movers = [r for r in ind_movers if r and (float(r['VOL'][:-1]) >= 1.0 or r['SCORE'] >= 1)]
+    df_ind = pd.DataFrame(ind_movers).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8) if ind_movers else pd.DataFrame()
 
     res_brd = [analyze(s, data, force=True) for s in BROADER_MARKET]
-    res_brd = [x for x in res_brd if x and (float(x['VOL'][:-1]) >= 1.0 or x['SCR'] >= 1)]
-    df_brd = pd.DataFrame(res_brd).sort_values(by=["SCR", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8) if res_brd else pd.DataFrame()
+    res_brd = [x for x in res_brd if x and (float(x['VOL'][:-1]) >= 1.0 or x['SCORE'] >= 1)]
+    df_brd = pd.DataFrame(res_brd).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8) if res_brd else pd.DataFrame()
 
     total_bulls = 0
     total_bears = 0
@@ -322,7 +317,7 @@ if data is not None and not data.empty:
             total_bulls += (df_['TREND'] == 'BULL').sum()
             total_bears += (df_['TREND'] == 'BEAR').sum()
             df_.drop(columns=["TREND"], inplace=True)
-            df_['SCR'] = df_['SCR'].astype(str)
+            df_['SCORE'] = df_['SCORE'].astype(str)
 
     dash_left, dash_right = st.columns([0.8, 0.2]) 
     
@@ -385,9 +380,11 @@ if data is not None and not data.empty:
             ])
         st.dataframe(styled_sec, use_container_width=True)
 
+    # ఇక్కడ STAT కాలమ్ సైజ్ బాగా తగ్గించి, SCORE కాలమ్ కి ఎక్కువ ప్రయారిటీ ఇచ్చాం
     tv_link_config = {
         "STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)"),
-        "STAT": st.column_config.TextColumn("STAT", width="small")
+        "STAT": st.column_config.TextColumn("STAT", width="small"),
+        "SCORE": st.column_config.TextColumn("SCORE", width="small")
     }
 
     c_buy, c_sell = st.columns(2)
