@@ -28,7 +28,7 @@ st.markdown("""
     .head-bear { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; border-bottom: none; }
     .head-neut { background: #e2e3e5; color: #383d41; border: 1px solid #d6d8db; border-bottom: none; }
     
-    /* CUSTOM HTML GRID SYSTEM (Replaces st.columns) */
+    /* CUSTOM HTML GRID SYSTEM */
     .responsive-grid {
         display: flex;
         flex-direction: row;
@@ -41,19 +41,23 @@ st.markdown("""
         width: 50%;
         min-width: 0;
     }
+    
+    /* THE FIX FOR PERFECT COLUMN ALIGNMENT ACROSS ALL TABLES */
     .custom-table {
         width: 100%;
         border-collapse: collapse;
         font-size: 11px;
         text-align: center;
         font-family: Arial, sans-serif;
+        table-layout: fixed; /* Forces exactly locked column widths */
     }
     .custom-table th, .custom-table td {
-        white-space: nowrap; /* Prevents text from breaking into next line */
-        padding: 6px 3px;
+        white-space: normal; /* Allows text to drop to next line if too long, keeping column perfectly straight */
+        word-wrap: break-word;
+        padding: 6px 2px;
     }
     
-    /* When screen shrinks, make everything Stack and take 100% Width */
+    /* When screen shrinks, make everything Stack */
     @media screen and (max-width: 1100px) {
         .responsive-grid {
             flex-direction: column !important;
@@ -154,18 +158,21 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         }
     except: return None
 
-# --- HTML TABLE BUILDERS (Replaces st.dataframe) ---
+# --- HTML TABLE BUILDERS ---
 def build_html_block(df, title, head_class):
     if df.empty: return f"<div class='grid-col'><div class='table-head {head_class}'>{title}</div></div>"
     
     html = f"<div class='grid-col'><div class='table-head {head_class}'>{title}</div>"
-    html += '<div style="width: 100%; overflow-x: auto;">'
+    html += '<div style="width: 100%;">'
     html += '<table class="custom-table">'
     
-    # Headers
+    # Headers with explicitly STRICT locked column sizes
+    col_widths = {"STOCK": "16%", "PRICE": "12%", "DAY%": "11%", "NET%": "11%", "MOVE": "11%", "VOL": "11%", "STATUS": "20%", "SCORE": "8%"}
+    
     html += '<thead><tr style="border-bottom: 2px solid #222; border-top: 2px solid #222; background-color: #fff;">'
     for col in df.columns:
-        html += f'<th style="font-weight: 900; color: #000;">{col}</th>'
+        w = col_widths.get(col, "10%")
+        html += f'<th style="width: {w}; font-weight: 900; color: #000;">{col}</th>'
     html += '</tr></thead><tbody>'
     
     # Rows
@@ -205,11 +212,13 @@ def build_html_block(df, title, head_class):
 
 def render_sector_table(df):
     if df.empty: return ""
-    html = '<div style="width: 100%; overflow-x: auto; margin-bottom: 15px;">'
+    html = '<div style="width: 100%; margin-bottom: 15px;">'
     html += '<table class="custom-table" style="font-size: 12px;">'
     html += '<thead><tr style="border-bottom: 2px solid #222; border-top: 2px solid #222; background-color: #fff;">'
-    html += '<th style="color: #000;"></th>'
-    for col in df.columns: html += f'<th style="font-weight: 900; color: #000;">{col}</th>'
+    
+    # Strictly size Sector Table as well
+    html += '<th style="width: 25%; color: #000;"></th>'
+    for col in df.columns: html += f'<th style="width: 25%; font-weight: 900; color: #000;">{col}</th>'
     html += '</tr></thead><tbody>'
     
     for idx, row in df.iterrows():
@@ -242,7 +251,9 @@ if search_query:
         if search_res:
             df_search = pd.DataFrame([search_res])
             if "VOL_NUM" in df_search.columns: df_search = df_search.drop(columns=["VOL_NUM"])
-            st.markdown(build_html_block(df_search, f"🎯 SEARCH RESULT: {search_query}", "head-neut"), unsafe_allow_html=True)
+            
+            # Wrap search in grid-col so it matches exactly
+            st.markdown(f'<div class="responsive-grid">{build_html_block(df_search, f"🎯 SEARCH RESULT: {search_query}", "head-neut")}</div>', unsafe_allow_html=True)
         else: st.warning("డేటా దొరకలేదు.")
     except: st.error("లోపం జరిగింది.")
 
@@ -312,8 +323,6 @@ if data is not None and not data.empty:
         st.markdown(render_sector_table(df_sec.set_index("SECTOR").T), unsafe_allow_html=True)
         top_sec, bot_sec = df_sec.iloc[0]['SECTOR'], df_sec.iloc[-1]['SECTOR']
 
-    # --- THE MAGIC BULLET: USING OUR CUSTOM GRID INSTEAD OF ST.COLUMNS ---
-    
     # Generate Buy/Sell HTML
     res_b = [x for x in [analyze(s, data, True) for s in SECTOR_MAP[top_sec]['stocks']] if x]
     df_b = pd.DataFrame(res_b).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]) if res_b else pd.DataFrame()
