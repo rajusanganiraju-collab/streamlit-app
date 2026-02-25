@@ -169,7 +169,8 @@ def fetch_all_data():
 
     for symbol in data.columns.levels[0]:
         try:
-            df = data[symbol].dropna()
+            # 🔥 FIX: Use dropna(subset=['Close']) so Indices without Volume won't get deleted 🔥
+            df = data[symbol].dropna(subset=['Close'])
             if len(df) < 2: continue
             
             ltp = float(df['Close'].iloc[-1])
@@ -181,10 +182,14 @@ def fetch_all_data():
             day_chg = ((ltp - open_p) / open_p) * 100
             net_chg = ((ltp - prev_c) / prev_c) * 100
             
-            # VWAP & Volume Check
-            avg_vol = df['Volume'].iloc[:-1].mean() if 'Volume' in df.columns else 0
-            curr_vol = float(df['Volume'].iloc[-1]) if 'Volume' in df.columns else 0
-            vol_x = round(curr_vol / ((avg_vol/375) * minutes), 1) if avg_vol > 0 else 0.0
+            # VWAP & Volume Check (Safeguard for Indices)
+            if 'Volume' in df.columns and not df['Volume'].isna().all():
+                avg_vol = df['Volume'].iloc[:-1].mean()
+                curr_vol = float(df['Volume'].iloc[-1])
+                vol_x = round(curr_vol / ((avg_vol/375) * minutes), 1) if avg_vol > 0 else 0.0
+            else:
+                vol_x = 0.0
+                
             vwap = (high + low + ltp) / 3
             
             score = 0
@@ -229,7 +234,7 @@ if not df.empty:
     
     # 🌟 SEPARATE INDICES AND STOCKS 🌟
     df_indices = df[df['Is_Index']].copy()
-    # Force order: NIFTY, BANKNIFTY, INDIA VIX
+    # Force exact order: 1.NIFTY, 2.BANKNIFTY, 3.INDIA VIX
     df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3})
     df_indices = df_indices.sort_values("Order")
     
@@ -262,21 +267,22 @@ if not df.empty:
     if view_mode == "Heat Map":
         
         # 1. RENDER INDICES FIRST
-        html_idx = '<div class="heatmap-grid">'
-        for _, row in df_indices.iterrows():
-            bg = "idx-card" if row['T'] != "INDIA VIX" else ("bear-card" if row['C'] > 0 else "bull-card") # Vix logic
-            bg = "bull-card" if row['C'] >= 0 else "bear-card" # Standard logic
-            badge = "IDX"
-            sign = "+" if row['C'] > 0 else ""
-            tv_sym = TV_INDICES_URL.get(row['Fetch_T'], "")
-            tv_link = f"https://in.tradingview.com/chart/?symbol={tv_sym}"
+        if not df_indices.empty:
+            html_idx = '<div class="heatmap-grid">'
+            for _, row in df_indices.iterrows():
+                bg = "idx-card" if row['T'] != "INDIA VIX" else ("bear-card" if row['C'] > 0 else "bull-card") # Vix logic
+                bg = "bull-card" if row['C'] >= 0 else "bear-card" # Standard logic
+                badge = "IDX"
+                sign = "+" if row['C'] > 0 else ""
+                tv_sym = TV_INDICES_URL.get(row['Fetch_T'], "")
+                tv_link = f"https://in.tradingview.com/chart/?symbol={tv_sym}"
+                
+                html_idx += f'<a href="{tv_link}" target="_blank" class="stock-card {bg}"><div class="t-score">{badge}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{sign}{row["C"]:.2f}%</div></a>'
+            html_idx += '</div>'
+            st.markdown(html_idx, unsafe_allow_html=True)
             
-            html_idx += f'<a href="{tv_link}" target="_blank" class="stock-card {bg}"><div class="t-score">{badge}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{sign}{row["C"]:.2f}%</div></a>'
-        html_idx += '</div>'
-        st.markdown(html_idx, unsafe_allow_html=True)
-        
-        # 2. DRAW SEPARATOR LINE
-        st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
+            # 2. DRAW SEPARATOR LINE
+            st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
         # 3. RENDER STOCKS
         html_stk = '<div class="heatmap-grid">'
@@ -311,8 +317,11 @@ if not df.empty:
                 color_hex = "#2ea043" if row['C'] >= 0 else "#da3633"
                 sign = "+" if row['C'] > 0 else ""
                 
+                # Setup TradingView URL for click
+                tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
+                
                 st.markdown(f"<div class='chart-box'>", unsafe_allow_html=True)
-                st.markdown(f"<div style='text-align:center; font-weight:bold; font-size:16px;'>{display_sym} <span style='color:{color_hex}'>({sign}{row['C']:.2f}%)</span></div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='text-align:center; font-weight:bold; font-size:16px;'><a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none;'>{display_sym} <span style='color:{color_hex}'>({sign}{row['C']:.2f}%)</span></a></div>", unsafe_allow_html=True)
                 st.markdown(f"<div class='ind-labels'><span style='color:#FFD700; font-weight:bold;'>--- VWAP</span> &nbsp;|&nbsp; <span style='color:#00BFFF; font-weight:bold;'>- - 10 EMA</span></div>", unsafe_allow_html=True)
                 
                 try:
@@ -330,9 +339,9 @@ if not df.empty:
                         last_trading_date = df_chart.index.date.max()
                         df_chart = df_chart[df_chart.index.date == last_trading_date]
                         
-                        # VWAP Logic 
+                        # VWAP Logic (Safeguard for Indices with no Volume)
                         df_chart['Typical_Price'] = (df_chart['High'] + df_chart['Low'] + df_chart['Close']) / 3
-                        if 'Volume' in df_chart.columns and df_chart['Volume'].sum() > 0:
+                        if 'Volume' in df_chart.columns and df_chart['Volume'].fillna(0).sum() > 0:
                             df_chart['VWAP'] = (df_chart['Typical_Price'] * df_chart['Volume']).cumsum() / df_chart['Volume'].cumsum()
                         else:
                             df_chart['VWAP'] = df_chart['Typical_Price'].expanding().mean()
@@ -359,6 +368,7 @@ if not df.empty:
                             yaxis=dict(visible=False, range=[min_val - y_padding, max_val + y_padding]), 
                             hovermode=False, showlegend=False
                         )
+                        # Added click events capability for Plotly charts implicitly in UI
                         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
                     else:
                         st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Data not available</div>", unsafe_allow_html=True)
