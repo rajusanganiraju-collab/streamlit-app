@@ -5,33 +5,50 @@ st.set_page_config(layout="wide", page_title="Nifty 50 Heatmap")
 
 st.title("📊 Market Watchlist")
 
-# Custom CSS
+# Custom CSS for COMPACT boxes
 st.markdown("""
     <style>
     a:link, a:visited, a:hover, a:active {
         text-decoration: none;
         color: inherit;
     }
+    /* Compact Box styling */
     .stock-card {
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        padding: 15px 5px;
+        padding: 6px 2px;  /* Reduced padding for smaller box */
         border-radius: 4px;
-        margin-bottom: 15px;
+        margin-bottom: 10px; /* Reduced gap between boxes */
         color: white;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
         transition: transform 0.2s ease-in-out;
         cursor: pointer;
+        text-align: center;
     }
     .stock-card:hover {
-        transform: scale(1.03);
-        box-shadow: 0 6px 12px rgba(0,0,0,0.5);
+        transform: scale(1.05);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.5);
     }
-    .ticker { font-size: 13px; font-weight: 600; letter-spacing: 0.5px; opacity: 0.9; }
-    .price { font-size: 18px; font-weight: 800; margin: 4px 0; }
-    .change { font-size: 12px; font-weight: 500; }
+    /* Smaller Text styling */
+    .ticker { 
+        font-size: 11px; 
+        font-weight: 700; 
+        letter-spacing: 0.3px; 
+        white-space: nowrap; 
+        overflow: hidden; 
+        text-overflow: ellipsis; 
+        max-width: 100%;
+    }
+    .price { font-size: 14px; font-weight: 800; margin: 2px 0; }
+    .change { font-size: 10px; font-weight: 600; white-space: nowrap; }
+    
+    /* Hide Streamlit top padding to fit more content */
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 0rem;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -42,7 +59,7 @@ indices_data = [
     {"ticker": "INDIA VIX", "tv_symbol": "NSE:INDIAVIX", "price": 13.45, "change": -0.25, "pct": -1.82},
 ]
 
-# 2. Complete Nifty 50 Stocks Data (Static Dummy Data for all 50)
+# 2. Complete Nifty 50 Stocks Data
 nifty_data = [
     {"ticker": "RELIANCE", "price": 2985.50, "change": -30.30, "pct": -2.12},
     {"ticker": "TCS", "price": 4120.00, "change": 55.60, "pct": 2.16},
@@ -96,15 +113,16 @@ nifty_data = [
     {"ticker": "INDIGO", "price": 4247.40, "change": 97.10, "pct": 2.00},
 ]
 
-def render_cards(data_list, is_index=False):
-    cols = st.columns(3)
+# Function to render cards dynamically based on column count
+def render_cards(data_list, is_index=False, num_columns=10):
+    cols = st.columns(num_columns)
     for index, row in enumerate(data_list):
         ticker = row['ticker']
         price = f"{row['price']:.2f}"
         change = row['change']
         pct = row['pct']
         
-        # Colors (Green for profit, Red for loss)
+        # Colors
         if change >= 0:
             bg_color = "#2E5A27" # Green
             sign = "+"
@@ -126,21 +144,21 @@ def render_cards(data_list, is_index=False):
         html_content = f"""
         <a href="{tv_url}" target="_blank">
             <div class="stock-card" style="background-color: {bg_color};">
-                <div class="ticker">{ticker}</div>
+                <div class="ticker" title="{ticker}">{ticker}</div>
                 <div class="price">{price}</div>
                 <div class="change">{change_text}</div>
             </div>
         </a>
         """
         
-        with cols[index % 3]:
+        with cols[index % num_columns]:
             st.markdown(html_content, unsafe_allow_html=True)
 
-# Render Top Indices
-render_cards(indices_data, is_index=True)
+# Render Top Indices (Kept them slightly larger/distinct by using 3 columns)
+render_cards(indices_data, is_index=True, num_columns=3)
 
-# Visual gap
-st.markdown("<br>", unsafe_allow_html=True)
+# A visible separator line
+st.markdown("<hr style='margin: 15px 0; border-color: #555;'>", unsafe_allow_html=True)
 
-# Render Main Stocks Grid
-render_cards(nifty_data, is_index=False)
+# Render Main Stocks Grid (10 columns to fit all 50 in 5 rows compactly)
+render_cards(nifty_data, is_index=False, num_columns=10)
