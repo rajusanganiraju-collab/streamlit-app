@@ -25,7 +25,7 @@ st.markdown("""
         display: grid;
         grid-template-columns: repeat(10, 1fr);
         gap: 8px;
-        padding: 10px 0;
+        padding: 5px 0;
     }
     
     /* Box Styling */
@@ -49,7 +49,7 @@ st.markdown("""
     .bull-card { background-color: #1e5f29 !important; } /* Dark Green */
     .bear-card { background-color: #b52524 !important; } /* Dark Red */
     .neut-card { background-color: #30363d !important; } /* Grey */
-    .idx-card { background-color: #1f6feb !important; } /* Blue for Indices */
+    .idx-card { background-color: #0d47a1 !important; } /* Dark Blue for Indices */
     
     /* NORMAL TEXT FONTS */
     .t-name { font-size: 13px; font-weight: 500; margin-bottom: 2px; }
@@ -93,6 +93,14 @@ st.markdown("""
         color: #8b949e;
         margin-bottom: 2px;
     }
+    
+    /* Custom HR Line */
+    .custom-hr {
+        border: 0;
+        height: 1px;
+        background: #30363d;
+        margin: 15px 0;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -101,6 +109,13 @@ INDICES_MAP = {
     "^NSEI": "NIFTY",
     "^NSEBANK": "BANKNIFTY",
     "^INDIAVIX": "INDIA VIX"
+}
+
+# TradingView link names for indices
+TV_INDICES_URL = {
+    "^NSEI": "NSE:NIFTY",
+    "^NSEBANK": "NSE:BANKNIFTY",
+    "^INDIAVIX": "NSE:INDIAVIX"
 }
 
 NIFTY_50 = [
@@ -224,7 +239,7 @@ if not df.empty:
         df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
         greens = df_filtered[df_filtered['C'] >= 0].sort_values(by="C", ascending=False)
         reds = df_filtered[df_filtered['C'] < 0].sort_values(by="C", ascending=False)
-        df_display = pd.concat([df_indices, greens, reds])
+        df_stocks_display = pd.concat([greens, reds])
         st.markdown("### Nifty 50 Stocks")
     
     else:
@@ -240,41 +255,54 @@ if not df.empty:
         # Reds: Low Score First (7) -> High Score Last (10)
         reds = df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[True, True])
         
-        # Combine: INDICES -> GREENS -> NEUTS -> REDS
-        df_display = pd.concat([df_indices, greens, neuts, reds])
+        # Final sorted stocks
+        df_stocks_display = pd.concat([greens, neuts, reds])
         st.markdown("### 🔥 High Score Stocks (7 to 10)")
 
     if view_mode == "Heat Map":
-        html = '<div class="heatmap-grid">'
-        for _, row in df_display.iterrows():
-            if row['Is_Index']:
-                bg = "idx-card" # Special blue-ish background for indices if desired, or use bull/bear
-                # Let's use Bull/Bear for Index too based on their +/-
-                bg = "bull-card" if row['C'] > 0 else ("bear-card" if row['C'] < 0 else "neut-card")
-                badge = "IDX"
-            else:
-                bg = "bull-card" if row['C'] > 0 else ("bear-card" if row['C'] < 0 else "neut-card")
-                badge = f"⭐{int(row['S'])}"
-                
+        
+        # 1. RENDER INDICES FIRST
+        html_idx = '<div class="heatmap-grid">'
+        for _, row in df_indices.iterrows():
+            bg = "idx-card" if row['T'] != "INDIA VIX" else ("bear-card" if row['C'] > 0 else "bull-card") # Vix logic
+            bg = "bull-card" if row['C'] >= 0 else "bear-card" # Standard logic
+            badge = "IDX"
             sign = "+" if row['C'] > 0 else ""
+            tv_sym = TV_INDICES_URL.get(row['Fetch_T'], "")
+            tv_link = f"https://in.tradingview.com/chart/?symbol={tv_sym}"
             
-            html += f'<div class="stock-card {bg}"><div class="t-score">{badge}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{sign}{row["C"]:.2f}%</div></div>'
+            html_idx += f'<a href="{tv_link}" target="_blank" class="stock-card {bg}"><div class="t-score">{badge}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{sign}{row["C"]:.2f}%</div></a>'
+        html_idx += '</div>'
+        st.markdown(html_idx, unsafe_allow_html=True)
+        
+        # 2. DRAW SEPARATOR LINE
+        st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
+        
+        # 3. RENDER STOCKS
+        html_stk = '<div class="heatmap-grid">'
+        for _, row in df_stocks_display.iterrows():
+            bg = "bull-card" if row['C'] >= 0 else "bear-card"
+            badge = f"⭐{int(row['S'])}"
+            sign = "+" if row['C'] > 0 else ""
+            tv_link = f"https://in.tradingview.com/chart/?symbol=NSE:{row['T']}"
             
-        html += '</div>'
-        st.markdown(html, unsafe_allow_html=True)
+            html_stk += f'<a href="{tv_link}" target="_blank" class="stock-card {bg}"><div class="t-score">{badge}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{sign}{row["C"]:.2f}%</div></a>'
+        html_stk += '</div>'
+        st.markdown(html_stk, unsafe_allow_html=True)
         
     else:
+        # === MINI CHARTS ===
         st.markdown("<br>", unsafe_allow_html=True)
         cols = st.columns(3) 
         
-        # Get top 30 items (Indices + Stocks)
-        top_rows = df_display.head(30)
-        fetch_tickers = top_rows['Fetch_T'].tolist()
+        # Combine Indices + Top 27 Stocks for Charts (Total 30 limit for performance)
+        df_display_charts = pd.concat([df_indices, df_stocks_display]).head(30)
+        fetch_tickers = df_display_charts['Fetch_T'].tolist()
         
         with st.spinner("Loading 5-Min Candlestick Charts with VWAP & EMA..."):
             chart_data = yf.download(fetch_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=True)
         
-        for idx, row in top_rows.iterrows():
+        for idx, row in df_display_charts.iterrows():
             col = cols[idx % 3]
             fetch_sym = row['Fetch_T']
             display_sym = row['T']
@@ -302,7 +330,7 @@ if not df.empty:
                         last_trading_date = df_chart.index.date.max()
                         df_chart = df_chart[df_chart.index.date == last_trading_date]
                         
-                        # VWAP Logic (Safeguard for Indices with no Volume)
+                        # VWAP Logic 
                         df_chart['Typical_Price'] = (df_chart['High'] + df_chart['Low'] + df_chart['Close']) / 3
                         if 'Volume' in df_chart.columns and df_chart['Volume'].sum() > 0:
                             df_chart['VWAP'] = (df_chart['Typical_Price'] * df_chart['Volume']).cumsum() / df_chart['Volume'].cumsum()
