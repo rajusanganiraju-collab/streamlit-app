@@ -10,7 +10,7 @@ st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
 
-# --- CSS FOR 100% PERFECT ALIGNMENT & 30% INCREASED FONTS ---
+# --- CSS FOR PERFECT ALIGNMENT & EXTRA LARGE MOBILE FONTS ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -23,7 +23,7 @@ st.markdown("""
     .block-container { padding-top: 0.5rem !important; padding-bottom: 0rem !important; padding-left: 0.5rem !important; padding-right: 0.5rem !important; margin-top: -10px; }
     
     /* UNIFIED TABLE HEADINGS */
-    .table-head { padding: 6px 10px; font-weight: 900; font-size: 16px; text-transform: uppercase; margin-top: 8px; margin-bottom: 0px; border-radius: 4px; text-align: left; display: block; width: 100%; box-sizing: border-box; }
+    .table-head { padding: 8px 10px; font-weight: 900; font-size: 16px; text-transform: uppercase; margin-top: 8px; margin-bottom: 0px; border-radius: 4px; text-align: left; display: block; width: 100%; box-sizing: border-box; }
     .head-bull { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; border-bottom: none; }
     .head-bear { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; border-bottom: none; }
     .head-neut { background: #e2e3e5; color: #383d41; border: 1px solid #d6d8db; border-bottom: none; }
@@ -42,14 +42,14 @@ st.markdown("""
         min-width: 300px;
     }
     
-    /* BASE TABLE SETTINGS (Increased Font Size by ~30%) */
+    /* BASE TABLE SETTINGS (Desktop) */
     .custom-table {
         width: 100%;
         border-collapse: collapse;
         font-size: 14px !important; 
         text-align: center;
         font-family: Arial, sans-serif;
-        table-layout: fixed; 
+        table-layout: fixed; /* STRICT COLUMN ALIGNMENT */
     }
     .custom-table th, .custom-table td {
         white-space: normal; 
@@ -57,35 +57,64 @@ st.markdown("""
         padding: 8px 3px !important; 
     }
     
+    /* DASHBOARD INDICES BOX */
+    .dashboard-container { display: flex; width: 100%; gap: 15px; margin-bottom: 15px; }
+    .indices-box {
+        flex: 5;
+        display: flex;
+        flex-wrap: nowrap;
+        justify-content: space-between;
+        align-items: center;
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        background-color: #f9f9f9;
+        padding: 10px;
+        overflow-x: auto;
+    }
+    .trend-box {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        font-size: 20px;
+        font-weight: 900;
+        box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+        min-width: 120px;
+    }
+    .index-item { flex: 1; text-align: center; text-decoration: none; padding: 0px 10px; min-width: 90px; }
+    .index-name { color: #444; font-size: 15px; font-weight: 800; }
+    .index-price { color: black; font-size: 20px; font-weight: 900; margin: 4px 0px; }
+    .index-pct { font-size: 15px; font-weight: bold; }
+    
     /* ----------------------------------------------------
-       MOBILE & SPLIT SCREEN STACKING
+       SPLIT SCREEN (Desktops / Tablets)
        ---------------------------------------------------- */
     @media screen and (max-width: 1100px) {
-        .responsive-grid {
-            display: block !important; 
-        }
-        .grid-col {
-            display: block !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            margin-bottom: 20px !important;
-        }
+        .responsive-grid { display: block !important; }
+        .grid-col { display: block !important; width: 100% !important; max-width: 100% !important; margin-bottom: 20px !important; }
+        .dashboard-container { flex-direction: column; }
+        .trend-box { min-height: 60px; width: 100%; }
         
+        .custom-table { font-size: 16px !important; }
+        .custom-table th, .custom-table td { font-size: 16px !important; padding: 10px 3px !important; }
+    }
+    
+    /* ----------------------------------------------------
+       🔥 MOBILE SPECIFIC: TEXT SIZE INCREASED BY 30% MORE 🔥
+       ---------------------------------------------------- */
+    @media screen and (max-width: 600px) {
         .custom-table {
-            font-size: 17px !important; 
+            font-size: 20px !important; /* MEGA FONT FOR MOBILE */
         }
         .custom-table th, .custom-table td {
-            font-size: 17px !important;
-            padding: 10px 3px !important;
+            font-size: 20px !important;
+            padding: 12px 3px !important; /* MORE PADDING FOR READABILITY */
         }
         .table-head {
-            font-size: 18px !important;
-            padding: 10px 10px !important;
+            font-size: 20px !important;
+            padding: 12px 10px !important;
         }
-        /* Mobile adjustment for indices to fit in one line */
-        .index-name { font-size: 10px !important; }
-        .index-price { font-size: 14px !important; }
-        .index-pct { font-size: 11px !important; }
     }
     </style>
 """, unsafe_allow_html=True)
@@ -179,7 +208,7 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         }
     except: return None
 
-# --- HTML TABLE BUILDERS (With Left Alignment for specific columns) ---
+# --- HTML TABLE BUILDERS ---
 def build_html_block(df, title, head_class):
     if df.empty: return f"<div class='grid-col'><div class='table-head {head_class}'>{title}</div></div>"
     
@@ -299,58 +328,9 @@ loading_msg.empty()
 
 if data is not None and not data.empty:
     
-    # --- PERFECT TOP DASHBOARD (Strict Single Row) ---
-    st.markdown("""
-        <style>
-        .dashboard-container {
-            display: flex;
-            width: 100%;
-            gap: 15px;
-            margin-bottom: 15px;
-        }
-        .indices-box {
-            flex: 4;
-            display: flex;
-            flex-wrap: nowrap; /* STRICTLY SINGLE LINE */
-            justify-content: space-evenly;
-            align-items: center;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            background-color: #f9f9f9;
-            padding: 5px;
-            overflow-x: auto; /* Allows horizontal scroll on very small mobile screens */
-        }
-        .trend-box {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 8px;
-            font-size: 18px;
-            font-weight: 900;
-            box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
-            min-height: 70px;
-        }
-        .index-item {
-            flex: 1;
-            text-align: center;
-            text-decoration: none;
-            padding: 0px 5px;
-        }
-        .index-name { color: #444; font-size: 13px; font-weight: 800; }
-        .index-price { color: black; font-size: 18px; font-weight: 900; margin: 2px 0px; }
-        .index-pct { font-size: 14px; font-weight: bold; }
-        
-        @media screen and (max-width: 1100px) {
-            .dashboard-container { flex-direction: column; }
-            .trend-box { min-height: 50px; }
-        }
-        </style>
-    """, unsafe_allow_html=True)
-    
+    # --- PERFECT TOP DASHBOARD ---
     dash_html = '<div class="dashboard-container">'
     
-    # Left Top Indices
     dash_html += '<div class="indices-box">'
     nifty_chg = 0.0
     for idx, (ticker, name) in enumerate(INDICES.items()):
@@ -369,7 +349,6 @@ if data is not None and not data.empty:
         except: continue
     dash_html += '</div>'
 
-    # Right Trend Box
     market_trend, trend_bg, trend_txt = ("BULLISH 🚀", "#e6fffa", "#008000") if nifty_chg >= 0 else ("BEARISH 🩸", "#fff5f5", "#FF0000")
     dash_html += f'<div class="trend-box" style="border: 2px solid {trend_txt}; background-color: {trend_bg}; color: {trend_txt};">{market_trend}</div>'
     dash_html += '</div>'
