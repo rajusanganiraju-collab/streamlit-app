@@ -10,32 +10,68 @@ st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
 
-# పైన స్పేస్, టేబుల్ హెడ్డింగ్స్ సమానంగా ఉండటానికి CSS
+# --- CSS FOR HEATMAP CARDS & RESPONSIVE LAYOUT ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {display: none !important;}
     
-    .stApp { background-color: #ffffff; color: #000000; }
-    html, body, [class*="css"] { font-family: 'Arial', sans-serif; font-weight: 600; color: #000000 !important; }
+    .stApp { background-color: #121212; color: #ffffff; }
+    html, body, [class*="css"] { font-family: 'Arial', sans-serif; font-weight: 600; }
     
-    /* Top Space Reduction to Zero */
-    .block-container { padding-top: 0.5rem !important; padding-bottom: 0rem !important; padding-left: 0.5rem !important; padding-right: 0.5rem !important; margin-top: -10px; }
+    /* Top Space Reduction */
+    .block-container { padding-top: 1rem !important; padding-bottom: 0rem !important; padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
     
-    /* Table Styling - Centered */
-    th { background-color: #ffffff !important; color: #000000 !important; font-size: 14px !important; text-align: center !important; border-bottom: 2px solid #222222 !important; border-top: 2px solid #222222 !important; padding: 6px !important; }
-    td { font-size: 14px !important; color: #000000 !important; border-bottom: 1px solid #ccc !important; text-align: center !important; padding: 4px !important; font-weight: 700 !important; }
-    
-    /* UNIFIED TABLE HEADINGS (All Equal Size & Font) */
-    .table-head { padding: 6px 10px; font-weight: 900; font-size: 15px; text-transform: uppercase; margin-top: 8px; margin-bottom: 2px; border-radius: 4px; text-align: left; }
+    /* SECTION HEADINGS */
+    .table-head { padding: 6px 10px; font-weight: 900; font-size: 15px; text-transform: uppercase; margin-top: 15px; margin-bottom: 8px; border-radius: 4px; text-align: left; }
     .head-bull { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
     .head-bear { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
     .head-neut { background: #e2e3e5; color: #383d41; border: 1px solid #d6d8db; }
     
-    div[data-testid="stDataFrame"] { margin-bottom: -15px !important; }
+    /* --- HEATMAP CSS GRID --- */
+    .grid-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); /* Auto adjust based on screen width */
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+    
+    .stock-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 8px 4px;
+        border-radius: 6px;
+        color: white;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        transition: transform 0.2s ease-in-out;
+        text-decoration: none;
+        height: 100%;
+    }
+    .stock-card:hover { transform: scale(1.05); }
+    
+    /* Text Inside Cards */
+    .ticker { font-size: 12px; font-weight: 800; letter-spacing: 0.5px; opacity: 0.95; }
+    .price { font-size: 15px; font-weight: 900; margin: 3px 0; }
+    .metrics { font-size: 10px; font-weight: 600; background: rgba(0,0,0,0.2); padding: 2px 5px; border-radius: 4px;}
+    .status-tags { font-size: 9px; margin-top: 4px; text-align: center; line-height: 1.2;}
+    
+    /* Mobile Responsive */
+    @media (max-width: 600px) {
+        .grid-container {
+            grid-template-columns: repeat(3, 1fr); /* Always 3 columns on Mobile */
+            gap: 5px; 
+        }
+        .stock-card { padding: 6px 2px; }
+        .ticker { font-size: 10px; }
+        .price { font-size: 13px; }
+        .metrics { font-size: 9px; }
+        .status-tags { font-size: 8px; }
+    }
     </style>
-    """, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
 # --- 3. DATA CONFIGURATION ---
 def format_ticker(t):
@@ -45,19 +81,13 @@ def format_ticker(t):
     return t
 
 INDICES = {
-    "^NSEI": "NIFTY",
-    "^NSEBANK": "BNKNFY",
-    "^INDIAVIX": "VIX",
-    "^DJI": "DOW",
-    "^IXIC": "NSDQ"
+    "^NSEI": "NIFTY", "^NSEBANK": "BNKNFY", "^INDIAVIX": "VIX",
+    "^DJI": "DOW", "^IXIC": "NSDQ"
 }
 
 TV_INDICES = {
-    "^NSEI": "NSE:NIFTY",
-    "^NSEBANK": "NSE:BANKNIFTY",
-    "^INDIAVIX": "NSE:INDIAVIX",
-    "^DJI": "TVC:DJI",
-    "^IXIC": "NASDAQ:IXIC"
+    "^NSEI": "NSE:NIFTY", "^NSEBANK": "NSE:BANKNIFTY", "^INDIAVIX": "NSE:INDIAVIX",
+    "^DJI": "TVC:DJI", "^IXIC": "NASDAQ:IXIC"
 }
 
 SECTOR_MAP = {
@@ -112,7 +142,6 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         
         day_chg = ((ltp - open_p) / open_p) * 100
         net_chg = ((ltp - prev_c) / prev_c) * 100
-        todays_move = net_chg - day_chg
 
         avg_vol = df['Volume'].iloc[:-1].mean()
         curr_vol = float(df['Volume'].iloc[-1])
@@ -146,47 +175,54 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         tv_url = f"https://in.tradingview.com/chart/?symbol=NSE:{stock_name}"
         
         return {
-            "STOCK": tv_url, "PRICE": f"{ltp:.2f}", "DAY%": f"{day_chg:.2f}",
-            "NET%": f"{net_chg:.2f}", "MOVE": f"{todays_move:.2f}", 
-            "VOL": f"{vol_x:.1f}x", "STATUS": " ".join(status), "SCORE": score,
-            "VOL_NUM": vol_x
+            "TICKER": stock_name, "STOCK_URL": tv_url, 
+            "PRICE": ltp, "DAY_PCT": day_chg, 
+            "VOL": f"{vol_x:.1f}x", "STATUS": " ".join(status), 
+            "SCORE": score, "VOL_NUM": vol_x
         }
     except: return None
 
-# --- Custom Styling ---
-def highlight_priority(row):
-    status_str = str(row['STATUS'])
-    day_chg = float(row['DAY%'])
-    
-    major_conditions = 0
-    if "BigMove" in status_str: major_conditions += 1
-    if "O=L" in status_str or "O=H" in status_str: major_conditions += 1
-    if "VOL" in status_str: major_conditions += 1
-    
-    if major_conditions >= 2:
-        if day_chg >= 0: return ['background-color: #e6fffa; color: #008000; font-weight: 900'] * len(row)
-        else: return ['background-color: #fff5f5; color: #FF0000; font-weight: 900'] * len(row)
+# --- Custom HTML Grid Renderer ---
+def render_stock_grid(data_list):
+    if not data_list:
+        return
         
-    return ['background-color: white; color: black'] * len(row)
-
-def style_move_col(val):
-    try:
-        v = float(val)
-        color, text = ('#d4edda', '#155724') if v >= 0 else ('#f8d7da', '#721c24')
-        return f'background-color: {color}; color: {text}; font-weight: 800;'
-    except: return ''
-
-def style_sector_ranks(val):
-    if not isinstance(val, float): return ''
-    color, text = ('#d4edda', '#155724') if val >= 0 else ('#f8d7da', '#721c24')
-    return f'background-color: {color}; color: {text}; font-weight: 700;'
-
-tv_link_config = {"STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)")}
+    html_content = '<div class="grid-container">\n'
+    
+    for row in data_list:
+        ticker = row['TICKER']
+        tv_url = row['STOCK_URL']
+        price = f"{row['PRICE']:.2f}"
+        day_pct = row['DAY_PCT']
+        vol = row['VOL']
+        status = row['STATUS']
+        
+        # Determine Box Color
+        bg_color = "#2E5A27" if day_pct >= 0 else "#8B1A1A"
+        sign = "+" if day_pct >= 0 else ""
+        
+        # Highlight logic (Gold Border for high priority)
+        major_conditions = sum(1 for tag in ["BigMove", "O=L", "O=H", "VOL"] if tag in status)
+        border_style = "border: 2px solid #FFD700; box-shadow: 0 0 8px rgba(255, 215, 0, 0.6);" if major_conditions >= 2 else ""
+        
+        html_content += f"""
+        <a href="{tv_url}" target="_blank" style="text-decoration: none;">
+            <div class="stock-card" style="background-color: {bg_color}; {border_style}">
+                <div class="ticker">{ticker}</div>
+                <div class="price">{price}</div>
+                <div class="metrics">{sign}{day_pct:.2f}% | V:{vol}</div>
+                <div class="status-tags">{status}</div>
+            </div>
+        </a>\n
+        """
+        
+    html_content += '</div>'
+    st.markdown(html_content, unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# 5. NEW: SEARCH BAR FEATURE (Added at the TOP)
+# 5. SEARCH BAR FEATURE
 # -------------------------------------------------------------
-search_query = st.text_input("🔍 సెర్చ్ స్టాక్ (ఉదాహరణకు: RELIANCE, ZOMATO, IDEA):", "").strip().upper()
+search_query = st.text_input("🔍 సెర్చ్ స్టాక్ (ఉదాహరణకు: RELIANCE, ZOMATO):", "").strip().upper()
 
 if search_query:
     search_symbol = format_ticker(search_query)
@@ -196,21 +232,11 @@ if search_query:
         
         if search_res:
             st.markdown(f"<div class='table-head head-neut'>🎯 SEARCH RESULT: {search_query}</div>", unsafe_allow_html=True)
-            df_search = pd.DataFrame([search_res])
-            if "VOL_NUM" in df_search.columns:
-                df_search = df_search.drop(columns=["VOL_NUM"])
-            df_search['SCORE'] = df_search['SCORE'].astype(str)
-            
-            styled_search = df_search.style.apply(highlight_priority, axis=1) \
-                .map(style_move_col, subset=['MOVE']) \
-                .set_properties(**{'text-align': 'center', 'font-size': '14px'}) \
-                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]}])
-            
-            st.dataframe(styled_search, column_config=tv_link_config, use_container_width=True, hide_index=True)
+            render_stock_grid([search_res])
         else:
-            st.warning(f"'{search_query}' కి సంబంధించి ఎటువంటి బ్రేక్అవుట్/కండిషన్స్ మ్యాచ్ అవ్వలేదు లేదా డేటా దొరకలేదు.")
+            st.warning(f"'{search_query}' కి సంబంధించి బ్రేక్అవుట్ కండిషన్స్ మ్యాచ్ అవ్వలేదు లేదా డేటా దొరకలేదు.")
     except Exception as e:
-        st.error("డేటా పొందడంలో లోపం జరిగింది. దయచేసి సరైన సింబల్ ఇవ్వండి.")
+        st.error("డేటా పొందడంలో లోపం జరిగింది.")
 
 st.markdown("<hr style='margin-top: 5px; margin-bottom: 10px;'>", unsafe_allow_html=True)
 
@@ -224,12 +250,10 @@ def get_data():
         all_tickers.append(s['index'])
         all_tickers.extend(s['stocks'])
     all_tickers = list(set(all_tickers))
-    
     try:
         data = yf.download(all_tickers, period="5d", progress=False, group_by='ticker', threads=False)
         return data
-    except: 
-        return None
+    except: return None
 
 loading_msg = st.empty()
 loading_msg.info("మార్కెట్ డేటా లోడ్ అవుతోంది... దయచేసి 15 సెకన్లు వేచి ఉండండి ⏳")
@@ -239,12 +263,12 @@ loading_msg.empty()
 
 if data is not None and not data.empty:
     
-    # DASHBOARD - 80% & 20% Layout
+    # --- DASHBOARD (Top Indices) ---
     dash_left, dash_right = st.columns([0.8, 0.2]) 
     nifty_chg = 0.0
     
     with dash_left:
-        dash_html = '<div style="display: flex; justify-content: space-between; align-items: center; border: 2px solid #ddd; border-radius: 8px; background-color: #f9f9f9; padding: 5px; height: 80px;">'
+        dash_html = '<div style="display: flex; justify-content: space-between; align-items: center; border: 1px solid #333; border-radius: 8px; background-color: #1e1e1e; padding: 5px; height: 80px;">'
         for idx, (ticker, name) in enumerate(INDICES.items()):
             try:
                 if ticker in data.columns.levels[0]:
@@ -253,12 +277,11 @@ if data is not None and not data.empty:
                     pct = ((ltp - float(df['Close'].iloc[-2])) / float(df['Close'].iloc[-2])) * 100
                     
                     arrow = "↑" if pct >= 0 else "↓"
-                    txt_color = "#008000" if pct >= 0 else "#FF0000"
-                    tv_symbol = TV_INDICES.get(ticker, "")
-                    tv_url = f"https://in.tradingview.com/chart/?symbol={tv_symbol}"
-                    border_style = "border-right: 1px solid #ddd;" if idx < 4 else ""
+                    txt_color = "#4CAF50" if pct >= 0 else "#FF5252"
+                    tv_url = f"https://in.tradingview.com/chart/?symbol={TV_INDICES.get(ticker, '')}"
+                    border_style = "border-right: 1px solid #444;" if idx < 4 else ""
                     
-                    dash_html += f'<a href="{tv_url}" target="_blank" style="text-decoration: none; flex: 1; text-align: center; {border_style}"><div style="color: #444; font-size: 13px; font-weight: 800;">{name}</div><div style="color: black; font-size: 18px; font-weight: 900; margin: 2px 0px;">{ltp:.0f}</div><div style="color: {txt_color}; font-size: 14px; font-weight: bold;">{arrow} {pct:.1f}%</div></a>'
+                    dash_html += f'<a href="{tv_url}" target="_blank" style="text-decoration: none; flex: 1; text-align: center; {border_style}"><div style="color: #bbb; font-size: 13px; font-weight: 800;">{name}</div><div style="color: white; font-size: 18px; font-weight: 900; margin: 2px 0px;">{ltp:.0f}</div><div style="color: {txt_color}; font-size: 14px; font-weight: bold;">{arrow} {pct:.1f}%</div></a>'
                     
                     if name == "NIFTY":
                         o_now = float(df['Open'].iloc[-1])
@@ -269,111 +292,61 @@ if data is not None and not data.empty:
 
     with dash_right:
         if nifty_chg >= 0:
-            market_trend = "BULLISH 🚀"
-            trend_bg, trend_txt = "#e6fffa", "#008000"
+            market_trend, trend_bg, trend_txt = "BULLISH 🚀", "#1e4620", "#4CAF50"
         else:
-            market_trend = "BEARISH 🩸"
-            trend_bg, trend_txt = "#fff5f5", "#FF0000"
+            market_trend, trend_bg, trend_txt = "BEARISH 🩸", "#4a1919", "#FF5252"
             
         st.markdown(f"""
-        <div style='display: flex; align-items: center; justify-content: center; height: 80px; border-radius: 8px; border: 2px solid {trend_txt}; background-color: {trend_bg}; color: {trend_txt}; font-size: 18px; font-weight: 900; box-shadow: 2px 2px 5px rgba(0,0,0,0.1);'>
+        <div style='display: flex; align-items: center; justify-content: center; height: 80px; border-radius: 8px; border: 2px solid {trend_txt}; background-color: {trend_bg}; color: {trend_txt}; font-size: 18px; font-weight: 900;'>
             {market_trend}
         </div>
         """, unsafe_allow_html=True)
     
-    # SECTOR RANKS
-    st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
+    # --- SECTOR RANKS (Kept as simple clean table) ---
     sec_rows = []
     for name, info in SECTOR_MAP.items():
         try:
             if info['index'] in data.columns.levels[0]:
                 df = data[info['index']].dropna()
                 c_now, c_prev, o_now = float(df['Close'].iloc[-1]), float(df['Close'].iloc[-2]), float(df['Open'].iloc[-1])
-                d_pct, n_pct = ((c_now - o_now) / o_now) * 100, ((c_now - c_prev) / c_prev) * 100
-                sec_rows.append({"SECTOR": name, "DAY%": d_pct, "NET%": n_pct, "MOVE": n_pct - d_pct})
+                sec_rows.append({"SECTOR": name, "DAY%": ((c_now - o_now) / o_now) * 100})
         except: continue
     
     if sec_rows:
         df_sec = pd.DataFrame(sec_rows).sort_values("DAY%", ascending=False)
-        df_sec_t = df_sec.set_index("SECTOR").T
-        
-        styled_sec = df_sec_t.style.format("{:.2f}") \
-            .map(style_sector_ranks) \
-            .set_properties(**{'text-align': 'center', 'font-size': '14px', 'font-weight': '600'}) \
-            .set_table_styles([
-                {'selector': 'th', 'props': [('text-align', 'center'), ('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]},
-                {'selector': 'td', 'props': [('text-align', 'center')]}
-            ])
-            
-        st.dataframe(styled_sec, use_container_width=True)
-        top_sec = df_sec.iloc[0]['SECTOR']
-        bot_sec = df_sec.iloc[-1]['SECTOR']
+        top_sec, bot_sec = df_sec.iloc[0]['SECTOR'], df_sec.iloc[-1]['SECTOR']
 
-    # BUY & SELL TABLES
+    # --- BUY & SELL HEATMAPS ---
     c_buy, c_sell = st.columns(2)
     
     with c_buy:
         st.markdown(f"<div class='table-head head-bull'>🚀 BUY: {top_sec}</div>", unsafe_allow_html=True)
         res_b = [analyze(s, data, True) for s in SECTOR_MAP[top_sec]['stocks']]
-        res_b = [x for x in res_b if x]
-        if res_b:
-            df_b = pd.DataFrame(res_b).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"])
-            df_b['SCORE'] = df_b['SCORE'].astype(str) 
-            
-            styled_b = df_b.style.apply(highlight_priority, axis=1) \
-                .map(style_move_col, subset=['MOVE']) \
-                .set_properties(**{'text-align': 'center', 'font-size': '14px'}) \
-                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]}])
-                
-            st.dataframe(styled_b, column_config=tv_link_config, use_container_width=True, hide_index=True)
+        res_b = sorted([x for x in res_b if x], key=lambda x: (x["SCORE"], x["VOL_NUM"]), reverse=True)
+        render_stock_grid(res_b)
 
     with c_sell:
         st.markdown(f"<div class='table-head head-bear'>🩸 SELL: {bot_sec}</div>", unsafe_allow_html=True)
         res_s = [analyze(s, data, False) for s in SECTOR_MAP[bot_sec]['stocks']]
-        res_s = [x for x in res_s if x]
-        if res_s:
-            df_s = pd.DataFrame(res_s).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"])
-            df_s['SCORE'] = df_s['SCORE'].astype(str)
-            
-            styled_s = df_s.style.apply(highlight_priority, axis=1) \
-                .map(style_move_col, subset=['MOVE']) \
-                .set_properties(**{'text-align': 'center', 'font-size': '14px'}) \
-                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]}])
-                
-            st.dataframe(styled_s, column_config=tv_link_config, use_container_width=True, hide_index=True)
+        res_s = sorted([x for x in res_s if x], key=lambda x: (x["SCORE"], x["VOL_NUM"]), reverse=True)
+        render_stock_grid(res_s)
 
-    # INDEPENDENT & BROADER
+    # --- INDEPENDENT & BROADER HEATMAPS ---
     c_ind, c_brd = st.columns(2)
     
     with c_ind:
         st.markdown("<div class='table-head head-neut'>🌟 INDEPENDENT (Top 8)</div>", unsafe_allow_html=True)
         ind_movers = [analyze(s, data, force=True) for name, info in SECTOR_MAP.items() if name not in [top_sec, bot_sec] for s in info['stocks']]
         ind_movers = [r for r in ind_movers if r and (float(r['VOL'][:-1]) >= 1.0 or r['SCORE'] >= 1)]
-        if ind_movers:
-            df_ind = pd.DataFrame(ind_movers).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8)
-            df_ind['SCORE'] = df_ind['SCORE'].astype(str)
-            
-            styled_ind = df_ind.style.apply(highlight_priority, axis=1) \
-                .map(style_move_col, subset=['MOVE']) \
-                .set_properties(**{'text-align': 'center', 'font-size': '14px'}) \
-                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]}])
-                
-            st.dataframe(styled_ind, column_config=tv_link_config, use_container_width=True, hide_index=True)
+        ind_movers = sorted(ind_movers, key=lambda x: (x["SCORE"], x["VOL_NUM"]), reverse=True)[:8]
+        render_stock_grid(ind_movers)
 
     with c_brd:
         st.markdown("<div class='table-head head-neut'>🌌 BROADER MARKET (Top 8)</div>", unsafe_allow_html=True)
         res_brd = [analyze(s, data, force=True) for s in BROADER_MARKET]
         res_brd = [x for x in res_brd if x and (float(x['VOL'][:-1]) >= 1.0 or x['SCORE'] >= 1)]
-        if res_brd:
-            df_brd = pd.DataFrame(res_brd).sort_values(by=["SCORE", "VOL_NUM"], ascending=[False, False]).drop(columns=["VOL_NUM"]).head(8)
-            df_brd['SCORE'] = df_brd['SCORE'].astype(str)
-            
-            styled_brd = df_brd.style.apply(highlight_priority, axis=1) \
-                .map(style_move_col, subset=['MOVE']) \
-                .set_properties(**{'text-align': 'center', 'font-size': '14px'}) \
-                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]}])
-                
-            st.dataframe(styled_brd, column_config=tv_link_config, use_container_width=True, hide_index=True)
+        res_brd = sorted(res_brd, key=lambda x: (x["SCORE"], x["VOL_NUM"]), reverse=True)[:8]
+        render_stock_grid(res_brd)
 
 else:
-    st.warning("స్టాక్ మార్కెట్ డేటా దొరకలేదు. బహుశా ఇంటర్నెట్ లేదా Yahoo Finance సర్వర్ నెమ్మదిగా ఉండి ఉండొచ్చు.")
+    st.warning("డేటా దొరకలేదు.")
