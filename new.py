@@ -49,7 +49,7 @@ st.markdown("""
     .bear-card { background-color: #b52524 !important; } /* Dark Red */
     .neut-card { background-color: #30363d !important; } /* Grey */
     
-    /* 🔥 FONTS CHANGED TO NORMAL WEIGHT 🔥 */
+    /* NORMAL TEXT FONTS */
     .t-name { font-size: 13px; font-weight: 500; margin-bottom: 2px; }
     .t-price { font-size: 17px; font-weight: 600; margin-bottom: 2px; }
     .t-pct { font-size: 12px; font-weight: 500; }
@@ -58,7 +58,7 @@ st.markdown("""
     .t-score { 
         position: absolute; top: 3px; left: 3px; 
         font-size: 10px; background: rgba(0,0,0,0.4); 
-        padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: bold;
+        padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal;
     }
     
     /* Auto adjust columns based on screen size */
@@ -178,18 +178,27 @@ df = fetch_all_data()
 
 if not df.empty:
     
-    # పాజిటివ్ స్టాక్స్ కు True, నెగటివ్ వాటికి False
-    df['Is_Green'] = df['C'] >= 0
-    
     if watchlist_mode == "Nifty 50 Heatmap":
         # Nifty 50: ముందు ఆకుపచ్చ స్టాక్స్ అన్నీ.. ఆ తర్వాత ఎరుపు అన్నీ (High Green to Low Red)
-        df_display = df[df['T'].isin(NIFTY_50)].sort_values(by=["Is_Green", "C"], ascending=[False, False])
+        df_filtered = df[df['T'].isin(NIFTY_50)]
+        greens = df_filtered[df_filtered['C'] >= 0].sort_values(by="C", ascending=False)
+        reds = df_filtered[df_filtered['C'] < 0].sort_values(by="C", ascending=False)
+        df_display = pd.concat([greens, reds])
         st.markdown("### Nifty 50 Stocks")
+    
     else:
-        # 🔥 PERFECT SORTING LOGIC: Is_Green first -> then Score -> then % Change
-        # దీనివల్ల ముందు పాజిటివ్ స్టాక్స్ అన్నీ (వాటి స్కోర్ ప్రకారం), ఆ తర్వాతే నెగటివ్ స్టాక్స్ (వాటి స్కోర్ ప్రకారం) వస్తాయి.
-        df_display = df[df['S'] >= 4].sort_values(by=["Is_Green", "S", "C"], ascending=[False, False, False])
+        # 🔥 PERFECT SORTING LOGIC FOR HIGH SCORE 🔥
+        df_filtered = df[df['S'] >= 4]
+        
+        # 1. GREEN STOCKS: High Score First -> High % Change First
+        greens = df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False])
+        
+        # 2. RED STOCKS: Low Score First -> High Score Last (This puts SBIN at the bottom!)
+        reds = df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[True, False])
+        
+        df_display = pd.concat([greens, reds])
         st.markdown("### 🔥 High Score Stocks (Across All Sectors)")
+
 
     if view_mode == "Heat Map":
         # === HEAT MAP GRID ===
@@ -204,7 +213,7 @@ if not df.empty:
         st.markdown(html, unsafe_allow_html=True)
         
     else:
-        # === MINI CHARTS ===
+        # === MINI CHARTS (5 MINUTE, TODAY ONLY) ===
         st.markdown("<br>", unsafe_allow_html=True)
         cols = st.columns(3) 
         
@@ -212,33 +221,16 @@ if not df.empty:
             col = cols[idx % 3]
             with col:
                 color = "#2ea043" if row['C'] >= 0 else "#da3633"
-                st.markdown(f"<div style='text-align:center; font-weight:bold; font-size:15px; margin-bottom:4px;'>{row['T']} <span style='color:{color}'>({row['C']:.2f}%)</span></div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='text-align:center; font-weight:normal; font-size:15px; margin-bottom:4px;'>{row['T']} <span style='color:{color}'>({row['C']:.2f}%)</span></div>", unsafe_allow_html=True)
                 
-                # 🔥 'range': '1D' & 'hide_top_toolbar': true ADDED TO SHOW ONLY TODAY'S CHART 🔥
+                # 🔥 DIRECT IFRAME: interval=5 (5 minutes), style=3 (Area chart) 🔥
                 chart_code = f"""
-                <div class="tradingview-widget-container" style="border:1px solid #30363d; border-radius:6px; overflow:hidden; background:#000;">
-                  <div id="tv_{row['T']}" style="height:200px;"></div>
-                  <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
-                  <script type="text/javascript">
-                  new TradingView.widget({{
-                    "autosize": true,
-                    "symbol": "BSE:{row['T']}",
-                    "interval": "5",
-                    "range": "1D",    
-                    "timezone": "Asia/Kolkata",
-                    "theme": "dark",
-                    "style": "3",
-                    "locale": "in",
-                    "enable_publishing": false,
-                    "hide_top_toolbar": true, 
-                    "hide_legend": true,
-                    "save_image": false,
-                    "container_id": "tv_{row['T']}"
-                  }});
-                  </script>
+                <div style="border:1px solid #30363d; border-radius:6px; overflow:hidden; background:#000;">
+                    <iframe src="https://s.tradingview.com/widgetembed/?symbol=BSE:{row['T']}&interval=5&theme=dark&style=3&hidesidetoolbar=1&hide_top_toolbar=1&symboledit=0&saveimage=0" 
+                    width="100%" height="220" frameborder="0" scrolling="no"></iframe>
                 </div>
                 <br>
                 """
-                st.components.v1.html(chart_code, height=220)
+                st.components.v1.html(chart_code, height=240)
 else:
     st.info("Loading Market Data...")
