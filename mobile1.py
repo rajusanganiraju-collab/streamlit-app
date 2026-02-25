@@ -10,7 +10,7 @@ st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
 
-# --- CSS FOR PERFECT RESPONSIVE LAYOUT & FULL WIDTH TABLES ---
+# --- CSS FOR PERFECT RESPONSIVE LAYOUT ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -29,16 +29,11 @@ st.markdown("""
     .head-bear { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; border-bottom: none; }
     .head-neut { background: #e2e3e5; color: #383d41; border: 1px solid #d6d8db; border-bottom: none; }
     
-    /* THE FIX FOR FULL WIDTH TABLES */
-    .custom-table {
-        width: 100% !important;
-        min-width: 100% !important;
-        display: table !important;
-        table-layout: auto !important;
-    }
+    /* HTML Table Settings */
+    .custom-table { width: 100% !important; min-width: 100% !important; border-collapse: collapse; }
     
     /* ----------------------------------------------------
-       THE FIX FOR MOBILE & DESKTOP SPLIT SCREEN
+       THE ULTIMATE FIX FOR MOBILE & DESKTOP SPLIT SCREEN
        ---------------------------------------------------- */
     @media screen and (max-width: 1200px) {
         div[data-testid="stHorizontalBlock"] {
@@ -51,7 +46,7 @@ st.markdown("""
             min-width: 100% !important;
             flex: none !important;
             display: block !important;
-            margin-bottom: 20px !important;
+            margin-bottom: 10px !important;
         }
     }
     </style>
@@ -160,15 +155,17 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         }
     except: return None
 
-# --- HTML TABLE GENERATORS WITH FULL WIDTH FIX ---
+# --- HTML TABLE GENERATORS (WITH SCROLL WRAPPERS) ---
 def render_html_table(df):
     if df.empty: return ""
-    html = '<table class="custom-table" style="border-collapse: collapse; font-size: 11px; text-align: center; margin-bottom: 15px; font-family: Arial, sans-serif;">'
+    # Add overflow-x wrapper so it doesn't stretch the page
+    html = '<div style="width: 100%; overflow-x: auto;">'
+    html += '<table class="custom-table" style="font-size: 11px; text-align: center; margin-bottom: 15px; font-family: Arial, sans-serif;">'
     
     # Headers
     html += '<thead><tr style="border-bottom: 2px solid #222; border-top: 2px solid #222; background-color: #fff;">'
     for col in df.columns:
-        html += f'<th style="padding: 6px 2px; font-weight: 900; color: #000;">{col}</th>'
+        html += f'<th style="padding: 6px 2px; font-weight: 900; color: #000; white-space: nowrap;">{col}</th>'
     html += '</tr></thead><tbody>'
     
     # Rows
@@ -178,16 +175,14 @@ def render_html_table(df):
         try:
             if int(row['SCORE']) >= 2:
                 is_highlight = True
-                if float(row['DAY%']) >= 0:
-                    hl_bg, hl_text = "#e6fffa", "#008000"
-                else:
-                    hl_bg, hl_text = "#fff5f5", "#FF0000"
+                if float(row['DAY%']) >= 0: hl_bg, hl_text = "#e6fffa", "#008000"
+                else: hl_bg, hl_text = "#fff5f5", "#FF0000"
         except: pass
         
         html += '<tr>'
         for col in df.columns:
             val = str(row[col])
-            td_style = "padding: 5px 2px; border-bottom: 1px solid #ddd; font-weight: 700;"
+            td_style = "padding: 5px 2px; border-bottom: 1px solid #ddd; font-weight: 700; white-space: nowrap;"
             
             if is_highlight: td_style += f" background-color: {hl_bg}; color: {hl_text}; font-weight: 900;"
             else: td_style += " background-color: #fff; color: #000;"
@@ -205,23 +200,25 @@ def render_html_table(df):
             html += f'<td style="{td_style}">{val}</td>'
         html += '</tr>'
         
-    html += '</tbody></table>'
+    html += '</tbody></table></div>'
     return html
 
 def render_sector_table(df):
     if df.empty: return ""
-    html = '<table class="custom-table" style="border-collapse: collapse; font-size: 12px; text-align: center; margin-bottom: 15px; font-family: Arial, sans-serif;">'
+    # Add overflow-x wrapper so it doesn't stretch the page
+    html = '<div style="width: 100%; overflow-x: auto;">'
+    html += '<table class="custom-table" style="font-size: 12px; text-align: center; margin-bottom: 15px; font-family: Arial, sans-serif;">'
     html += '<thead><tr style="border-bottom: 2px solid #222; border-top: 2px solid #222; background-color: #fff;">'
     html += '<th style="padding: 6px; color: #000;"></th>'
-    for col in df.columns: html += f'<th style="padding: 6px 2px; font-weight: 900; color: #000;">{col}</th>'
+    for col in df.columns: html += f'<th style="padding: 6px 2px; font-weight: 900; color: #000; white-space: nowrap;">{col}</th>'
     html += '</tr></thead><tbody>'
     
     for idx, row in df.iterrows():
         html += '<tr>'
-        html += f'<td style="padding: 6px; font-weight: 900; border-bottom: 1px solid #ddd; background-color: #fff; color: #000; text-align: left;">{idx}</td>'
+        html += f'<td style="padding: 6px; font-weight: 900; border-bottom: 1px solid #ddd; background-color: #fff; color: #000; text-align: left; white-space: nowrap;">{idx}</td>'
         for col in df.columns:
             val = row[col]
-            td_style = "padding: 6px 2px; font-weight: 800; border-bottom: 1px solid #ddd;"
+            td_style = "padding: 6px 2px; font-weight: 800; border-bottom: 1px solid #ddd; white-space: nowrap;"
             try:
                 v = float(val)
                 if v >= 0: td_style += " background-color: #d4edda; color: #155724;"
@@ -230,13 +227,13 @@ def render_sector_table(df):
             except: val_str = str(val)
             html += f'<td style="{td_style}">{val_str}</td>'
         html += '</tr>'
-    html += '</tbody></table>'
+    html += '</tbody></table></div>'
     return html
 
 # -------------------------------------------------------------
 # 5. SEARCH BAR FEATURE
 # -------------------------------------------------------------
-search_query = st.text_input("🔍 సెర్చ్ స్టాక్ (ఉదాహరణకు: RELIANCE, ZOMATO, IDEA):", "").strip().upper()
+search_query = st.text_input("🔍 సెర్చ్ స్టాక్ (ఉదాహరణకు: RELIANCE, ZOMATO):", "").strip().upper()
 
 if search_query:
     search_symbol = format_ticker(search_query)
@@ -281,7 +278,8 @@ if data is not None and not data.empty:
     nifty_chg = 0.0
     
     with dash_left:
-        dash_html = '<div style="display: flex; justify-content: space-between; align-items: center; border: 2px solid #ddd; border-radius: 8px; background-color: #f9f9f9; padding: 5px; height: 80px;">'
+        # Added flex-wrap: wrap here to fix the main issue!
+        dash_html = '<div style="display: flex; flex-wrap: wrap; gap: 5px; justify-content: space-between; align-items: center; border: 2px solid #ddd; border-radius: 8px; background-color: #f9f9f9; padding: 5px; min-height: 80px;">'
         for idx, (ticker, name) in enumerate(INDICES.items()):
             try:
                 if ticker in data.columns.levels[0]:
@@ -295,7 +293,7 @@ if data is not None and not data.empty:
                     tv_url = f"https://in.tradingview.com/chart/?symbol={tv_symbol}"
                     border_style = "border-right: 1px solid #ddd;" if idx < 4 else ""
                     
-                    dash_html += f'<a href="{tv_url}" target="_blank" style="text-decoration: none; flex: 1; text-align: center; {border_style}"><div style="color: #444; font-size: 13px; font-weight: 800;">{name}</div><div style="color: black; font-size: 18px; font-weight: 900; margin: 2px 0px;">{ltp:.0f}</div><div style="color: {txt_color}; font-size: 14px; font-weight: bold;">{arrow} {pct:.1f}%</div></a>'
+                    dash_html += f'<a href="{tv_url}" target="_blank" style="text-decoration: none; flex: 1 1 80px; text-align: center; {border_style}"><div style="color: #444; font-size: 13px; font-weight: 800;">{name}</div><div style="color: black; font-size: 18px; font-weight: 900; margin: 2px 0px;">{ltp:.0f}</div><div style="color: {txt_color}; font-size: 14px; font-weight: bold;">{arrow} {pct:.1f}%</div></a>'
                     
                     if name == "NIFTY":
                         o_now = float(df['Open'].iloc[-1])
@@ -308,7 +306,7 @@ if data is not None and not data.empty:
         if nifty_chg >= 0: market_trend, trend_bg, trend_txt = "BULLISH 🚀", "#e6fffa", "#008000"
         else: market_trend, trend_bg, trend_txt = "BEARISH 🩸", "#fff5f5", "#FF0000"
             
-        st.markdown(f"<div style='display: flex; align-items: center; justify-content: center; height: 80px; border-radius: 8px; border: 2px solid {trend_txt}; background-color: {trend_bg}; color: {trend_txt}; font-size: 18px; font-weight: 900; box-shadow: 2px 2px 5px rgba(0,0,0,0.1);'>{market_trend}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='display: flex; align-items: center; justify-content: center; min-height: 80px; height: 100%; border-radius: 8px; border: 2px solid {trend_txt}; background-color: {trend_bg}; color: {trend_txt}; font-size: 18px; font-weight: 900; box-shadow: 2px 2px 5px rgba(0,0,0,0.1);'>{market_trend}</div>", unsafe_allow_html=True)
     
     # SECTOR RANKS
     st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
