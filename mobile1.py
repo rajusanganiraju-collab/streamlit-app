@@ -10,7 +10,7 @@ st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
 
-# --- CSS FOR PERFECT RESPONSIVE LAYOUT ---
+# --- CSS FOR PERFECT RESPONSIVE LAYOUT & FULL WIDTH TABLES ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -29,11 +29,12 @@ st.markdown("""
     .head-bear { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; border-bottom: none; }
     .head-neut { background: #e2e3e5; color: #383d41; border: 1px solid #d6d8db; border-bottom: none; }
     
-    /* HTML Table Settings */
-    .custom-table { width: 100% !important; min-width: 100% !important; border-collapse: collapse; }
+    /* THE FIX FOR FULL WIDTH HTML TABLES */
+    table { width: 100% !important; min-width: 100% !important; border-collapse: collapse !important; table-layout: auto !important; }
+    th, td { word-wrap: break-word !important; }
     
     /* ----------------------------------------------------
-       THE ULTIMATE FIX FOR MOBILE & DESKTOP SPLIT SCREEN
+       THE FIX FOR MOBILE & DESKTOP SPLIT SCREEN
        ---------------------------------------------------- */
     @media screen and (max-width: 1200px) {
         div[data-testid="stHorizontalBlock"] {
@@ -46,7 +47,7 @@ st.markdown("""
             min-width: 100% !important;
             flex: none !important;
             display: block !important;
-            margin-bottom: 10px !important;
+            margin-bottom: 20px !important;
         }
     }
     </style>
@@ -155,17 +156,15 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         }
     except: return None
 
-# --- HTML TABLE GENERATORS (WITH SCROLL WRAPPERS) ---
+# --- HTML TABLE GENERATORS (Fixed width and text wrapping) ---
 def render_html_table(df):
     if df.empty: return ""
-    # Add overflow-x wrapper so it doesn't stretch the page
-    html = '<div style="width: 100%; overflow-x: auto;">'
-    html += '<table class="custom-table" style="font-size: 11px; text-align: center; margin-bottom: 15px; font-family: Arial, sans-serif;">'
+    html = '<table width="100%" style="width: 100% !important; border-collapse: collapse; font-size: 11px; text-align: center; margin-bottom: 15px; font-family: Arial, sans-serif;">'
     
     # Headers
     html += '<thead><tr style="border-bottom: 2px solid #222; border-top: 2px solid #222; background-color: #fff;">'
     for col in df.columns:
-        html += f'<th style="padding: 6px 2px; font-weight: 900; color: #000; white-space: nowrap;">{col}</th>'
+        html += f'<th style="padding: 6px 2px; font-weight: 900; color: #000;">{col}</th>'
     html += '</tr></thead><tbody>'
     
     # Rows
@@ -182,7 +181,7 @@ def render_html_table(df):
         html += '<tr>'
         for col in df.columns:
             val = str(row[col])
-            td_style = "padding: 5px 2px; border-bottom: 1px solid #ddd; font-weight: 700; white-space: nowrap;"
+            td_style = "padding: 5px 2px; border-bottom: 1px solid #ddd; font-weight: 700;"
             
             if is_highlight: td_style += f" background-color: {hl_bg}; color: {hl_text}; font-weight: 900;"
             else: td_style += " background-color: #fff; color: #000;"
@@ -200,25 +199,23 @@ def render_html_table(df):
             html += f'<td style="{td_style}">{val}</td>'
         html += '</tr>'
         
-    html += '</tbody></table></div>'
+    html += '</tbody></table>'
     return html
 
 def render_sector_table(df):
     if df.empty: return ""
-    # Add overflow-x wrapper so it doesn't stretch the page
-    html = '<div style="width: 100%; overflow-x: auto;">'
-    html += '<table class="custom-table" style="font-size: 12px; text-align: center; margin-bottom: 15px; font-family: Arial, sans-serif;">'
+    html = '<table width="100%" style="width: 100% !important; border-collapse: collapse; font-size: 12px; text-align: center; margin-bottom: 15px; font-family: Arial, sans-serif;">'
     html += '<thead><tr style="border-bottom: 2px solid #222; border-top: 2px solid #222; background-color: #fff;">'
     html += '<th style="padding: 6px; color: #000;"></th>'
-    for col in df.columns: html += f'<th style="padding: 6px 2px; font-weight: 900; color: #000; white-space: nowrap;">{col}</th>'
+    for col in df.columns: html += f'<th style="padding: 6px 2px; font-weight: 900; color: #000;">{col}</th>'
     html += '</tr></thead><tbody>'
     
     for idx, row in df.iterrows():
         html += '<tr>'
-        html += f'<td style="padding: 6px; font-weight: 900; border-bottom: 1px solid #ddd; background-color: #fff; color: #000; text-align: left; white-space: nowrap;">{idx}</td>'
+        html += f'<td style="padding: 6px; font-weight: 900; border-bottom: 1px solid #ddd; background-color: #fff; color: #000; text-align: left;">{idx}</td>'
         for col in df.columns:
             val = row[col]
-            td_style = "padding: 6px 2px; font-weight: 800; border-bottom: 1px solid #ddd; white-space: nowrap;"
+            td_style = "padding: 6px 2px; font-weight: 800; border-bottom: 1px solid #ddd;"
             try:
                 v = float(val)
                 if v >= 0: td_style += " background-color: #d4edda; color: #155724;"
@@ -227,7 +224,7 @@ def render_sector_table(df):
             except: val_str = str(val)
             html += f'<td style="{td_style}">{val_str}</td>'
         html += '</tr>'
-    html += '</tbody></table></div>'
+    html += '</tbody></table>'
     return html
 
 # -------------------------------------------------------------
@@ -278,7 +275,6 @@ if data is not None and not data.empty:
     nifty_chg = 0.0
     
     with dash_left:
-        # Added flex-wrap: wrap here to fix the main issue!
         dash_html = '<div style="display: flex; flex-wrap: wrap; gap: 5px; justify-content: space-between; align-items: center; border: 2px solid #ddd; border-radius: 8px; background-color: #f9f9f9; padding: 5px; min-height: 80px;">'
         for idx, (ticker, name) in enumerate(INDICES.items()):
             try:
