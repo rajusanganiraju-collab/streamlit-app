@@ -101,20 +101,25 @@ st.markdown("""
     }
     
     /* ----------------------------------------------------
-       🔥 MOBILE SPECIFIC: TEXT SIZE INCREASED BY 30% MORE 🔥
+       🔥 MOBILE SPECIFIC: TEXT SIZE INCREASED BY ANOTHER 30% 🔥
        ---------------------------------------------------- */
     @media screen and (max-width: 600px) {
         .custom-table {
-            font-size: 20px !important; /* MEGA FONT FOR MOBILE */
+            font-size: 24px !important; /* GIGANTIC FONT FOR MOBILE */
         }
         .custom-table th, .custom-table td {
-            font-size: 20px !important;
-            padding: 12px 3px !important; /* MORE PADDING FOR READABILITY */
+            font-size: 24px !important; /* MASSIVE TEXT */
+            padding: 14px 4px !important; /* EXTRA PADDING */
+            line-height: 1.3 !important;
         }
         .table-head {
-            font-size: 20px !important;
-            padding: 12px 10px !important;
+            font-size: 26px !important; /* HUGE HEADINGS */
+            padding: 14px 10px !important;
         }
+        /* Mobile adjustment for indices to fit nicely while being bigger */
+        .index-name { font-size: 14px !important; }
+        .index-price { font-size: 24px !important; }
+        .index-pct { font-size: 16px !important; }
     }
     </style>
 """, unsafe_allow_html=True)
