@@ -10,7 +10,7 @@ st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
 
-# --- CSS FOR PERFECT TABLE ALIGNMENT ---
+# --- CSS FOR PERFECT RESPONSIVE LAYOUT ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -24,26 +24,31 @@ st.markdown("""
     .block-container { padding-top: 0.5rem !important; padding-bottom: 0rem !important; padding-left: 0.5rem !important; padding-right: 0.5rem !important; margin-top: -10px; }
     
     /* UNIFIED TABLE HEADINGS */
-    .table-head { padding: 6px 10px; font-weight: 900; font-size: 15px; text-transform: uppercase; margin-top: 8px; margin-bottom: 2px; border-radius: 4px; text-align: left; display: block; width: 100%; }
+    .table-head { padding: 6px 10px; font-weight: 900; font-size: 15px; text-transform: uppercase; margin-top: 8px; margin-bottom: 2px; border-radius: 4px; text-align: left; display: block; width: 100%; box-sizing: border-box; }
     .head-bull { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
     .head-bear { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
     .head-neut { background: #e2e3e5; color: #383d41; border: 1px solid #d6d8db; }
     
-    /* ఫోర్స్ ఫుల్ విడ్త్ (టేబుల్ సగంలో ఆగిపోకుండా హెడ్డింగ్ తో పాటు 100% వస్తుంది) */
-    div[data-testid="stDataFrame"] { margin-bottom: -15px !important; width: 100% !important; }
-    
-    /* ---------------------------------------------------- */
-    /* MOBILE FIX (కచ్చితంగా ఒకదాని కింద ఒకటి రావడానికి)     */
-    /* ---------------------------------------------------- */
-    @media screen and (max-width: 800px) {
+    div[data-testid="stDataFrame"] { margin-bottom: -15px !important; }
+
+    /* ==========================================================
+       THE ULTIMATE FIX FOR MOBILE & DESKTOP SPLIT SCREEN
+       ========================================================== */
+    /* 1200px limit covers Mobile, Tablets, and Desktop Half-Screens */
+    @media screen and (max-width: 1200px) {
+        /* Breaks the side-by-side columns into stacked rows */
         div[data-testid="stHorizontalBlock"] {
             flex-direction: column !important;
+            display: flex !important;
         }
-        div[data-testid="column"] {
+        /* Forces each column (Table) to take 100% width of the screen */
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
             width: 100% !important;
             max-width: 100% !important;
             min-width: 100% !important;
-            margin-bottom: 15px !important;
+            flex: none !important;
+            display: block !important;
+            margin-bottom: 25px !important; /* Space between stacked tables */
         }
     }
     </style>
@@ -196,7 +201,7 @@ def style_sector_ranks(val):
 tv_link_config = {"STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)")}
 
 # -------------------------------------------------------------
-# 5. NEW: SEARCH BAR FEATURE
+# 5. SEARCH BAR FEATURE
 # -------------------------------------------------------------
 search_query = st.text_input("🔍 సెర్చ్ స్టాక్ (ఉదాహరణకు: RELIANCE, ZOMATO, IDEA):", "").strip().upper()
 
