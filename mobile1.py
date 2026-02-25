@@ -10,7 +10,7 @@ st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
 
-# --- CSS FOR 100% PERFECT ALIGNMENT & READABLE FONTS ---
+# --- CSS FOR 100% PERFECT ALIGNMENT & BIGGER MOBILE FONTS ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -23,7 +23,7 @@ st.markdown("""
     .block-container { padding-top: 0.5rem !important; padding-bottom: 0rem !important; padding-left: 0.5rem !important; padding-right: 0.5rem !important; margin-top: -10px; }
     
     /* UNIFIED TABLE HEADINGS */
-    .table-head { padding: 6px 10px; font-weight: 900; font-size: 15px; text-transform: uppercase; margin-top: 8px; margin-bottom: 0px; border-radius: 4px; text-align: left; display: block; width: 100%; box-sizing: border-box; }
+    .table-head { font-weight: 900; font-size: 15px; text-transform: uppercase; margin-top: 8px; margin-bottom: 0px; border-radius: 4px; text-align: left; display: block; width: 100%; box-sizing: border-box; padding: 6px 10px; }
     .head-bull { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; border-bottom: none; }
     .head-bear { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; border-bottom: none; }
     .head-neut { background: #e2e3e5; color: #383d41; border: 1px solid #d6d8db; border-bottom: none; }
@@ -46,42 +46,37 @@ st.markdown("""
     .custom-table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 11px; /* Desktop Font Size */
         text-align: center;
         font-family: Arial, sans-serif;
         table-layout: fixed; /* Forces exactly locked column widths */
     }
     .custom-table th, .custom-table td {
+        font-size: 11px !important; /* DEFAULT DESKTOP SIZE */
+        padding: 6px 2px !important;
         white-space: normal; 
         word-wrap: break-word;
-        padding: 6px 2px;
     }
     
     /* ----------------------------------------------------
-       RESPONSIVE RULES
+       🔥 AGGRESSIVE MOBILE FIX FOR BIGGER FONTS 🔥
        ---------------------------------------------------- */
-    /* When screen shrinks below 1100px, make everything Stack */
-    @media screen and (max-width: 1100px) {
+    @media screen and (max-width: 900px) {
+        /* Stack tables one below other */
         .responsive-grid {
             flex-direction: column !important;
         }
         .grid-col {
             width: 100% !important;
         }
-    }
-
-    /* 🔥 NEW: BIGGER FONTS SPECIFICALLY FOR MOBILE PHONES 🔥 */
-    @media screen and (max-width: 768px) {
-        .custom-table {
-            font-size: 13px !important; /* Increased Font Size */
-        }
+        
+        /* FORCE BIGGER FONTS ON MOBILE */
         .custom-table th, .custom-table td {
-            font-size: 13px !important; /* Increased Font Size */
-            padding: 8px 2px !important; /* Added more vertical spacing for readability */
+            font-size: 14px !important; /* BIGGER TEXT */
+            padding: 10px 4px !important; /* MORE SPACE FOR READABILITY */
         }
         .table-head {
-            font-size: 16px !important; /* Bigger Headings on Mobile */
-            padding: 8px 10px !important;
+            font-size: 18px !important; /* BIGGER HEADING */
+            padding: 10px 12px !important;
         }
     }
     </style>
@@ -270,6 +265,7 @@ if search_query:
             df_search = pd.DataFrame([search_res])
             if "VOL_NUM" in df_search.columns: df_search = df_search.drop(columns=["VOL_NUM"])
             
+            # Wrap search in grid-col so it matches exactly
             st.markdown(f'<div class="responsive-grid">{build_html_block(df_search, f"🎯 SEARCH RESULT: {search_query}", "head-neut")}</div>', unsafe_allow_html=True)
         else: st.warning("డేటా దొరకలేదు.")
     except: st.error("లోపం జరిగింది.")
