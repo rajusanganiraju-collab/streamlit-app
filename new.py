@@ -111,7 +111,6 @@ INDICES_MAP = {
     "^INDIAVIX": "INDIA VIX"
 }
 
-# TradingView link names for indices
 TV_INDICES_URL = {
     "^NSEI": "NSE:NIFTY",
     "^NSEBANK": "NSE:BANKNIFTY",
@@ -160,7 +159,6 @@ def fetch_all_data():
     for stocks in SECTOR_MAP.values():
         all_stocks.update(stocks)
     
-    # Add Indices to the download list
     tkrs = [f"{t}.NS" for t in all_stocks] + list(INDICES_MAP.keys())
     data = yf.download(tkrs, period="5d", progress=False, group_by='ticker', threads=False)
     
@@ -169,7 +167,6 @@ def fetch_all_data():
 
     for symbol in data.columns.levels[0]:
         try:
-            # 🔥 FIX: Use dropna(subset=['Close']) so Indices without Volume won't get deleted 🔥
             df = data[symbol].dropna(subset=['Close'])
             if len(df) < 2: continue
             
@@ -182,7 +179,6 @@ def fetch_all_data():
             day_chg = ((ltp - open_p) / open_p) * 100
             net_chg = ((ltp - prev_c) / prev_c) * 100
             
-            # VWAP & Volume Check (Safeguard for Indices)
             if 'Volume' in df.columns and not df['Volume'].isna().all():
                 avg_vol = df['Volume'].iloc[:-1].mean()
                 curr_vol = float(df['Volume'].iloc[-1])
@@ -202,7 +198,6 @@ def fetch_all_data():
             if (ltp >= high * 0.998 and day_chg > 0.5) or (ltp <= low * 1.002 and day_chg < -0.5): score += 1
             if (ltp > (low * 1.01) and ltp > vwap) or (ltp < (high * 0.99) and ltp < vwap): score += 1
             
-            # Check if it's an Index
             if symbol in INDICES_MAP:
                 disp_name = INDICES_MAP[symbol]
                 is_index = True
@@ -248,19 +243,10 @@ if not df.empty:
         st.markdown("### Nifty 50 Stocks")
     
     else:
-        # 🔥 FILTER: ONLY SHOW SCORE 7 TO 10 🔥
         df_filtered = df_stocks[(df_stocks['S'] >= 7) & (df_stocks['S'] <= 10)]
-        
-        # Greens: High Score First -> High % First
         greens = df_filtered[df_filtered['C'] > 0].sort_values(by=["S", "C"], ascending=[False, False])
-        
-        # Neuts (0%): Rare, but handled safely
         neuts = df_filtered[df_filtered['C'] == 0].sort_values(by="S", ascending=False)
-        
-        # Reds: Low Score First (7) -> High Score Last (10)
         reds = df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[True, True])
-        
-        # Final sorted stocks
         df_stocks_display = pd.concat([greens, neuts, reds])
         st.markdown("### 🔥 High Score Stocks (7 to 10)")
 
@@ -270,8 +256,8 @@ if not df.empty:
         if not df_indices.empty:
             html_idx = '<div class="heatmap-grid">'
             for _, row in df_indices.iterrows():
-                bg = "idx-card" if row['T'] != "INDIA VIX" else ("bear-card" if row['C'] > 0 else "bull-card") # Vix logic
-                bg = "bull-card" if row['C'] >= 0 else "bear-card" # Standard logic
+                bg = "idx-card" if row['T'] != "INDIA VIX" else ("bear-card" if row['C'] > 0 else "bull-card") 
+                bg = "bull-card" if row['C'] >= 0 else "bear-card" 
                 badge = "IDX"
                 sign = "+" if row['C'] > 0 else ""
                 tv_sym = TV_INDICES_URL.get(row['Fetch_T'], "")
@@ -299,82 +285,114 @@ if not df.empty:
     else:
         # === MINI CHARTS ===
         st.markdown("<br>", unsafe_allow_html=True)
-        cols = st.columns(3) 
         
-        # Combine Indices + Top 27 Stocks for Charts (Total 30 limit for performance)
-        df_display_charts = pd.concat([df_indices, df_stocks_display]).head(30)
-        fetch_tickers = df_display_charts['Fetch_T'].tolist()
+        df_stocks_charts = df_stocks_display.head(27)
+        fetch_tickers = df_indices['Fetch_T'].tolist() + df_stocks_charts['Fetch_T'].tolist()
         
         with st.spinner("Loading 5-Min Candlestick Charts with VWAP & EMA..."):
             chart_data = yf.download(fetch_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=True)
         
-        for idx, row in df_display_charts.iterrows():
-            col = cols[idx % 3]
+        # 1. RENDER INDICES CHARTS FIRST
+        if not df_indices.empty:
+            cols_idx = st.columns(3)
+            # 🔥 Fix: Using enumerate guarantees strictly ordered column assignment (0,1,2) 🔥
+            for loop_idx, (_, row) in enumerate(df_indices.iterrows()):
+                col = cols_idx[loop_idx % 3]
+                fetch_sym = row['Fetch_T']
+                display_sym = row['T']
+                
+                with col:
+                    color_hex = "#2ea043" if row['C'] >= 0 else "#da3633"
+                    sign = "+" if row['C'] > 0 else ""
+                    tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, '')}"
+                    
+                    st.markdown(f"<div class='chart-box'>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='text-align:center; font-weight:bold; font-size:16px;'><a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none;'>{display_sym} <span style='color:{color_hex}'>({sign}{row['C']:.2f}%)</span></a></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='ind-labels'><span style='color:#FFD700; font-weight:bold;'>--- VWAP</span> &nbsp;|&nbsp; <span style='color:#00BFFF; font-weight:bold;'>- - 10 EMA</span></div>", unsafe_allow_html=True)
+                    
+                    try:
+                        df_chart = chart_data[fetch_sym].copy() if len(fetch_tickers) > 1 else chart_data.copy()
+                        df_chart = df_chart.dropna(subset=['Close'])
+                        
+                        if not df_chart.empty:
+                            df_chart['EMA_10'] = df_chart['Close'].ewm(span=10, adjust=False).mean()
+                            df_chart.index = pd.to_datetime(df_chart.index)
+                            last_trading_date = df_chart.index.date.max()
+                            df_chart = df_chart[df_chart.index.date == last_trading_date]
+                            
+                            df_chart['Typical_Price'] = (df_chart['High'] + df_chart['Low'] + df_chart['Close']) / 3
+                            if 'Volume' in df_chart.columns and df_chart['Volume'].fillna(0).sum() > 0:
+                                df_chart['VWAP'] = (df_chart['Typical_Price'] * df_chart['Volume']).cumsum() / df_chart['Volume'].cumsum()
+                            else:
+                                df_chart['VWAP'] = df_chart['Typical_Price'].expanding().mean()
+                            
+                            min_val, max_val = df_chart[['Low', 'VWAP', 'EMA_10']].min().min(), df_chart[['High', 'VWAP', 'EMA_10']].max().max()
+                            y_padding = (max_val - min_val) * 0.1 if (max_val - min_val) != 0 else min_val * 0.005 
+                            
+                            fig = go.Figure()
+                            fig.add_trace(go.Candlestick(x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], increasing_line_color='#2ea043', decreasing_line_color='#da3633'))
+                            fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot')))
+                            fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash')))
+                            
+                            fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=150, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(visible=False, rangeslider=dict(visible=False)), yaxis=dict(visible=False, range=[min_val - y_padding, max_val + y_padding]), hovermode=False, showlegend=False)
+                            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+                        else:
+                            st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Data not available</div>", unsafe_allow_html=True)
+                    except Exception as e:
+                        st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart loading error</div>", unsafe_allow_html=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
+            
+            # 2. DRAW SEPARATOR LINE IN CHARTS VIEW
+            st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
+        
+        # 3. RENDER STOCKS CHARTS
+        cols_stk = st.columns(3)
+        # 🔥 Fix: Using enumerate guarantees strictly ordered column assignment 🔥
+        for loop_idx, (_, row) in enumerate(df_stocks_charts.iterrows()):
+            col = cols_stk[loop_idx % 3]
             fetch_sym = row['Fetch_T']
             display_sym = row['T']
             
             with col:
                 color_hex = "#2ea043" if row['C'] >= 0 else "#da3633"
                 sign = "+" if row['C'] > 0 else ""
-                
-                # Setup TradingView URL for click
-                tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
+                tv_link = f"https://in.tradingview.com/chart/?symbol=NSE:{display_sym}"
                 
                 st.markdown(f"<div class='chart-box'>", unsafe_allow_html=True)
                 st.markdown(f"<div style='text-align:center; font-weight:bold; font-size:16px;'><a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none;'>{display_sym} <span style='color:{color_hex}'>({sign}{row['C']:.2f}%)</span></a></div>", unsafe_allow_html=True)
                 st.markdown(f"<div class='ind-labels'><span style='color:#FFD700; font-weight:bold;'>--- VWAP</span> &nbsp;|&nbsp; <span style='color:#00BFFF; font-weight:bold;'>- - 10 EMA</span></div>", unsafe_allow_html=True)
                 
                 try:
-                    if len(fetch_tickers) == 1:
-                        df_chart = chart_data.copy()
-                    else:
-                        df_chart = chart_data[fetch_sym].copy()
-                        
+                    df_chart = chart_data[fetch_sym].copy() if len(fetch_tickers) > 1 else chart_data.copy()
                     df_chart = df_chart.dropna(subset=['Close'])
                     
                     if not df_chart.empty:
                         df_chart['EMA_10'] = df_chart['Close'].ewm(span=10, adjust=False).mean()
-                        
                         df_chart.index = pd.to_datetime(df_chart.index)
                         last_trading_date = df_chart.index.date.max()
                         df_chart = df_chart[df_chart.index.date == last_trading_date]
                         
-                        # VWAP Logic (Safeguard for Indices with no Volume)
                         df_chart['Typical_Price'] = (df_chart['High'] + df_chart['Low'] + df_chart['Close']) / 3
                         if 'Volume' in df_chart.columns and df_chart['Volume'].fillna(0).sum() > 0:
                             df_chart['VWAP'] = (df_chart['Typical_Price'] * df_chart['Volume']).cumsum() / df_chart['Volume'].cumsum()
                         else:
                             df_chart['VWAP'] = df_chart['Typical_Price'].expanding().mean()
                         
-                        min_val = df_chart[['Low', 'VWAP', 'EMA_10']].min().min()
-                        max_val = df_chart[['High', 'VWAP', 'EMA_10']].max().max()
-                        y_padding = (max_val - min_val) * 0.1
-                        if y_padding == 0: y_padding = min_val * 0.005 
+                        min_val, max_val = df_chart[['Low', 'VWAP', 'EMA_10']].min().min(), df_chart[['High', 'VWAP', 'EMA_10']].max().max()
+                        y_padding = (max_val - min_val) * 0.1 if (max_val - min_val) != 0 else min_val * 0.005 
                         
                         fig = go.Figure()
-                        
-                        fig.add_trace(go.Candlestick(
-                            x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'],
-                            increasing_line_color='#2ea043', decreasing_line_color='#da3633', name='Price'
-                        ))
-                        
+                        fig.add_trace(go.Candlestick(x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], increasing_line_color='#2ea043', decreasing_line_color='#da3633'))
                         fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot')))
                         fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash')))
                         
-                        fig.update_layout(
-                            margin=dict(l=0, r=0, t=0, b=0),
-                            height=150, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                            xaxis=dict(visible=False, rangeslider=dict(visible=False)), 
-                            yaxis=dict(visible=False, range=[min_val - y_padding, max_val + y_padding]), 
-                            hovermode=False, showlegend=False
-                        )
-                        # Added click events capability for Plotly charts implicitly in UI
+                        fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=150, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(visible=False, rangeslider=dict(visible=False)), yaxis=dict(visible=False, range=[min_val - y_padding, max_val + y_padding]), hovermode=False, showlegend=False)
                         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
                     else:
                         st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Data not available</div>", unsafe_allow_html=True)
                 except Exception as e:
                     st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart loading error</div>", unsafe_allow_html=True)
-                
                 st.markdown("</div>", unsafe_allow_html=True)
+
 else:
     st.info("Loading Market Data...")
