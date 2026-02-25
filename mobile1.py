@@ -10,7 +10,7 @@ st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
 
-# --- CSS FOR RESPONSIVE TABLES ---
+# --- CSS FOR PERFECT TABLE ALIGNMENT ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -29,27 +29,21 @@ st.markdown("""
     .head-bear { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
     .head-neut { background: #e2e3e5; color: #383d41; border: 1px solid #d6d8db; }
     
+    /* ఫోర్స్ ఫుల్ విడ్త్ (టేబుల్ సగంలో ఆగిపోకుండా హెడ్డింగ్ తో పాటు 100% వస్తుంది) */
     div[data-testid="stDataFrame"] { margin-bottom: -15px !important; width: 100% !important; }
-
-    /* ---------------------------------------------------- */
-    /* THE REAL FIX FOR MOBILE & SPLIT SCREEN               */
-    /* ---------------------------------------------------- */
     
-    /* స్క్రీన్ సైజు 1100px కంటే తగ్గితే (మొబైల్, ట్యాబ్లెట్, డెస్క్‌టాప్ హాఫ్ స్క్రీన్) */
-    @media screen and (max-width: 1100px) {
-        /* కాలమ్స్ పక్కపక్కన రాకుండా కట్ చేసి ఒకదాని కింద ఒకటి వచ్చేలా చేస్తుంది */
+    /* ---------------------------------------------------- */
+    /* MOBILE FIX (కచ్చితంగా ఒకదాని కింద ఒకటి రావడానికి)     */
+    /* ---------------------------------------------------- */
+    @media screen and (max-width: 800px) {
         div[data-testid="stHorizontalBlock"] {
-            flex-wrap: wrap !important;
             flex-direction: column !important;
         }
-        
-        /* ప్రతి టేబుల్ కి స్క్రీన్ నిండుగా (100% width) దొరికేలా చేస్తుంది, కాబట్టి కాలమ్స్ దాక్కోవు */
         div[data-testid="column"] {
             width: 100% !important;
             max-width: 100% !important;
             min-width: 100% !important;
-            flex: 1 1 100% !important;
-            margin-bottom: 20px !important;
+            margin-bottom: 15px !important;
         }
     }
     </style>
@@ -202,7 +196,7 @@ def style_sector_ranks(val):
 tv_link_config = {"STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)")}
 
 # -------------------------------------------------------------
-# 5. NEW: SEARCH BAR FEATURE (Added at the TOP)
+# 5. NEW: SEARCH BAR FEATURE
 # -------------------------------------------------------------
 search_query = st.text_input("🔍 సెర్చ్ స్టాక్ (ఉదాహరణకు: RELIANCE, ZOMATO, IDEA):", "").strip().upper()
 
@@ -257,7 +251,7 @@ loading_msg.empty()
 
 if data is not None and not data.empty:
     
-    # DASHBOARD - 80% & 20% Layout
+    # DASHBOARD
     dash_left, dash_right = st.columns([0.8, 0.2]) 
     nifty_chg = 0.0
     
