@@ -216,7 +216,7 @@ if not df.empty:
         st.markdown(html, unsafe_allow_html=True)
         
     else:
-        # === NATIVE PLOTLY MINI CHARTS (NO TRADINGVIEW ERRORS) ===
+        # === NATIVE PLOTLY MINI CHARTS (SMART DATE FILTERING) ===
         st.markdown("<br>", unsafe_allow_html=True)
         cols = st.columns(3) 
         
@@ -224,9 +224,9 @@ if not df.empty:
         top_tickers = df_display.head(30)['T'].tolist()
         fetch_tickers = [f"{t}.NS" for t in top_tickers]
         
-        with st.spinner("Loading Today's 5-Min Charts..."):
-            # Fetch 1-Day Intraday data for charts
-            chart_data = yf.download(fetch_tickers, period="1d", interval="5m", progress=False, group_by='ticker', threads=True)
+        with st.spinner("Loading 5-Min Charts (Latest Available Session)..."):
+            # 🔥 FIX: Changed from "1d" to "5d" so we always have data even if market is closed today 🔥
+            chart_data = yf.download(fetch_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=True)
         
         for idx, row in df_display.head(30).iterrows():
             col = cols[idx % 3]
@@ -242,13 +242,19 @@ if not df.empty:
                 
                 try:
                     # Plotly Native Chart Generation
-                    # Handling both single ticker and multi-ticker DataFrame structures from yfinance
                     if len(fetch_tickers) == 1:
-                        df_chart = chart_data.dropna()
+                        df_chart = chart_data.copy()
                     else:
-                        df_chart = chart_data[f"{ticker}.NS"].dropna()
+                        df_chart = chart_data[f"{ticker}.NS"].copy()
                         
+                    df_chart = df_chart.dropna()
+                    
                     if not df_chart.empty:
+                        # 🔥 NEW LOGIC: Get only the LAST available trading day's data 🔥
+                        df_chart.index = pd.to_datetime(df_chart.index)
+                        last_trading_date = df_chart.index.date.max()
+                        df_chart = df_chart[df_chart.index.date == last_trading_date]
+                        
                         fig = go.Figure()
                         fig.add_trace(go.Scatter(
                             x=df_chart.index, 
@@ -269,9 +275,9 @@ if not df.empty:
                         )
                         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
                     else:
-                        st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Data not available yet</div>", unsafe_allow_html=True)
+                        st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Data not available</div>", unsafe_allow_html=True)
                 except Exception as e:
-                    st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart loading...</div>", unsafe_allow_html=True)
+                    st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart loading error</div>", unsafe_allow_html=True)
                 
                 st.markdown("</div>", unsafe_allow_html=True)
 else:
