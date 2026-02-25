@@ -27,7 +27,7 @@ st.markdown("""
         padding: 10px 0;
     }
     
-    /* Box Styling - Same as your screenshot */
+    /* Box Styling */
     .stock-card {
         border-radius: 6px;
         padding: 12px 5px;
@@ -81,7 +81,6 @@ def get_minutes_passed():
 
 @st.cache_data(ttl=60)
 def fetch_and_score_data():
-    # మీరు ఫాలో అయ్యే ముఖ్యమైన స్టాక్స్ జాబితా
     tickers = [
         "HDFCBANK", "ICICIBANK", "SBIN", "RELIANCE", "TCS", "INFY", "ITC", 
         "ZOMATO", "TATASTEEL", "HAL", "RVNL", "IRFC", "ADANIENT", "DIXON", 
@@ -110,11 +109,10 @@ def fetch_and_score_data():
             curr_vol = float(df['Volume'].iloc[-1])
             vol_x = round(curr_vol / ((avg_vol/375) * minutes), 1) if avg_vol > 0 else 0.0
             
-            # --- YOUR SCORE LOGIC ---
             score = 0
-            if abs(day_chg) >= 2.0: score += 3 # Big Move
-            if abs(open_p - low) <= (ltp * 0.003): score += 3 # O=L
-            if vol_x > 1.2: score += 4 # High Volume
+            if abs(day_chg) >= 2.0: score += 3 
+            if abs(open_p - low) <= (ltp * 0.003): score += 3 
+            if vol_x > 1.2: score += 4 
             
             results.append({
                 "T": symbol.replace(".NS", ""), 
@@ -124,7 +122,6 @@ def fetch_and_score_data():
             })
         except: continue
         
-    # అత్యధిక స్కోర్ ఉన్నవి పైన వచ్చేలా అమరిక
     return pd.DataFrame(results).sort_values(by=["S", "C"], ascending=[False, False])
 
 # --- 5. TOP NAVIGATION BAR ---
@@ -132,10 +129,8 @@ st.markdown("<div style='background-color:#161b22; padding:10px; border-radius:8
 c1, c2 = st.columns([0.6, 0.4])
 
 with c1:
-    # Watchlist Dropdown
     watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Nifty 50 Heatmap"], label_visibility="collapsed")
 with c2:
-    # Chart Toggle Option
     view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
 st.markdown("</div>", unsafe_allow_html=True)
 
@@ -144,26 +139,21 @@ df = fetch_and_score_data()
 
 if not df.empty:
     if view_mode == "Heat Map":
-        # === 6A. HEAT MAP VIEW ===
+        # === 6A. HEAT MAP VIEW (FIXED HTML TEXT ISSUE) ===
         html = '<div class="heatmap-grid">'
         for _, row in df.iterrows():
             bg = "bull-card" if row['C'] > 0 else ("bear-card" if row['C'] < 0 else "neut-card")
             sign = "+" if row['C'] > 0 else ""
-            html += f"""
-            <a href="https://in.tradingview.com/chart/?symbol=NSE:{row['T']}" target="_blank" class="stock-card {bg}">
-                <div class="t-score">⭐ {row['S']}</div>
-                <div class="t-name">{row['T']}</div>
-                <div class="t-price">{row['P']:.1f}</div>
-                <div class="t-pct">{sign}{row['C']:.2f}%</div>
-            </a>
-            """
+            
+            # NOTE: HTML is written in a single line without indentations to fix the markdown parsing bug
+            html += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">⭐ {row["S"]}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.1f}</div><div class="t-pct">{sign}{row["C"]:.2f}%</div></a>'
+            
         html += '</div>'
         st.markdown(html, unsafe_allow_html=True)
         
     else:
-        # === 6B. MINI CHARTS VIEW ===
+        # === 6B. MINI CHARTS VIEW (FIXED TRADINGVIEW APPLE ERROR) ===
         st.markdown("<br>", unsafe_allow_html=True)
-        # మొబైల్ లో ఒకదాని కింద ఒకటి, డెస్క్ టాప్ లో పక్కపక్కన వచ్చేలా స్మార్ట్ గ్రిడ్
         cols = st.columns(3) 
         for idx, row in df.iterrows():
             col = cols[idx % 3]
@@ -171,10 +161,10 @@ if not df.empty:
                 color = "#2ea043" if row['C'] > 0 else "#da3633"
                 st.markdown(f"<div style='text-align:center; font-weight:bold; font-size:15px; margin-bottom:4px;'>{row['T']} <span style='color:{color}'>({row['C']:.2f}%)</span> - Score: {row['S']}</div>", unsafe_allow_html=True)
                 
-                # TradingView Mini Chart
+                # NOTE: Replaced NSE: with NSE%3A to correctly encode the URL for Indian Stocks
                 chart_code = f"""
                 <div style="border:1px solid #30363d; border-radius:6px; overflow:hidden; background:#000;">
-                    <iframe src="https://s.tradingview.com/widgetembed/?symbol=NSE:{row['T']}&interval=5&theme=dark&style=3&hidesidetoolbar=1&symboledit=0" 
+                    <iframe src="https://s.tradingview.com/widgetembed/?symbol=NSE%3A{row['T']}&interval=5&theme=dark&style=3&hidesidetoolbar=1&symboledit=0" 
                     width="100%" height="200" frameborder="0" scrolling="no"></iframe>
                 </div>
                 <br>
