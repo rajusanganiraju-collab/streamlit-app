@@ -82,7 +82,7 @@ indices_data = [
     {"ticker": "INDIA VIX", "tv_symbol": "NSE:INDIAVIX", "price": 13.45, "change": -0.25, "pct": -1.82},
 ]
 
-# 2. Main Stocks Data (Added more samples to clearly see 10 items in a row on desktop)
+# 2. Main Stocks Data
 nifty_data = [
     {"ticker": "HCLTECH", "price": 1378.20, "change": 39.00, "pct": 2.91},
     {"ticker": "BAJAJ-AUTO", "price": 10097.00, "change": 268.00, "pct": 2.73},
@@ -101,10 +101,8 @@ nifty_data = [
 ]
 
 def render_cards_html(data_list, is_index=False):
-    # Desktop lo indices ki matram 3 e chupinchali ante, kinda id class create cheyochu.
-    # Kani present anni grid-container style ne follow avtay.
-    
-    html_content = '<div class="grid-container">'
+    # Start HTML string
+    html_content = '<div class="grid-container">\n'
     
     for row in data_list:
         ticker = row['ticker']
@@ -130,19 +128,12 @@ def render_cards_html(data_list, is_index=False):
             
         tv_url = f"https://in.tradingview.com/chart/?symbol={tv_symbol}"
         
-        # Add individual card HTML
-        html_content += f"""
-        <a href="{tv_url}" target="_blank">
-            <div class="stock-card" style="background-color: {bg_color};">
-                <div class="ticker">{ticker}</div>
-                <div class="price">{price}</div>
-                <div class="change">{change_text}</div>
-            </div>
-        </a>
-        """
+        # HTML Block in a SINGLE LINE to avoid Streamlit Markdown indentation issues
+        html_content += f'<a href="{tv_url}" target="_blank"><div class="stock-card" style="background-color: {bg_color};"><div class="ticker">{ticker}</div><div class="price">{price}</div><div class="change">{change_text}</div></div></a>\n'
     
     html_content += '</div>'
     
+    # Render in Streamlit
     st.markdown(html_content, unsafe_allow_html=True)
 
 # Render Top Indices
