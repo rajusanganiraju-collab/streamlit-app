@@ -49,6 +49,7 @@ st.markdown("""
     .bull-card { background-color: #1e5f29 !important; } /* Dark Green */
     .bear-card { background-color: #b52524 !important; } /* Dark Red */
     .neut-card { background-color: #30363d !important; } /* Grey */
+    .idx-card { background-color: #1f6feb !important; } /* Blue for Indices */
     
     /* NORMAL TEXT FONTS */
     .t-name { font-size: 13px; font-weight: 500; margin-bottom: 2px; }
@@ -95,7 +96,13 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 4. STOCK LISTS ---
+# --- 4. STOCK LISTS & INDICES ---
+INDICES_MAP = {
+    "^NSEI": "NIFTY",
+    "^NSEBANK": "BANKNIFTY",
+    "^INDIAVIX": "INDIA VIX"
+}
+
 NIFTY_50 = [
     "ADANIENT", "ADANIPORTS", "APOLLOHOSP", "ASIANPAINT", "AXISBANK", "BAJAJ-AUTO", "BAJFINANCE", 
     "BAJAJFINSV", "BEL", "BHARTIARTL", "BRITANNIA", "CIPLA", "COALINDIA", "DIVISLAB", "DRREDDY", 
@@ -138,7 +145,8 @@ def fetch_all_data():
     for stocks in SECTOR_MAP.values():
         all_stocks.update(stocks)
     
-    tkrs = [f"{t}.NS" for t in all_stocks]
+    # Add Indices to the download list
+    tkrs = [f"{t}.NS" for t in all_stocks] + list(INDICES_MAP.keys())
     data = yf.download(tkrs, period="5d", progress=False, group_by='ticker', threads=False)
     
     results = []
@@ -158,8 +166,9 @@ def fetch_all_data():
             day_chg = ((ltp - open_p) / open_p) * 100
             net_chg = ((ltp - prev_c) / prev_c) * 100
             
-            avg_vol = df['Volume'].iloc[:-1].mean()
-            curr_vol = float(df['Volume'].iloc[-1])
+            # VWAP & Volume Check
+            avg_vol = df['Volume'].iloc[:-1].mean() if 'Volume' in df.columns else 0
+            curr_vol = float(df['Volume'].iloc[-1]) if 'Volume' in df.columns else 0
             vol_x = round(curr_vol / ((avg_vol/375) * minutes), 1) if avg_vol > 0 else 0.0
             vwap = (high + low + ltp) / 3
             
@@ -173,8 +182,16 @@ def fetch_all_data():
             if (ltp >= high * 0.998 and day_chg > 0.5) or (ltp <= low * 1.002 and day_chg < -0.5): score += 1
             if (ltp > (low * 1.01) and ltp > vwap) or (ltp < (high * 0.99) and ltp < vwap): score += 1
             
+            # Check if it's an Index
+            if symbol in INDICES_MAP:
+                disp_name = INDICES_MAP[symbol]
+                is_index = True
+            else:
+                disp_name = symbol.replace(".NS", "")
+                is_index = False
+            
             results.append({
-                "T": symbol.replace(".NS", ""), "P": ltp, "C": net_chg, "S": score
+                "Fetch_T": symbol, "T": disp_name, "P": ltp, "C": net_chg, "S": score, "Is_Index": is_index
             })
         except: continue
         
@@ -195,28 +212,53 @@ df = fetch_all_data()
 
 if not df.empty:
     
+    # 🌟 SEPARATE INDICES AND STOCKS 🌟
+    df_indices = df[df['Is_Index']].copy()
+    # Force order: NIFTY, BANKNIFTY, INDIA VIX
+    df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3})
+    df_indices = df_indices.sort_values("Order")
+    
+    df_stocks = df[~df['Is_Index']].copy()
+    
     if watchlist_mode == "Nifty 50 Heatmap":
-        df_filtered = df[df['T'].isin(NIFTY_50)]
+        df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
         greens = df_filtered[df_filtered['C'] >= 0].sort_values(by="C", ascending=False)
         reds = df_filtered[df_filtered['C'] < 0].sort_values(by="C", ascending=False)
-        df_display = pd.concat([greens, reds])
+        df_display = pd.concat([df_indices, greens, reds])
         st.markdown("### Nifty 50 Stocks")
     
     else:
-        df_filtered = df[df['S'] >= 4]
+        # 🔥 FILTER: ONLY SHOW SCORE 7 TO 10 🔥
+        df_filtered = df_stocks[(df_stocks['S'] >= 7) & (df_stocks['S'] <= 10)]
+        
+        # Greens: High Score First -> High % First
         greens = df_filtered[df_filtered['C'] > 0].sort_values(by=["S", "C"], ascending=[False, False])
+        
+        # Neuts (0%): Rare, but handled safely
         neuts = df_filtered[df_filtered['C'] == 0].sort_values(by="S", ascending=False)
+        
+        # Reds: Low Score First (7) -> High Score Last (10)
         reds = df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[True, True])
-        df_display = pd.concat([greens, neuts, reds])
-        st.markdown("### 🔥 High Score Stocks (Across All Sectors)")
+        
+        # Combine: INDICES -> GREENS -> NEUTS -> REDS
+        df_display = pd.concat([df_indices, greens, neuts, reds])
+        st.markdown("### 🔥 High Score Stocks (7 to 10)")
 
     if view_mode == "Heat Map":
         html = '<div class="heatmap-grid">'
         for _, row in df_display.iterrows():
-            bg = "bull-card" if row['C'] > 0 else ("bear-card" if row['C'] < 0 else "neut-card")
+            if row['Is_Index']:
+                bg = "idx-card" # Special blue-ish background for indices if desired, or use bull/bear
+                # Let's use Bull/Bear for Index too based on their +/-
+                bg = "bull-card" if row['C'] > 0 else ("bear-card" if row['C'] < 0 else "neut-card")
+                badge = "IDX"
+            else:
+                bg = "bull-card" if row['C'] > 0 else ("bear-card" if row['C'] < 0 else "neut-card")
+                badge = f"⭐{int(row['S'])}"
+                
             sign = "+" if row['C'] > 0 else ""
             
-            html += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">⭐{row["S"]}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{sign}{row["C"]:.2f}%</div></a>'
+            html += f'<div class="stock-card {bg}"><div class="t-score">{badge}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{sign}{row["C"]:.2f}%</div></div>'
             
         html += '</div>'
         st.markdown(html, unsafe_allow_html=True)
@@ -225,47 +267,48 @@ if not df.empty:
         st.markdown("<br>", unsafe_allow_html=True)
         cols = st.columns(3) 
         
-        top_tickers = df_display.head(30)['T'].tolist()
-        fetch_tickers = [f"{t}.NS" for t in top_tickers]
+        # Get top 30 items (Indices + Stocks)
+        top_rows = df_display.head(30)
+        fetch_tickers = top_rows['Fetch_T'].tolist()
         
         with st.spinner("Loading 5-Min Candlestick Charts with VWAP & EMA..."):
             chart_data = yf.download(fetch_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=True)
         
-        for idx, row in df_display.head(30).iterrows():
+        for idx, row in top_rows.iterrows():
             col = cols[idx % 3]
-            ticker = row['T']
+            fetch_sym = row['Fetch_T']
+            display_sym = row['T']
             
             with col:
                 color_hex = "#2ea043" if row['C'] >= 0 else "#da3633"
                 sign = "+" if row['C'] > 0 else ""
                 
                 st.markdown(f"<div class='chart-box'>", unsafe_allow_html=True)
-                st.markdown(f"<div style='text-align:center; font-weight:bold; font-size:16px;'>{ticker} <span style='color:{color_hex}'>({sign}{row['C']:.2f}%)</span></div>", unsafe_allow_html=True)
-                # Legend for VWAP & EMA
+                st.markdown(f"<div style='text-align:center; font-weight:bold; font-size:16px;'>{display_sym} <span style='color:{color_hex}'>({sign}{row['C']:.2f}%)</span></div>", unsafe_allow_html=True)
                 st.markdown(f"<div class='ind-labels'><span style='color:#FFD700; font-weight:bold;'>--- VWAP</span> &nbsp;|&nbsp; <span style='color:#00BFFF; font-weight:bold;'>- - 10 EMA</span></div>", unsafe_allow_html=True)
                 
                 try:
                     if len(fetch_tickers) == 1:
                         df_chart = chart_data.copy()
                     else:
-                        df_chart = chart_data[f"{ticker}.NS"].copy()
+                        df_chart = chart_data[fetch_sym].copy()
                         
-                    df_chart = df_chart.dropna()
+                    df_chart = df_chart.dropna(subset=['Close'])
                     
                     if not df_chart.empty:
-                        # 1. Calculate 10 EMA continuously over the 5 days for accuracy
                         df_chart['EMA_10'] = df_chart['Close'].ewm(span=10, adjust=False).mean()
                         
-                        # 2. Filter to only the LAST trading day
                         df_chart.index = pd.to_datetime(df_chart.index)
                         last_trading_date = df_chart.index.date.max()
                         df_chart = df_chart[df_chart.index.date == last_trading_date]
                         
-                        # 3. Calculate VWAP just for the day (Reset daily)
+                        # VWAP Logic (Safeguard for Indices with no Volume)
                         df_chart['Typical_Price'] = (df_chart['High'] + df_chart['Low'] + df_chart['Close']) / 3
-                        df_chart['VWAP'] = (df_chart['Typical_Price'] * df_chart['Volume']).cumsum() / df_chart['Volume'].cumsum()
+                        if 'Volume' in df_chart.columns and df_chart['Volume'].sum() > 0:
+                            df_chart['VWAP'] = (df_chart['Typical_Price'] * df_chart['Volume']).cumsum() / df_chart['Volume'].cumsum()
+                        else:
+                            df_chart['VWAP'] = df_chart['Typical_Price'].expanding().mean()
                         
-                        # Y-axis auto zoom calculation using HIGH and LOW for Candlesticks
                         min_val = df_chart[['Low', 'VWAP', 'EMA_10']].min().min()
                         max_val = df_chart[['High', 'VWAP', 'EMA_10']].max().max()
                         y_padding = (max_val - min_val) * 0.1
@@ -273,40 +316,20 @@ if not df.empty:
                         
                         fig = go.Figure()
                         
-                        # 🔥 MAIN CANDLESTICK TRACE 🔥
                         fig.add_trace(go.Candlestick(
-                            x=df_chart.index,
-                            open=df_chart['Open'],
-                            high=df_chart['High'],
-                            low=df_chart['Low'],
-                            close=df_chart['Close'],
-                            increasing_line_color='#2ea043', # Green candles
-                            decreasing_line_color='#da3633', # Red candles
-                            name='Price'
+                            x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'],
+                            increasing_line_color='#2ea043', decreasing_line_color='#da3633', name='Price'
                         ))
                         
-                        # VWAP Line (Yellow, Dotted)
-                        fig.add_trace(go.Scatter(
-                            x=df_chart.index, y=df_chart['VWAP'], mode='lines', 
-                            line=dict(color='#FFD700', width=1.5, dash='dot')
-                        ))
-                        
-                        # 10 EMA Line (Blue, Dashed)
-                        fig.add_trace(go.Scatter(
-                            x=df_chart.index, y=df_chart['EMA_10'], mode='lines', 
-                            line=dict(color='#00BFFF', width=1.5, dash='dash')
-                        ))
+                        fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot')))
+                        fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash')))
                         
                         fig.update_layout(
                             margin=dict(l=0, r=0, t=0, b=0),
-                            height=150, 
-                            paper_bgcolor='rgba(0,0,0,0)', 
-                            plot_bgcolor='rgba(0,0,0,0)',
-                            # Rangeslider MUST be disabled for mini candlestick charts
+                            height=150, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
                             xaxis=dict(visible=False, rangeslider=dict(visible=False)), 
                             yaxis=dict(visible=False, range=[min_val - y_padding, max_val + y_padding]), 
-                            hovermode=False,
-                            showlegend=False
+                            hovermode=False, showlegend=False
                         )
                         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
                     else:
