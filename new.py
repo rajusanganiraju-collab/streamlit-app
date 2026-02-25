@@ -5,7 +5,7 @@ from datetime import datetime, time as dt_time
 from streamlit_autorefresh import st_autorefresh
 
 # --- 1. PAGE CONFIGURATION ---
-st.set_page_config(page_title="Market Terminal", page_icon="📊", layout="wide")
+st.set_page_config(page_title="Market Heatmap", page_icon="📊", layout="wide")
 
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
@@ -53,7 +53,7 @@ st.markdown("""
     .t-price { font-size: 18px; font-weight: 900; margin-bottom: 2px; }
     .t-pct { font-size: 13px; font-weight: bold; }
     
-    /* Score Badge in the corner */
+    /* Score Badge */
     .t-score { 
         position: absolute; top: 4px; left: 4px; 
         font-size: 11px; background: rgba(0,0,0,0.6); 
@@ -71,7 +71,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 4. SCORE CALCULATION LOGIC ---
+# --- 4. SCORE LOGIC & DATA FETCH ---
 def get_minutes_passed():
     now = datetime.now()
     if now.weekday() >= 5 or now.time() > dt_time(15, 30): return 375
@@ -81,13 +81,17 @@ def get_minutes_passed():
 
 @st.cache_data(ttl=60)
 def fetch_and_score_data():
-    tickers = [
-        "HDFCBANK", "ICICIBANK", "SBIN", "RELIANCE", "TCS", "INFY", "ITC", 
-        "ZOMATO", "TATASTEEL", "HAL", "RVNL", "IRFC", "ADANIENT", "DIXON", 
-        "TRENT", "BEL", "NMDC", "MARUTI", "M&M", "SUNPHARMA", "BHARTIARTL"
+    # 🔥 FULL NIFTY 50 STOCKS LIST 🔥
+    nifty50_tickers = [
+        "ADANIENT", "ADANIPORTS", "APOLLOHOSP", "ASIANPAINT", "AXISBANK", "BAJAJ-AUTO", "BAJFINANCE", 
+        "BAJAJFINSV", "BEL", "BHARTIARTL", "BRITANNIA", "CIPLA", "COALINDIA", "DIVISLAB", "DRREDDY", 
+        "EICHERMOT", "GRASIM", "HCLTECH", "HDFCBANK", "HDFCLIFE", "HEROMOTOCO", "HINDALCO", "HINDUNILVR", 
+        "ICICIBANK", "INDIGO", "INFY", "ITC", "JSWSTEEL", "KOTAKBANK", "LT", "M&M", "MARUTI", "NESTLEIND", 
+        "NTPC", "ONGC", "POWERGRID", "RELIANCE", "SBILIFE", "SBIN", "SHRIRAMFIN", "SUNPHARMA", "TATACONSUM", 
+        "TATAMOTORS", "TATASTEEL", "TCS", "TECHM", "TITAN", "TRENT", "ULTRACEMCO", "WIPRO"
     ]
-    tkrs = [f"{t}.NS" for t in tickers]
-    data = yf.download(tkrs, period="2d", interval="1m", progress=False, group_by='ticker')
+    tkrs = [f"{t}.NS" for t in nifty50_tickers]
+    data = yf.download(tkrs, period="2d", interval="1m", progress=False, group_by='ticker', threads=False)
     
     results = []
     minutes = get_minutes_passed()
@@ -101,6 +105,7 @@ def fetch_and_score_data():
             open_p = float(df['Open'].iloc[-1])
             prev_c = float(df['Close'].iloc[-2])
             low = float(df['Low'].iloc[-1])
+            high = float(df['High'].iloc[-1])
             
             day_chg = ((ltp - open_p) / open_p) * 100
             net_chg = ((ltp - prev_c) / prev_c) * 100
@@ -109,9 +114,10 @@ def fetch_and_score_data():
             curr_vol = float(df['Volume'].iloc[-1])
             vol_x = round(curr_vol / ((avg_vol/375) * minutes), 1) if avg_vol > 0 else 0.0
             
+            # --- SCORE LOGIC ---
             score = 0
             if abs(day_chg) >= 2.0: score += 3 
-            if abs(open_p - low) <= (ltp * 0.003): score += 3 
+            if abs(open_p - low) <= (ltp * 0.003) or abs(open_p - high) <= (ltp * 0.003): score += 3 
             if vol_x > 1.2: score += 4 
             
             results.append({
@@ -122,14 +128,15 @@ def fetch_and_score_data():
             })
         except: continue
         
-    return pd.DataFrame(results).sort_values(by=["S", "C"], ascending=[False, False])
+    return pd.DataFrame(results)
 
 # --- 5. TOP NAVIGATION BAR ---
 st.markdown("<div style='background-color:#161b22; padding:10px; border-radius:8px; margin-bottom:10px; border: 1px solid #30363d;'>", unsafe_allow_html=True)
 c1, c2 = st.columns([0.6, 0.4])
 
 with c1:
-    watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Nifty 50 Heatmap"], label_visibility="collapsed")
+    # Dropdown 
+    watchlist_mode = st.selectbox("Watchlist", ["Nifty 50 Heatmap", "High Score Stocks 🔥"], label_visibility="collapsed")
 with c2:
     view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
 st.markdown("</div>", unsafe_allow_html=True)
@@ -138,34 +145,59 @@ st.markdown("</div>", unsafe_allow_html=True)
 df = fetch_and_score_data()
 
 if not df.empty:
+    # 🎯 APPLY DROPDOWN LOGIC 🎯
+    if watchlist_mode == "High Score Stocks 🔥":
+        # స్కోర్ 3 లేదా అంతకంటే ఎక్కువ ఉన్నవి మాత్రమే చూపిస్తుంది (స్కోర్ వైజ్ సార్టింగ్)
+        df_display = df[df['S'] >= 3].sort_values(by=["S", "C"], ascending=[False, False])
+    else:
+        # Nifty 50 లో అన్ని స్టాక్స్ పర్సంటేజ్ (% Change) ప్రకారం సార్టింగ్ (గ్రీన్ అంతా ఒకేచోట వస్తుంది)
+        df_display = df.sort_values(by="C", ascending=False)
+
     if view_mode == "Heat Map":
-        # === 6A. HEAT MAP VIEW (FIXED HTML TEXT ISSUE) ===
+        # === HEAT MAP VIEW ===
         html = '<div class="heatmap-grid">'
-        for _, row in df.iterrows():
+        for _, row in df_display.iterrows():
             bg = "bull-card" if row['C'] > 0 else ("bear-card" if row['C'] < 0 else "neut-card")
             sign = "+" if row['C'] > 0 else ""
             
-            # NOTE: HTML is written in a single line without indentations to fix the markdown parsing bug
             html += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">⭐ {row["S"]}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.1f}</div><div class="t-pct">{sign}{row["C"]:.2f}%</div></a>'
             
         html += '</div>'
         st.markdown(html, unsafe_allow_html=True)
         
     else:
-        # === 6B. MINI CHARTS VIEW (FIXED TRADINGVIEW APPLE ERROR) ===
+        # === MINI CHARTS VIEW (FIXED TRADINGVIEW ERROR) ===
         st.markdown("<br>", unsafe_allow_html=True)
         cols = st.columns(3) 
-        for idx, row in df.iterrows():
+        
+        # We limit to top 30 charts to prevent browser from hanging
+        for idx, row in df_display.head(30).iterrows():
             col = cols[idx % 3]
             with col:
                 color = "#2ea043" if row['C'] > 0 else "#da3633"
                 st.markdown(f"<div style='text-align:center; font-weight:bold; font-size:15px; margin-bottom:4px;'>{row['T']} <span style='color:{color}'>({row['C']:.2f}%)</span> - Score: {row['S']}</div>", unsafe_allow_html=True)
                 
-                # NOTE: Replaced NSE: with NSE%3A to correctly encode the URL for Indian Stocks
+                # 🔥 OFFICIAL TRADINGVIEW WIDGET (Solves the Apple Chart / Error Issue) 🔥
                 chart_code = f"""
-                <div style="border:1px solid #30363d; border-radius:6px; overflow:hidden; background:#000;">
-                    <iframe src="https://s.tradingview.com/widgetembed/?symbol=NSE%3A{row['T']}&interval=5&theme=dark&style=3&hidesidetoolbar=1&symboledit=0" 
-                    width="100%" height="200" frameborder="0" scrolling="no"></iframe>
+                <div class="tradingview-widget-container" style="border:1px solid #30363d; border-radius:6px; overflow:hidden; background:#000;">
+                  <div id="tv_{row['T']}" style="height:200px;"></div>
+                  <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+                  <script type="text/javascript">
+                  new TradingView.widget({{
+                    "autosize": true,
+                    "symbol": "NSE:{row['T']}",
+                    "interval": "5",
+                    "timezone": "Asia/Kolkata",
+                    "theme": "dark",
+                    "style": "3",
+                    "locale": "in",
+                    "enable_publishing": false,
+                    "hide_top_toolbar": true,
+                    "hide_legend": true,
+                    "save_image": false,
+                    "container_id": "tv_{row['T']}"
+                  }});
+                  </script>
                 </div>
                 <br>
                 """
