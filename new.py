@@ -10,7 +10,7 @@ st.set_page_config(page_title="Market Heatmap", page_icon="📊", layout="wide")
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
 
-# --- 3. CSS FOR EXACT 10-COLUMN HEATMAP ---
+# --- 3. CSS FOR EXACT 10-COLUMN HEATMAP & NORMAL FONTS ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
@@ -47,17 +47,18 @@ st.markdown("""
     /* Colors */
     .bull-card { background-color: #1e5f29 !important; } /* Dark Green */
     .bear-card { background-color: #b52524 !important; } /* Dark Red */
+    .neut-card { background-color: #30363d !important; } /* Grey */
     
-    /* Fonts inside the box */
-    .t-name { font-size: 13px; font-weight: 800; margin-bottom: 2px; }
-    .t-price { font-size: 17px; font-weight: 900; margin-bottom: 2px; }
-    .t-pct { font-size: 12px; font-weight: bold; }
+    /* 🔥 FONTS CHANGED TO NORMAL WEIGHT 🔥 */
+    .t-name { font-size: 13px; font-weight: normal; margin-bottom: 2px; }
+    .t-price { font-size: 17px; font-weight: normal; margin-bottom: 2px; }
+    .t-pct { font-size: 12px; font-weight: normal; }
     
     /* Score Badge */
     .t-score { 
         position: absolute; top: 3px; left: 3px; 
         font-size: 10px; background: rgba(0,0,0,0.4); 
-        padding: 1px 4px; border-radius: 3px; color: #ffd700; 
+        padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: bold;
     }
     
     /* Auto adjust columns based on screen size */
@@ -76,7 +77,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 4. STOCK LISTS FROM YOUR MOBILE1.PY ---
+# --- 4. STOCK LISTS ---
 NIFTY_50 = [
     "ADANIENT", "ADANIPORTS", "APOLLOHOSP", "ASIANPAINT", "AXISBANK", "BAJAJ-AUTO", "BAJFINANCE", 
     "BAJAJFINSV", "BEL", "BHARTIARTL", "BRITANNIA", "CIPLA", "COALINDIA", "DIVISLAB", "DRREDDY", 
@@ -177,17 +178,17 @@ df = fetch_all_data()
 
 if not df.empty:
     
-    # 🌟 NEW LOGIC: Is_Green column added to group Greens first and Reds next
+    # Is_Green కాలమ్: స్టాక్ పాజిటివ్ లో ఉంటే True, నెగటివ్ ఉంటే False వస్తుంది.
     df['Is_Green'] = df['C'] >= 0
     
     if watchlist_mode == "Nifty 50 Heatmap":
-        # Nifty 50 strictly by Percentage (High Green to Low Red)
-        df_display = df[df['T'].isin(NIFTY_50)].sort_values(by="C", ascending=False)
+        # Nifty 50: ముందు ఆకుపచ్చ స్టాక్స్ అన్నీ.. ఆ తర్వాత ఎరుపు అన్నీ (High Green to Low Red)
+        df_display = df[df['T'].isin(NIFTY_50)].sort_values(by=["Is_Green", "C"], ascending=[False, False])
         st.markdown("### Nifty 50 Stocks")
     else:
-        # 🌟 HIGH SCORE LOGIC: Sort by Score -> Then Is_Green -> Then Percentage
-        # This guarantees: Score 10 Greens -> Score 10 Reds -> Score 9 Greens -> Score 9 Reds...
-        df_display = df[df['S'] >= 4].sort_values(by=["S", "Is_Green", "C"], ascending=[False, False, False])
+        # 🔥 PERFECT SORTING LOGIC: Is_Green first -> then Score -> then % Change
+        # దీనివల్ల ముందు పాజిటివ్ స్టాక్స్ (వాటి స్కోర్ ప్రకారం), ఆ తర్వాతే నెగటివ్ స్టాక్స్ (వాటి స్కోర్ ప్రకారం) వస్తాయి.
+        df_display = df[df['S'] >= 4].sort_values(by=["Is_Green", "S", "C"], ascending=[False, False, False])
         st.markdown("### 🔥 High Score Stocks (Across All Sectors)")
 
     if view_mode == "Heat Map":
@@ -203,59 +204,37 @@ if not df.empty:
         st.markdown(html, unsafe_allow_html=True)
         
     else:
-        # === MINI CHARTS (Fixed TradingView Apple Error by using safe widget) ===
+        # === MINI CHARTS ===
         st.markdown("<br>", unsafe_allow_html=True)
         cols = st.columns(3) 
         
-        # Limit to top 30 charts to prevent lag
         for idx, row in df_display.head(30).iterrows():
             col = cols[idx % 3]
             with col:
                 color = "#2ea043" if row['C'] >= 0 else "#da3633"
                 st.markdown(f"<div style='text-align:center; font-weight:bold; font-size:15px; margin-bottom:4px;'>{row['T']} <span style='color:{color}'>({row['C']:.2f}%)</span></div>", unsafe_allow_html=True)
                 
-                # Using 'Symbol Overview' Widget and 'BSE:' which avoids NSE embedding restrictions
+                # 🔥 RANGE: "1D" ADDED TO FORCE TODAY'S CHART ONLY 🔥
                 chart_code = f"""
                 <div class="tradingview-widget-container" style="border:1px solid #30363d; border-radius:6px; overflow:hidden; background:#000;">
-                  <div class="tradingview-widget-container__widget"></div>
-                  <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js" async>
-                  {{
-                    "symbols": [
-                      [
-                        "BSE:{row['T']}|1D"
-                      ]
-                    ],
-                    "chartOnly": true,
-                    "width": "100%",
-                    "height": "200",
+                  <div id="tv_{row['T']}" style="height:200px;"></div>
+                  <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+                  <script type="text/javascript">
+                  new TradingView.widget({{
+                    "autosize": true,
+                    "symbol": "BSE:{row['T']}",
+                    "interval": "5",
+                    "range": "1D",    
+                    "timezone": "Asia/Kolkata",
+                    "theme": "dark",
+                    "style": "3",
                     "locale": "in",
-                    "colorTheme": "dark",
-                    "autosize": false,
-                    "showVolume": false,
-                    "showMA": false,
-                    "hideDateRanges": false,
-                    "hideMarketStatus": true,
-                    "hideSymbolLogo": true,
-                    "scalePosition": "right",
-                    "scaleMode": "Normal",
-                    "fontFamily": "-apple-system, BlinkMacSystemFont, Trebuchet MS, Roboto, Ubuntu, sans-serif",
-                    "fontSize": "10",
-                    "noTimeScale": false,
-                    "valuesTracking": "1",
-                    "changeMode": "price-and-percent",
-                    "chartType": "area",
-                    "lineWidth": 2,
-                    "lineType": 0,
-                    "dateRanges": [
-                      "1d|1",
-                      "1w|15",
-                      "1m|30",
-                      "3m|60",
-                      "12m|1D",
-                      "60m|1W",
-                      "all|1M"
-                    ]
-                  }}
+                    "enable_publishing": false,
+                    "hide_top_toolbar": true,
+                    "hide_legend": true,
+                    "save_image": false,
+                    "container_id": "tv_{row['T']}"
+                  }});
                   </script>
                 </div>
                 <br>
