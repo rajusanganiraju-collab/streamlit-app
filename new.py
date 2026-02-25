@@ -117,13 +117,15 @@ def get_minutes_passed():
 
 @st.cache_data(ttl=60)
 def fetch_all_data():
-    # Merge all unique stocks to download everything at once
+    # Merge all unique stocks
     all_stocks = set(NIFTY_50 + BROADER_MARKET)
     for stocks in SECTOR_MAP.values():
         all_stocks.update(stocks)
     
     tkrs = [f"{t}.NS" for t in all_stocks]
-    data = yf.download(tkrs, period="2d", interval="1m", progress=False, group_by='ticker', threads=False)
+    
+    # 🔥 FIX: Removed interval="1m" and used period="5d" exactly like mobile1.py 🔥
+    data = yf.download(tkrs, period="5d", progress=False, group_by='ticker', threads=False)
     
     results = []
     minutes = get_minutes_passed()
@@ -133,6 +135,7 @@ def fetch_all_data():
             df = data[symbol].dropna()
             if len(df) < 2: continue
             
+            # 🔥 EXACT PRICE LOGIC FROM MOBILE1.PY 🔥
             ltp = float(df['Close'].iloc[-1])
             open_p = float(df['Open'].iloc[-1])
             prev_c = float(df['Close'].iloc[-2])
@@ -186,7 +189,7 @@ if not df.empty:
         df_display = df[df['T'].isin(NIFTY_50)].sort_values(by="C", ascending=False)
         st.markdown("### Nifty 50 Stocks")
     else:
-        # ALL STOCKS (mobile1 universe), filtered by Score >= 4
+        # ALL STOCKS, filtered by Score >= 4
         df_display = df[df['S'] >= 4].sort_values(by=["S", "C"], ascending=[False, False])
         st.markdown("### 🔥 High Score Stocks (Across All Sectors)")
 
