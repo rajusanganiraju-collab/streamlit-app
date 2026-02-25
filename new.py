@@ -84,6 +84,14 @@ st.markdown("""
         padding: 10px;
         margin-bottom: 15px;
     }
+    
+    /* Indicator Labels above chart */
+    .ind-labels {
+        text-align: center;
+        font-size: 10px;
+        color: #8b949e;
+        margin-bottom: 2px;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -220,7 +228,7 @@ if not df.empty:
         top_tickers = df_display.head(30)['T'].tolist()
         fetch_tickers = [f"{t}.NS" for t in top_tickers]
         
-        with st.spinner("Loading Today's 5-Min Charts..."):
+        with st.spinner("Loading 5-Min Charts with VWAP & EMA..."):
             chart_data = yf.download(fetch_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=True)
         
         for idx, row in df_display.head(30).iterrows():
@@ -233,7 +241,9 @@ if not df.empty:
                 sign = "+" if row['C'] > 0 else ""
                 
                 st.markdown(f"<div class='chart-box'>", unsafe_allow_html=True)
-                st.markdown(f"<div style='text-align:center; font-weight:bold; font-size:16px; margin-bottom:5px;'>{ticker} <span style='color:{color_hex}'>({sign}{row['C']:.2f}%)</span></div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='text-align:center; font-weight:bold; font-size:16px;'>{ticker} <span style='color:{color_hex}'>({sign}{row['C']:.2f}%)</span></div>", unsafe_allow_html=True)
+                # Legend for VWAP & EMA
+                st.markdown(f"<div class='ind-labels'><span style='color:#FFD700; font-weight:bold;'>--- VWAP</span> &nbsp;|&nbsp; <span style='color:#00BFFF; font-weight:bold;'>- - 10 EMA</span></div>", unsafe_allow_html=True)
                 
                 try:
                     if len(fetch_tickers) == 1:
@@ -244,33 +254,51 @@ if not df.empty:
                     df_chart = df_chart.dropna()
                     
                     if not df_chart.empty:
+                        # 1. Calculate 10 EMA continuously over the 5 days for accuracy
+                        df_chart['EMA_10'] = df_chart['Close'].ewm(span=10, adjust=False).mean()
+                        
+                        # 2. Filter to only the LAST trading day
                         df_chart.index = pd.to_datetime(df_chart.index)
                         last_trading_date = df_chart.index.date.max()
                         df_chart = df_chart[df_chart.index.date == last_trading_date]
                         
-                        # 🔥 THE MAGIC FIX: FORCE Y-AXIS ZOOM 🔥
-                        # This tells the chart to NOT start from zero, but exactly from the lowest to highest price of the day
-                        min_val = df_chart['Close'].min()
-                        max_val = df_chart['Close'].max()
+                        # 3. Calculate VWAP just for the day (Reset daily)
+                        df_chart['Typical_Price'] = (df_chart['High'] + df_chart['Low'] + df_chart['Close']) / 3
+                        df_chart['VWAP'] = (df_chart['Typical_Price'] * df_chart['Volume']).cumsum() / df_chart['Volume'].cumsum()
+                        
+                        # Y-axis auto zoom calculation (Includes Price, VWAP, EMA)
+                        min_val = df_chart[['Close', 'VWAP', 'EMA_10']].min().min()
+                        max_val = df_chart[['Close', 'VWAP', 'EMA_10']].max().max()
                         y_padding = (max_val - min_val) * 0.1
-                        if y_padding == 0: y_padding = min_val * 0.005 # Fallback if price is totally flat
+                        if y_padding == 0: y_padding = min_val * 0.005 
                         
                         fig = go.Figure()
+                        
+                        # Main Price Area Chart
                         fig.add_trace(go.Scatter(
-                            x=df_chart.index, 
-                            y=df_chart['Close'],
-                            mode='lines', 
-                            line=dict(color=color_hex, width=2.5),
-                            fill='tozeroy', 
-                            fillcolor=fill_color
+                            x=df_chart.index, y=df_chart['Close'], mode='lines', 
+                            line=dict(color=color_hex, width=2), fill='tozeroy', fillcolor=fill_color
                         ))
+                        
+                        # VWAP Line (Yellow, Dotted)
+                        fig.add_trace(go.Scatter(
+                            x=df_chart.index, y=df_chart['VWAP'], mode='lines', 
+                            line=dict(color='#FFD700', width=1.5, dash='dot')
+                        ))
+                        
+                        # 10 EMA Line (Blue, Dashed)
+                        fig.add_trace(go.Scatter(
+                            x=df_chart.index, y=df_chart['EMA_10'], mode='lines', 
+                            line=dict(color='#00BFFF', width=1.5, dash='dash')
+                        ))
+                        
                         fig.update_layout(
                             margin=dict(l=0, r=0, t=0, b=0),
                             height=150, 
                             paper_bgcolor='rgba(0,0,0,0)', 
                             plot_bgcolor='rgba(0,0,0,0)',
                             xaxis=dict(visible=False), 
-                            yaxis=dict(visible=False, range=[min_val - y_padding, max_val + y_padding]), # Here is the magic zoom!
+                            yaxis=dict(visible=False, range=[min_val - y_padding, max_val + y_padding]), 
                             hovermode=False,
                             showlegend=False
                         )
