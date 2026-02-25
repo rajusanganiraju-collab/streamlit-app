@@ -10,7 +10,7 @@ st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
 
-# పైన స్పేస్, టేబుల్ హెడ్డింగ్స్ సమానంగా ఉండటానికి CSS (Auto Adjust కోసం కొత్త కమాండ్స్ యాడ్ చేశాను)
+# పైన స్పేస్, టేబుల్ హెడ్డింగ్స్ సమానంగా ఉండటానికి మరియు ఆటో అడ్జస్ట్ కోసం CSS
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -35,17 +35,18 @@ st.markdown("""
     
     div[data-testid="stDataFrame"] { margin-bottom: -15px !important; }
 
-    /* --- RESPONSIVE COLUMNS (Auto Adjust) --- */
-    /* Screen సైజు 1024px కంటే తగ్గితే కాలమ్స్ ఒకదాని కింద ఒకటి వస్తాయి */
+    /* --- RESPONSIVE COLUMNS (Auto Adjust Full Width) --- */
     @media (max-width: 1024px) {
         div[data-testid="stHorizontalBlock"] {
             flex-direction: column !important;
+            width: 100% !important;
         }
-        div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+        div[data-testid="column"] {
             width: 100% !important;
             min-width: 100% !important;
             max-width: 100% !important;
-            margin-bottom: 15px !important;
+            flex: 1 1 100% !important; /* <--- ఇది టేబుల్ ని స్క్రీన్ నిండుగా లాగుతుంది */
+            margin-bottom: 10px !important;
         }
     }
     </style>
