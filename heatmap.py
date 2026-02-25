@@ -1,9 +1,8 @@
 import streamlit as st
+import time
 
 # Page configuration
 st.set_page_config(layout="wide", page_title="Market Watchlist")
-
-st.title("📊 Market Watchlist")
 
 # Custom CSS for 10 columns on Desktop and 3 columns on Mobile
 st.markdown("""
@@ -161,7 +160,7 @@ def render_cards_html(data_list, is_index=False):
             
         tv_url = f"https://in.tradingview.com/chart/?symbol={tv_symbol}"
         
-        # Single line HTML to avoid Markdown issues
+        # Single line HTML
         html_content += f'<a href="{tv_url}" target="_blank"><div class="stock-card" style="background-color: {bg_color};"><div class="ticker">{ticker}</div><div class="price">{price}</div><div class="change">{change_text}</div></div></a>\n'
     
     html_content += '</div>'
@@ -174,4 +173,8 @@ render_cards_html(indices_data, is_index=True)
 # Render Sorted Nifty 50 Stocks
 st.subheader("Nifty 50 Stocks")
 render_cards_html(nifty_data_sorted, is_index=False)
+
+# Auto-refresh app every 60 seconds
+time.sleep(60)
+st.rerun()
 
