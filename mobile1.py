@@ -10,7 +10,7 @@ st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
 
-# --- CSS FOR 100% PERFECT ALIGNMENT & READABLE FONTS ---
+# --- CSS FOR 100% PERFECT ALIGNMENT & 30% INCREASED FONTS ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -23,45 +23,44 @@ st.markdown("""
     .block-container { padding-top: 0.5rem !important; padding-bottom: 0rem !important; padding-left: 0.5rem !important; padding-right: 0.5rem !important; margin-top: -10px; }
     
     /* UNIFIED TABLE HEADINGS */
-    .table-head { padding: 6px 10px; font-weight: 900; font-size: 15px; text-transform: uppercase; margin-top: 8px; margin-bottom: 0px; border-radius: 4px; text-align: left; display: block; width: 100%; box-sizing: border-box; }
+    .table-head { padding: 6px 10px; font-weight: 900; font-size: 16px; text-transform: uppercase; margin-top: 8px; margin-bottom: 0px; border-radius: 4px; text-align: left; display: block; width: 100%; box-sizing: border-box; }
     .head-bull { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; border-bottom: none; }
     .head-bear { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; border-bottom: none; }
     .head-neut { background: #e2e3e5; color: #383d41; border: 1px solid #d6d8db; border-bottom: none; }
     
-    /* CUSTOM HTML GRID SYSTEM (Desktop) */
+    /* CUSTOM HTML GRID SYSTEM */
     .responsive-grid {
         display: flex;
         flex-direction: row;
-        flex-wrap: wrap; /* Safety wrap */
+        flex-wrap: wrap;
         gap: 15px;
         width: 100%;
         margin-bottom: 15px;
     }
     .grid-col {
         flex: 1 1 calc(50% - 15px);
-        min-width: 300px; /* If screen is small, it forces elements to next line */
+        min-width: 300px;
     }
     
-    /* BASE TABLE SETTINGS */
+    /* BASE TABLE SETTINGS (Increased Font Size by ~30%) */
     .custom-table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 11px;
+        font-size: 14px !important; /* INCREASED FROM 11px TO 14px */
         text-align: center;
         font-family: Arial, sans-serif;
-        table-layout: fixed; /* Forces exactly locked column widths */
+        table-layout: fixed; /* Keeps columns perfectly aligned */
     }
     .custom-table th, .custom-table td {
         white-space: normal; 
         word-wrap: break-word;
-        padding: 6px 2px;
+        padding: 8px 3px !important; /* Slightly increased padding for better breathing room */
     }
     
     /* ----------------------------------------------------
-       🔥 THE ABSOLUTE FIX FOR MOBILE STACKING 🔥
+       MOBILE & SPLIT SCREEN STACKING
        ---------------------------------------------------- */
     @media screen and (max-width: 1100px) {
-        /* Kill Flexbox entirely on mobile. Use Block display to force vertical stacking */
         .responsive-grid {
             display: block !important; 
         }
@@ -72,16 +71,16 @@ st.markdown("""
             margin-bottom: 20px !important;
         }
         
-        /* Make fonts bigger for mobile screens */
+        /* Make fonts EVEN BIGGER for mobile screens (+30%) */
         .custom-table {
-            font-size: 13px !important;
+            font-size: 17px !important; /* INCREASED FROM 13px TO 17px */
         }
         .custom-table th, .custom-table td {
-            font-size: 13px !important;
-            padding: 10px 2px !important;
+            font-size: 17px !important;
+            padding: 10px 3px !important;
         }
         .table-head {
-            font-size: 16px !important;
+            font-size: 18px !important;
             padding: 10px 10px !important;
         }
     }
@@ -177,7 +176,7 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         }
     except: return None
 
-# --- HTML TABLE BUILDERS ---
+# --- HTML TABLE BUILDERS (With Left Alignment for specific columns) ---
 def build_html_block(df, title, head_class):
     if df.empty: return f"<div class='grid-col'><div class='table-head {head_class}'>{title}</div></div>"
     
@@ -185,16 +184,17 @@ def build_html_block(df, title, head_class):
     html += '<div style="width: 100%;">'
     html += '<table class="custom-table">'
     
-    # Headers with explicitly STRICT locked column sizes
     col_widths = {"STOCK": "16%", "PRICE": "12%", "DAY%": "11%", "NET%": "11%", "MOVE": "11%", "VOL": "11%", "STATUS": "20%", "SCORE": "8%"}
     
     html += '<thead><tr style="border-bottom: 2px solid #222; border-top: 2px solid #222; background-color: #fff;">'
     for col in df.columns:
         w = col_widths.get(col, "10%")
-        html += f'<th style="width: {w}; font-weight: 900; color: #000;">{col}</th>'
+        # LEFT ALIGN STOCK and STATUS HEADERS
+        align = "left" if col in ["STOCK", "STATUS"] else "center"
+        pad = "padding-left: 10px;" if align == "left" else ""
+        html += f'<th style="width: {w}; font-weight: 900; color: #000; text-align: {align}; {pad}">{col}</th>'
     html += '</tr></thead><tbody>'
     
-    # Rows
     for _, row in df.iterrows():
         is_highlight = False
         hl_bg, hl_text = "", ""
@@ -208,7 +208,11 @@ def build_html_block(df, title, head_class):
         html += '<tr>'
         for col in df.columns:
             val = str(row[col])
-            td_style = "border-bottom: 1px solid #ddd; font-weight: 700;"
+            
+            # LEFT ALIGN STOCK and STATUS ROWS
+            align = "left" if col in ["STOCK", "STATUS"] else "center"
+            pad = "padding-left: 10px;" if align == "left" else ""
+            td_style = f"border-bottom: 1px solid #ddd; font-weight: 700; text-align: {align}; {pad}"
             
             if is_highlight: td_style += f" background-color: {hl_bg}; color: {hl_text}; font-weight: 900;"
             else: td_style += " background-color: #fff; color: #000;"
@@ -235,17 +239,16 @@ def render_sector_table(df):
     html += '<table class="custom-table">'
     html += '<thead><tr style="border-bottom: 2px solid #222; border-top: 2px solid #222; background-color: #fff;">'
     
-    # Strictly size Sector Table as well
-    html += '<th style="width: 25%; color: #000;"></th>'
-    for col in df.columns: html += f'<th style="width: 25%; font-weight: 900; color: #000;">{col}</th>'
+    html += '<th style="width: 25%; color: #000; text-align: left; padding-left: 10px;"></th>'
+    for col in df.columns: html += f'<th style="width: 25%; font-weight: 900; color: #000; text-align: center;">{col}</th>'
     html += '</tr></thead><tbody>'
     
     for idx, row in df.iterrows():
         html += '<tr>'
-        html += f'<td style="font-weight: 900; border-bottom: 1px solid #ddd; background-color: #fff; color: #000; text-align: left;">{idx}</td>'
+        html += f'<td style="font-weight: 900; border-bottom: 1px solid #ddd; background-color: #fff; color: #000; text-align: left; padding-left: 10px;">{idx}</td>'
         for col in df.columns:
             val = row[col]
-            td_style = "font-weight: 800; border-bottom: 1px solid #ddd;"
+            td_style = "font-weight: 800; border-bottom: 1px solid #ddd; text-align: center;"
             try:
                 v = float(val)
                 if v >= 0: td_style += " background-color: #d4edda; color: #155724;"
@@ -270,7 +273,6 @@ if search_query:
         if search_res:
             df_search = pd.DataFrame([search_res])
             if "VOL_NUM" in df_search.columns: df_search = df_search.drop(columns=["VOL_NUM"])
-            
             st.markdown(f'<div class="responsive-grid">{build_html_block(df_search, f"🎯 SEARCH RESULT: {search_query}", "head-neut")}</div>', unsafe_allow_html=True)
         else: st.warning("డేటా దొరకలేదు.")
     except: st.error("లోపం జరిగింది.")
