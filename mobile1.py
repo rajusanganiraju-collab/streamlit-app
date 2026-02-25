@@ -10,7 +10,7 @@ st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
 
-# --- CSS FOR 100% PERFECT ALIGNMENT ---
+# --- CSS FOR 100% PERFECT ALIGNMENT & READABLE FONTS ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -42,28 +42,46 @@ st.markdown("""
         min-width: 0;
     }
     
-    /* THE FIX FOR PERFECT COLUMN ALIGNMENT ACROSS ALL TABLES */
+    /* BASE TABLE SETTINGS (Desktop) */
     .custom-table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 11px;
+        font-size: 11px; /* Desktop Font Size */
         text-align: center;
         font-family: Arial, sans-serif;
         table-layout: fixed; /* Forces exactly locked column widths */
     }
     .custom-table th, .custom-table td {
-        white-space: normal; /* Allows text to drop to next line if too long, keeping column perfectly straight */
+        white-space: normal; 
         word-wrap: break-word;
         padding: 6px 2px;
     }
     
-    /* When screen shrinks, make everything Stack */
+    /* ----------------------------------------------------
+       RESPONSIVE RULES
+       ---------------------------------------------------- */
+    /* When screen shrinks below 1100px, make everything Stack */
     @media screen and (max-width: 1100px) {
         .responsive-grid {
             flex-direction: column !important;
         }
         .grid-col {
             width: 100% !important;
+        }
+    }
+
+    /* 🔥 NEW: BIGGER FONTS SPECIFICALLY FOR MOBILE PHONES 🔥 */
+    @media screen and (max-width: 768px) {
+        .custom-table {
+            font-size: 13px !important; /* Increased Font Size */
+        }
+        .custom-table th, .custom-table td {
+            font-size: 13px !important; /* Increased Font Size */
+            padding: 8px 2px !important; /* Added more vertical spacing for readability */
+        }
+        .table-head {
+            font-size: 16px !important; /* Bigger Headings on Mobile */
+            padding: 8px 10px !important;
         }
     }
     </style>
@@ -213,7 +231,7 @@ def build_html_block(df, title, head_class):
 def render_sector_table(df):
     if df.empty: return ""
     html = '<div style="width: 100%; margin-bottom: 15px;">'
-    html += '<table class="custom-table" style="font-size: 12px;">'
+    html += '<table class="custom-table">'
     html += '<thead><tr style="border-bottom: 2px solid #222; border-top: 2px solid #222; background-color: #fff;">'
     
     # Strictly size Sector Table as well
@@ -252,7 +270,6 @@ if search_query:
             df_search = pd.DataFrame([search_res])
             if "VOL_NUM" in df_search.columns: df_search = df_search.drop(columns=["VOL_NUM"])
             
-            # Wrap search in grid-col so it matches exactly
             st.markdown(f'<div class="responsive-grid">{build_html_block(df_search, f"🎯 SEARCH RESULT: {search_query}", "head-neut")}</div>', unsafe_allow_html=True)
         else: st.warning("డేటా దొరకలేదు.")
     except: st.error("లోపం జరిగింది.")
