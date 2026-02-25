@@ -1,6 +1,7 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
+import plotly.graph_objects as go
 from datetime import datetime, time as dt_time
 from streamlit_autorefresh import st_autorefresh
 
@@ -49,10 +50,10 @@ st.markdown("""
     .bear-card { background-color: #b52524 !important; } /* Dark Red */
     .neut-card { background-color: #30363d !important; } /* Grey */
     
-    /* 🔥 FONTS CHANGED TO NORMAL (No more bold text) 🔥 */
-    .t-name { font-size: 13px; font-weight: normal; margin-bottom: 2px; }
-    .t-price { font-size: 17px; font-weight: 500; margin-bottom: 2px; }
-    .t-pct { font-size: 12px; font-weight: normal; }
+    /* NORMAL TEXT FONTS */
+    .t-name { font-size: 13px; font-weight: 500; margin-bottom: 2px; }
+    .t-price { font-size: 17px; font-weight: 600; margin-bottom: 2px; }
+    .t-pct { font-size: 12px; font-weight: 500; }
     
     /* Score Badge */
     .t-score { 
@@ -73,6 +74,15 @@ st.markdown("""
         .t-name { font-size: 12px; }
         .t-price { font-size: 16px; }
         .t-pct { font-size: 11px; }
+    }
+    
+    /* Chart Box Styling */
+    .chart-box {
+        border: 1px solid #30363d;
+        border-radius: 8px;
+        background: #161b22;
+        padding: 10px;
+        margin-bottom: 15px;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -99,12 +109,11 @@ SECTOR_MAP = {
 }
 
 BROADER_MARKET = [
-    "HAL", "BEL", "BDL", "MAZDOCK", "COCHINSHIP", "GRSE", "RVNL", "IRFC", "IRCON", "TITAGARH", "RAILTEL", "RITES",
+    "HAL", "BDL", "MAZDOCK", "COCHINSHIP", "GRSE", "RVNL", "IRFC", "IRCON", "TITAGARH", "RAILTEL", "RITES",
     "ADANIPOWER", "ADANIGREEN", "NHPC", "SJVN", "BHEL", "CGPOWER", "SUZLON", "PFC", "RECLTD", "IREDA", "IOB", "UCOBANK", "MAHABANK", "CANBK",
-    "BAJFINANCE", "CHOLAFIN", "JIOFIN", "MUTHOOTFIN", "MANAPPURAM", "SHRIRAMFIN", "M&MFIN", "DIXON", "POLYCAB", "KAYNES", "HAVELLS", "KEI", "RRKABEL",
-    "SRF", "TATACHEM", "DEEPAKNTR", "AARTIIND", "PIIND", "FACT", "UPL", "ULTRACEMCO", "AMBUJACEM", "SHREECEM", "DALBHARAT", "L&T", "CUMMINSIND", "ABB", "SIEMENS",
-    "BHARTIARTL", "IDEA", "INDIGO", "ZOMATO", "TRENT", "DMART", "PAYTM", "ZENTEC", "ADANIENT", "ADANIPORTS", "ATGL", "AWL",
-    "BOSCHLTD", "MRF", "MOTHERSON", "SONACOMS", "EXIDEIND", "AMARAJABAT"
+    "CHOLAFIN", "JIOFIN", "MUTHOOTFIN", "MANAPPURAM", "M&MFIN", "DIXON", "POLYCAB", "KAYNES", "HAVELLS", "KEI", "RRKABEL",
+    "SRF", "TATACHEM", "DEEPAKNTR", "AARTIIND", "PIIND", "FACT", "UPL", "AMBUJACEM", "SHREECEM", "DALBHARAT", "CUMMINSIND", "ABB", "SIEMENS",
+    "IDEA", "ZOMATO", "DMART", "PAYTM", "ZENTEC", "ATGL", "AWL", "BOSCHLTD", "MRF", "MOTHERSON", "SONACOMS", "EXIDEIND", "AMARAJABAT"
 ]
 
 # --- 5. DATA FETCH & SCORE LOGIC ---
@@ -179,25 +188,18 @@ df = fetch_all_data()
 if not df.empty:
     
     if watchlist_mode == "Nifty 50 Heatmap":
-        # Nifty 50: ముందు ఆకుపచ్చ అన్నీ.. ఆ తర్వాత ఎరుపు అన్నీ (Highest to Lowest)
-        df_display = df[df['T'].isin(NIFTY_50)].sort_values(by="C", ascending=False)
+        df_filtered = df[df['T'].isin(NIFTY_50)]
+        greens = df_filtered[df_filtered['C'] >= 0].sort_values(by="C", ascending=False)
+        reds = df_filtered[df_filtered['C'] < 0].sort_values(by="C", ascending=False)
+        df_display = pd.concat([greens, reds])
         st.markdown("### Nifty 50 Stocks")
     
     else:
-        # 🔥 PERFECT SORTING LOGIC FOR HIGH SCORE 🔥
+        # PERFECT SORTING LOGIC FOR HIGH SCORE
         df_filtered = df[df['S'] >= 4]
-        
-        # 1. GREEN STOCKS: ముందు స్కోర్ (High to Low), తర్వాత % (High to Low)
         greens = df_filtered[df_filtered['C'] > 0].sort_values(by=["S", "C"], ascending=[False, False])
-        
-        # 2. NEUTRAL STOCKS: (0.00%)
         neuts = df_filtered[df_filtered['C'] == 0].sort_values(by="S", ascending=False)
-        
-        # 3. RED STOCKS: ముందు స్కోర్ (Low to High), తర్వాత %.
-        # దీనివల్ల 10 స్కోర్ ఉన్న SBI లాంటి స్టాక్స్ కచ్చితంగా పేజీలో లాస్ట్ (అట్టడుగున) వస్తాయి!
         reds = df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[True, True])
-        
-        # మూడింటిని కలపడం (Greens -> Neuts -> Reds)
         df_display = pd.concat([greens, neuts, reds])
         st.markdown("### 🔥 High Score Stocks (Across All Sectors)")
 
@@ -214,37 +216,63 @@ if not df.empty:
         st.markdown(html, unsafe_allow_html=True)
         
     else:
-        # === MINI CHARTS (FIXED TRADINGVIEW ERROR) ===
+        # === NATIVE PLOTLY MINI CHARTS (NO TRADINGVIEW ERRORS) ===
         st.markdown("<br>", unsafe_allow_html=True)
         cols = st.columns(3) 
         
+        # Get top 30 tickers for charts
+        top_tickers = df_display.head(30)['T'].tolist()
+        fetch_tickers = [f"{t}.NS" for t in top_tickers]
+        
+        with st.spinner("Loading Today's 5-Min Charts..."):
+            # Fetch 1-Day Intraday data for charts
+            chart_data = yf.download(fetch_tickers, period="1d", interval="5m", progress=False, group_by='ticker', threads=True)
+        
         for idx, row in df_display.head(30).iterrows():
             col = cols[idx % 3]
+            ticker = row['T']
+            
             with col:
-                color = "#2ea043" if row['C'] >= 0 else "#da3633"
-                st.markdown(f"<div style='text-align:center; font-weight:normal; font-size:15px; margin-bottom:4px;'>{row['T']} <span style='color:{color}'>({row['C']:.2f}%)</span></div>", unsafe_allow_html=True)
+                color_hex = "#2ea043" if row['C'] >= 0 else "#da3633"
+                fill_color = "rgba(46, 160, 67, 0.2)" if row['C'] >= 0 else "rgba(218, 54, 51, 0.2)"
+                sign = "+" if row['C'] > 0 else ""
                 
-                # 🔥 TRADINGVIEW "MINI CHART" WIDGET (Always shows 1D Area Chart, NO ERRORS) 🔥
-                # We reverted back to NSE: because this widget doesn't block it like the advanced one!
-                chart_code = f"""
-                <div class="tradingview-widget-container" style="border:1px solid #30363d; border-radius:6px; overflow:hidden; background:#000;">
-                  <div class="tradingview-widget-container__widget"></div>
-                  <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js" async>
-                  {{
-                    "symbol": "NSE:{row['T']}",
-                    "width": "100%",
-                    "height": "220",
-                    "locale": "in",
-                    "dateRange": "1D",
-                    "colorTheme": "dark",
-                    "isTransparent": true,
-                    "autosize": false,
-                    "largeChartUrl": ""
-                  }}
-                  </script>
-                </div>
-                <br>
-                """
-                st.components.v1.html(chart_code, height=240)
+                st.markdown(f"<div class='chart-box'>", unsafe_allow_html=True)
+                st.markdown(f"<div style='text-align:center; font-weight:bold; font-size:16px; margin-bottom:5px;'>{ticker} <span style='color:{color_hex}'>({sign}{row['C']:.2f}%)</span></div>", unsafe_allow_html=True)
+                
+                try:
+                    # Plotly Native Chart Generation
+                    # Handling both single ticker and multi-ticker DataFrame structures from yfinance
+                    if len(fetch_tickers) == 1:
+                        df_chart = chart_data.dropna()
+                    else:
+                        df_chart = chart_data[f"{ticker}.NS"].dropna()
+                        
+                    if not df_chart.empty:
+                        fig = go.Figure()
+                        fig.add_trace(go.Scatter(
+                            x=df_chart.index, 
+                            y=df_chart['Close'],
+                            mode='lines', 
+                            line=dict(color=color_hex, width=2.5),
+                            fill='tozeroy', 
+                            fillcolor=fill_color
+                        ))
+                        fig.update_layout(
+                            margin=dict(l=0, r=0, t=0, b=0),
+                            height=150, 
+                            paper_bgcolor='rgba(0,0,0,0)', 
+                            plot_bgcolor='rgba(0,0,0,0)',
+                            xaxis=dict(visible=False), 
+                            yaxis=dict(visible=False),
+                            hovermode=False
+                        )
+                        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+                    else:
+                        st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Data not available yet</div>", unsafe_allow_html=True)
+                except Exception as e:
+                    st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart loading...</div>", unsafe_allow_html=True)
+                
+                st.markdown("</div>", unsafe_allow_html=True)
 else:
     st.info("Loading Market Data...")
