@@ -107,7 +107,7 @@ def get_data():
     all_tickers = list(set(all_tickers))
     
     try:
-        data = yf.download(all_tickers, period="5d", progress=False, group_by='ticker', threads=False)
+        data = yfinance.download(all_tickers, period="5d", progress=False, group_by='ticker', threads=False)
         return data
     except: 
         return None
@@ -200,11 +200,46 @@ def style_sector_ranks(val):
 loading_msg = st.empty()
 loading_msg.info("మార్కెట్ డేటా లోడ్ అవుతోంది... దయచేసి 15 సెకన్లు వేచి ఉండండి ⏳")
 
+# Fix: Use correct module name "yf" instead of "yfinance" dynamically
+get_data.__wrapped__.__globals__["yfinance"] = yf 
 data = get_data()
 loading_msg.empty()
 
 if data is not None and not data.empty:
     
+    # -------------------------------------------------------------
+    # 0. NEW: SEARCH BAR FEATURE (Added directly above Dashboard)
+    # -------------------------------------------------------------
+    search_query = st.text_input("🔍 సెర్చ్ స్టాక్ (ఉదాహరణకు: RELIANCE, ZOMATO, IDEA):", "").strip().upper()
+    if search_query:
+        search_symbol = format_ticker(search_query)
+        try:
+            # Downloading along with Nifty so the analyze function gets the expected MultiIndex format
+            search_data = yf.download([search_symbol, "^NSEI"], period="5d", progress=False, group_by='ticker', threads=False)
+            search_res = analyze(search_symbol, search_data, force=True)
+            
+            if search_res:
+                st.markdown(f"<div class='table-head head-neut'>🎯 SEARCH RESULT: {search_query}</div>", unsafe_allow_html=True)
+                df_search = pd.DataFrame([search_res])
+                if "VOL_NUM" in df_search.columns:
+                    df_search = df_search.drop(columns=["VOL_NUM"])
+                df_search['SCORE'] = df_search['SCORE'].astype(str)
+                
+                styled_search = df_search.style.apply(highlight_priority, axis=1) \
+                    .map(style_move_col, subset=['MOVE']) \
+                    .set_properties(**{'text-align': 'center', 'font-size': '14px'}) \
+                    .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]}])
+                
+                tv_link_config_search = {"STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)")}
+                st.dataframe(styled_search, column_config=tv_link_config_search, use_container_width=True, hide_index=True)
+            else:
+                st.warning(f"'{search_query}' కి సంబంధించి ఎటువంటి బ్రేక్అవుట్ / ట్రెండ్ కండిషన్స్ మ్యాచ్ అవ్వలేదు లేదా సరైన డేటా దొరకలేదు.")
+        except Exception as e:
+            st.error("డేటా పొందడంలో లోపం జరిగింది. దయచేసి సరైన సింబల్ ఇవ్వండి.")
+            
+    st.markdown("<hr style='margin-top: 5px; margin-bottom: 15px;'>", unsafe_allow_html=True)
+    # -------------------------------------------------------------
+
     # 1. DASHBOARD - 80% & 20% Layout with Single Unified Box for Indices
     dash_left, dash_right = st.columns([0.8, 0.2]) 
     
