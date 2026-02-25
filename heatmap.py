@@ -12,15 +12,14 @@ st.markdown("""
         text-decoration: none;
         color: inherit;
     }
-    /* Compact Box styling */
     .stock-card {
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        padding: 6px 2px;  /* Reduced padding for smaller box */
+        padding: 6px 2px;  
         border-radius: 4px;
-        margin-bottom: 10px; /* Reduced gap between boxes */
+        margin-bottom: 10px; 
         color: white;
         box-shadow: 0 2px 4px rgba(0,0,0,0.3);
         transition: transform 0.2s ease-in-out;
@@ -31,7 +30,6 @@ st.markdown("""
         transform: scale(1.05);
         box-shadow: 0 4px 8px rgba(0,0,0,0.5);
     }
-    /* Smaller Text styling */
     .ticker { 
         font-size: 11px; 
         font-weight: 700; 
@@ -44,7 +42,6 @@ st.markdown("""
     .price { font-size: 14px; font-weight: 800; margin: 2px 0; }
     .change { font-size: 10px; font-weight: 600; white-space: nowrap; }
     
-    /* Hide Streamlit top padding to fit more content */
     .block-container {
         padding-top: 2rem;
         padding-bottom: 0rem;
@@ -113,7 +110,9 @@ nifty_data = [
     {"ticker": "INDIGO", "price": 4247.40, "change": 97.10, "pct": 2.00},
 ]
 
-# Function to render cards dynamically based on column count
+# సార్టింగ్ లాజిక్: పర్సెంటేజ్ (pct) ని బట్టి ఎక్కువ నుంచి తక్కువకి అమర్చడం
+nifty_data_sorted = sorted(nifty_data, key=lambda x: x['pct'], reverse=True)
+
 def render_cards(data_list, is_index=False, num_columns=10):
     cols = st.columns(num_columns)
     for index, row in enumerate(data_list):
@@ -132,7 +131,6 @@ def render_cards(data_list, is_index=False, num_columns=10):
             
         change_text = f"{sign}{change:.2f} ({sign}{pct:.2f}%)"
         
-        # Determine TradingView URL
         if is_index:
             tv_symbol = row['tv_symbol']
         else:
@@ -154,11 +152,11 @@ def render_cards(data_list, is_index=False, num_columns=10):
         with cols[index % num_columns]:
             st.markdown(html_content, unsafe_allow_html=True)
 
-# Render Top Indices (Kept them slightly larger/distinct by using 3 columns)
+# Render Top Indices
 render_cards(indices_data, is_index=True, num_columns=3)
 
-# A visible separator line
+# Divider
 st.markdown("<hr style='margin: 15px 0; border-color: #555;'>", unsafe_allow_html=True)
 
-# Render Main Stocks Grid (10 columns to fit all 50 in 5 rows compactly)
-render_cards(nifty_data, is_index=False, num_columns=10)
+# Render Main Stocks Grid with SORTED data
+render_cards(nifty_data_sorted, is_index=False, num_columns=10)
