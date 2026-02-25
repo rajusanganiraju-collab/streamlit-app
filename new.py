@@ -50,9 +50,9 @@ st.markdown("""
     .neut-card { background-color: #30363d !important; } /* Grey */
     
     /* 🔥 FONTS CHANGED TO NORMAL WEIGHT 🔥 */
-    .t-name { font-size: 13px; font-weight: normal; margin-bottom: 2px; }
-    .t-price { font-size: 17px; font-weight: normal; margin-bottom: 2px; }
-    .t-pct { font-size: 12px; font-weight: normal; }
+    .t-name { font-size: 13px; font-weight: 500; margin-bottom: 2px; }
+    .t-price { font-size: 17px; font-weight: 600; margin-bottom: 2px; }
+    .t-pct { font-size: 12px; font-weight: 500; }
     
     /* Score Badge */
     .t-score { 
@@ -178,7 +178,7 @@ df = fetch_all_data()
 
 if not df.empty:
     
-    # Is_Green కాలమ్: స్టాక్ పాజిటివ్ లో ఉంటే True, నెగటివ్ ఉంటే False వస్తుంది.
+    # పాజిటివ్ స్టాక్స్ కు True, నెగటివ్ వాటికి False
     df['Is_Green'] = df['C'] >= 0
     
     if watchlist_mode == "Nifty 50 Heatmap":
@@ -187,7 +187,7 @@ if not df.empty:
         st.markdown("### Nifty 50 Stocks")
     else:
         # 🔥 PERFECT SORTING LOGIC: Is_Green first -> then Score -> then % Change
-        # దీనివల్ల ముందు పాజిటివ్ స్టాక్స్ (వాటి స్కోర్ ప్రకారం), ఆ తర్వాతే నెగటివ్ స్టాక్స్ (వాటి స్కోర్ ప్రకారం) వస్తాయి.
+        # దీనివల్ల ముందు పాజిటివ్ స్టాక్స్ అన్నీ (వాటి స్కోర్ ప్రకారం), ఆ తర్వాతే నెగటివ్ స్టాక్స్ (వాటి స్కోర్ ప్రకారం) వస్తాయి.
         df_display = df[df['S'] >= 4].sort_values(by=["Is_Green", "S", "C"], ascending=[False, False, False])
         st.markdown("### 🔥 High Score Stocks (Across All Sectors)")
 
@@ -214,7 +214,7 @@ if not df.empty:
                 color = "#2ea043" if row['C'] >= 0 else "#da3633"
                 st.markdown(f"<div style='text-align:center; font-weight:bold; font-size:15px; margin-bottom:4px;'>{row['T']} <span style='color:{color}'>({row['C']:.2f}%)</span></div>", unsafe_allow_html=True)
                 
-                # 🔥 RANGE: "1D" ADDED TO FORCE TODAY'S CHART ONLY 🔥
+                # 🔥 'range': '1D' & 'hide_top_toolbar': true ADDED TO SHOW ONLY TODAY'S CHART 🔥
                 chart_code = f"""
                 <div class="tradingview-widget-container" style="border:1px solid #30363d; border-radius:6px; overflow:hidden; background:#000;">
                   <div id="tv_{row['T']}" style="height:200px;"></div>
@@ -230,7 +230,7 @@ if not df.empty:
                     "style": "3",
                     "locale": "in",
                     "enable_publishing": false,
-                    "hide_top_toolbar": true,
+                    "hide_top_toolbar": true, 
                     "hide_legend": true,
                     "save_image": false,
                     "container_id": "tv_{row['T']}"
