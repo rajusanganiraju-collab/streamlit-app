@@ -228,7 +228,7 @@ if not df.empty:
         top_tickers = df_display.head(30)['T'].tolist()
         fetch_tickers = [f"{t}.NS" for t in top_tickers]
         
-        with st.spinner("Loading 5-Min Charts with VWAP & EMA..."):
+        with st.spinner("Loading 5-Min Candlestick Charts with VWAP & EMA..."):
             chart_data = yf.download(fetch_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=True)
         
         for idx, row in df_display.head(30).iterrows():
@@ -237,7 +237,6 @@ if not df.empty:
             
             with col:
                 color_hex = "#2ea043" if row['C'] >= 0 else "#da3633"
-                fill_color = "rgba(46, 160, 67, 0.2)" if row['C'] >= 0 else "rgba(218, 54, 51, 0.2)"
                 sign = "+" if row['C'] > 0 else ""
                 
                 st.markdown(f"<div class='chart-box'>", unsafe_allow_html=True)
@@ -266,18 +265,24 @@ if not df.empty:
                         df_chart['Typical_Price'] = (df_chart['High'] + df_chart['Low'] + df_chart['Close']) / 3
                         df_chart['VWAP'] = (df_chart['Typical_Price'] * df_chart['Volume']).cumsum() / df_chart['Volume'].cumsum()
                         
-                        # Y-axis auto zoom calculation (Includes Price, VWAP, EMA)
-                        min_val = df_chart[['Close', 'VWAP', 'EMA_10']].min().min()
-                        max_val = df_chart[['Close', 'VWAP', 'EMA_10']].max().max()
+                        # Y-axis auto zoom calculation using HIGH and LOW for Candlesticks
+                        min_val = df_chart[['Low', 'VWAP', 'EMA_10']].min().min()
+                        max_val = df_chart[['High', 'VWAP', 'EMA_10']].max().max()
                         y_padding = (max_val - min_val) * 0.1
                         if y_padding == 0: y_padding = min_val * 0.005 
                         
                         fig = go.Figure()
                         
-                        # Main Price Area Chart
-                        fig.add_trace(go.Scatter(
-                            x=df_chart.index, y=df_chart['Close'], mode='lines', 
-                            line=dict(color=color_hex, width=2), fill='tozeroy', fillcolor=fill_color
+                        # 🔥 MAIN CANDLESTICK TRACE 🔥
+                        fig.add_trace(go.Candlestick(
+                            x=df_chart.index,
+                            open=df_chart['Open'],
+                            high=df_chart['High'],
+                            low=df_chart['Low'],
+                            close=df_chart['Close'],
+                            increasing_line_color='#2ea043', # Green candles
+                            decreasing_line_color='#da3633', # Red candles
+                            name='Price'
                         ))
                         
                         # VWAP Line (Yellow, Dotted)
@@ -297,7 +302,8 @@ if not df.empty:
                             height=150, 
                             paper_bgcolor='rgba(0,0,0,0)', 
                             plot_bgcolor='rgba(0,0,0,0)',
-                            xaxis=dict(visible=False), 
+                            # Rangeslider MUST be disabled for mini candlestick charts
+                            xaxis=dict(visible=False, rangeslider=dict(visible=False)), 
                             yaxis=dict(visible=False, range=[min_val - y_padding, max_val + y_padding]), 
                             hovermode=False,
                             showlegend=False
