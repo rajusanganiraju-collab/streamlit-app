@@ -47,7 +47,6 @@ st.markdown("""
     /* Colors */
     .bull-card { background-color: #1e5f29 !important; } /* Dark Green */
     .bear-card { background-color: #b52524 !important; } /* Dark Red */
-    .neut-card { background-color: #30363d !important; } /* Grey */
     
     /* Fonts inside the box */
     .t-name { font-size: 13px; font-weight: 800; margin-bottom: 2px; }
@@ -117,14 +116,11 @@ def get_minutes_passed():
 
 @st.cache_data(ttl=60)
 def fetch_all_data():
-    # Merge all unique stocks
     all_stocks = set(NIFTY_50 + BROADER_MARKET)
     for stocks in SECTOR_MAP.values():
         all_stocks.update(stocks)
     
     tkrs = [f"{t}.NS" for t in all_stocks]
-    
-    # 🔥 FIX: Removed interval="1m" and used period="5d" exactly like mobile1.py 🔥
     data = yf.download(tkrs, period="5d", progress=False, group_by='ticker', threads=False)
     
     results = []
@@ -135,7 +131,6 @@ def fetch_all_data():
             df = data[symbol].dropna()
             if len(df) < 2: continue
             
-            # 🔥 EXACT PRICE LOGIC FROM MOBILE1.PY 🔥
             ltp = float(df['Close'].iloc[-1])
             open_p = float(df['Open'].iloc[-1])
             prev_c = float(df['Close'].iloc[-2])
@@ -150,7 +145,6 @@ def fetch_all_data():
             vol_x = round(curr_vol / ((avg_vol/375) * minutes), 1) if avg_vol > 0 else 0.0
             vwap = (high + low + ltp) / 3
             
-            # --- EXACT SCORE LOGIC FROM MOBILE1.PY ---
             score = 0
             is_open_low = abs(open_p - low) <= (ltp * 0.003)
             is_open_high = abs(open_p - high) <= (ltp * 0.003)
@@ -183,14 +177,17 @@ df = fetch_all_data()
 
 if not df.empty:
     
-    # 🔥 DYNAMIC FILTERING 🔥
+    # 🌟 NEW LOGIC: Is_Green column added to group Greens first and Reds next
+    df['Is_Green'] = df['C'] >= 0
+    
     if watchlist_mode == "Nifty 50 Heatmap":
-        # Nifty 50 only, sorted from High Green to Low Red
+        # Nifty 50 strictly by Percentage (High Green to Low Red)
         df_display = df[df['T'].isin(NIFTY_50)].sort_values(by="C", ascending=False)
         st.markdown("### Nifty 50 Stocks")
     else:
-        # ALL STOCKS, filtered by Score >= 4
-        df_display = df[df['S'] >= 4].sort_values(by=["S", "C"], ascending=[False, False])
+        # 🌟 HIGH SCORE LOGIC: Sort by Score -> Then Is_Green -> Then Percentage
+        # This guarantees: Score 10 Greens -> Score 10 Reds -> Score 9 Greens -> Score 9 Reds...
+        df_display = df[df['S'] >= 4].sort_values(by=["S", "Is_Green", "C"], ascending=[False, False, False])
         st.markdown("### 🔥 High Score Stocks (Across All Sectors)")
 
     if view_mode == "Heat Map":
@@ -206,7 +203,7 @@ if not df.empty:
         st.markdown(html, unsafe_allow_html=True)
         
     else:
-        # === MINI CHARTS ===
+        # === MINI CHARTS (Fixed TradingView Apple Error by using safe widget) ===
         st.markdown("<br>", unsafe_allow_html=True)
         cols = st.columns(3) 
         
@@ -217,26 +214,48 @@ if not df.empty:
                 color = "#2ea043" if row['C'] >= 0 else "#da3633"
                 st.markdown(f"<div style='text-align:center; font-weight:bold; font-size:15px; margin-bottom:4px;'>{row['T']} <span style='color:{color}'>({row['C']:.2f}%)</span></div>", unsafe_allow_html=True)
                 
-                # Using BSE: to bypass TradingView NSE restrictions on widgets
+                # Using 'Symbol Overview' Widget and 'BSE:' which avoids NSE embedding restrictions
                 chart_code = f"""
                 <div class="tradingview-widget-container" style="border:1px solid #30363d; border-radius:6px; overflow:hidden; background:#000;">
-                  <div id="tv_{row['T']}" style="height:200px;"></div>
-                  <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
-                  <script type="text/javascript">
-                  new TradingView.widget({{
-                    "autosize": true,
-                    "symbol": "BSE:{row['T']}",
-                    "interval": "5",
-                    "timezone": "Asia/Kolkata",
-                    "theme": "dark",
-                    "style": "3",
+                  <div class="tradingview-widget-container__widget"></div>
+                  <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js" async>
+                  {{
+                    "symbols": [
+                      [
+                        "BSE:{row['T']}|1D"
+                      ]
+                    ],
+                    "chartOnly": true,
+                    "width": "100%",
+                    "height": "200",
                     "locale": "in",
-                    "enable_publishing": false,
-                    "hide_top_toolbar": true,
-                    "hide_legend": true,
-                    "save_image": false,
-                    "container_id": "tv_{row['T']}"
-                  }});
+                    "colorTheme": "dark",
+                    "autosize": false,
+                    "showVolume": false,
+                    "showMA": false,
+                    "hideDateRanges": false,
+                    "hideMarketStatus": true,
+                    "hideSymbolLogo": true,
+                    "scalePosition": "right",
+                    "scaleMode": "Normal",
+                    "fontFamily": "-apple-system, BlinkMacSystemFont, Trebuchet MS, Roboto, Ubuntu, sans-serif",
+                    "fontSize": "10",
+                    "noTimeScale": false,
+                    "valuesTracking": "1",
+                    "changeMode": "price-and-percent",
+                    "chartType": "area",
+                    "lineWidth": 2,
+                    "lineType": 0,
+                    "dateRanges": [
+                      "1d|1",
+                      "1w|15",
+                      "1m|30",
+                      "3m|60",
+                      "12m|1D",
+                      "60m|1W",
+                      "all|1M"
+                    ]
+                  }}
                   </script>
                 </div>
                 <br>
