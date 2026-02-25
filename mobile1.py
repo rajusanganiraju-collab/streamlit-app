@@ -10,7 +10,7 @@ st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
 
-# పైన స్పేస్, టేబుల్ హెడ్డింగ్స్ సమానంగా ఉండటానికి మరియు ఆటో అడ్జస్ట్ కోసం CSS
+# --- CSS FOR RESPONSIVE TABLES ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -20,34 +20,53 @@ st.markdown("""
     .stApp { background-color: #ffffff; color: #000000; }
     html, body, [class*="css"] { font-family: 'Arial', sans-serif; font-weight: 600; color: #000000 !important; }
     
-    /* Top Space Reduction to Zero */
+    /* Top Space Reduction */
     .block-container { padding-top: 0.5rem !important; padding-bottom: 0rem !important; padding-left: 0.5rem !important; padding-right: 0.5rem !important; margin-top: -10px; }
     
-    /* Table Styling - Centered */
+    /* Table Default Styling */
     th { background-color: #ffffff !important; color: #000000 !important; font-size: 14px !important; text-align: center !important; border-bottom: 2px solid #222222 !important; border-top: 2px solid #222222 !important; padding: 6px !important; }
     td { font-size: 14px !important; color: #000000 !important; border-bottom: 1px solid #ccc !important; text-align: center !important; padding: 4px !important; font-weight: 700 !important; }
+    table { width: 100% !important; }
+    div[data-testid="stDataFrame"] { margin-bottom: -15px !important; width: 100% !important; }
     
-    /* UNIFIED TABLE HEADINGS (All Equal Size & Font) */
+    /* UNIFIED TABLE HEADINGS */
     .table-head { padding: 6px 10px; font-weight: 900; font-size: 15px; text-transform: uppercase; margin-top: 8px; margin-bottom: 2px; border-radius: 4px; text-align: left; }
     .head-bull { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
     .head-bear { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
     .head-neut { background: #e2e3e5; color: #383d41; border: 1px solid #d6d8db; }
     
-    div[data-testid="stDataFrame"] { margin-bottom: -15px !important; }
-
-    /* --- RESPONSIVE COLUMNS (Auto Adjust Full Width) --- */
-    @media (max-width: 1024px) {
+    /* ---------------------------------------------------- */
+    /* RESPONSIVE DESIGN (Desktop Split Screen vs Mobile)   */
+    /* ---------------------------------------------------- */
+    
+    /* 1. Desktop & Tablet (Screen > 550px) - FORCE SIDE-BY-SIDE */
+    @media screen and (min-width: 551px) {
         div[data-testid="stHorizontalBlock"] {
-            flex-direction: column !important;
-            width: 100% !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important; /* Forces columns to stay side-by-side */
+        }
+        div[data-testid="column"] {
+            min-width: 0 !important; /* Allows columns to shrink so they fit inside screen */
+        }
+    }
+
+    /* 2. Desktop Split Screen (551px to 1200px) - SHRINK FONTS TO FIT ALL COLUMNS */
+    @media screen and (min-width: 551px) and (max-width: 1200px) {
+        th, td { font-size: 11px !important; padding: 3px 1px !important; }
+        .table-head { font-size: 13px !important; padding: 5px !important; }
+    }
+
+    /* 3. Mobile Phones (Screen < 550px) - FORCE STACKED (ONE BELOW OTHER) */
+    @media screen and (max-width: 550px) {
+        div[data-testid="stHorizontalBlock"] {
+            flex-direction: column !important; /* Forces columns one below the other */
         }
         div[data-testid="column"] {
             width: 100% !important;
-            min-width: 100% !important;
             max-width: 100% !important;
-            flex: 1 1 100% !important; /* <--- ఇది టేబుల్ ని స్క్రీన్ నిండుగా లాగుతుంది */
-            margin-bottom: 10px !important;
+            margin-bottom: 15px !important;
         }
+        th, td { font-size: 12px !important; padding: 3px !important; }
     }
     </style>
     """, unsafe_allow_html=True)
