@@ -10,7 +10,7 @@ st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
 
-# --- CSS FOR PERFECT RESPONSIVE LAYOUT ---
+# --- CSS FOR PERFECT RESPONSIVE LAYOUT & FULL WIDTH TABLES ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -29,8 +29,16 @@ st.markdown("""
     .head-bear { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; border-bottom: none; }
     .head-neut { background: #e2e3e5; color: #383d41; border: 1px solid #d6d8db; border-bottom: none; }
     
+    /* THE FIX FOR FULL WIDTH TABLES */
+    .custom-table {
+        width: 100% !important;
+        min-width: 100% !important;
+        display: table !important;
+        table-layout: auto !important;
+    }
+    
     /* ----------------------------------------------------
-       THE ULTIMATE FIX FOR MOBILE & DESKTOP SPLIT SCREEN
+       THE FIX FOR MOBILE & DESKTOP SPLIT SCREEN
        ---------------------------------------------------- */
     @media screen and (max-width: 1200px) {
         div[data-testid="stHorizontalBlock"] {
@@ -152,10 +160,10 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         }
     except: return None
 
-# --- HTML TABLE GENERATORS (Replacing Streamlit DataFrames) ---
+# --- HTML TABLE GENERATORS WITH FULL WIDTH FIX ---
 def render_html_table(df):
     if df.empty: return ""
-    html = '<table style="width:100%; border-collapse: collapse; font-size: 11px; text-align: center; margin-bottom: 15px; font-family: Arial, sans-serif;">'
+    html = '<table class="custom-table" style="border-collapse: collapse; font-size: 11px; text-align: center; margin-bottom: 15px; font-family: Arial, sans-serif;">'
     
     # Headers
     html += '<thead><tr style="border-bottom: 2px solid #222; border-top: 2px solid #222; background-color: #fff;">'
@@ -202,7 +210,7 @@ def render_html_table(df):
 
 def render_sector_table(df):
     if df.empty: return ""
-    html = '<table style="width:100%; border-collapse: collapse; font-size: 12px; text-align: center; margin-bottom: 15px; font-family: Arial, sans-serif;">'
+    html = '<table class="custom-table" style="border-collapse: collapse; font-size: 12px; text-align: center; margin-bottom: 15px; font-family: Arial, sans-serif;">'
     html += '<thead><tr style="border-bottom: 2px solid #222; border-top: 2px solid #222; background-color: #fff;">'
     html += '<th style="padding: 6px; color: #000;"></th>'
     for col in df.columns: html += f'<th style="padding: 6px 2px; font-weight: 900; color: #000;">{col}</th>'
