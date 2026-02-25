@@ -10,7 +10,7 @@ st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
 
-# --- CSS FOR RESPONSIVE TABLES & ZOOM FIX ---
+# --- CSS FOR RESPONSIVE TABLES ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -24,60 +24,36 @@ st.markdown("""
     .block-container { padding-top: 0.5rem !important; padding-bottom: 0rem !important; padding-left: 0.5rem !important; padding-right: 0.5rem !important; margin-top: -10px; }
     
     /* UNIFIED TABLE HEADINGS */
-    .table-head { padding: 6px 10px; font-weight: 900; font-size: 15px; text-transform: uppercase; margin-top: 8px; margin-bottom: 2px; border-radius: 4px; text-align: left; }
+    .table-head { padding: 6px 10px; font-weight: 900; font-size: 15px; text-transform: uppercase; margin-top: 8px; margin-bottom: 2px; border-radius: 4px; text-align: left; display: block; width: 100%; }
     .head-bull { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
     .head-bear { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
     .head-neut { background: #e2e3e5; color: #383d41; border: 1px solid #d6d8db; }
     
-    div[data-testid="stDataFrame"] { margin-bottom: -15px !important; }
+    div[data-testid="stDataFrame"] { margin-bottom: -15px !important; width: 100% !important; }
 
     /* ---------------------------------------------------- */
-    /* RESPONSIVE DESIGN (Fix for Columns & Stacking)       */
+    /* THE REAL FIX FOR MOBILE & SPLIT SCREEN               */
     /* ---------------------------------------------------- */
     
-    /* 1. MOBILE (Below 768px) - FORCE STACKED (ONE BELOW ANOTHER) */
-    @media (max-width: 768px) {
+    /* స్క్రీన్ సైజు 1100px కంటే తగ్గితే (మొబైల్, ట్యాబ్లెట్, డెస్క్‌టాప్ హాఫ్ స్క్రీన్) */
+    @media screen and (max-width: 1100px) {
+        /* కాలమ్స్ పక్కపక్కన రాకుండా కట్ చేసి ఒకదాని కింద ఒకటి వచ్చేలా చేస్తుంది */
         div[data-testid="stHorizontalBlock"] {
+            flex-wrap: wrap !important;
             flex-direction: column !important;
         }
+        
+        /* ప్రతి టేబుల్ కి స్క్రీన్ నిండుగా (100% width) దొరికేలా చేస్తుంది, కాబట్టి కాలమ్స్ దాక్కోవు */
         div[data-testid="column"] {
             width: 100% !important;
             max-width: 100% !important;
             min-width: 100% !important;
-            display: block !important;
-            margin-bottom: 15px !important;
-        }
-        /* Zoom out slightly so all columns fit, but stretch width to exactly match heading */
-        div[data-testid="stDataFrame"] {
-            zoom: 0.8; 
-            width: 125% !important; /* 100 / 0.8 = 125% */
-        }
-    }
-
-    /* 2. DESKTOP SPLIT SCREEN (769px to 1200px) - FORCE SIDE BY SIDE */
-    @media (min-width: 769px) and (max-width: 1200px) {
-        div[data-testid="stHorizontalBlock"] {
-            flex-wrap: nowrap !important;
-        }
-        div[data-testid="column"] {
-            min-width: 0 !important; /* Allows columns to shrink */
-        }
-        /* Zoom out heavily to fit all columns, stretch width to exactly match heading */
-        div[data-testid="stDataFrame"] {
-            zoom: 0.7; 
-            width: 142.8% !important; /* 100 / 0.7 = 142.8% */
-        }
-    }
-
-    /* 3. WIDE DESKTOP (Above 1200px) - NORMAL SIDE BY SIDE */
-    @media (min-width: 1201px) {
-        div[data-testid="stDataFrame"] {
-            zoom: 1.0; 
-            width: 100% !important;
+            flex: 1 1 100% !important;
+            margin-bottom: 20px !important;
         }
     }
     </style>
-    """, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
 # --- 3. DATA CONFIGURATION ---
 def format_ticker(t):
