@@ -195,7 +195,6 @@ if not df.empty:
         st.markdown("### Nifty 50 Stocks")
     
     else:
-        # PERFECT SORTING LOGIC FOR HIGH SCORE
         df_filtered = df[df['S'] >= 4]
         greens = df_filtered[df_filtered['C'] > 0].sort_values(by=["S", "C"], ascending=[False, False])
         neuts = df_filtered[df_filtered['C'] == 0].sort_values(by="S", ascending=False)
@@ -204,7 +203,6 @@ if not df.empty:
         st.markdown("### 🔥 High Score Stocks (Across All Sectors)")
 
     if view_mode == "Heat Map":
-        # === HEAT MAP GRID ===
         html = '<div class="heatmap-grid">'
         for _, row in df_display.iterrows():
             bg = "bull-card" if row['C'] > 0 else ("bear-card" if row['C'] < 0 else "neut-card")
@@ -216,16 +214,13 @@ if not df.empty:
         st.markdown(html, unsafe_allow_html=True)
         
     else:
-        # === NATIVE PLOTLY MINI CHARTS (SMART DATE FILTERING) ===
         st.markdown("<br>", unsafe_allow_html=True)
         cols = st.columns(3) 
         
-        # Get top 30 tickers for charts
         top_tickers = df_display.head(30)['T'].tolist()
         fetch_tickers = [f"{t}.NS" for t in top_tickers]
         
-        with st.spinner("Loading 5-Min Charts (Latest Available Session)..."):
-            # 🔥 FIX: Changed from "1d" to "5d" so we always have data even if market is closed today 🔥
+        with st.spinner("Loading Today's 5-Min Charts..."):
             chart_data = yf.download(fetch_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=True)
         
         for idx, row in df_display.head(30).iterrows():
@@ -241,7 +236,6 @@ if not df.empty:
                 st.markdown(f"<div style='text-align:center; font-weight:bold; font-size:16px; margin-bottom:5px;'>{ticker} <span style='color:{color_hex}'>({sign}{row['C']:.2f}%)</span></div>", unsafe_allow_html=True)
                 
                 try:
-                    # Plotly Native Chart Generation
                     if len(fetch_tickers) == 1:
                         df_chart = chart_data.copy()
                     else:
@@ -250,10 +244,16 @@ if not df.empty:
                     df_chart = df_chart.dropna()
                     
                     if not df_chart.empty:
-                        # 🔥 NEW LOGIC: Get only the LAST available trading day's data 🔥
                         df_chart.index = pd.to_datetime(df_chart.index)
                         last_trading_date = df_chart.index.date.max()
                         df_chart = df_chart[df_chart.index.date == last_trading_date]
+                        
+                        # 🔥 THE MAGIC FIX: FORCE Y-AXIS ZOOM 🔥
+                        # This tells the chart to NOT start from zero, but exactly from the lowest to highest price of the day
+                        min_val = df_chart['Close'].min()
+                        max_val = df_chart['Close'].max()
+                        y_padding = (max_val - min_val) * 0.1
+                        if y_padding == 0: y_padding = min_val * 0.005 # Fallback if price is totally flat
                         
                         fig = go.Figure()
                         fig.add_trace(go.Scatter(
@@ -270,8 +270,9 @@ if not df.empty:
                             paper_bgcolor='rgba(0,0,0,0)', 
                             plot_bgcolor='rgba(0,0,0,0)',
                             xaxis=dict(visible=False), 
-                            yaxis=dict(visible=False),
-                            hovermode=False
+                            yaxis=dict(visible=False, range=[min_val - y_padding, max_val + y_padding]), # Here is the magic zoom!
+                            hovermode=False,
+                            showlegend=False
                         )
                         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
                     else:
