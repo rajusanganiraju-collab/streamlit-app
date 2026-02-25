@@ -32,7 +32,7 @@ st.markdown("""
     div[data-testid="stDataFrame"] { margin-bottom: -15px !important; }
 
     /* ---------------------------------------------------- */
-    /* RESPONSIVE DESIGN (Fix for Columns cutting off)      */
+    /* RESPONSIVE DESIGN (Fix for Columns & Stacking)       */
     /* ---------------------------------------------------- */
     
     /* 1. MOBILE (Below 768px) - FORCE STACKED (ONE BELOW ANOTHER) */
@@ -47,46 +47,33 @@ st.markdown("""
             display: block !important;
             margin-bottom: 15px !important;
         }
-        /* Mobile లో అన్ని కాలమ్స్ పట్టడానికి Table Zoom Out అవుతుంది */
+        /* Zoom out slightly so all columns fit, but stretch width to exactly match heading */
         div[data-testid="stDataFrame"] {
-            zoom: 0.65; 
+            zoom: 0.8; 
+            width: 125% !important; /* 100 / 0.8 = 125% */
         }
     }
 
     /* 2. DESKTOP SPLIT SCREEN (769px to 1200px) - FORCE SIDE BY SIDE */
     @media (min-width: 769px) and (max-width: 1200px) {
         div[data-testid="stHorizontalBlock"] {
-            flex-direction: row !important;
             flex-wrap: nowrap !important;
         }
         div[data-testid="column"] {
-            width: 50% !important;
-            max-width: 50% !important;
-            min-width: 50% !important;
-            flex: 1 1 50% !important;
-            display: block !important;
+            min-width: 0 !important; /* Allows columns to shrink */
         }
-        /* Split చేసినప్పుడు కాలమ్స్ కట్ అవ్వకుండా Table Zoom Out అవుతుంది */
+        /* Zoom out heavily to fit all columns, stretch width to exactly match heading */
         div[data-testid="stDataFrame"] {
-            zoom: 0.75; 
+            zoom: 0.7; 
+            width: 142.8% !important; /* 100 / 0.7 = 142.8% */
         }
     }
 
     /* 3. WIDE DESKTOP (Above 1200px) - NORMAL SIDE BY SIDE */
     @media (min-width: 1201px) {
-        div[data-testid="stHorizontalBlock"] {
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-        }
-        div[data-testid="column"] {
-            width: 50% !important;
-            max-width: 50% !important;
-            min-width: 50% !important;
-            flex: 1 1 50% !important;
-            display: block !important;
-        }
         div[data-testid="stDataFrame"] {
             zoom: 1.0; 
+            width: 100% !important;
         }
     }
     </style>
