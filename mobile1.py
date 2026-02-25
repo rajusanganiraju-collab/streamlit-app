@@ -10,7 +10,7 @@ st.set_page_config(page_title="Terminal", page_icon="📈", layout="wide")
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
 
-# పైన స్పేస్, టేబుల్ హెడ్డింగ్స్ సమానంగా ఉండటానికి CSS
+# పైన స్పేస్, టేబుల్ హెడ్డింగ్స్ సమానంగా ఉండటానికి CSS (Auto Adjust కోసం కొత్త కమాండ్స్ యాడ్ చేశాను)
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -34,6 +34,20 @@ st.markdown("""
     .head-neut { background: #e2e3e5; color: #383d41; border: 1px solid #d6d8db; }
     
     div[data-testid="stDataFrame"] { margin-bottom: -15px !important; }
+
+    /* --- RESPONSIVE COLUMNS (Auto Adjust) --- */
+    /* Screen సైజు 1024px కంటే తగ్గితే కాలమ్స్ ఒకదాని కింద ఒకటి వస్తాయి */
+    @media (max-width: 1024px) {
+        div[data-testid="stHorizontalBlock"] {
+            flex-direction: column !important;
+        }
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+            width: 100% !important;
+            min-width: 100% !important;
+            max-width: 100% !important;
+            margin-bottom: 15px !important;
+        }
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -184,7 +198,7 @@ def style_sector_ranks(val):
 tv_link_config = {"STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)")}
 
 # -------------------------------------------------------------
-# 5. NEW: SEARCH BAR FEATURE (Added at the TOP)
+# 5. SEARCH BAR FEATURE
 # -------------------------------------------------------------
 search_query = st.text_input("🔍 సెర్చ్ స్టాక్ (ఉదాహరణకు: RELIANCE, ZOMATO, IDEA):", "").strip().upper()
 
@@ -239,7 +253,7 @@ loading_msg.empty()
 
 if data is not None and not data.empty:
     
-    # DASHBOARD - 80% & 20% Layout
+    # DASHBOARD
     dash_left, dash_right = st.columns([0.8, 0.2]) 
     nifty_chg = 0.0
     
