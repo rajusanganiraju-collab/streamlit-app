@@ -10,7 +10,7 @@ st.set_page_config(page_title="Market Heatmap", page_icon="📊", layout="wide")
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
 
-# --- 3. CSS FOR EXACT 10-COLUMN HEATMAP (Like your screenshot) ---
+# --- 3. CSS FOR EXACT 10-COLUMN HEATMAP ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
@@ -22,12 +22,12 @@ st.markdown("""
     /* Responsive Grid: EXACTLY 10 COLUMNS ON DESKTOP */
     .heatmap-grid {
         display: grid;
-        grid-template-columns: repeat(10, 1fr); /* 10 PER ROW */
+        grid-template-columns: repeat(10, 1fr);
         gap: 8px;
         padding: 10px 0;
     }
     
-    /* Box Styling - Matching your exact design */
+    /* Box Styling */
     .stock-card {
         border-radius: 4px;
         padding: 8px 4px;
@@ -44,7 +44,7 @@ st.markdown("""
     }
     .stock-card:hover { transform: scale(1.05); z-index: 10; box-shadow: 0 4px 8px rgba(0,0,0,0.5); }
     
-    /* EXACT Colors from your screenshot */
+    /* Colors */
     .bull-card { background-color: #1e5f29 !important; } /* Dark Green */
     .bear-card { background-color: #b52524 !important; } /* Dark Red */
     .neut-card { background-color: #30363d !important; } /* Grey */
@@ -77,7 +77,37 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 4. DATA FETCH & SCORE LOGIC ---
+# --- 4. STOCK LISTS FROM YOUR MOBILE1.PY ---
+NIFTY_50 = [
+    "ADANIENT", "ADANIPORTS", "APOLLOHOSP", "ASIANPAINT", "AXISBANK", "BAJAJ-AUTO", "BAJFINANCE", 
+    "BAJAJFINSV", "BEL", "BHARTIARTL", "BRITANNIA", "CIPLA", "COALINDIA", "DIVISLAB", "DRREDDY", 
+    "EICHERMOT", "GRASIM", "HCLTECH", "HDFCBANK", "HDFCLIFE", "HEROMOTOCO", "HINDALCO", "HINDUNILVR", 
+    "ICICIBANK", "INDIGO", "INFY", "ITC", "JSWSTEEL", "KOTAKBANK", "LT", "M&M", "MARUTI", "NESTLEIND", 
+    "NTPC", "ONGC", "POWERGRID", "RELIANCE", "SBILIFE", "SBIN", "SHRIRAMFIN", "SUNPHARMA", "TATACONSUM", 
+    "TATAMOTORS", "TATASTEEL", "TCS", "TECHM", "TITAN", "TRENT", "ULTRACEMCO", "WIPRO"
+]
+
+SECTOR_MAP = {
+    "BANK": ["HDFCBANK", "ICICIBANK", "SBIN", "AXISBANK", "KOTAKBANK", "INDUSINDBK", "BANKBARODA", "PNB"],
+    "IT": ["TCS", "INFY", "HCLTECH", "WIPRO", "TECHM", "LTIM", "PERSISTENT", "COFORGE"],
+    "AUTO": ["MARUTI", "M&M", "EICHERMOT", "BAJAJ-AUTO", "TVSMOTOR", "ASHOKLEY", "HEROMOTOCO"],
+    "METAL": ["TATASTEEL", "JSWSTEEL", "HINDALCO", "VEDL", "JINDALSTEL", "NMDC", "SAIL"],
+    "PHARMA": ["SUNPHARMA", "DRREDDY", "CIPLA", "DIVISLAB", "LUPIN", "AUROPHARMA"],
+    "FMCG": ["ITC", "HINDUNILVR", "BRITANNIA", "VBL", "NESTLEIND"],
+    "ENERGY": ["RELIANCE", "NTPC", "ONGC", "POWERGRID", "BPCL", "TATAPOWER"],
+    "REALTY": ["DLF", "GODREJPROP", "LODHA", "OBEROIRLTY"]
+}
+
+BROADER_MARKET = [
+    "HAL", "BEL", "BDL", "MAZDOCK", "COCHINSHIP", "GRSE", "RVNL", "IRFC", "IRCON", "TITAGARH", "RAILTEL", "RITES",
+    "ADANIPOWER", "ADANIGREEN", "NHPC", "SJVN", "BHEL", "CGPOWER", "SUZLON", "PFC", "RECLTD", "IREDA", "IOB", "UCOBANK", "MAHABANK", "CANBK",
+    "BAJFINANCE", "CHOLAFIN", "JIOFIN", "MUTHOOTFIN", "MANAPPURAM", "SHRIRAMFIN", "M&MFIN", "DIXON", "POLYCAB", "KAYNES", "HAVELLS", "KEI", "RRKABEL",
+    "SRF", "TATACHEM", "DEEPAKNTR", "AARTIIND", "PIIND", "FACT", "UPL", "ULTRACEMCO", "AMBUJACEM", "SHREECEM", "DALBHARAT", "L&T", "CUMMINSIND", "ABB", "SIEMENS",
+    "BHARTIARTL", "IDEA", "INDIGO", "ZOMATO", "TRENT", "DMART", "PAYTM", "ZENTEC", "ADANIENT", "ADANIPORTS", "ATGL", "AWL",
+    "BOSCHLTD", "MRF", "MOTHERSON", "SONACOMS", "EXIDEIND", "AMARAJABAT"
+]
+
+# --- 5. DATA FETCH & SCORE LOGIC ---
 def get_minutes_passed():
     now = datetime.now()
     if now.weekday() >= 5 or now.time() > dt_time(15, 30): return 375
@@ -86,17 +116,13 @@ def get_minutes_passed():
     return min(375, max(1, int(diff)))
 
 @st.cache_data(ttl=60)
-def fetch_data():
-    # 🔥 FULL NIFTY 50 LIST 🔥
-    nifty50 = [
-        "ADANIENT", "ADANIPORTS", "APOLLOHOSP", "ASIANPAINT", "AXISBANK", "BAJAJ-AUTO", "BAJFINANCE", 
-        "BAJAJFINSV", "BEL", "BHARTIARTL", "BRITANNIA", "CIPLA", "COALINDIA", "DIVISLAB", "DRREDDY", 
-        "EICHERMOT", "GRASIM", "HCLTECH", "HDFCBANK", "HDFCLIFE", "HEROMOTOCO", "HINDALCO", "HINDUNILVR", 
-        "ICICIBANK", "INDIGO", "INFY", "ITC", "JSWSTEEL", "KOTAKBANK", "LT", "M&M", "MARUTI", "NESTLEIND", 
-        "NTPC", "ONGC", "POWERGRID", "RELIANCE", "SBILIFE", "SBIN", "SHRIRAMFIN", "SUNPHARMA", "TATACONSUM", 
-        "TATAMOTORS", "TATASTEEL", "TCS", "TECHM", "TITAN", "TRENT", "ULTRACEMCO", "WIPRO"
-    ]
-    tkrs = [f"{t}.NS" for t in nifty50]
+def fetch_all_data():
+    # Merge all unique stocks to download everything at once
+    all_stocks = set(NIFTY_50 + BROADER_MARKET)
+    for stocks in SECTOR_MAP.values():
+        all_stocks.update(stocks)
+    
+    tkrs = [f"{t}.NS" for t in all_stocks]
     data = yf.download(tkrs, period="2d", interval="1m", progress=False, group_by='ticker', threads=False)
     
     results = []
@@ -119,12 +145,18 @@ def fetch_data():
             avg_vol = df['Volume'].iloc[:-1].mean()
             curr_vol = float(df['Volume'].iloc[-1])
             vol_x = round(curr_vol / ((avg_vol/375) * minutes), 1) if avg_vol > 0 else 0.0
+            vwap = (high + low + ltp) / 3
             
-            # --- SCORE LOGIC ---
+            # --- EXACT SCORE LOGIC FROM MOBILE1.PY ---
             score = 0
-            if abs(day_chg) >= 2.0: score += 3 
-            if abs(open_p - low) <= (ltp * 0.003) or abs(open_p - high) <= (ltp * 0.003): score += 3 
-            if vol_x > 1.2: score += 4 
+            is_open_low = abs(open_p - low) <= (ltp * 0.003)
+            is_open_high = abs(open_p - high) <= (ltp * 0.003)
+            
+            if day_chg >= 2.0 or day_chg <= -2.0: score += 3 
+            if is_open_low or is_open_high: score += 3 
+            if vol_x > 1.0: score += 3 
+            if (ltp >= high * 0.998 and day_chg > 0.5) or (ltp <= low * 1.002 and day_chg < -0.5): score += 1
+            if (ltp > (low * 1.01) and ltp > vwap) or (ltp < (high * 0.99) and ltp < vwap): score += 1
             
             results.append({
                 "T": symbol.replace(".NS", ""), "P": ltp, "C": net_chg, "S": score
@@ -133,30 +165,30 @@ def fetch_data():
         
     return pd.DataFrame(results)
 
-# --- 5. TOP NAVIGATION ---
+# --- 6. TOP NAVIGATION ---
 st.markdown("<div style='background-color:#161b22; padding:10px; border-radius:8px; margin-bottom:15px; border: 1px solid #30363d;'>", unsafe_allow_html=True)
 c1, c2 = st.columns([0.6, 0.4])
 
 with c1:
-    watchlist_mode = st.selectbox("Watchlist", ["Nifty 50 Heatmap", "High Score Stocks 🔥"], label_visibility="collapsed")
+    watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Nifty 50 Heatmap"], label_visibility="collapsed")
 with c2:
     view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
 st.markdown("</div>", unsafe_allow_html=True)
 
-# --- 6. RENDER LOGIC ---
-df = fetch_data()
+# --- 7. RENDER LOGIC ---
+df = fetch_all_data()
 
 if not df.empty:
     
-    # 🔥 DYNAMIC SORTING BASED ON DROPDOWN SELECTION 🔥
+    # 🔥 DYNAMIC FILTERING 🔥
     if watchlist_mode == "Nifty 50 Heatmap":
-        # Sort strictly by % Change (High Green to Low Red)
-        df_display = df.sort_values(by="C", ascending=False)
+        # Nifty 50 only, sorted from High Green to Low Red
+        df_display = df[df['T'].isin(NIFTY_50)].sort_values(by="C", ascending=False)
         st.markdown("### Nifty 50 Stocks")
     else:
-        # Sort by Score for "High Score Stocks"
-        df_display = df[df['S'] > 0].sort_values(by=["S", "C"], ascending=[False, False])
-        st.markdown("### 🔥 High Score Stocks")
+        # ALL STOCKS (mobile1 universe), filtered by Score >= 4
+        df_display = df[df['S'] >= 4].sort_values(by=["S", "C"], ascending=[False, False])
+        st.markdown("### 🔥 High Score Stocks (Across All Sectors)")
 
     if view_mode == "Heat Map":
         # === HEAT MAP GRID ===
@@ -171,7 +203,7 @@ if not df.empty:
         st.markdown(html, unsafe_allow_html=True)
         
     else:
-        # === MINI CHARTS (Fixed TradingView Error by using BSE) ===
+        # === MINI CHARTS ===
         st.markdown("<br>", unsafe_allow_html=True)
         cols = st.columns(3) 
         
@@ -184,9 +216,25 @@ if not df.empty:
                 
                 # Using BSE: to bypass TradingView NSE restrictions on widgets
                 chart_code = f"""
-                <div style="border:1px solid #30363d; border-radius:6px; overflow:hidden; background:#000;">
-                    <iframe src="https://s.tradingview.com/widgetembed/?symbol=BSE%3A{row['T']}&interval=5&theme=dark&style=3&hidesidetoolbar=1&symboledit=0" 
-                    width="100%" height="200" frameborder="0" scrolling="no"></iframe>
+                <div class="tradingview-widget-container" style="border:1px solid #30363d; border-radius:6px; overflow:hidden; background:#000;">
+                  <div id="tv_{row['T']}" style="height:200px;"></div>
+                  <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+                  <script type="text/javascript">
+                  new TradingView.widget({{
+                    "autosize": true,
+                    "symbol": "BSE:{row['T']}",
+                    "interval": "5",
+                    "timezone": "Asia/Kolkata",
+                    "theme": "dark",
+                    "style": "3",
+                    "locale": "in",
+                    "enable_publishing": false,
+                    "hide_top_toolbar": true,
+                    "hide_legend": true,
+                    "save_image": false,
+                    "container_id": "tv_{row['T']}"
+                  }});
+                  </script>
                 </div>
                 <br>
                 """
