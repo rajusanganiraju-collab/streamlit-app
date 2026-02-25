@@ -49,10 +49,10 @@ st.markdown("""
     .bear-card { background-color: #b52524 !important; } /* Dark Red */
     .neut-card { background-color: #30363d !important; } /* Grey */
     
-    /* NORMAL TEXT FONTS */
-    .t-name { font-size: 13px; font-weight: 500; margin-bottom: 2px; }
-    .t-price { font-size: 17px; font-weight: 600; margin-bottom: 2px; }
-    .t-pct { font-size: 12px; font-weight: 500; }
+    /* 🔥 FONTS CHANGED TO NORMAL (No more bold text) 🔥 */
+    .t-name { font-size: 13px; font-weight: normal; margin-bottom: 2px; }
+    .t-price { font-size: 17px; font-weight: 500; margin-bottom: 2px; }
+    .t-pct { font-size: 12px; font-weight: normal; }
     
     /* Score Badge */
     .t-score { 
@@ -179,33 +179,34 @@ df = fetch_all_data()
 if not df.empty:
     
     if watchlist_mode == "Nifty 50 Heatmap":
-        # Nifty 50: ముందు ఆకుపచ్చ స్టాక్స్ అన్నీ.. ఆ తర్వాత ఎరుపు అన్నీ (High Green to Low Red)
-        df_filtered = df[df['T'].isin(NIFTY_50)]
-        greens = df_filtered[df_filtered['C'] >= 0].sort_values(by="C", ascending=False)
-        reds = df_filtered[df_filtered['C'] < 0].sort_values(by="C", ascending=False)
-        df_display = pd.concat([greens, reds])
+        # Nifty 50: ముందు ఆకుపచ్చ అన్నీ.. ఆ తర్వాత ఎరుపు అన్నీ (Highest to Lowest)
+        df_display = df[df['T'].isin(NIFTY_50)].sort_values(by="C", ascending=False)
         st.markdown("### Nifty 50 Stocks")
     
     else:
         # 🔥 PERFECT SORTING LOGIC FOR HIGH SCORE 🔥
         df_filtered = df[df['S'] >= 4]
         
-        # 1. GREEN STOCKS: High Score First -> High % Change First
-        greens = df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False])
+        # 1. GREEN STOCKS: ముందు స్కోర్ (High to Low), తర్వాత % (High to Low)
+        greens = df_filtered[df_filtered['C'] > 0].sort_values(by=["S", "C"], ascending=[False, False])
         
-        # 2. RED STOCKS: Low Score First -> High Score Last (This puts SBIN at the bottom!)
-        reds = df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[True, False])
+        # 2. NEUTRAL STOCKS: (0.00%)
+        neuts = df_filtered[df_filtered['C'] == 0].sort_values(by="S", ascending=False)
         
-        df_display = pd.concat([greens, reds])
+        # 3. RED STOCKS: ముందు స్కోర్ (Low to High), తర్వాత %.
+        # దీనివల్ల 10 స్కోర్ ఉన్న SBI లాంటి స్టాక్స్ కచ్చితంగా పేజీలో లాస్ట్ (అట్టడుగున) వస్తాయి!
+        reds = df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[True, True])
+        
+        # మూడింటిని కలపడం (Greens -> Neuts -> Reds)
+        df_display = pd.concat([greens, neuts, reds])
         st.markdown("### 🔥 High Score Stocks (Across All Sectors)")
-
 
     if view_mode == "Heat Map":
         # === HEAT MAP GRID ===
         html = '<div class="heatmap-grid">'
         for _, row in df_display.iterrows():
-            bg = "bull-card" if row['C'] >= 0 else "bear-card"
-            sign = "+" if row['C'] >= 0 else ""
+            bg = "bull-card" if row['C'] > 0 else ("bear-card" if row['C'] < 0 else "neut-card")
+            sign = "+" if row['C'] > 0 else ""
             
             html += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">⭐{row["S"]}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{sign}{row["C"]:.2f}%</div></a>'
             
@@ -213,7 +214,7 @@ if not df.empty:
         st.markdown(html, unsafe_allow_html=True)
         
     else:
-        # === MINI CHARTS (5 MINUTE, TODAY ONLY) ===
+        # === MINI CHARTS (FIXED TRADINGVIEW ERROR) ===
         st.markdown("<br>", unsafe_allow_html=True)
         cols = st.columns(3) 
         
@@ -223,11 +224,24 @@ if not df.empty:
                 color = "#2ea043" if row['C'] >= 0 else "#da3633"
                 st.markdown(f"<div style='text-align:center; font-weight:normal; font-size:15px; margin-bottom:4px;'>{row['T']} <span style='color:{color}'>({row['C']:.2f}%)</span></div>", unsafe_allow_html=True)
                 
-                # 🔥 DIRECT IFRAME: interval=5 (5 minutes), style=3 (Area chart) 🔥
+                # 🔥 TRADINGVIEW "MINI CHART" WIDGET (Always shows 1D Area Chart, NO ERRORS) 🔥
+                # We reverted back to NSE: because this widget doesn't block it like the advanced one!
                 chart_code = f"""
-                <div style="border:1px solid #30363d; border-radius:6px; overflow:hidden; background:#000;">
-                    <iframe src="https://s.tradingview.com/widgetembed/?symbol=BSE:{row['T']}&interval=5&theme=dark&style=3&hidesidetoolbar=1&hide_top_toolbar=1&symboledit=0&saveimage=0" 
-                    width="100%" height="220" frameborder="0" scrolling="no"></iframe>
+                <div class="tradingview-widget-container" style="border:1px solid #30363d; border-radius:6px; overflow:hidden; background:#000;">
+                  <div class="tradingview-widget-container__widget"></div>
+                  <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js" async>
+                  {{
+                    "symbol": "NSE:{row['T']}",
+                    "width": "100%",
+                    "height": "220",
+                    "locale": "in",
+                    "dateRange": "1D",
+                    "colorTheme": "dark",
+                    "isTransparent": true,
+                    "autosize": false,
+                    "largeChartUrl": ""
+                  }}
+                  </script>
                 </div>
                 <br>
                 """
