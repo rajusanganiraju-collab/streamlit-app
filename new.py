@@ -18,7 +18,7 @@ st.markdown("""
     .stApp { background-color: #0e1117; color: #ffffff; }
     .block-container { padding-top: 1rem !important; padding-bottom: 0rem !important; margin-top: -10px; }
     
-    .heatmap-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 8px; padding: 10px 0; }
+    .heatmap-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 8px; padding: 5px 0; }
     .stock-card { border-radius: 4px; padding: 8px 4px; text-align: center; text-decoration: none !important; color: white !important; display: flex; flex-direction: column; justify-content: center; height: 90px; position: relative; box-shadow: 0 1px 3px rgba(0,0,0,0.3); transition: transform 0.2s; }
     .stock-card:hover { transform: scale(1.05); z-index: 10; }
     
@@ -56,7 +56,7 @@ BROADER_MARKET = [
     "UCOBANK", "MAHABANK", "CANBK", "CHOLAFIN", "JIOFIN", "MUTHOOTFIN", "MANAPPURAM", "M&MFIN", "DIXON", 
     "POLYCAB", "KAYNES", "HAVELLS", "KEI", "RRKABEL", "SRF", "TATACHEM", "DEEPAKNTR", "AARTIIND", "PIIND", 
     "FACT", "UPL", "ZOMATO", "DMART", "PAYTM", "ZENTEC", "ATGL", "AWL", "BOSCHLTD", "MRF", "MOTHERSON", 
-    "SONACOMS", "EXIDEIND", "AMARAJABAT"
+    "SONACOMS", "EXIDEIND", "AMARAJABAT", "VEDL", "SAIL"
 ]
 
 def get_minutes_passed():
@@ -117,25 +117,26 @@ if not df.empty:
     with c1: watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Nifty 50 Heatmap"], label_visibility="collapsed")
     with c2: view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
 
+    # Order Indices strictly: NIFTY, BANKNIFTY, VIX
     df_idx = df[df['Is_Idx']].set_index('T').reindex(['NIFTY', 'BANKNIFTY', 'INDIA VIX']).reset_index()
     df_stk = df[~df['Is_Idx']].copy()
 
     if view_mode == "Heat Map":
-        # Indices Section
+        # Indices Row
         html_idx = '<div class="heatmap-grid">'
         for _, r in df_idx.iterrows():
             bg = "idx-card" if r['T'] != "INDIA VIX" else ("bear-card" if r['C']>=0 else "bull-card")
             html_idx += f'<a href="https://in.tradingview.com/chart/?symbol={TV_INDICES_URL[r["Fetch_T"]]}" target="_blank" class="stock-card {bg}"><div class="t-score">IDX</div><div class="t-name">{r["T"]}</div><div class="t-price">{r["P"]:.2f}</div><div class="t-pct">{r["C"]:+.2f}%</div></a>'
         st.markdown(html_idx + '</div><hr class="custom-hr">', unsafe_allow_html=True)
         
-        # Stocks Section
+        # Stocks Sorting
         if watchlist_mode == "High Score Stocks 🔥":
-            df_final = df_stk[df_stk['S'] >= 7].sort_values(by=["C"], ascending=False)
+            df_final = df_stk[df_stk['S'] >= 7]
             greens = df_final[df_final['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False])
             reds = df_final[df_final['C'] < 0].sort_values(by=["S", "C"], ascending=[True, True])
             df_final = pd.concat([greens, reds])
         else:
-            df_final = df_stk.sort_values(by="C", ascending=False)
+            df_final = df_stk[df_stk['T'].isin(NIFTY_50)].sort_values(by="C", ascending=False)
 
         html_stk = '<div class="heatmap-grid">'
         for _, r in df_final.iterrows():
@@ -148,16 +149,16 @@ if not df.empty:
         fetch_list = df_idx['Fetch_T'].tolist() + df_stk[df_stk['S'] >= 7].head(27)['Fetch_T'].tolist()
         chart_data = yf.download(fetch_list, period="5d", interval="5m", progress=False, group_by='ticker', threads=True)
         
-        # 🔥 INDICES CHARTS FIRST 🔥
-        st.write("### Market Indices")
+        # 🔥 INDICES SECTION (STRICTLY FIRST) 🔥
+        st.subheader("Indices")
         idx_cols = st.columns(3)
         for i, (_, r) in enumerate(df_idx.iterrows()):
             with idx_cols[i]: render_chart(r, chart_data)
         
         st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
-        # STOCKS CHARTS
-        st.write("### High Score Stocks")
+        # 🔥 STOCKS SECTION 🔥
+        st.subheader("High Score Stocks")
         stk_list = df_stk[df_stk['S'] >= 7].head(27)
         for i in range(0, len(stk_list), 3):
             cols = st.columns(3)
