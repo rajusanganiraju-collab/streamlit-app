@@ -46,15 +46,15 @@ st.markdown("""
     .custom-table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 14px !important; /* INCREASED FROM 11px TO 14px */
+        font-size: 14px !important; 
         text-align: center;
         font-family: Arial, sans-serif;
-        table-layout: fixed; /* Keeps columns perfectly aligned */
+        table-layout: fixed; 
     }
     .custom-table th, .custom-table td {
         white-space: normal; 
         word-wrap: break-word;
-        padding: 8px 3px !important; /* Slightly increased padding for better breathing room */
+        padding: 8px 3px !important; 
     }
     
     /* ----------------------------------------------------
@@ -71,9 +71,8 @@ st.markdown("""
             margin-bottom: 20px !important;
         }
         
-        /* Make fonts EVEN BIGGER for mobile screens (+30%) */
         .custom-table {
-            font-size: 17px !important; /* INCREASED FROM 13px TO 17px */
+            font-size: 17px !important; 
         }
         .custom-table th, .custom-table td {
             font-size: 17px !important;
@@ -83,6 +82,10 @@ st.markdown("""
             font-size: 18px !important;
             padding: 10px 10px !important;
         }
+        /* Mobile adjustment for indices to fit in one line */
+        .index-name { font-size: 10px !important; }
+        .index-price { font-size: 14px !important; }
+        .index-pct { font-size: 11px !important; }
     }
     </style>
 """, unsafe_allow_html=True)
@@ -189,7 +192,6 @@ def build_html_block(df, title, head_class):
     html += '<thead><tr style="border-bottom: 2px solid #222; border-top: 2px solid #222; background-color: #fff;">'
     for col in df.columns:
         w = col_widths.get(col, "10%")
-        # LEFT ALIGN STOCK and STATUS HEADERS
         align = "left" if col in ["STOCK", "STATUS"] else "center"
         pad = "padding-left: 10px;" if align == "left" else ""
         html += f'<th style="width: {w}; font-weight: 900; color: #000; text-align: {align}; {pad}">{col}</th>'
@@ -208,8 +210,6 @@ def build_html_block(df, title, head_class):
         html += '<tr>'
         for col in df.columns:
             val = str(row[col])
-            
-            # LEFT ALIGN STOCK and STATUS ROWS
             align = "left" if col in ["STOCK", "STATUS"] else "center"
             pad = "padding-left: 10px;" if align == "left" else ""
             td_style = f"border-bottom: 1px solid #ddd; font-weight: 700; text-align: {align}; {pad}"
@@ -299,11 +299,59 @@ loading_msg.empty()
 
 if data is not None and not data.empty:
     
-    # DASHBOARD
-    dash_html = '<div class="responsive-grid" style="margin-bottom: 10px;">'
+    # --- PERFECT TOP DASHBOARD (Strict Single Row) ---
+    st.markdown("""
+        <style>
+        .dashboard-container {
+            display: flex;
+            width: 100%;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        .indices-box {
+            flex: 4;
+            display: flex;
+            flex-wrap: nowrap; /* STRICTLY SINGLE LINE */
+            justify-content: space-evenly;
+            align-items: center;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+            padding: 5px;
+            overflow-x: auto; /* Allows horizontal scroll on very small mobile screens */
+        }
+        .trend-box {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 900;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+            min-height: 70px;
+        }
+        .index-item {
+            flex: 1;
+            text-align: center;
+            text-decoration: none;
+            padding: 0px 5px;
+        }
+        .index-name { color: #444; font-size: 13px; font-weight: 800; }
+        .index-price { color: black; font-size: 18px; font-weight: 900; margin: 2px 0px; }
+        .index-pct { font-size: 14px; font-weight: bold; }
+        
+        @media screen and (max-width: 1100px) {
+            .dashboard-container { flex-direction: column; }
+            .trend-box { min-height: 50px; }
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    dash_html = '<div class="dashboard-container">'
     
     # Left Top Indices
-    dash_html += '<div class="grid-col" style="flex: 4; display: flex; flex-wrap: wrap; gap: 5px; justify-content: space-between; align-items: center; border: 2px solid #ddd; border-radius: 8px; background-color: #f9f9f9; padding: 5px;">'
+    dash_html += '<div class="indices-box">'
     nifty_chg = 0.0
     for idx, (ticker, name) in enumerate(INDICES.items()):
         try:
@@ -314,16 +362,16 @@ if data is not None and not data.empty:
                 arrow = "↑" if pct >= 0 else "↓"
                 txt_color = "#008000" if pct >= 0 else "#FF0000"
                 tv_url = f"https://in.tradingview.com/chart/?symbol={TV_INDICES.get(ticker, '')}"
-                border_style = "border-right: 1px solid #ddd;" if idx < 4 else ""
+                border_style = "border-right: 1px solid #ddd;" if idx < len(INDICES)-1 else ""
                 
-                dash_html += f'<a href="{tv_url}" target="_blank" style="text-decoration: none; flex: 1 1 80px; text-align: center; {border_style}"><div style="color: #444; font-size: 13px; font-weight: 800;">{name}</div><div style="color: black; font-size: 18px; font-weight: 900; margin: 2px 0px;">{ltp:.0f}</div><div style="color: {txt_color}; font-size: 14px; font-weight: bold;">{arrow} {pct:.1f}%</div></a>'
+                dash_html += f'<a href="{tv_url}" target="_blank" class="index-item" style="{border_style}"><div class="index-name">{name}</div><div class="index-price">{ltp:.0f}</div><div class="index-pct" style="color: {txt_color};">{arrow} {pct:.1f}%</div></a>'
                 if name == "NIFTY": nifty_chg = ((ltp - float(df['Open'].iloc[-1])) / float(df['Open'].iloc[-1])) * 100
         except: continue
     dash_html += '</div>'
 
     # Right Trend Box
     market_trend, trend_bg, trend_txt = ("BULLISH 🚀", "#e6fffa", "#008000") if nifty_chg >= 0 else ("BEARISH 🩸", "#fff5f5", "#FF0000")
-    dash_html += f'<div class="grid-col" style="flex: 1; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 2px solid {trend_txt}; background-color: {trend_bg}; color: {trend_txt}; font-size: 18px; font-weight: 900; box-shadow: 2px 2px 5px rgba(0,0,0,0.1); min-height: 70px;">{market_trend}</div>'
+    dash_html += f'<div class="trend-box" style="border: 2px solid {trend_txt}; background-color: {trend_bg}; color: {trend_txt};">{market_trend}</div>'
     dash_html += '</div>'
     
     st.markdown(dash_html, unsafe_allow_html=True)
