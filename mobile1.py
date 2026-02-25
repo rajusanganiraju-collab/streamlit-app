@@ -98,20 +98,6 @@ def get_minutes_passed():
     diff = (now - open_time).total_seconds() / 60
     return min(375, max(1, int(diff)))
 
-@st.cache_data(ttl=60)
-def get_data():
-    all_tickers = list(INDICES.keys()) + list(BROADER_MARKET)
-    for s in SECTOR_MAP.values():
-        all_tickers.append(s['index'])
-        all_tickers.extend(s['stocks'])
-    all_tickers = list(set(all_tickers))
-    
-    try:
-        data = yfinance.download(all_tickers, period="5d", progress=False, group_by='ticker', threads=False)
-        return data
-    except: 
-        return None
-
 def analyze(symbol, full_data, check_bullish=True, force=False):
     try:
         if symbol not in full_data.columns.levels[0]: return None
@@ -159,7 +145,6 @@ def analyze(symbol, full_data, check_bullish=True, force=False):
         stock_name = symbol.replace(".NS", "")
         tv_url = f"https://in.tradingview.com/chart/?symbol=NSE:{stock_name}"
         
-        # Action Column Removed from Here
         return {
             "STOCK": tv_url, "PRICE": f"{ltp:.2f}", "DAY%": f"{day_chg:.2f}",
             "NET%": f"{net_chg:.2f}", "MOVE": f"{todays_move:.2f}", 
@@ -196,59 +181,70 @@ def style_sector_ranks(val):
     color, text = ('#d4edda', '#155724') if val >= 0 else ('#f8d7da', '#721c24')
     return f'background-color: {color}; color: {text}; font-weight: 700;'
 
-# --- 5. EXECUTION ---
+tv_link_config = {"STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)")}
+
+# -------------------------------------------------------------
+# 5. NEW: SEARCH BAR FEATURE (Added at the TOP)
+# -------------------------------------------------------------
+search_query = st.text_input("🔍 సెర్చ్ స్టాక్ (ఉదాహరణకు: RELIANCE, ZOMATO, IDEA):", "").strip().upper()
+
+if search_query:
+    search_symbol = format_ticker(search_query)
+    try:
+        search_data = yf.download([search_symbol, "^NSEI"], period="5d", progress=False, group_by='ticker', threads=False)
+        search_res = analyze(search_symbol, search_data, force=True)
+        
+        if search_res:
+            st.markdown(f"<div class='table-head head-neut'>🎯 SEARCH RESULT: {search_query}</div>", unsafe_allow_html=True)
+            df_search = pd.DataFrame([search_res])
+            if "VOL_NUM" in df_search.columns:
+                df_search = df_search.drop(columns=["VOL_NUM"])
+            df_search['SCORE'] = df_search['SCORE'].astype(str)
+            
+            styled_search = df_search.style.apply(highlight_priority, axis=1) \
+                .map(style_move_col, subset=['MOVE']) \
+                .set_properties(**{'text-align': 'center', 'font-size': '14px'}) \
+                .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]}])
+            
+            st.dataframe(styled_search, column_config=tv_link_config, use_container_width=True, hide_index=True)
+        else:
+            st.warning(f"'{search_query}' కి సంబంధించి ఎటువంటి బ్రేక్అవుట్/కండిషన్స్ మ్యాచ్ అవ్వలేదు లేదా డేటా దొరకలేదు.")
+    except Exception as e:
+        st.error("డేటా పొందడంలో లోపం జరిగింది. దయచేసి సరైన సింబల్ ఇవ్వండి.")
+
+st.markdown("<hr style='margin-top: 5px; margin-bottom: 10px;'>", unsafe_allow_html=True)
+
+# -------------------------------------------------------------
+# 6. FETCH ALL DATA & DASHBOARD
+# -------------------------------------------------------------
+@st.cache_data(ttl=60)
+def get_data():
+    all_tickers = list(INDICES.keys()) + list(BROADER_MARKET)
+    for s in SECTOR_MAP.values():
+        all_tickers.append(s['index'])
+        all_tickers.extend(s['stocks'])
+    all_tickers = list(set(all_tickers))
+    
+    try:
+        data = yf.download(all_tickers, period="5d", progress=False, group_by='ticker', threads=False)
+        return data
+    except: 
+        return None
+
 loading_msg = st.empty()
 loading_msg.info("మార్కెట్ డేటా లోడ్ అవుతోంది... దయచేసి 15 సెకన్లు వేచి ఉండండి ⏳")
 
-# Fix: Use correct module name "yf" instead of "yfinance" dynamically
-get_data.__wrapped__.__globals__["yfinance"] = yf 
 data = get_data()
 loading_msg.empty()
 
 if data is not None and not data.empty:
     
-    # -------------------------------------------------------------
-    # 0. NEW: SEARCH BAR FEATURE (Added directly above Dashboard)
-    # -------------------------------------------------------------
-    search_query = st.text_input("🔍 సెర్చ్ స్టాక్ (ఉదాహరణకు: RELIANCE, ZOMATO, IDEA):", "").strip().upper()
-    if search_query:
-        search_symbol = format_ticker(search_query)
-        try:
-            # Downloading along with Nifty so the analyze function gets the expected MultiIndex format
-            search_data = yf.download([search_symbol, "^NSEI"], period="5d", progress=False, group_by='ticker', threads=False)
-            search_res = analyze(search_symbol, search_data, force=True)
-            
-            if search_res:
-                st.markdown(f"<div class='table-head head-neut'>🎯 SEARCH RESULT: {search_query}</div>", unsafe_allow_html=True)
-                df_search = pd.DataFrame([search_res])
-                if "VOL_NUM" in df_search.columns:
-                    df_search = df_search.drop(columns=["VOL_NUM"])
-                df_search['SCORE'] = df_search['SCORE'].astype(str)
-                
-                styled_search = df_search.style.apply(highlight_priority, axis=1) \
-                    .map(style_move_col, subset=['MOVE']) \
-                    .set_properties(**{'text-align': 'center', 'font-size': '14px'}) \
-                    .set_table_styles([{'selector': 'th', 'props': [('background-color', 'white'), ('color', 'black'), ('font-size', '14px')]}])
-                
-                tv_link_config_search = {"STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)")}
-                st.dataframe(styled_search, column_config=tv_link_config_search, use_container_width=True, hide_index=True)
-            else:
-                st.warning(f"'{search_query}' కి సంబంధించి ఎటువంటి బ్రేక్అవుట్ / ట్రెండ్ కండిషన్స్ మ్యాచ్ అవ్వలేదు లేదా సరైన డేటా దొరకలేదు.")
-        except Exception as e:
-            st.error("డేటా పొందడంలో లోపం జరిగింది. దయచేసి సరైన సింబల్ ఇవ్వండి.")
-            
-    st.markdown("<hr style='margin-top: 5px; margin-bottom: 15px;'>", unsafe_allow_html=True)
-    # -------------------------------------------------------------
-
-    # 1. DASHBOARD - 80% & 20% Layout with Single Unified Box for Indices
+    # DASHBOARD - 80% & 20% Layout
     dash_left, dash_right = st.columns([0.8, 0.2]) 
-    
     nifty_chg = 0.0
     
     with dash_left:
-        # ఎర్రర్ రాకుండా HTML అంతా సింగిల్ లైన్ లో యాడ్ చేశాను
         dash_html = '<div style="display: flex; justify-content: space-between; align-items: center; border: 2px solid #ddd; border-radius: 8px; background-color: #f9f9f9; padding: 5px; height: 80px;">'
-        
         for idx, (ticker, name) in enumerate(INDICES.items()):
             try:
                 if ticker in data.columns.levels[0]:
@@ -260,17 +256,14 @@ if data is not None and not data.empty:
                     txt_color = "#008000" if pct >= 0 else "#FF0000"
                     tv_symbol = TV_INDICES.get(ticker, "")
                     tv_url = f"https://in.tradingview.com/chart/?symbol={tv_symbol}"
-                    
                     border_style = "border-right: 1px solid #ddd;" if idx < 4 else ""
                     
-                    # No newlines in HTML string to prevent markdown rendering issues
                     dash_html += f'<a href="{tv_url}" target="_blank" style="text-decoration: none; flex: 1; text-align: center; {border_style}"><div style="color: #444; font-size: 13px; font-weight: 800;">{name}</div><div style="color: black; font-size: 18px; font-weight: 900; margin: 2px 0px;">{ltp:.0f}</div><div style="color: {txt_color}; font-size: 14px; font-weight: bold;">{arrow} {pct:.1f}%</div></a>'
                     
                     if name == "NIFTY":
                         o_now = float(df['Open'].iloc[-1])
                         nifty_chg = ((ltp - o_now) / o_now) * 100
             except: continue
-            
         dash_html += "</div>"
         st.markdown(dash_html, unsafe_allow_html=True)
 
@@ -288,7 +281,7 @@ if data is not None and not data.empty:
         </div>
         """, unsafe_allow_html=True)
     
-    # 2. SECTOR RANKS
+    # SECTOR RANKS
     st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
     sec_rows = []
     for name, info in SECTOR_MAP.items():
@@ -316,15 +309,10 @@ if data is not None and not data.empty:
         top_sec = df_sec.iloc[0]['SECTOR']
         bot_sec = df_sec.iloc[-1]['SECTOR']
 
-    tv_link_config = {
-        "STOCK": st.column_config.LinkColumn("STOCK", display_text=r".*NSE:(.*)"),
-    }
-
-    # 3. BUY & SELL TABLES (Side by Side)
+    # BUY & SELL TABLES
     c_buy, c_sell = st.columns(2)
     
     with c_buy:
-        # Uniform Heading
         st.markdown(f"<div class='table-head head-bull'>🚀 BUY: {top_sec}</div>", unsafe_allow_html=True)
         res_b = [analyze(s, data, True) for s in SECTOR_MAP[top_sec]['stocks']]
         res_b = [x for x in res_b if x]
@@ -340,7 +328,6 @@ if data is not None and not data.empty:
             st.dataframe(styled_b, column_config=tv_link_config, use_container_width=True, hide_index=True)
 
     with c_sell:
-        # Uniform Heading
         st.markdown(f"<div class='table-head head-bear'>🩸 SELL: {bot_sec}</div>", unsafe_allow_html=True)
         res_s = [analyze(s, data, False) for s in SECTOR_MAP[bot_sec]['stocks']]
         res_s = [x for x in res_s if x]
@@ -355,11 +342,10 @@ if data is not None and not data.empty:
                 
             st.dataframe(styled_s, column_config=tv_link_config, use_container_width=True, hide_index=True)
 
-    # 4. INDEPENDENT & BROADER (Side by Side)
+    # INDEPENDENT & BROADER
     c_ind, c_brd = st.columns(2)
     
     with c_ind:
-        # Uniform Heading
         st.markdown("<div class='table-head head-neut'>🌟 INDEPENDENT (Top 8)</div>", unsafe_allow_html=True)
         ind_movers = [analyze(s, data, force=True) for name, info in SECTOR_MAP.items() if name not in [top_sec, bot_sec] for s in info['stocks']]
         ind_movers = [r for r in ind_movers if r and (float(r['VOL'][:-1]) >= 1.0 or r['SCORE'] >= 1)]
@@ -375,7 +361,6 @@ if data is not None and not data.empty:
             st.dataframe(styled_ind, column_config=tv_link_config, use_container_width=True, hide_index=True)
 
     with c_brd:
-        # Uniform Heading
         st.markdown("<div class='table-head head-neut'>🌌 BROADER MARKET (Top 8)</div>", unsafe_allow_html=True)
         res_brd = [analyze(s, data, force=True) for s in BROADER_MARKET]
         res_brd = [x for x in res_brd if x and (float(x['VOL'][:-1]) >= 1.0 or x['SCORE'] >= 1)]
