@@ -40,45 +40,42 @@ st.markdown("""
     .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal !important; }
     
     /* 🔥 2. PERFECT HORIZONTAL BUTTONS FIX (ALL SCREENS - FIT TO TEXT) 🔥 */
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) {
+    div[data-testid="stHorizontalBlock"]:has(.filter-marker) {
         display: flex !important;
-        flex-direction: row !important; /* Force side-by-side */
-        flex-wrap: nowrap !important; /* Never drop to next line */
-        justify-content: center !important; /* Center on screen */
+        flex-direction: row !important; /* Force Side-by-Side */
+        flex-wrap: nowrap !important; /* NEVER stack vertically */
+        justify-content: center !important; /* Center the buttons */
         align-items: center !important;
-        gap: 8px !important; /* Space between buttons */
+        gap: 10px !important; /* Space between buttons */
         width: 100% !important;
     }
     
-    /* Hide the marker itself */
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) > div[data-testid="stElementContainer"]:has(.filter-marker) {
-        display: none !important;
-    }
-    
-    /* Make the button wrappers auto-sized to fit text */
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) > div[data-testid="stElementContainer"] {
+    /* Make the columns shrink to fit the buttons exactly */
+    div[data-testid="stHorizontalBlock"]:has(.filter-marker) > div[data-testid="column"] {
         width: auto !important;
-        flex: 0 0 auto !important; /* Shrink exactly to content */
+        min-width: 0px !important; 
+        flex: 0 1 auto !important; /* Shrink to content */
+        padding: 0 !important;
     }
     
-    /* Style the actual buttons */
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button {
-        width: max-content !important;
+    /* Style the buttons to fit text */
+    div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button {
         height: 35px !important;
-        padding: 0px 12px !important;
+        width: auto !important; /* Text ki taggattu box! */
+        padding: 0px 15px !important;
     }
     
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button p {
-        font-size: 12px !important;
-        white-space: nowrap !important; /* Keep text on one line */
+    div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button p {
+        font-size: 12px !important; 
+        white-space: nowrap !important; /* Text single line lo untundi */
         margin: 0 !important;
     }
     
-    /* Perfect fit for Mobile Screens */
+    /* Slightly smaller for mobile phones */
     @media screen and (max-width: 650px) {
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) { gap: 4px !important; }
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button { padding: 0px 8px !important; }
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button p { font-size: 10.5px !important; }
+        div[data-testid="stHorizontalBlock"]:has(.filter-marker) { gap: 6px !important; }
+        div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button { padding: 0px 8px !important; }
+        div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button p { font-size: 10px !important; }
     }
     
     /* 🔥 3. DYNAMIC SCREEN SIZING FOR CHARTS (3 to 8 COLUMNS) 🔥 */
@@ -236,14 +233,6 @@ def fetch_all_data():
             if (ltp >= high * 0.998 and day_chg > 0.5) or (ltp <= low * 1.002 and day_chg < -0.5): score += 1
             if (ltp > (low * 1.01) and ltp > vwap) or (ltp < (high * 0.99) and ltp < vwap): score += 1
             
-            # 🔥 ONE SIDED MOVEMENT LOGIC 🔥
-            # Bullish: Open is near Low (within 0.2%), and LTP is near High (within 0.5%), moves up > 0.5%
-            bull_oneside = ((open_p - low) <= (open_p * 0.002)) and ((high - ltp) <= (high * 0.005)) and (day_chg >= 0.5)
-            # Bearish: Open is near High (within 0.2%), and LTP is near Low (within 0.5%), moves down > 0.5%
-            bear_oneside = ((high - open_p) <= (open_p * 0.002)) and ((ltp - low) <= (low * 0.005)) and (day_chg <= -0.5)
-            
-            is_oneside = bull_oneside or bear_oneside
-            
             is_index = False
             is_sector = False
             
@@ -256,10 +245,7 @@ def fetch_all_data():
             else:
                 disp_name = symbol.replace(".NS", "")
                 
-            results.append({
-                "Fetch_T": symbol, "T": disp_name, "P": ltp, "C": net_chg, "S": score, 
-                "Is_Index": is_index, "Is_Sector": is_sector, "Is_One_Sided": is_oneside
-            })
+            results.append({"Fetch_T": symbol, "T": disp_name, "P": ltp, "C": net_chg, "S": score, "Is_Index": is_index, "Is_Sector": is_sector})
         except: continue
         
     return pd.DataFrame(results)
@@ -359,11 +345,12 @@ if not df.empty:
     
     df_stocks = df[(~df['Is_Index']) & (~df['Is_Sector'])].copy()
     
-    # 🔥 FILTER LOGIC ADDED HERE 🔥
+    # 🔥 STAGE 1 FILTER LOGIC 🔥
     if watchlist_mode == "Nifty 50 Heatmap":
         df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
     elif watchlist_mode == "One Sided Moves 🚀":
-        df_filtered = df_stocks[df_stocks['Is_One_Sided'] == True]
+        # Initially pick stocks moving more than 1% to save processing time
+        df_filtered = df_stocks[df_stocks['C'].abs() >= 1.0]
     else:
         df_filtered = df_stocks[(df_stocks['S'] >= 7) & (df_stocks['S'] <= 10)]
 
@@ -377,10 +364,10 @@ if not df.empty:
     with st.spinner("Analyzing VWAP & 10 EMA Trends (Lightning Speed ⚡)..."):
         five_min_data = yf.download(all_display_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=20)
 
-    bull_cnt, bear_cnt, neut_cnt = 0, 0, 0
-    processed_charts = {}
     stock_trends = {}
+    one_sided_tickers = []
 
+    # 🔥 STAGE 2: 5-MIN TREND & ONE-SIDED CALCULATION 🔥
     for sym in all_display_tickers:
         df_raw = five_min_data[sym] if isinstance(five_min_data.columns, pd.MultiIndex) else five_min_data
         df_day = process_5m_data(df_raw)
@@ -391,23 +378,52 @@ if not df.empty:
             last_vwap = df_day['VWAP'].iloc[-1]
             last_ema = df_day['EMA_10'].iloc[-1]
             
+            # 1. Normal Trend Calculation
             if last_price > last_vwap and last_price > last_ema:
                 stock_trends[sym] = 'Bullish'
-                bull_cnt += 1
             elif last_price < last_vwap and last_price < last_ema:
                 stock_trends[sym] = 'Bearish'
-                bear_cnt += 1
             else:
                 stock_trends[sym] = 'Neutral'
-                neut_cnt += 1
+                
+            # 2. 🔥 ONE SIDED MOVE CALCULATION (EKKUVA SEPU VWAP & EMA PAINA) 🔥
+            total_candles = len(df_day)
+            if total_candles >= 3:
+                # How many candles are strictly above both VWAP and 10 EMA?
+                bull_cond = (df_day['Close'] > df_day['VWAP']) & (df_day['Close'] > df_day['EMA_10'])
+                bear_cond = (df_day['Close'] < df_day['VWAP']) & (df_day['Close'] < df_day['EMA_10'])
+                
+                bull_ratio = bull_cond.sum() / total_candles
+                bear_ratio = bear_cond.sum() / total_candles
+                
+                # If it stayed above for > 70% of the day, it's a One Sided Move!
+                if bull_ratio >= 0.70 and stock_trends[sym] == 'Bullish':
+                    one_sided_tickers.append(sym)
+                elif bear_ratio >= 0.70 and stock_trends[sym] == 'Bearish':
+                    one_sided_tickers.append(sym)
+
+    # Apply the strict 5-min filter if One Sided is selected
+    if watchlist_mode == "One Sided Moves 🚀":
+        df_filtered = df_filtered[df_filtered['Fetch_T'].isin(one_sided_tickers)]
+
+    # Recalculate Button Counts based on final list
+    bull_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bullish')
+    bear_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bearish')
+    neut_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Neutral')
 
     # --- CLICKABLE TREND FILTERS ---
     with st.container():
         st.markdown("<div class='filter-marker'></div>", unsafe_allow_html=True)
-        if st.button(f"📊 All ({len(df_filtered)})"): st.session_state.trend_filter = 'All'
-        if st.button(f"🟢 Bullish ({bull_cnt})"): st.session_state.trend_filter = 'Bullish'
-        if st.button(f"⚪ Neutral ({neut_cnt})"): st.session_state.trend_filter = 'Neutral'
-        if st.button(f"🔴 Bearish ({bear_cnt})"): st.session_state.trend_filter = 'Bearish'
+        f1, f2, f3, f4 = st.columns(4)
+        
+        with f1: 
+            if st.button(f"📊 All ({len(df_filtered)})"): st.session_state.trend_filter = 'All'
+        with f2: 
+            if st.button(f"🟢 Bullish ({bull_cnt})"): st.session_state.trend_filter = 'Bullish'
+        with f3: 
+            if st.button(f"⚪ Neutral ({neut_cnt})"): st.session_state.trend_filter = 'Neutral'
+        with f4: 
+            if st.button(f"🔴 Bearish ({bear_cnt})"): st.session_state.trend_filter = 'Bearish'
 
     st.markdown(f"<div style='text-align:right; font-size:12px; color:#ffd700; margin-bottom: 10px; font-weight:normal !important;'>Showing: <b>{st.session_state.trend_filter}</b> Stocks</div>", unsafe_allow_html=True)
 
@@ -450,8 +466,8 @@ if not df.empty:
             for _, row in df_stocks_display.iterrows():
                 bg = "bull-card" if row['C'] > 0 else ("bear-card" if row['C'] < 0 else "neut-card")
                 
-                # Check for One-Sided move to show special icon
-                special_icon = "🚀" if getattr(row, 'Is_One_Sided', False) else f"⭐{int(row['S'])}"
+                # 🔥 Show Rocket Icon for One Sided Moves 🔥
+                special_icon = "🚀" if watchlist_mode == "One Sided Moves 🚀" else f"⭐{int(row['S'])}"
                 
                 html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">{special_icon}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if row["C"]>0 else ""}{row["C"]:.2f}%</div></a>'
             st.markdown(html_stk + '</div>', unsafe_allow_html=True)
