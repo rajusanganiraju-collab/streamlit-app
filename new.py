@@ -316,7 +316,6 @@ if not df.empty:
         df_filtered = df_stocks[(df_stocks['S'] >= 7) & (df_stocks['S'] <= 10)]
 
     # Fetch 5-min data ONLY for visible charts (Indices + Stocks + Searched + ALL PINNED)
-    # 🔥 FIX: We MUST include ALL pinned stocks in the download list, even if they aren't in the current filter 🔥
     all_display_tickers = list(set(df_indices['Fetch_T'].tolist() + df_filtered['Fetch_T'].tolist() + st.session_state.pinned_stocks))
     
     if search_stock != "-- None --":
@@ -371,9 +370,24 @@ if not df.empty:
     if st.session_state.trend_filter != 'All':
         df_filtered = df_filtered[df_filtered['Fetch_T'].apply(lambda x: stock_trends.get(x) == st.session_state.trend_filter)]
 
-    greens = df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False])
-    reds = df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[True, True])
-    df_stocks_display = pd.concat([greens, reds])
+    # 🔥 NEW SORTING LOGIC 🔥 
+    if st.session_state.trend_filter == 'Bullish':
+        # For Bullish: Highest score (10) first, then most positive % change
+        df_stocks_display = df_filtered.sort_values(by=["S", "C"], ascending=[False, False])
+    
+    elif st.session_state.trend_filter == 'Bearish':
+        # For Bearish: Highest score (10) first, then most negative % change
+        df_stocks_display = df_filtered.sort_values(by=["S", "C"], ascending=[False, True])
+        
+    elif st.session_state.trend_filter == 'Neutral':
+        # For Neutral: Highest score (10) first
+        df_stocks_display = df_filtered.sort_values(by=["S", "C"], ascending=[False, False])
+        
+    else:
+        # For 'All': Old logic (Greens with 10 on top, Reds with 10 on bottom)
+        greens = df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False])
+        reds = df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[True, True])
+        df_stocks_display = pd.concat([greens, reds])
 
     # --- RENDER VIEWS ---
     if view_mode == "Heat Map":
@@ -416,17 +430,14 @@ if not df.empty:
                         render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=False)
         st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
-        # 🔥 2. RENDER ALL PINNED & SEARCHED STOCKS HERE (PRIORITY ROW) 🔥
-        # Get rows for pinned stocks from the master DataFrame 'df' (so it ignores filters)
+        # 2. RENDER ALL PINNED & SEARCHED STOCKS HERE (PRIORITY ROW)
         pinned_df = df[df['Fetch_T'].isin(st.session_state.pinned_stocks)].copy()
         
-        # If there's a searched stock, add it to the pinned_df display if it's not already pinned
         if search_stock != "-- None --":
             searched_row = df[df['T'] == search_stock].iloc[0]
             if searched_row['Fetch_T'] not in st.session_state.pinned_stocks:
-                 pinned_df = pd.concat([pd.DataFrame([searched_row]), pinned_df]) # Put searched at the very front
+                 pinned_df = pd.concat([pd.DataFrame([searched_row]), pinned_df])
         
-        # We also need to remove these pinned/searched stocks from the regular display below
         unpinned_df = df_stocks_display[~df_stocks_display['Fetch_T'].isin(pinned_df['Fetch_T'].tolist())]
         
         if not pinned_df.empty:
