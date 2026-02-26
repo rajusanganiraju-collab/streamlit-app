@@ -305,7 +305,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix=""):
     except Exception as e:
         st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:normal !important;'>Chart error</div>", unsafe_allow_html=True)
 
-# 🔥 THIS RESTORES THE PERFECT FLUID GRID BEHAVIOR (NO MORE ST.COLUMNS FOR CHARTS) 🔥
 def render_chart_grid(df_grid, show_pin_option, key_prefix):
     if df_grid.empty: return
     with st.container():
@@ -372,10 +371,20 @@ if not df.empty:
             last_price = df_day['Close'].iloc[-1]
             last_vwap = df_day['VWAP'].iloc[-1]
             last_ema = df_day['EMA_10'].iloc[-1]
+            day_open = df_day['Open'].iloc[0]
             
-            if last_price > last_vwap and last_price > last_ema:
+            # 🔥 PRO TRADER STRICT LOGIC: Get Daily Net Change 🔥
+            net_chg = df_filtered[df_filtered['Fetch_T'] == sym]['C'].iloc[0]
+            
+            # A stock is Bullish ONLY if it's Green for the day, above day's open, and above VWAP/EMA.
+            is_bullish = (net_chg > 0) and (last_price >= day_open) and (last_price > last_vwap) and (last_price > last_ema)
+            
+            # A stock is Bearish ONLY if it's Red for the day, below day's open, and below VWAP/EMA.
+            is_bearish = (net_chg < 0) and (last_price <= day_open) and (last_price < last_vwap) and (last_price < last_ema)
+            
+            if is_bullish:
                 stock_trends[sym] = 'Bullish'
-            elif last_price < last_vwap and last_price < last_ema:
+            elif is_bearish:
                 stock_trends[sym] = 'Bearish'
             else:
                 stock_trends[sym] = 'Neutral'
@@ -423,17 +432,14 @@ if not df.empty:
     elif sort_mode == "% Change Down 🔴":
         df_stocks_display = df_filtered.sort_values(by="C", ascending=True)
     elif sort_mode == "Heatmap Marks Up ⭐":
-        # Green first (Highest Score to Lowest), then Reds (Highest Score to Lowest)
         greens = df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False])
         reds = df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[False, True])
         df_stocks_display = pd.concat([greens, reds])
     elif sort_mode == "Heatmap Marks Down ⬇️":
-        # 🔥 REDS FIRST (Highest Score to Lowest), then GREENS (Highest Score to Lowest) 🔥
         reds = df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[False, True])
         greens = df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False])
         df_stocks_display = pd.concat([reds, greens])
     else:
-        # Default Custom Sort (Greens first, then Reds)
         if st.session_state.trend_filter == 'Bullish':
             df_stocks_display = df_filtered.sort_values(by=["S", "C"], ascending=[False, False])
         elif st.session_state.trend_filter == 'Bearish':
