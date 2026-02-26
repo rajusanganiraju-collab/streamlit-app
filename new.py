@@ -23,7 +23,7 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- 4. CSS FOR STYLING ---
+# --- 4. CSS FOR STYLING (SPACE SAVING PIN DESIGN) ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
@@ -32,7 +32,6 @@ st.markdown("""
     
     /* Radio Buttons & Checkbox Text to White */
     .stRadio label, .stRadio p, div[role="radiogroup"] p { color: #ffffff !important; font-weight: bold !important; }
-    .stCheckbox label, .stCheckbox p { color: #ffd700 !important; font-weight: bold !important; font-size: 13px !important; margin-bottom: -5px; }
     
     /* Button Text to White */
     div.stButton > button {
@@ -45,6 +44,28 @@ st.markdown("""
         color: #ffffff !important;
         font-weight: bold !important;
         font-size: 14px !important;
+    }
+    
+    /* 🔥 MAGICAL CSS TO PUT PIN INSIDE THE CHART BOX AND SAVE SPACE 🔥 */
+    div[data-testid="column"] {
+        position: relative !important; /* Forces absolute items to stay inside the column */
+    }
+    div[data-testid="stCheckbox"] {
+        position: absolute !important;
+        right: 15px !important;
+        top: 15px !important;
+        z-index: 99 !important;
+        background-color: rgba(30, 35, 41, 0.9);
+        padding: 1px 8px;
+        border-radius: 5px;
+        border: 1px solid #30363d;
+    }
+    div[data-testid="stCheckbox"] label { margin-bottom: 0 !important; min-height: auto !important; }
+    div[data-testid="stCheckbox"] p {
+        color: #ffd700 !important; 
+        font-weight: bold !important; 
+        font-size: 12px !important; 
+        margin-bottom: 0 !important;
     }
     
     .heatmap-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 8px; padding: 5px 0; }
@@ -175,11 +196,12 @@ def render_chart(row, df_chart, show_pin=True):
     sign = "+" if row['C'] > 0 else ""
     tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
     
-    # Checkbox pin (Only for stocks, not indices, not for searched massive chart)
+    # 🔥 MAGICAL CSS CHECKBOX: Rendered before chart box so it floats over it and saves space! 🔥
     if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX"]:
-        st.checkbox(f"📌 Pin {display_sym}", value=(fetch_sym in st.session_state.pinned_stocks), key=f"cb_{fetch_sym}", on_change=toggle_pin, args=(fetch_sym,))
+        st.checkbox(f"📌 Pin", value=(fetch_sym in st.session_state.pinned_stocks), key=f"cb_{fetch_sym}", on_change=toggle_pin, args=(fetch_sym,))
     
-    st.markdown(f"<div class='chart-box' style='margin-top:2px;'><div style='text-align:center; font-weight:bold; font-size:16px;'><a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none;'>{display_sym} <span style='color:{color_hex}'>({sign}{row['C']:.2f}%)</span></a></div><div class='ind-labels'><span style='color:#FFD700; font-weight:bold;'>--- VWAP</span> &nbsp;|&nbsp; <span style='color:#00BFFF; font-weight:bold;'>- - 10 EMA</span></div>", unsafe_allow_html=True)
+    # CHART HTML BOX
+    st.markdown(f"<div class='chart-box'><div style='text-align:center; font-weight:bold; font-size:16px;'><a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none;'>{display_sym} <span style='color:{color_hex}'>({sign}{row['C']:.2f}%)</span></a></div><div class='ind-labels'><span style='color:#FFD700; font-weight:bold;'>--- VWAP</span> &nbsp;|&nbsp; <span style='color:#00BFFF; font-weight:bold;'>- - 10 EMA</span></div>", unsafe_allow_html=True)
     
     try:
         if not df_chart.empty:
@@ -208,7 +230,7 @@ df = fetch_all_data()
 
 if not df.empty:
     
-    # 🔥 SEARCH FEATURE RE-ADDED 🔥
+    # 🔥 SEARCH DROPDOWN REMAINS INTACT 🔥
     all_names = sorted(df['T'].tolist())
     search_stock = st.selectbox("🔍 Search & View Chart", ["-- None --"] + all_names)
     
@@ -223,7 +245,7 @@ if not df.empty:
     else:
         df_filtered = df_stocks[(df_stocks['S'] >= 7) & (df_stocks['S'] <= 10)]
 
-    # Include searched stock in download if it's not already in the list
+    # Fetch 5-min data for visible stocks + searched stock
     all_display_tickers = list(set(df_indices['Fetch_T'].tolist() + df_filtered['Fetch_T'].tolist()))
     if search_stock != "-- None --":
         search_fetch_t = df[df['T'] == search_stock]['Fetch_T'].iloc[0]
@@ -257,7 +279,7 @@ if not df.empty:
                 stock_trends[sym] = 'Neutral'
                 neut_cnt += 1
 
-    # --- CLICKABLE FILTER BUTTONS ---
+    # --- CLICKABLE TREND FILTERS ---
     f1, f2, f3, f4 = st.columns(4)
     if f1.button(f"📊 All ({len(df_filtered)})", use_container_width=True): st.session_state.trend_filter = 'All'
     if f2.button(f"🟢 Bullish ({bull_cnt})", use_container_width=True): st.session_state.trend_filter = 'Bullish'
@@ -266,7 +288,6 @@ if not df.empty:
 
     st.markdown(f"<div style='text-align:right; font-size:12px; color:#ffd700; margin-bottom: 10px;'>Showing: <b>{st.session_state.trend_filter}</b> Stocks</div>", unsafe_allow_html=True)
 
-    # Apply Active Filter
     if st.session_state.trend_filter != 'All':
         df_filtered = df_filtered[df_filtered['Fetch_T'].apply(lambda x: stock_trends.get(x) == st.session_state.trend_filter)]
 
@@ -296,15 +317,14 @@ if not df.empty:
     else:
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # 🔥 RENDER SEARCHED CHART FIRST (IF SELECTED) 🔥
+        # 1. RENDER SEARCHED CHART
         if search_stock != "-- None --":
             st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:5px; color:#ffd700;'>🔍 Searched Chart: {search_stock}</div>", unsafe_allow_html=True)
             searched_row = df[df['T'] == search_stock].iloc[0]
-            # render without the pin checkbox to avoid UI issues
             render_chart(searched_row, processed_charts.get(searched_row['Fetch_T'], pd.DataFrame()), show_pin=False)
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
-        # 1. RENDER INDICES CHARTS
+        # 2. RENDER INDICES CHARTS
         st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>📈 Market Indices</div>", unsafe_allow_html=True)
         if not df_indices.empty:
             idx_list = [row for _, row in df_indices.iterrows()]
@@ -316,7 +336,7 @@ if not df.empty:
                             
         st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
-        # 🔥 2. RENDER PINNED STOCKS CHARTS (PRIORITY ROW) 🔥
+        # 3. RENDER PINNED STOCKS CHARTS (PRIORITY ROW)
         pinned_df = df_stocks_display[df_stocks_display['Fetch_T'].isin(st.session_state.pinned_stocks)]
         unpinned_df = df_stocks_display[~df_stocks_display['Fetch_T'].isin(st.session_state.pinned_stocks)]
         
@@ -330,7 +350,7 @@ if not df.empty:
                         with cols[j]: render_chart(p_list[i + j], processed_charts.get(p_list[i+j]['Fetch_T'], pd.DataFrame()), show_pin=True)
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
-        # 3. RENDER REMAINING STOCKS CHARTS
+        # 4. RENDER REMAINING STOCKS CHARTS
         if not unpinned_df.empty:
             st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>{watchlist_mode} ({st.session_state.trend_filter})</div>", unsafe_allow_html=True)
             u_list = [row for _, row in unpinned_df.iterrows()]
