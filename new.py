@@ -100,6 +100,18 @@ st.markdown("""
         background: #30363d;
         margin: 15px 0;
     }
+    
+    /* MOOD BADGE */
+    .mood-badge {
+        font-size: 15px; 
+        padding: 4px 12px; 
+        background: #1f2937; 
+        border-radius: 6px; 
+        border: 1px solid #30363d; 
+        margin-left: 10px;
+        font-weight: normal;
+        vertical-align: middle;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -158,7 +170,6 @@ def fetch_all_data():
         all_stocks.update(stocks)
     
     tkrs = list(INDICES_MAP.keys()) + [f"{t}.NS" for t in all_stocks]
-    # 🔥 THREADS=20 ADDED FOR HIGH SPEED DATA FETCH 🔥
     data = yf.download(tkrs, period="5d", progress=False, group_by='ticker', threads=20)
     
     results = []
@@ -287,14 +298,14 @@ if not df.empty:
     
     df_stocks = df[~df['Is_Index']].copy()
     
-    # 🔥 TODAY'S MARKET MOOD LOGIC (Based on Nifty) 🔥
-    market_mood = "🟡 Neutral"
+    # 🔥 TODAY'S MARKET MOOD LOGIC 🔥
+    market_mood = "🟡 Neutral (న్యూట్రల్)"
     nifty_row = df_indices[df_indices['T'] == 'NIFTY']
     if not nifty_row.empty:
         n_chg = float(nifty_row['C'].iloc[0])
-        if n_chg >= 0.15: market_mood = "🟢 Bullish"
-        elif n_chg <= -0.15: market_mood = "🔴 Bearish"
-        else: market_mood = "🟡 Neutral"
+        if n_chg >= 0.10: market_mood = "🟢 Bullish (బుల్లిష్)"
+        elif n_chg <= -0.10: market_mood = "🔴 Bearish (బేరిష్)"
+        else: market_mood = "🟡 Neutral (న్యూట్రల్)"
     
     if watchlist_mode == "Nifty 50 Heatmap":
         df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
@@ -311,13 +322,13 @@ if not df.empty:
 
     if view_mode == "Heat Map":
         
-        # 1. RENDER INDICES FIRST WITH MOOD
-        st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:5px; color:#e6edf3;'>📊 Market Indices &nbsp;&nbsp;<span style='font-size:14px; color:#8b949e; font-weight:normal;'>|&nbsp; Today's Mood: <b>{market_mood}</b></span></div>", unsafe_allow_html=True)
+        # 1. RENDER INDICES FIRST WITH MOOD BADGE
+        st.markdown(f"### 📊 Market Indices <span class='mood-badge'>Today's Mood: {market_mood}</span>", unsafe_allow_html=True)
         
         if not df_indices.empty:
             html_idx = '<div class="heatmap-grid">'
             for _, row in df_indices.iterrows():
-                # ALL indices (including VIX) will now just be standard green/red based on their +/-
+                # All indices will show Green for Positive and Red for Negative
                 bg = "bull-card" if row['C'] >= 0 else "bear-card"
                     
                 badge = "IDX"
@@ -332,7 +343,7 @@ if not df.empty:
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
         # 2. RENDER STOCKS
-        st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:5px; color:#e6edf3;'>🔥 High Score Stocks</div>", unsafe_allow_html=True)
+        st.markdown("### 🔥 High Score Stocks")
         html_stk = '<div class="heatmap-grid">'
         for _, row in df_stocks_display.iterrows():
             bg = "bull-card" if row['C'] >= 0 else "bear-card"
@@ -354,8 +365,8 @@ if not df.empty:
         with st.spinner("Loading 5-Min Candlestick Charts (Lightning Speed ⚡)..."):
             chart_data = yf.download(fetch_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=20)
         
-        # 1. RENDER INDICES CHARTS FIRST WITH MOOD
-        st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>📈 Market Indices &nbsp;&nbsp;<span style='font-size:14px; color:#8b949e; font-weight:normal;'>|&nbsp; Today's Mood: <b>{market_mood}</b></span></div>", unsafe_allow_html=True)
+        # 1. RENDER INDICES CHARTS FIRST WITH MOOD BADGE
+        st.markdown(f"### 📈 Market Indices <span class='mood-badge'>Today's Mood: {market_mood}</span>", unsafe_allow_html=True)
         
         if not df_indices.empty:
             idx_list = [row for _, row in df_indices.iterrows()]
@@ -369,7 +380,7 @@ if not df.empty:
         st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
         # 2. RENDER STOCKS CHARTS
-        st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>🔥 High Score Stocks</div>", unsafe_allow_html=True)
+        st.markdown("### 🔥 High Score Stocks")
         if not top_stocks_for_charts.empty:
             stk_list = [row for _, row in top_stocks_for_charts.iterrows()]
             for i in range(0, len(stk_list), 3):
