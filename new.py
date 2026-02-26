@@ -310,12 +310,11 @@ def render_chart_grid(df_grid, show_pin_option, key_prefix):
                 render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=show_pin_option, key_suffix=f"{key_prefix}_{i}_{j}")
 
 
-# --- 6. TOP NAVIGATION & SEARCH (UPDATED SORT FILTERS) ---
+# --- 6. TOP NAVIGATION & SEARCH ---
 c1, c2, c3 = st.columns([0.4, 0.3, 0.3])
 with c1: 
     watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Nifty 50 Heatmap", "One Sided Moves 🚀"], label_visibility="collapsed")
 with c2: 
-    # 🔥 SPLIT HEATMAP MARKS INTO UP AND DOWN 🔥
     sort_mode = st.selectbox("Sort By", ["Custom Sort", "Heatmap Marks Up ⭐", "Heatmap Marks Down ⬇️", "% Change Up 🟢", "% Change Down 🔴"], label_visibility="collapsed")
 with c3: 
     view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
@@ -413,7 +412,7 @@ if not df.empty:
     if st.session_state.trend_filter != 'All':
         df_filtered = df_filtered[df_filtered['Fetch_T'].apply(lambda x: stock_trends.get(x) == st.session_state.trend_filter)]
 
-    # 🔥 NEW SORTING LOGIC WITH GREEN/RED SEPARATION 🔥
+    # 🔥 THE PERFECTED GREEN/RED SEPARATION LOGIC 🔥
     if sort_mode == "% Change Up 🟢":
         df_stocks_display = df_filtered.sort_values(by="C", ascending=False)
     elif sort_mode == "% Change Down 🔴":
@@ -424,10 +423,10 @@ if not df.empty:
         reds = df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[False, True])
         df_stocks_display = pd.concat([greens, reds])
     elif sort_mode == "Heatmap Marks Down ⬇️":
-        # Green first (Lowest Score to Highest), then Reds (Lowest Score to Highest)
-        greens = df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[True, False])
-        reds = df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[True, True])
-        df_stocks_display = pd.concat([greens, reds])
+        # 🔥 REDS FIRST (Highest Score to Lowest), then GREENS (Highest Score to Lowest) 🔥
+        reds = df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[False, True])
+        greens = df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False])
+        df_stocks_display = pd.concat([reds, greens])
     else:
         # Default Custom Sort (Greens first, then Reds)
         if st.session_state.trend_filter == 'Bullish':
@@ -440,7 +439,6 @@ if not df.empty:
             greens = df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False])
             reds = df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[True, True])
             df_stocks_display = pd.concat([greens, reds])
-
 
     # --- RENDER VIEWS ---
     if view_mode == "Heat Map":
