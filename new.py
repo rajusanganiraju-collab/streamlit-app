@@ -23,7 +23,7 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- 4. CSS FOR STYLING (THE SUCCESSFUL BUTTON CSS + FLUID GRID) ---
+# --- 4. CSS FOR STYLING (SAFE & NATIVE STREAMLIT LAYOUT) ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
@@ -39,88 +39,77 @@ st.markdown("""
     .t-pct { font-size: 12px; font-weight: normal !important; }
     .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal !important; }
     
-    /* 🔥 2. THE SUCCESSFUL HORIZONTAL BUTTONS FIX 🔥 */
+    /* 🔥 2. FILTER BUTTONS (NO MORE SQUISHING - PERFECT HORIZONTAL) 🔥 */
     div[data-testid="stHorizontalBlock"]:has(.filter-marker) {
         display: flex !important;
-        flex-direction: row !important; /* Force Side-by-Side */
-        flex-wrap: nowrap !important; /* NEVER stack vertically */
-        justify-content: center !important; /* Center the buttons */
+        flex-direction: row !important;
+        flex-wrap: nowrap !important; /* Forces buttons into one line */
+        justify-content: center !important;
         align-items: center !important;
-        gap: 10px !important; /* Space between buttons */
+        gap: 10px !important;
         width: 100% !important;
+        overflow-x: auto !important; /* Fallback for very small phones */
+        padding-bottom: 5px !important;
     }
     
-    /* Shrink the column wrappers to fit text exactly */
     div[data-testid="stHorizontalBlock"]:has(.filter-marker) > div[data-testid="column"] {
-        width: auto !important;
-        min-width: 0px !important; 
-        flex: 0 1 auto !important; /* Shrink to content */
+        width: max-content !important;
+        min-width: max-content !important;
+        max-width: max-content !important;
+        flex: 0 0 auto !important; /* Don't shrink or grow */
         padding: 0 !important;
     }
     
-    /* Box size tight to text */
-    div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button {
-        height: 35px !important;
-        width: auto !important; 
+    div[data-testid="stHorizontalBlock"]:has(.filter-marker) button {
+        width: max-content !important;
+        height: 36px !important;
         padding: 0px 15px !important;
+        border-radius: 8px !important;
+        border: 1px solid #30363d !important;
+        background-color: #161b22 !important;
     }
     
-    div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button p {
-        font-size: 12px !important; 
-        white-space: nowrap !important; /* Text single line lo untundi */
+    div[data-testid="stHorizontalBlock"]:has(.filter-marker) button p {
+        font-size: 13px !important;
+        white-space: nowrap !important; 
         margin: 0 !important;
     }
     
-    /* Mobile optimization */
-    @media screen and (max-width: 650px) {
-        div[data-testid="stHorizontalBlock"]:has(.filter-marker) { gap: 6px !important; }
-        div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button { padding: 0px 8px !important; }
-        div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button p { font-size: 10px !important; }
+    @media screen and (max-width: 600px) {
+        div[data-testid="stHorizontalBlock"]:has(.filter-marker) { gap: 5px !important; }
+        div[data-testid="stHorizontalBlock"]:has(.filter-marker) button { padding: 0px 8px !important; }
+        div[data-testid="stHorizontalBlock"]:has(.filter-marker) button p { font-size: 11px !important; }
     }
     
-    /* 🔥 3. DYNAMIC SCREEN SIZING FOR CHARTS (3 to 8 COLUMNS) 🔥 */
-    div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) {
-        display: grid !important;
+    /* 🔥 3. NATIVE WRAPPING CHARTS GRID (THE BULLETPROOF FIX) 🔥 */
+    div[data-testid="stHorizontalBlock"]:has(.chart-marker) {
+        display: flex !important;
+        flex-wrap: wrap !important; /* This creates the magic grid naturally! */
         gap: 12px !important;
-        align-items: start !important;
-    }
-    div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div:nth-child(1) {
-        display: none !important; /* Hide invisible marker */
+        width: 100% !important;
     }
     
-    @media screen and (min-width: 1700px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(8, 1fr) !important; } }
-    @media screen and (min-width: 1400px) and (max-width: 1699px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(6, 1fr) !important; } }
-    @media screen and (min-width: 1100px) and (max-width: 1399px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(5, 1fr) !important; } }
-    @media screen and (min-width: 850px) and (max-width: 1099px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(4, 1fr) !important; } }
-    @media screen and (min-width: 651px) and (max-width: 849px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(3, 1fr) !important; } }
-    @media screen and (max-width: 650px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(2, 1fr) !important; gap: 6px !important; } }
-    
-    /* 🔥 4. INDIVIDUAL CHART BOX STYLING 🔥 */
-    div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] {
+    div[data-testid="stHorizontalBlock"]:has(.chart-marker) > div[data-testid="column"] {
+        min-width: 160px !important; /* Mobile friendly size */
+        flex: 1 1 180px !important; /* Grow based on screen size */
+        max-width: 280px !important; /* Stops it from stretching too much */
         background-color: #161b22 !important;
         border: 1px solid #30363d !important;
         border-radius: 8px !important;
-        padding: 8px 5px 5px 5px !important;
+        padding: 10px 5px 5px 5px !important;
         position: relative !important;
-        width: 100% !important;
+        width: auto !important;
+        margin-bottom: 8px !important;
     }
 
-    /* 🔥 5. PERFECT PIN BOX (Top-Left Absolute) 🔥 */
-    div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] div[data-testid="stCheckbox"] {
+    /* 🔥 4. PERFECT PIN BOX (Top-Left Absolute inside Chart Box) 🔥 */
+    div[data-testid="stHorizontalBlock"]:has(.chart-marker) > div[data-testid="column"] div[data-testid="stCheckbox"] {
         position: absolute !important;
-        top: 8px !important;
-        left: 10px !important;
+        top: 6px !important;
+        left: 6px !important;
         z-index: 100 !important;
     }
     div[data-testid="stCheckbox"] label { padding: 0 !important; min-height: 0 !important; }
-    
-    /* General Button Styles */
-    div.stButton > button {
-        border-radius: 8px !important;
-        border: 1px solid #30363d !important;
-        background-color: #161b22 !important;
-        height: 45px !important;
-    }
     
     /* Heatmap Layout */
     .heatmap-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 8px; padding: 5px 0; }
@@ -266,6 +255,9 @@ def render_chart(row, df_chart, show_pin=True):
     sign = "+" if row['C'] > 0 else ""
     tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
     
+    # 🔥 The MAGIC MARKER that gives this column its dark box background 🔥
+    st.markdown("<div class='chart-marker' style='display:none;'></div>", unsafe_allow_html=True)
+    
     if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX"]:
         st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=f"cb_{fetch_sym}", on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
     
@@ -290,6 +282,7 @@ def render_chart(row, df_chart, show_pin=True):
             fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot')))
             fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash')))
             
+            # 🔥 MAGIC ZOOM FIX: dragmode=False and fixedrange=True COMPLETELY disables scrolling zooms! 🔥
             fig.update_layout(
                 margin=dict(l=0, r=0, t=0, b=0), 
                 height=150, 
@@ -306,6 +299,17 @@ def render_chart(row, df_chart, show_pin=True):
             st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:normal !important;'>Data not available</div>", unsafe_allow_html=True)
     except Exception as e:
         st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:normal !important;'>Chart error</div>", unsafe_allow_html=True)
+
+# Helper function to dynamically chunk charts into safe Streamlit rows
+def render_chart_grid(df_grid, show_pin_option):
+    if df_grid.empty: return
+    chunk_size = 8 # Safe size for columns
+    for i in range(0, len(df_grid), chunk_size):
+        chunk = df_grid.iloc[i:i+chunk_size]
+        cols = st.columns(len(chunk))
+        for j, (_, row) in enumerate(chunk.iterrows()):
+            with cols[j]:
+                render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=show_pin_option)
 
 # --- 6. TOP NAVIGATION & SEARCH ---
 c1, c2 = st.columns([0.6, 0.4])
@@ -368,6 +372,7 @@ if not df.empty:
             else:
                 stock_trends[sym] = 'Neutral'
                 
+            # 🔥 ONE SIDED MOVE LOGIC (70% time above/below VWAP & EMA) 🔥
             total_candles = len(df_day)
             if total_candles >= 3:
                 bull_cond = (df_day['Close'] > df_day['VWAP']) & (df_day['Close'] > df_day['EMA_10'])
@@ -392,8 +397,8 @@ if not df.empty:
         f1, f2, f3, f4 = st.columns(4)
         
         with f1: 
-            # 🔥 THIS IS THE MAGIC FIX: Marker placed exactly where it worked before 🔥
-            st.markdown("<span class='filter-marker'></span>", unsafe_allow_html=True)
+            # Marker inside column
+            st.markdown("<div class='filter-marker' style='display:none;'></div>", unsafe_allow_html=True)
             if st.button(f"📊 All ({len(df_filtered)})"): st.session_state.trend_filter = 'All'
         with f2: 
             if st.button(f"🟢 Bullish ({bull_cnt})"): st.session_state.trend_filter = 'Bullish'
@@ -457,21 +462,12 @@ if not df.empty:
         if search_stock != "-- None --":
             st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:5px; color:#ffd700;'>🔍 Searched Chart: {search_stock}</div>", unsafe_allow_html=True)
             searched_row = df[df['T'] == search_stock].iloc[0]
-            
-            with st.container():
-                st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
-                with st.container():
-                    render_chart(searched_row, processed_charts.get(searched_row['Fetch_T'], pd.DataFrame()), show_pin=False)
+            render_chart_grid(pd.DataFrame([searched_row]), show_pin_option=False)
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
         # 2. RENDER INDICES CHARTS
         st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>📈 Market Indices</div>", unsafe_allow_html=True)
-        if not df_indices.empty:
-            with st.container():
-                st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
-                for _, row in df_indices.iterrows():
-                    with st.container():
-                        render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=False)
+        render_chart_grid(df_indices, show_pin_option=False)
         st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
         # 3. RENDER ALL PINNED & SEARCHED STOCKS HERE (PRIORITY ROW)
@@ -486,22 +482,13 @@ if not df.empty:
         
         if not pinned_df.empty:
             st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#ffd700;'>📌 Pinned Priority Charts</div>", unsafe_allow_html=True)
-            with st.container():
-                st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
-                for _, row in pinned_df.iterrows():
-                    with st.container():
-                        render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=True)
+            render_chart_grid(pinned_df, show_pin_option=True)
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
         # 4. RENDER REMAINING STOCKS
         if not unpinned_df.empty:
             st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>{watchlist_mode} ({st.session_state.trend_filter})</div>", unsafe_allow_html=True)
-            
-            with st.container():
-                st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
-                for _, row in unpinned_df.iterrows():
-                    with st.container():
-                        render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=True)
+            render_chart_grid(unpinned_df, show_pin_option=True)
 
 else:
     st.info("Loading Market Data...")
