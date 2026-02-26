@@ -23,7 +23,7 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- 4. CSS FOR STYLING (RESPONSIVE CHARTS, NO ZOOM, MOBILE FIX) ---
+# --- 4. CSS FOR STYLING (THE SUCCESSFUL BUTTON CSS + FLUID GRID) ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
@@ -39,7 +39,7 @@ st.markdown("""
     .t-pct { font-size: 12px; font-weight: normal !important; }
     .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal !important; }
     
-    /* 🔥 2. PERFECT HORIZONTAL BUTTONS FIX (ALL SCREENS - FIT TO TEXT) 🔥 */
+    /* 🔥 2. THE SUCCESSFUL HORIZONTAL BUTTONS FIX 🔥 */
     div[data-testid="stHorizontalBlock"]:has(.filter-marker) {
         display: flex !important;
         flex-direction: row !important; /* Force Side-by-Side */
@@ -50,7 +50,7 @@ st.markdown("""
         width: 100% !important;
     }
     
-    /* Make the columns shrink to fit the buttons exactly */
+    /* Shrink the column wrappers to fit text exactly */
     div[data-testid="stHorizontalBlock"]:has(.filter-marker) > div[data-testid="column"] {
         width: auto !important;
         min-width: 0px !important; 
@@ -58,10 +58,10 @@ st.markdown("""
         padding: 0 !important;
     }
     
-    /* Style the buttons to fit text */
+    /* Box size tight to text */
     div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button {
         height: 35px !important;
-        width: auto !important; /* Text ki taggattu box! */
+        width: auto !important; 
         padding: 0px 15px !important;
     }
     
@@ -71,7 +71,7 @@ st.markdown("""
         margin: 0 !important;
     }
     
-    /* Slightly smaller for mobile phones */
+    /* Mobile optimization */
     @media screen and (max-width: 650px) {
         div[data-testid="stHorizontalBlock"]:has(.filter-marker) { gap: 6px !important; }
         div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button { padding: 0px 8px !important; }
@@ -88,30 +88,12 @@ st.markdown("""
         display: none !important; /* Hide invisible marker */
     }
     
-    /* MEGA SCREEN (Extra Large Desktop) -> 8 CHARTS */
-    @media screen and (min-width: 1700px) {
-        div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(8, 1fr) !important; }
-    }
-    /* FULL SCREEN (Large Desktop) -> 6 CHARTS */
-    @media screen and (min-width: 1400px) and (max-width: 1699px) {
-        div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(6, 1fr) !important; }
-    }
-    /* NORMAL DESKTOP -> 5 CHARTS */
-    @media screen and (min-width: 1100px) and (max-width: 1399px) {
-        div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(5, 1fr) !important; }
-    }
-    /* SMALL DESKTOP / TABLET -> 4 CHARTS */
-    @media screen and (min-width: 850px) and (max-width: 1099px) {
-        div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(4, 1fr) !important; }
-    }
-    /* SPLIT SCREEN DESKTOP -> 3 CHARTS */
-    @media screen and (min-width: 651px) and (max-width: 849px) {
-        div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(3, 1fr) !important; }
-    }
-    /* MOBILE PHONES -> 2 CHARTS */
-    @media screen and (max-width: 650px) {
-        div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(2, 1fr) !important; gap: 6px !important; }
-    }
+    @media screen and (min-width: 1700px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(8, 1fr) !important; } }
+    @media screen and (min-width: 1400px) and (max-width: 1699px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(6, 1fr) !important; } }
+    @media screen and (min-width: 1100px) and (max-width: 1399px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(5, 1fr) !important; } }
+    @media screen and (min-width: 850px) and (max-width: 1099px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(4, 1fr) !important; } }
+    @media screen and (min-width: 651px) and (max-width: 849px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(3, 1fr) !important; } }
+    @media screen and (max-width: 650px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(2, 1fr) !important; gap: 6px !important; } }
     
     /* 🔥 4. INDIVIDUAL CHART BOX STYLING 🔥 */
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] {
@@ -347,6 +329,7 @@ if not df.empty:
     
     df_stocks = df[(~df['Is_Index']) & (~df['Is_Sector'])].copy()
     
+    # 🔥 STAGE 1 FILTER LOGIC 🔥
     if watchlist_mode == "Nifty 50 Heatmap":
         df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
     elif watchlist_mode == "One Sided Moves 🚀":
@@ -409,8 +392,8 @@ if not df.empty:
         f1, f2, f3, f4 = st.columns(4)
         
         with f1: 
-            # 🔥 THIS IS THE MAGIC FIX: Marker placed strictly inside f1 🔥
-            st.markdown("<div class='filter-marker' style='display:none;'></div>", unsafe_allow_html=True)
+            # 🔥 THIS IS THE MAGIC FIX: Marker placed exactly where it worked before 🔥
+            st.markdown("<span class='filter-marker'></span>", unsafe_allow_html=True)
             if st.button(f"📊 All ({len(df_filtered)})"): st.session_state.trend_filter = 'All'
         with f2: 
             if st.button(f"🟢 Bullish ({bull_cnt})"): st.session_state.trend_filter = 'Bullish'
