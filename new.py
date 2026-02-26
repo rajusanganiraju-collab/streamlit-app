@@ -23,7 +23,7 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- 4. CSS FOR STYLING (FLUID GRID & PERFECT PIN) ---
+# --- 4. CSS FOR STYLING (FLUID GRID, PERFECT PIN, HORIZONTAL MOBILE BUTTONS) ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
@@ -40,17 +40,14 @@ st.markdown("""
     .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal !important; }
     
     /* 🔥 2. AUTO-ADJUSTING FLUID GRID MAGIC 🔥 */
-    /* Turns the wrapper into a smart responsive grid */
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .fluid-board) {
         display: grid !important;
-        /* Adjusts from 3 items (split screen) to 8+ items (full screen) automatically! */
         grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) !important; 
         gap: 15px !important;
         flex-direction: unset !important;
         align-items: unset !important;
     }
     
-    /* Hides the invisible trigger marker so it doesn't take space */
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .fluid-board) > div[data-testid="stElementContainer"]:has(.fluid-board) {
         display: none !important;
     }
@@ -62,7 +59,7 @@ st.markdown("""
         border-radius: 8px !important;
         padding: 10px 5px 5px 5px !important;
         position: relative !important;
-        gap: 0px !important; /* Removes internal spacing */
+        gap: 0px !important;
     }
 
     /* 🔥 4. PERFECT PIN BOX (Top-Left Absolute) 🔥 */
@@ -80,6 +77,29 @@ st.markdown("""
         border: 1px solid #30363d !important;
         background-color: #161b22 !important;
         height: 45px !important;
+    }
+    
+    /* 🔥 5. MOBILE HORIZONTAL BUTTONS FIX 🔥 */
+    @media screen and (max-width: 650px) {
+        div[data-testid="stHorizontalBlock"]:has(.filter-marker) {
+            display: flex !important;
+            flex-direction: row !important; /* Force Horizontal */
+            flex-wrap: nowrap !important;
+            gap: 4px !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(.filter-marker) > div[data-testid="column"] {
+            width: 25% !important;
+            min-width: 25% !important;
+            flex: 1 1 25% !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button {
+            height: 40px !important;
+            padding: 0px !important;
+        }
+        /* Make text small enough to fit horizontally on mobile */
+        div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button p {
+            font-size: 10.5px !important; 
+        }
     }
     
     /* Heatmap Layout */
@@ -223,7 +243,6 @@ def render_chart(row, df_chart, show_pin=True):
     sign = "+" if row['C'] > 0 else ""
     tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
     
-    # 🔥 PURE CHECKBOX: Handled perfectly by CSS Container 🔥
     if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX"]:
         st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=f"cb_{fetch_sym}", on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
     
@@ -247,8 +266,22 @@ def render_chart(row, df_chart, show_pin=True):
             fig.add_trace(go.Candlestick(x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], increasing_line_color='#2ea043', decreasing_line_color='#da3633', name='Price'))
             fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot')))
             fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash')))
-            fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=150, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(visible=False, rangeslider=dict(visible=False)), yaxis=dict(visible=False, range=[min_val - y_padding, max_val + y_padding]), hovermode=False, showlegend=False)
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            
+            # 🔥 MAGIC ZOOM FIX: dragmode=False and fixedrange=True disables all scrolling zooms! 🔥
+            fig.update_layout(
+                margin=dict(l=0, r=0, t=0, b=0), 
+                height=150, 
+                paper_bgcolor='rgba(0,0,0,0)', 
+                plot_bgcolor='rgba(0,0,0,0)', 
+                xaxis=dict(visible=False, rangeslider=dict(visible=False), fixedrange=True), 
+                yaxis=dict(visible=False, range=[min_val - y_padding, max_val + y_padding], fixedrange=True), 
+                hovermode=False, 
+                showlegend=False,
+                dragmode=False 
+            )
+            
+            # 🔥 config={'staticPlot': True} makes the chart 100% immune to touches and scrolls 🔥
+            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True})
         else:
             st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:normal !important;'>Data not available</div>", unsafe_allow_html=True)
     except Exception as e:
@@ -316,10 +349,17 @@ if not df.empty:
 
     # --- CLICKABLE TREND FILTERS ---
     f1, f2, f3, f4 = st.columns(4)
-    if f1.button(f"📊 All ({len(df_filtered)})", use_container_width=True): st.session_state.trend_filter = 'All'
-    if f2.button(f"🟢 Bullish ({bull_cnt})", use_container_width=True): st.session_state.trend_filter = 'Bullish'
-    if f3.button(f"⚪ Neutral ({neut_cnt})", use_container_width=True): st.session_state.trend_filter = 'Neutral'
-    if f4.button(f"🔴 Bearish ({bear_cnt})", use_container_width=True): st.session_state.trend_filter = 'Bearish'
+    # 🔥 MARKER FOR MOBILE CSS 🔥
+    with f1: st.markdown("<div class='filter-marker' style='display:none;'></div>", unsafe_allow_html=True)
+    
+    with f1: 
+        if st.button(f"📊 All ({len(df_filtered)})", use_container_width=True): st.session_state.trend_filter = 'All'
+    with f2: 
+        if st.button(f"🟢 Bullish ({bull_cnt})", use_container_width=True): st.session_state.trend_filter = 'Bullish'
+    with f3: 
+        if st.button(f"⚪ Neutral ({neut_cnt})", use_container_width=True): st.session_state.trend_filter = 'Neutral'
+    with f4: 
+        if st.button(f"🔴 Bearish ({bear_cnt})", use_container_width=True): st.session_state.trend_filter = 'Bearish'
 
     st.markdown(f"<div style='text-align:right; font-size:12px; color:#ffd700; margin-bottom: 10px; font-weight:normal !important;'>Showing: <b>{st.session_state.trend_filter}</b> Stocks</div>", unsafe_allow_html=True)
 
@@ -395,12 +435,11 @@ if not df.empty:
                         render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=True)
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
-        # 🔥 4. RENDER REMAINING STOCKS (AUTO-FLUID GRID!) 🔥
+        # 4. RENDER REMAINING STOCKS
         if not unpinned_df.empty:
             st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>{watchlist_mode} ({st.session_state.trend_filter})</div>", unsafe_allow_html=True)
             
             with st.container():
-                # This invisible div triggers the CSS Grid!
                 st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
                 for _, row in unpinned_df.iterrows():
                     with st.container():
