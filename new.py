@@ -39,43 +39,49 @@ st.markdown("""
     .t-pct { font-size: 12px; font-weight: normal !important; }
     .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal !important; }
     
-    /* 🔥 2. PERFECT HORIZONTAL BUTTONS FIX (ALL SCREENS - FIT TO TEXT) 🔥 */
+    /* 🔥 2. BULLETPROOF HORIZONTAL BUTTONS (FIT TO TEXT) 🔥 */
     div[data-testid="stHorizontalBlock"]:has(.filter-marker) {
         display: flex !important;
-        flex-direction: row !important; /* Force Side-by-Side */
-        flex-wrap: nowrap !important; /* NEVER stack vertically */
+        flex-direction: row !important; /* Force side-by-side */
+        flex-wrap: nowrap !important; /* Prevent dropping to next line */
         justify-content: center !important; /* Center the buttons */
         align-items: center !important;
-        gap: 10px !important; /* Space between buttons */
+        gap: 8px !important; /* Space between buttons */
         width: 100% !important;
     }
     
-    /* Make the columns shrink to fit the buttons exactly */
+    /* Locks the column width exactly to the text size */
     div[data-testid="stHorizontalBlock"]:has(.filter-marker) > div[data-testid="column"] {
-        width: auto !important;
-        min-width: 0px !important; 
-        flex: 0 1 auto !important; /* Shrink to content */
+        width: max-content !important;
+        min-width: max-content !important;
+        max-width: max-content !important;
+        flex: none !important; /* Do not shrink or grow */
         padding: 0 !important;
     }
     
-    /* Style the buttons to fit text */
+    /* Locks the button background to the text size */
+    div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton {
+        width: max-content !important;
+    }
     div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button {
+        width: max-content !important;
+        min-width: max-content !important;
         height: 35px !important;
-        width: auto !important; /* Text ki taggattu box! */
-        padding: 0px 15px !important;
+        padding: 0px 12px !important;
     }
     
+    /* Keeps text on a single line */
     div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button p {
         font-size: 12px !important; 
-        white-space: nowrap !important; /* Text single line lo untundi */
+        white-space: nowrap !important; 
         margin: 0 !important;
     }
     
-    /* Slightly smaller for mobile phones */
+    /* Slightly smaller font/padding for mobile so all 4 fit beautifully */
     @media screen and (max-width: 650px) {
-        div[data-testid="stHorizontalBlock"]:has(.filter-marker) { gap: 6px !important; }
+        div[data-testid="stHorizontalBlock"]:has(.filter-marker) { gap: 4px !important; }
         div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button { padding: 0px 8px !important; }
-        div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button p { font-size: 10px !important; }
+        div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button p { font-size: 10.5px !important; }
     }
     
     /* 🔥 3. DYNAMIC SCREEN SIZING FOR CHARTS (3 to 8 COLUMNS) 🔥 */
@@ -386,12 +392,11 @@ if not df.empty:
                 stock_trends[sym] = 'Neutral'
                 neut_cnt += 1
 
-    # --- 🔥 THE PERFECT HORIZONTAL COMPACT BUTTONS 🔥 ---
+    # --- CLICKABLE TREND FILTERS ---
     with st.container():
         f1, f2, f3, f4 = st.columns(4)
         
         with f1: 
-            # 🔥 MARKER ADDED INSIDE F1 🔥
             st.markdown("<span class='filter-marker'></span>", unsafe_allow_html=True)
             if st.button(f"📊 All ({len(df_filtered)})"): st.session_state.trend_filter = 'All'
         with f2: 
@@ -449,7 +454,18 @@ if not df.empty:
     else:
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # 1. RENDER INDICES CHARTS
+        # 1. RENDER SEARCHED CHART
+        if search_stock != "-- None --":
+            st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:5px; color:#ffd700;'>🔍 Searched Chart: {search_stock}</div>", unsafe_allow_html=True)
+            searched_row = df[df['T'] == search_stock].iloc[0]
+            
+            with st.container():
+                st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
+                with st.container():
+                    render_chart(searched_row, processed_charts.get(searched_row['Fetch_T'], pd.DataFrame()), show_pin=False)
+            st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
+        
+        # 2. RENDER INDICES CHARTS
         st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>📈 Market Indices</div>", unsafe_allow_html=True)
         if not df_indices.empty:
             with st.container():
@@ -459,7 +475,7 @@ if not df.empty:
                         render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=False)
         st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
-        # 2. RENDER ALL PINNED & SEARCHED STOCKS HERE (PRIORITY ROW)
+        # 3. RENDER PINNED STOCKS CHARTS
         pinned_df = df[df['Fetch_T'].isin(st.session_state.pinned_stocks)].copy()
         
         if search_stock != "-- None --":
@@ -478,7 +494,7 @@ if not df.empty:
                         render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=True)
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
-        # 3. RENDER REMAINING STOCKS
+        # 4. RENDER REMAINING STOCKS
         if not unpinned_df.empty:
             st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>{watchlist_mode} ({st.session_state.trend_filter})</div>", unsafe_allow_html=True)
             
