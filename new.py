@@ -23,14 +23,14 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- 4. CSS FOR STYLING ---
+# --- 4. CSS FOR STYLING (FLUID GRID, PERFECT PIN, HORIZONTAL MOBILE BUTTONS) ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
     .stApp { background-color: #0e1117; color: #ffffff; }
     .block-container { padding-top: 1rem !important; padding-bottom: 0rem !important; margin-top: -10px; }
     
-    /* ALL TEXT TO NORMAL (UNBOLD) */
+    /* 🔥 1. ALL TEXT TO NORMAL (UNBOLD) 🔥 */
     .stRadio label, .stRadio p, div[role="radiogroup"] p { color: #ffffff !important; font-weight: normal !important; }
     div.stButton > button p, div.stButton > button span { color: #ffffff !important; font-weight: normal !important; font-size: 14px !important; }
     
@@ -39,19 +39,63 @@ st.markdown("""
     .t-pct { font-size: 12px; font-weight: normal !important; }
     .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal !important; }
     
-    /* BULLETPROOF CHART BOX STYLING */
-    div[data-testid="column"]:has(.chart-marker) {
+    /* 🔥 2. MOBILE HORIZONTAL BUTTONS FIX (NO SWIPING!) 🔥 */
+    @media screen and (max-width: 650px) {
+        div[data-testid="stHorizontalBlock"]:has(.filter-marker) {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            gap: 4px !important;
+            overflow: hidden !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(.filter-marker) > div[data-testid="column"] {
+            width: 25% !important;
+            min-width: 0px !important; 
+            flex: 1 1 0px !important;
+            padding: 0 !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button {
+            height: 38px !important;
+            padding: 0 !important;
+            width: 100% !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button p {
+            font-size: 9px !important; 
+            white-space: nowrap !important; 
+        }
+    }
+    
+    /* 🔥 3. AUTO-ADJUSTING FLUID GRID MAGIC 🔥 */
+    div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) {
+        display: grid !important;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important; 
+        gap: 12px !important;
+        align-items: start !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div:nth-child(1) {
+        display: none !important;
+    }
+    
+    /* 🔥 4. INDIVIDUAL CHART BOX STYLING 🔥 */
+    div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] {
         background-color: #161b22 !important;
         border: 1px solid #30363d !important;
         border-radius: 8px !important;
-        padding: 10px 10px 5px 10px !important;
+        padding: 8px 5px 5px 5px !important;
+        position: relative !important;
+        width: 100% !important;
     }
-    div[data-testid="column"]:has(.chart-marker) div[data-testid="column"] { padding: 0 !important; }
-    
-    div[data-testid="stCheckbox"] { margin-top: 2px !important; display: flex; justify-content: center; }
+
+    /* 🔥 5. PERFECT PIN BOX (Top-Left Absolute) 🔥 */
+    div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] div[data-testid="stCheckbox"] {
+        position: absolute !important;
+        top: 8px !important;
+        left: 10px !important;
+        z-index: 100 !important;
+    }
     div[data-testid="stCheckbox"] label { padding: 0 !important; min-height: 0 !important; }
     
-    /* Buttons Styling */
+    /* General Button Styles */
     div.stButton > button {
         border-radius: 8px !important;
         border: 1px solid #30363d !important;
@@ -59,7 +103,7 @@ st.markdown("""
         height: 45px !important;
     }
     
-    /* Heatmap Grids */
+    /* Heatmap Layout */
     .heatmap-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 8px; padding: 5px 0; }
     .stock-card { border-radius: 4px; padding: 8px 4px; text-align: center; text-decoration: none !important; color: white !important; display: flex; flex-direction: column; justify-content: center; height: 90px; position: relative; box-shadow: 0 1px 3px rgba(0,0,0,0.3); transition: transform 0.2s; }
     .stock-card:hover { transform: scale(1.05); z-index: 10; box-shadow: 0 4px 8px rgba(0,0,0,0.5); }
@@ -82,15 +126,9 @@ st.markdown("""
 INDICES_MAP = {"^NSEI": "NIFTY", "^NSEBANK": "BANKNIFTY", "^INDIAVIX": "INDIA VIX"}
 TV_INDICES_URL = {"^NSEI": "NSE:NIFTY", "^NSEBANK": "NSE:BANKNIFTY", "^INDIAVIX": "NSE:INDIAVIX"}
 
-# 🔥 NEW: SECTOR INDICES MAP 🔥
 SECTOR_INDICES_MAP = {
-    "^CNXIT": "NIFTY IT",
-    "^CNXAUTO": "NIFTY AUTO",
-    "^CNXMETAL": "NIFTY METAL",
-    "^CNXPHARMA": "NIFTY PHARMA",
-    "^CNXFMCG": "NIFTY FMCG",
-    "^CNXENERGY": "NIFTY ENERGY",
-    "^CNXREALTY": "NIFTY REALTY"
+    "^CNXIT": "NIFTY IT", "^CNXAUTO": "NIFTY AUTO", "^CNXMETAL": "NIFTY METAL",
+    "^CNXPHARMA": "NIFTY PHARMA", "^CNXFMCG": "NIFTY FMCG", "^CNXENERGY": "NIFTY ENERGY", "^CNXREALTY": "NIFTY REALTY"
 }
 TV_SECTOR_URL = {
     "^CNXIT": "NSE:CNXIT", "^CNXAUTO": "NSE:CNXAUTO", "^CNXMETAL": "NSE:CNXMETAL",
@@ -123,7 +161,6 @@ def get_minutes_passed():
 @st.cache_data(ttl=60)
 def fetch_all_data():
     all_stocks = set(NIFTY_50 + BROADER_MARKET)
-    # Added Sector Indices to download list
     tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + [f"{t}.NS" for t in all_stocks]
     data = yf.download(tkrs, period="5d", progress=False, group_by='ticker', threads=20)
     
@@ -162,7 +199,6 @@ def fetch_all_data():
             is_index = False
             is_sector = False
             
-            # Identify what type of item this is
             if symbol in INDICES_MAP:
                 disp_name = INDICES_MAP[symbol]
                 is_index = True
@@ -172,10 +208,7 @@ def fetch_all_data():
             else:
                 disp_name = symbol.replace(".NS", "")
                 
-            results.append({
-                "Fetch_T": symbol, "T": disp_name, "P": ltp, "C": net_chg, "S": score, 
-                "Is_Index": is_index, "Is_Sector": is_sector
-            })
+            results.append({"Fetch_T": symbol, "T": disp_name, "P": ltp, "C": net_chg, "S": score, "Is_Index": is_index, "Is_Sector": is_sector})
         except: continue
         
     return pd.DataFrame(results)
@@ -211,20 +244,19 @@ def render_chart(row, df_chart, show_pin=True):
     sign = "+" if row['C'] > 0 else ""
     tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
     
-    st.markdown("<div class='chart-marker' style='display:none;'></div>", unsafe_allow_html=True)
-    
-    header_html = f"<a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; font-weight:normal !important;'>{display_sym} <span style='color:{color_hex}; font-weight:normal !important;'>({sign}{row['C']:.2f}%)</span></a>"
-    
     if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX"]:
-        c1, c2 = st.columns([1, 6])
-        with c1:
-            st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=f"cb_{fetch_sym}", on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
-        with c2:
-            st.markdown(f"<div style='text-align:left; font-size:15px; margin-top:1px;'>{header_html}</div>", unsafe_allow_html=True)
-    else:
-        st.markdown(f"<div style='text-align:center; font-size:15px; margin-top:1px;'>{header_html}</div>", unsafe_allow_html=True)
-        
-    st.markdown("<div style='text-align:center; font-size:10px; color:#8b949e; margin-top:3px; margin-bottom:5px; font-weight:normal !important;'><span style='color:#FFD700;'>--- VWAP</span> &nbsp;|&nbsp; <span style='color:#00BFFF;'>- - 10 EMA</span></div>", unsafe_allow_html=True)
+        st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=f"cb_{fetch_sym}", on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
+    
+    st.markdown(f"""
+        <div style='text-align:center; font-size:15px; margin-top:2px;'>
+            <a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; font-weight:normal !important;'>
+                {display_sym} <span style='color:{color_hex}; font-weight:normal !important;'>({sign}{row['C']:.2f}%)</span>
+            </a>
+        </div>
+        <div style='text-align:center; font-size:10px; color:#8b949e; margin-top:2px; margin-bottom:5px; font-weight:normal !important;'>
+            <span style='color:#FFD700;'>--- VWAP</span> &nbsp;|&nbsp; <span style='color:#00BFFF;'>- - 10 EMA</span>
+        </div>
+    """, unsafe_allow_html=True)
     
     try:
         if not df_chart.empty:
@@ -235,12 +267,26 @@ def render_chart(row, df_chart, show_pin=True):
             fig.add_trace(go.Candlestick(x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], increasing_line_color='#2ea043', decreasing_line_color='#da3633', name='Price'))
             fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot')))
             fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash')))
-            fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=150, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(visible=False, rangeslider=dict(visible=False)), yaxis=dict(visible=False, range=[min_val - y_padding, max_val + y_padding]), hovermode=False, showlegend=False)
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            
+            # 🔥 MAGIC ZOOM FIX: dragmode=False and fixedrange=True COMPLETELY disables scrolling zooms! 🔥
+            fig.update_layout(
+                margin=dict(l=0, r=0, t=0, b=0), 
+                height=150, 
+                paper_bgcolor='rgba(0,0,0,0)', 
+                plot_bgcolor='rgba(0,0,0,0)', 
+                xaxis=dict(visible=False, rangeslider=dict(visible=False), fixedrange=True), 
+                yaxis=dict(visible=False, range=[min_val - y_padding, max_val + y_padding], fixedrange=True), 
+                hovermode=False, 
+                showlegend=False,
+                dragmode=False 
+            )
+            
+            # 🔥 config={'staticPlot': True} makes the chart 100% immune to touches 🔥
+            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True})
         else:
             st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:normal !important;'>Data not available</div>", unsafe_allow_html=True)
     except Exception as e:
-        st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:normal !important;'>Chart loading error</div>", unsafe_allow_html=True)
+        st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:normal !important;'>Chart error</div>", unsafe_allow_html=True)
 
 # --- 6. TOP NAVIGATION & SEARCH ---
 c1, c2 = st.columns([0.6, 0.4])
@@ -252,16 +298,15 @@ df = fetch_all_data()
 
 if not df.empty:
     
-    all_names = sorted(df[~df['Is_Sector']]['T'].tolist()) # Don't show sectors in search box
+    all_names = sorted(df[~df['Is_Sector']]['T'].tolist())
     search_stock = st.selectbox("🔍 Search & View Chart", ["-- None --"] + all_names)
     
-    # 🌟 DATA SPLITTING 🌟
     df_indices = df[df['Is_Index']].copy()
     df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3})
     df_indices = df_indices.sort_values("Order")
     
     df_sectors = df[df['Is_Sector']].copy()
-    df_sectors = df_sectors.sort_values(by="C", ascending=False) # Sort sectors by highest percentage change
+    df_sectors = df_sectors.sort_values(by="C", ascending=False)
     
     df_stocks = df[(~df['Is_Index']) & (~df['Is_Sector'])].copy()
     
@@ -270,8 +315,10 @@ if not df.empty:
     else:
         df_filtered = df_stocks[(df_stocks['S'] >= 7) & (df_stocks['S'] <= 10)]
 
-    # Fetch 5-min data ONLY for visible charts (Indices + Stocks + Searched)
-    all_display_tickers = list(set(df_indices['Fetch_T'].tolist() + df_filtered['Fetch_T'].tolist()))
+    # Fetch 5-min data ONLY for visible charts (Indices + Stocks + Searched + ALL PINNED)
+    # 🔥 FIX: We MUST include ALL pinned stocks in the download list, even if they aren't in the current filter 🔥
+    all_display_tickers = list(set(df_indices['Fetch_T'].tolist() + df_filtered['Fetch_T'].tolist() + st.session_state.pinned_stocks))
+    
     if search_stock != "-- None --":
         search_fetch_t = df[df['T'] == search_stock]['Fetch_T'].iloc[0]
         if search_fetch_t not in all_display_tickers:
@@ -289,6 +336,7 @@ if not df.empty:
         df_day = process_5m_data(df_raw)
         processed_charts[sym] = df_day
         
+        # Calculate trends ONLY for the currently selected watchlist (for the counts)
         if sym in df_filtered['Fetch_T'].tolist() and not df_day.empty:
             last_price = df_day['Close'].iloc[-1]
             last_vwap = df_day['VWAP'].iloc[-1]
@@ -306,13 +354,20 @@ if not df.empty:
 
     # --- CLICKABLE TREND FILTERS ---
     f1, f2, f3, f4 = st.columns(4)
-    if f1.button(f"📊 All ({len(df_filtered)})", use_container_width=True): st.session_state.trend_filter = 'All'
-    if f2.button(f"🟢 Bullish ({bull_cnt})", use_container_width=True): st.session_state.trend_filter = 'Bullish'
-    if f3.button(f"⚪ Neutral ({neut_cnt})", use_container_width=True): st.session_state.trend_filter = 'Neutral'
-    if f4.button(f"🔴 Bearish ({bear_cnt})", use_container_width=True): st.session_state.trend_filter = 'Bearish'
+    with f1: st.markdown("<div class='filter-marker' style='display:none;'></div>", unsafe_allow_html=True)
+    
+    with f1: 
+        if st.button(f"📊 All ({len(df_filtered)})", use_container_width=True): st.session_state.trend_filter = 'All'
+    with f2: 
+        if st.button(f"🟢 Bullish ({bull_cnt})", use_container_width=True): st.session_state.trend_filter = 'Bullish'
+    with f3: 
+        if st.button(f"⚪ Neutral ({neut_cnt})", use_container_width=True): st.session_state.trend_filter = 'Neutral'
+    with f4: 
+        if st.button(f"🔴 Bearish ({bear_cnt})", use_container_width=True): st.session_state.trend_filter = 'Bearish'
 
     st.markdown(f"<div style='text-align:right; font-size:12px; color:#ffd700; margin-bottom: 10px; font-weight:normal !important;'>Showing: <b>{st.session_state.trend_filter}</b> Stocks</div>", unsafe_allow_html=True)
 
+    # Apply Filter ONLY to the unpinned stocks
     if st.session_state.trend_filter != 'All':
         df_filtered = df_filtered[df_filtered['Fetch_T'].apply(lambda x: stock_trends.get(x) == st.session_state.trend_filter)]
 
@@ -322,7 +377,6 @@ if not df.empty:
 
     # --- RENDER VIEWS ---
     if view_mode == "Heat Map":
-        # 1. RENDER MAIN INDICES
         if not df_indices.empty:
             html_idx = '<div class="heatmap-grid">'
             for _, row in df_indices.iterrows():
@@ -331,7 +385,6 @@ if not df.empty:
                 html_idx += f'<a href="https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(row["Fetch_T"])}" target="_blank" class="stock-card {bg}"><div class="t-score">IDX</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if row["C"]>0 else ""}{row["C"]:.2f}%</div></a>'
             st.markdown(html_idx + '</div><hr class="custom-hr">', unsafe_allow_html=True)
         
-        # 🌟 2. RENDER SECTOR INDICES (ONLY IN HEATMAP) 🌟
         if not df_sectors.empty:
             html_sec = '<div class="heatmap-grid">'
             for _, row in df_sectors.iterrows():
@@ -341,7 +394,6 @@ if not df.empty:
                 html_sec += f'<a href="{tv_link}" target="_blank" class="stock-card {bg}"><div class="t-score" style="color:#00BFFF;">SEC</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if row["C"]>0 else ""}{row["C"]:.2f}%</div></a>'
             st.markdown(html_sec + '</div><hr class="custom-hr">', unsafe_allow_html=True)
 
-        # 3. RENDER STOCKS
         if not df_stocks_display.empty:
             html_stk = '<div class="heatmap-grid">'
             for _, row in df_stocks_display.iterrows():
@@ -352,51 +404,49 @@ if not df.empty:
             st.info(f"No {st.session_state.trend_filter} stocks found in this list.")
             
     else:
-        # CHARTS VIEW (SECTORS ARE HIDDEN HERE)
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # 1. RENDER SEARCHED CHART
-        if search_stock != "-- None --":
-            st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:5px; color:#ffd700;'>🔍 Searched Chart: {search_stock}</div>", unsafe_allow_html=True)
-            searched_row = df[df['T'] == search_stock].iloc[0]
-            render_chart(searched_row, processed_charts.get(searched_row['Fetch_T'], pd.DataFrame()), show_pin=False)
-            st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
-        
-        # 2. RENDER INDICES CHARTS
+        # 1. RENDER INDICES CHARTS
         st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>📈 Market Indices</div>", unsafe_allow_html=True)
         if not df_indices.empty:
-            idx_list = [row for _, row in df_indices.iterrows()]
-            for i in range(0, len(idx_list), 3):
-                cols = st.columns(3)
-                for j in range(3):
-                    if i + j < len(idx_list):
-                        with cols[j]: render_chart(idx_list[i + j], processed_charts.get(idx_list[i+j]['Fetch_T'], pd.DataFrame()), show_pin=False)
-                            
+            with st.container():
+                st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
+                for _, row in df_indices.iterrows():
+                    with st.container():
+                        render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=False)
         st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
-        # 3. RENDER PINNED STOCKS CHARTS
-        pinned_df = df_stocks_display[df_stocks_display['Fetch_T'].isin(st.session_state.pinned_stocks)]
-        unpinned_df = df_stocks_display[~df_stocks_display['Fetch_T'].isin(st.session_state.pinned_stocks)]
+        # 🔥 2. RENDER ALL PINNED & SEARCHED STOCKS HERE (PRIORITY ROW) 🔥
+        # Get rows for pinned stocks from the master DataFrame 'df' (so it ignores filters)
+        pinned_df = df[df['Fetch_T'].isin(st.session_state.pinned_stocks)].copy()
+        
+        # If there's a searched stock, add it to the pinned_df display if it's not already pinned
+        if search_stock != "-- None --":
+            searched_row = df[df['T'] == search_stock].iloc[0]
+            if searched_row['Fetch_T'] not in st.session_state.pinned_stocks:
+                 pinned_df = pd.concat([pd.DataFrame([searched_row]), pinned_df]) # Put searched at the very front
+        
+        # We also need to remove these pinned/searched stocks from the regular display below
+        unpinned_df = df_stocks_display[~df_stocks_display['Fetch_T'].isin(pinned_df['Fetch_T'].tolist())]
         
         if not pinned_df.empty:
             st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#ffd700;'>📌 Pinned Priority Charts</div>", unsafe_allow_html=True)
-            p_list = [row for _, row in pinned_df.iterrows()]
-            for i in range(0, len(p_list), 3):
-                cols = st.columns(3)
-                for j in range(3):
-                    if i + j < len(p_list):
-                        with cols[j]: render_chart(p_list[i + j], processed_charts.get(p_list[i+j]['Fetch_T'], pd.DataFrame()), show_pin=True)
+            with st.container():
+                st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
+                for _, row in pinned_df.iterrows():
+                    with st.container():
+                        render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=True)
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
-        # 4. RENDER REMAINING STOCKS CHARTS
+        # 3. RENDER REMAINING STOCKS
         if not unpinned_df.empty:
             st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>{watchlist_mode} ({st.session_state.trend_filter})</div>", unsafe_allow_html=True)
-            u_list = [row for _, row in unpinned_df.iterrows()]
-            for i in range(0, len(u_list), 3):
-                cols = st.columns(3)
-                for j in range(3):
-                    if i + j < len(u_list):
-                        with cols[j]: render_chart(u_list[i + j], processed_charts.get(u_list[i+j]['Fetch_T'], pd.DataFrame()), show_pin=True)
+            
+            with st.container():
+                st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
+                for _, row in unpinned_df.iterrows():
+                    with st.container():
+                        render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=True)
 
 else:
     st.info("Loading Market Data...")
