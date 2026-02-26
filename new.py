@@ -23,7 +23,7 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- 4. CSS FOR STYLING (PERFECT MOBILE GRID & HORIZONTAL BUTTONS) ---
+# --- 4. CSS FOR STYLING (RESPONSIVE CHARTS, NO ZOOM, MOBILE FIX) ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
@@ -39,38 +39,68 @@ st.markdown("""
     .t-pct { font-size: 12px; font-weight: normal !important; }
     .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal !important; }
     
-    /* 🔥 2. BULLETPROOF HORIZONTAL BUTTONS FOR MOBILE & DESKTOP 🔥 */
-    div[data-testid="stVerticalBlock"]:has(.filter-container-marker) > div[data-testid="stHorizontalBlock"] {
-        display: flex !important;
-        flex-direction: row !important; /* FORCES HORIZONTAL ALWAYS */
-        flex-wrap: nowrap !important;
-        gap: 6px !important;
-        align-items: center !important;
-    }
-    div[data-testid="stVerticalBlock"]:has(.filter-container-marker) > div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-        width: 25% !important;
-        min-width: 0 !important;
-        flex: 1 1 0px !important;
-    }
-    div[data-testid="stVerticalBlock"]:has(.filter-container-marker) button {
-        height: 42px !important;
-        padding: 0 !important;
-        width: 100% !important;
-    }
-    div[data-testid="stVerticalBlock"]:has(.filter-container-marker) button p {
-        white-space: nowrap !important;
+    /* 🔥 2. MOBILE HORIZONTAL BUTTONS FIX (NO SWIPING!) 🔥 */
+    @media screen and (max-width: 650px) {
+        div[data-testid="stHorizontalBlock"]:has(.filter-marker) {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            gap: 4px !important;
+            overflow: hidden !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(.filter-marker) > div[data-testid="column"] {
+            width: 25% !important;
+            min-width: 0px !important; 
+            flex: 1 1 0px !important;
+            padding: 0 !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button {
+            height: 38px !important;
+            padding: 0 !important;
+            width: 100% !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button p {
+            font-size: 9px !important; 
+            white-space: nowrap !important; 
+        }
     }
     
-    /* 🔥 3. DESKTOP FLUID GRID (AUTO ADJUST) 🔥 */
+    /* 🔥 3. DYNAMIC SCREEN SIZING FOR CHARTS (3 to 8 COLUMNS) 🔥 */
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) {
         display: grid !important;
-        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important; 
         gap: 12px !important;
         align-items: start !important;
     }
-    div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div:nth-child(1) { display: none !important; }
+    div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div:nth-child(1) {
+        display: none !important; /* Hide invisible marker */
+    }
     
-    /* INDIVIDUAL CHART BOX */
+    /* MEGA SCREEN (Extra Large Desktop) -> 8 CHARTS */
+    @media screen and (min-width: 1700px) {
+        div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(8, 1fr) !important; }
+    }
+    /* FULL SCREEN (Large Desktop) -> 6 CHARTS */
+    @media screen and (min-width: 1400px) and (max-width: 1699px) {
+        div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(6, 1fr) !important; }
+    }
+    /* NORMAL DESKTOP -> 5 CHARTS */
+    @media screen and (min-width: 1100px) and (max-width: 1399px) {
+        div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(5, 1fr) !important; }
+    }
+    /* SMALL DESKTOP / TABLET -> 4 CHARTS */
+    @media screen and (min-width: 850px) and (max-width: 1099px) {
+        div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(4, 1fr) !important; }
+    }
+    /* SPLIT SCREEN DESKTOP -> 3 CHARTS */
+    @media screen and (min-width: 651px) and (max-width: 849px) {
+        div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(3, 1fr) !important; }
+    }
+    /* MOBILE PHONES -> 2 CHARTS */
+    @media screen and (max-width: 650px) {
+        div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(2, 1fr) !important; gap: 6px !important; }
+    }
+    
+    /* 🔥 4. INDIVIDUAL CHART BOX STYLING 🔥 */
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] {
         background-color: #161b22 !important;
         border: 1px solid #30363d !important;
@@ -80,52 +110,37 @@ st.markdown("""
         width: 100% !important;
     }
 
-    /* PERFECT PIN BOX */
+    /* 🔥 5. PERFECT PIN BOX (Top-Left Absolute) 🔥 */
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] div[data-testid="stCheckbox"] {
         position: absolute !important;
         top: 8px !important;
-        left: 8px !important;
+        left: 10px !important;
         z-index: 100 !important;
     }
     div[data-testid="stCheckbox"] label { padding: 0 !important; min-height: 0 !important; }
     
     /* General Button Styles */
-    div.stButton > button { border-radius: 8px !important; border: 1px solid #30363d !important; background-color: #161b22 !important; }
+    div.stButton > button {
+        border-radius: 8px !important;
+        border: 1px solid #30363d !important;
+        background-color: #161b22 !important;
+        height: 45px !important;
+    }
     
-    /* Responsive Text Classes for Charts */
-    .c-title { text-align:center; font-size:15px; margin-top:2px; font-weight:normal !important; }
-    .c-labels { text-align:center; font-size:10px; color:#8b949e; margin-top:2px; margin-bottom:5px; font-weight:normal !important; }
-    
-    /* Heatmap Grids */
+    /* Heatmap Layout */
     .heatmap-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 8px; padding: 5px 0; }
     .stock-card { border-radius: 4px; padding: 8px 4px; text-align: center; text-decoration: none !important; color: white !important; display: flex; flex-direction: column; justify-content: center; height: 90px; position: relative; box-shadow: 0 1px 3px rgba(0,0,0,0.3); transition: transform 0.2s; }
+    .stock-card:hover { transform: scale(1.05); z-index: 10; box-shadow: 0 4px 8px rgba(0,0,0,0.5); }
     
     .bull-card { background-color: #1e5f29 !important; } 
     .bear-card { background-color: #b52524 !important; } 
     .neut-card { background-color: #30363d !important; } 
     .idx-card { background-color: #0d47a1 !important; border: 1px solid #1976d2; } 
     
-    /* 🔥 4. MOBILE SPECIFIC OVERRIDES 🔥 */
-    @media screen and (max-width: 650px) {
-        /* EXACTLY 2 CHARTS PER ROW ON MOBILE */
-        div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) {
-            grid-template-columns: repeat(2, 1fr) !important;
-            gap: 6px !important;
-        }
-        
-        /* Make Chart Text Smaller to fit 2-per-row perfectly */
-        .c-title { font-size: 11px !important; margin-top:1px; }
-        .c-title a { font-size: 11px !important; }
-        .c-labels { font-size: 8px !important; margin-bottom:2px; }
-        
-        /* Shrink Button Text on Mobile */
-        div[data-testid="stVerticalBlock"]:has(.filter-container-marker) button p {
-            font-size: 10px !important; 
-        }
-        
-        .heatmap-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; } 
-        .stock-card { height: 95px; }
-    }
+    @media screen and (max-width: 1400px) { .heatmap-grid { grid-template-columns: repeat(8, 1fr); } }
+    @media screen and (max-width: 1100px) { .heatmap-grid { grid-template-columns: repeat(6, 1fr); } }
+    @media screen and (max-width: 800px) { .heatmap-grid { grid-template-columns: repeat(4, 1fr); } }
+    @media screen and (max-width: 600px) { .heatmap-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; } .stock-card { height: 95px; } .t-name { font-size: 12px; } .t-price { font-size: 16px; } .t-pct { font-size: 11px; } }
     
     .custom-hr { border: 0; height: 1px; background: #30363d; margin: 15px 0; }
     </style>
@@ -256,14 +271,13 @@ def render_chart(row, df_chart, show_pin=True):
     if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX"]:
         st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=f"cb_{fetch_sym}", on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
     
-    # Text and Link uses CSS classes for responsiveness
     st.markdown(f"""
-        <div class="c-title">
+        <div style='text-align:center; font-size:15px; margin-top:2px;'>
             <a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; font-weight:normal !important;'>
                 {display_sym} <span style='color:{color_hex}; font-weight:normal !important;'>({sign}{row['C']:.2f}%)</span>
             </a>
         </div>
-        <div class="c-labels">
+        <div style='text-align:center; font-size:10px; color:#8b949e; margin-top:2px; margin-bottom:5px; font-weight:normal !important;'>
             <span style='color:#FFD700;'>--- VWAP</span> &nbsp;|&nbsp; <span style='color:#00BFFF;'>- - 10 EMA</span>
         </div>
     """, unsafe_allow_html=True)
@@ -294,9 +308,9 @@ def render_chart(row, df_chart, show_pin=True):
             # 🔥 config={'staticPlot': True} makes the chart 100% immune to touches 🔥
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True})
         else:
-            st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:normal !important; font-size:12px;'>Data not available</div>", unsafe_allow_html=True)
+            st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:normal !important;'>Data not available</div>", unsafe_allow_html=True)
     except Exception as e:
-        st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:normal !important; font-size:12px;'>Chart error</div>", unsafe_allow_html=True)
+        st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:normal !important;'>Chart error</div>", unsafe_allow_html=True)
 
 # --- 6. TOP NAVIGATION & SEARCH ---
 c1, c2 = st.columns([0.6, 0.4])
@@ -325,7 +339,6 @@ if not df.empty:
     else:
         df_filtered = df_stocks[(df_stocks['S'] >= 7) & (df_stocks['S'] <= 10)]
 
-    # Fetch 5-min data ONLY for visible charts (Indices + Stocks + Searched + ALL PINNED)
     all_display_tickers = list(set(df_indices['Fetch_T'].tolist() + df_filtered['Fetch_T'].tolist() + st.session_state.pinned_stocks))
     
     if search_stock != "-- None --":
@@ -345,7 +358,6 @@ if not df.empty:
         df_day = process_5m_data(df_raw)
         processed_charts[sym] = df_day
         
-        # Calculate trends ONLY for the currently selected watchlist (for the counts)
         if sym in df_filtered['Fetch_T'].tolist() and not df_day.empty:
             last_price = df_day['Close'].iloc[-1]
             last_vwap = df_day['VWAP'].iloc[-1]
@@ -361,9 +373,9 @@ if not df.empty:
                 stock_trends[sym] = 'Neutral'
                 neut_cnt += 1
 
-    # --- 🔥 BULLETPROOF HORIZONTAL BUTTONS CONTAINER 🔥 ---
+    # --- CLICKABLE TREND FILTERS ---
     with st.container():
-        st.markdown("<div class='filter-container-marker' style='display:none;'></div>", unsafe_allow_html=True)
+        st.markdown("<div class='filter-marker' style='display:none;'></div>", unsafe_allow_html=True)
         f1, f2, f3, f4 = st.columns(4)
         
         with f1: 
@@ -377,7 +389,6 @@ if not df.empty:
 
     st.markdown(f"<div style='text-align:right; font-size:12px; color:#ffd700; margin-bottom: 10px; font-weight:normal !important;'>Showing: <b>{st.session_state.trend_filter}</b> Stocks</div>", unsafe_allow_html=True)
 
-    # Apply Filter ONLY to the unpinned stocks
     if st.session_state.trend_filter != 'All':
         df_filtered = df_filtered[df_filtered['Fetch_T'].apply(lambda x: stock_trends.get(x) == st.session_state.trend_filter)]
 
