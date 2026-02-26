@@ -33,15 +33,20 @@ st.markdown("""
     /* Radio Buttons Text to White */
     .stRadio label, .stRadio p, div[role="radiogroup"] p { color: #ffffff !important; font-weight: bold !important; }
     
-    /* 🔥 PERFECT CHECKBOX POSITIONING (TOP-RIGHT CORNER INSIDE CHART BOX) 🔥 */
-    div[data-testid="column"] {
-        position: relative !important; 
-    }
+    /* 🔥 BULLETPROOF CHECKBOX POSITIONING (NO MORE FLOATING BUGS) 🔥 */
     div[data-testid="stCheckbox"] {
-        position: absolute !important;
-        top: 15px !important;
-        right: 15px !important;
-        z-index: 100 !important;
+        width: 100% !important;
+        display: flex !important;
+        justify-content: flex-end !important; /* Pushes checkbox perfectly to the right */
+        margin-bottom: -32px !important; /* Pulls the chart box up to overlap */
+        padding-right: 12px !important; /* Spacing from the right edge */
+        position: relative !important;
+        z-index: 10 !important; /* Keeps it clickable above the chart box */
+    }
+    div[data-testid="stCheckbox"] label {
+        padding: 0 !important;
+        margin: 0 !important;
+        min-height: 0 !important;
     }
     
     /* Button Text to White */
@@ -76,7 +81,7 @@ st.markdown("""
     @media screen and (max-width: 800px) { .heatmap-grid { grid-template-columns: repeat(4, 1fr); } }
     @media screen and (max-width: 600px) { .heatmap-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; } .stock-card { height: 95px; } .t-name { font-size: 12px; } .t-price { font-size: 16px; } .t-pct { font-size: 11px; } }
     
-    .chart-box { border: 1px solid #30363d; border-radius: 8px; background: #161b22; padding: 15px 10px 10px 10px; margin-bottom: 15px; }
+    .chart-box { border: 1px solid #30363d; border-radius: 8px; background: #161b22; padding: 20px 10px 10px 10px; margin-bottom: 15px; }
     .ind-labels { text-align: center; font-size: 10px; color: #8b949e; margin-bottom: 2px; }
     .custom-hr { border: 0; height: 1px; background: #30363d; margin: 15px 0; }
     </style>
@@ -185,7 +190,7 @@ def render_chart(row, df_chart, show_pin=True):
     sign = "+" if row['C'] > 0 else ""
     tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
     
-    # 🔥 PURE CHECKBOX: label_visibility="collapsed" hides the label entirely! 🔥
+    # 🔥 PURE CHECKBOX: Aligned completely to the right using Flexbox 🔥
     if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX"]:
         st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=f"cb_{fetch_sym}", on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
     
