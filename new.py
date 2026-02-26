@@ -23,7 +23,7 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- 4. CSS FOR STYLING ---
+# --- 4. CSS FOR STYLING (RESTORED TO THE 100% SUCCESSFUL VERSION) ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
@@ -39,7 +39,7 @@ st.markdown("""
     .t-pct { font-size: 12px; font-weight: normal !important; }
     .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal !important; }
     
-    /* 🔥 2. THE SUCCESSFUL HORIZONTAL BUTTONS FIX 🔥 */
+    /* 🔥 2. THE SUCCESSFUL HORIZONTAL BUTTONS FIX (NO COLUMNS HACK) 🔥 */
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) {
         display: flex !important;
         flex-direction: row !important; 
@@ -250,8 +250,8 @@ def process_5m_data(df_raw):
         return pd.DataFrame()
     except: return pd.DataFrame()
 
-# --- HELPER FUNCTION TO DRAW CHARTS ---
-def render_chart(row, df_chart, show_pin=True):
+# --- HELPER FUNCTION TO DRAW CHARTS (ADDED KEY_SUFFIX FIX) ---
+def render_chart(row, df_chart, show_pin=True, key_suffix=""):
     display_sym = row['T']
     fetch_sym = row['Fetch_T']
     
@@ -263,8 +263,10 @@ def render_chart(row, df_chart, show_pin=True):
     sign = "+" if row['C'] > 0 else ""
     tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
     
+    # 🔥 UNIQUE KEY LOGIC TO PREVENT STREAMLIT CRASHES WHEN SEARCHING & PINNING 🔥
     if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX"]:
-        st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=f"cb_{fetch_sym}", on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
+        cb_key = f"cb_{fetch_sym}_{key_suffix}" if key_suffix else f"cb_{fetch_sym}"
+        st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=cb_key, on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
     
     st.markdown(f"""
         <div style='text-align:center; font-size:15px; margin-top:2px;'>
@@ -444,7 +446,7 @@ if not df.empty:
     else:
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # 1. RENDER SEARCHED CHART (ISOLATED - DOES NOT MIX WITH PINS ANYMORE)
+        # 1. RENDER SEARCHED CHART (NOW WITH PIN OPTION!)
         if search_stock != "-- None --":
             st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:5px; color:#ffd700;'>🔍 Searched Chart: {search_stock}</div>", unsafe_allow_html=True)
             searched_row = df[df['T'] == search_stock].iloc[0]
@@ -452,7 +454,8 @@ if not df.empty:
             with st.container():
                 st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
                 with st.container():
-                    render_chart(searched_row, processed_charts.get(searched_row['Fetch_T'], pd.DataFrame()), show_pin=False)
+                    # 🔥 ENABLED PIN HERE WITH UNIQUE KEY "search" 🔥
+                    render_chart(searched_row, processed_charts.get(searched_row['Fetch_T'], pd.DataFrame()), show_pin=True, key_suffix="search")
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
         # 2. RENDER INDICES CHARTS
@@ -465,7 +468,7 @@ if not df.empty:
                         render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=False)
         st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
-        # 🔥 3. RENDER ONLY ACTUAL PINNED STOCKS (THE FIX IS HERE) 🔥
+        # 3. RENDER ALL PINNED STOCKS HERE (PRIORITY ROW)
         pinned_df = df[df['Fetch_T'].isin(st.session_state.pinned_stocks)].copy()
         
         unpinned_df = df_stocks_display[~df_stocks_display['Fetch_T'].isin(pinned_df['Fetch_T'].tolist())]
@@ -476,7 +479,8 @@ if not df.empty:
                 st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
                 for _, row in pinned_df.iterrows():
                     with st.container():
-                        render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=True)
+                        # 🔥 ENABLED PIN HERE WITH UNIQUE KEY "pinned" 🔥
+                        render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=True, key_suffix="pinned")
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
         # 4. RENDER REMAINING STOCKS
@@ -487,7 +491,8 @@ if not df.empty:
                 st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
                 for _, row in unpinned_df.iterrows():
                     with st.container():
-                        render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=True)
+                        # 🔥 ENABLED PIN HERE WITH UNIQUE KEY "main" 🔥
+                        render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=True, key_suffix="main")
 
 else:
     st.info("Loading Market Data...")
