@@ -23,7 +23,7 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- 4. CSS FOR STYLING (PERFECT IN-BOX CHECKBOX) ---
+# --- 4. CSS FOR STYLING (REMOVED BOLD FROM NAMES) ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
@@ -31,22 +31,17 @@ st.markdown("""
     .block-container { padding-top: 1rem !important; padding-bottom: 0rem !important; margin-top: -10px; }
     
     /* Radio Buttons Text to White */
-    .stRadio label, .stRadio p, div[role="radiogroup"] p { color: #ffffff !important; font-weight: bold !important; }
+    .stRadio label, .stRadio p, div[role="radiogroup"] p { color: #ffffff !important; font-weight: normal !important; }
     
-    /* 🔥 BULLETPROOF CHECKBOX POSITIONING (NO MORE FLOATING BUGS) 🔥 */
-    div[data-testid="stCheckbox"] {
-        width: 100% !important;
-        display: flex !important;
-        justify-content: flex-end !important; /* Pushes checkbox perfectly to the right */
-        margin-bottom: -32px !important; /* Pulls the chart box up to overlap */
-        padding-right: 12px !important; /* Spacing from the right edge */
-        position: relative !important;
-        z-index: 10 !important; /* Keeps it clickable above the chart box */
+    /* 🔥 PERFECT CHECKBOX POSITIONING (TOP-RIGHT CORNER INSIDE CHART BOX) 🔥 */
+    div[data-testid="column"] {
+        position: relative !important; 
     }
-    div[data-testid="stCheckbox"] label {
-        padding: 0 !important;
-        margin: 0 !important;
-        min-height: 0 !important;
+    div[data-testid="stCheckbox"] {
+        position: absolute !important;
+        top: 15px !important;
+        right: 15px !important;
+        z-index: 100 !important;
     }
     
     /* Button Text to White */
@@ -58,7 +53,7 @@ st.markdown("""
     }
     div.stButton > button p, div.stButton > button span {
         color: #ffffff !important;
-        font-weight: bold !important;
+        font-weight: normal !important;
         font-size: 14px !important;
     }
     
@@ -71,9 +66,10 @@ st.markdown("""
     .neut-card { background-color: #30363d !important; } 
     .idx-card { background-color: #0d47a1 !important; border: 1px solid #1976d2; } 
     
-    .t-name { font-size: 13px; font-weight: 500; margin-bottom: 2px; }
-    .t-price { font-size: 17px; font-weight: 600; margin-bottom: 2px; }
-    .t-pct { font-size: 12px; font-weight: 500; }
+    /* 🔥 NAMES IN NORMAL FONT (REMOVED BOLD) 🔥 */
+    .t-name { font-size: 13px; font-weight: normal; margin-bottom: 2px; }
+    .t-price { font-size: 17px; font-weight: normal; margin-bottom: 2px; }
+    .t-pct { font-size: 12px; font-weight: normal; }
     .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal; }
     
     @media screen and (max-width: 1400px) { .heatmap-grid { grid-template-columns: repeat(8, 1fr); } }
@@ -81,8 +77,8 @@ st.markdown("""
     @media screen and (max-width: 800px) { .heatmap-grid { grid-template-columns: repeat(4, 1fr); } }
     @media screen and (max-width: 600px) { .heatmap-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; } .stock-card { height: 95px; } .t-name { font-size: 12px; } .t-price { font-size: 16px; } .t-pct { font-size: 11px; } }
     
-    .chart-box { border: 1px solid #30363d; border-radius: 8px; background: #161b22; padding: 20px 10px 10px 10px; margin-bottom: 15px; }
-    .ind-labels { text-align: center; font-size: 10px; color: #8b949e; margin-bottom: 2px; }
+    .chart-box { border: 1px solid #30363d; border-radius: 8px; background: #161b22; padding: 15px 10px 10px 10px; margin-bottom: 15px; }
+    .ind-labels { text-align: center; font-size: 10px; color: #8b949e; margin-bottom: 2px; font-weight: normal; }
     .custom-hr { border: 0; height: 1px; background: #30363d; margin: 15px 0; }
     </style>
 """, unsafe_allow_html=True)
@@ -190,11 +186,11 @@ def render_chart(row, df_chart, show_pin=True):
     sign = "+" if row['C'] > 0 else ""
     tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
     
-    # 🔥 PURE CHECKBOX: Aligned completely to the right using Flexbox 🔥
     if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX"]:
         st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=f"cb_{fetch_sym}", on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
     
-    st.markdown(f"<div class='chart-box'><div style='text-align:center; font-weight:bold; font-size:16px; margin-top:-5px;'><a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none;'>{display_sym} <span style='color:{color_hex}'>({sign}{row['C']:.2f}%)</span></a></div><div class='ind-labels'><span style='color:#FFD700; font-weight:bold;'>--- VWAP</span> &nbsp;|&nbsp; <span style='color:#00BFFF; font-weight:bold;'>- - 10 EMA</span></div>", unsafe_allow_html=True)
+    # 🔥 REMOVED BOLD FROM CHART NAMES 🔥
+    st.markdown(f"<div class='chart-box'><div style='text-align:center; font-weight:normal; font-size:16px; margin-top:-5px;'><a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none;'>{display_sym} <span style='color:{color_hex}'>({sign}{row['C']:.2f}%)</span></a></div><div class='ind-labels'><span style='color:#FFD700;'>--- VWAP</span> &nbsp;|&nbsp; <span style='color:#00BFFF;'>- - 10 EMA</span></div>", unsafe_allow_html=True)
     
     try:
         if not df_chart.empty:
