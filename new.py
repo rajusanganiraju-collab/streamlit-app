@@ -23,7 +23,7 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- 4. CSS FOR STYLING (SAFE & NATIVE STREAMLIT LAYOUT) ---
+# --- 4. CSS FOR STYLING (RESTORED TO YOUR SUCCESSFUL FLUID GRID VERSION) ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
@@ -39,77 +39,85 @@ st.markdown("""
     .t-pct { font-size: 12px; font-weight: normal !important; }
     .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal !important; }
     
-    /* 🔥 2. FILTER BUTTONS (NO MORE SQUISHING - PERFECT HORIZONTAL) 🔥 */
-    div[data-testid="stHorizontalBlock"]:has(.filter-marker) {
+    /* 🔥 2. THE SUCCESSFUL HORIZONTAL BUTTONS FIX (NO COLUMNS HACK) 🔥 */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) {
         display: flex !important;
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        justify-content: center !important;
+        flex-direction: row !important; 
+        flex-wrap: nowrap !important; 
+        justify-content: center !important; 
         align-items: center !important;
-        gap: 10px !important;
+        gap: 8px !important; 
         width: 100% !important;
-        overflow-x: auto !important;
-        padding-bottom: 5px !important;
     }
     
-    div[data-testid="stHorizontalBlock"]:has(.filter-marker) > div[data-testid="column"] {
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) > div[data-testid="stElementContainer"]:has(.filter-marker) {
+        display: none !important;
+    }
+    
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) > div[data-testid="stElementContainer"] {
+        width: auto !important;
+        flex: 0 0 auto !important; 
+    }
+    
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button {
         width: max-content !important;
-        min-width: max-content !important;
-        max-width: max-content !important;
-        flex: 0 0 auto !important;
-        padding: 0 !important;
+        height: 35px !important;
+        padding: 0px 12px !important;
     }
     
-    div[data-testid="stHorizontalBlock"]:has(.filter-marker) button {
-        width: max-content !important;
-        height: 36px !important;
-        padding: 0px 15px !important;
-        border-radius: 8px !important;
-        border: 1px solid #30363d !important;
-        background-color: #161b22 !important;
-    }
-    
-    div[data-testid="stHorizontalBlock"]:has(.filter-marker) button p {
-        font-size: 13px !important;
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button p {
+        font-size: 12px !important;
         white-space: nowrap !important; 
         margin: 0 !important;
     }
     
-    @media screen and (max-width: 600px) {
-        div[data-testid="stHorizontalBlock"]:has(.filter-marker) { gap: 5px !important; }
-        div[data-testid="stHorizontalBlock"]:has(.filter-marker) button { padding: 0px 8px !important; }
-        div[data-testid="stHorizontalBlock"]:has(.filter-marker) button p { font-size: 11px !important; }
+    @media screen and (max-width: 650px) {
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) { gap: 4px !important; }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button { padding: 0px 8px !important; }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button p { font-size: 10.5px !important; }
     }
     
-    /* 🔥 3. NATIVE WRAPPING CHARTS GRID (THE BULLETPROOF FIX) 🔥 */
-    div[data-testid="stHorizontalBlock"]:has(.chart-marker) {
-        display: flex !important;
-        flex-wrap: wrap !important;
+    /* 🔥 3. THE SUCCESSFUL FLUID GRID FOR CHARTS (NO SQUISHING!) 🔥 */
+    div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) {
+        display: grid !important;
         gap: 12px !important;
-        width: 100% !important;
+        align-items: start !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div:nth-child(1) {
+        display: none !important; 
     }
     
-    div[data-testid="stHorizontalBlock"]:has(.chart-marker) > div[data-testid="column"] {
-        min-width: 160px !important;
-        flex: 1 1 180px !important;
-        max-width: 280px !important;
+    @media screen and (min-width: 1700px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(8, 1fr) !important; } }
+    @media screen and (min-width: 1400px) and (max-width: 1699px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(6, 1fr) !important; } }
+    @media screen and (min-width: 1100px) and (max-width: 1399px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(5, 1fr) !important; } }
+    @media screen and (min-width: 850px) and (max-width: 1099px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(4, 1fr) !important; } }
+    @media screen and (min-width: 651px) and (max-width: 849px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(3, 1fr) !important; } }
+    @media screen and (max-width: 650px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(2, 1fr) !important; gap: 6px !important; } }
+    
+    div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] {
         background-color: #161b22 !important;
         border: 1px solid #30363d !important;
         border-radius: 8px !important;
-        padding: 10px 5px 5px 5px !important;
+        padding: 8px 5px 5px 5px !important;
         position: relative !important;
-        width: auto !important;
-        margin-bottom: 8px !important;
+        width: 100% !important;
     }
 
-    /* 🔥 4. PERFECT PIN BOX (Top-Left Absolute inside Chart Box) 🔥 */
-    div[data-testid="stHorizontalBlock"]:has(.chart-marker) > div[data-testid="column"] div[data-testid="stCheckbox"] {
+    /* 🔥 4. PERFECT PIN BOX 🔥 */
+    div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] div[data-testid="stCheckbox"] {
         position: absolute !important;
-        top: 6px !important;
-        left: 6px !important;
+        top: 8px !important;
+        left: 10px !important;
         z-index: 100 !important;
     }
     div[data-testid="stCheckbox"] label { padding: 0 !important; min-height: 0 !important; }
+    
+    div.stButton > button {
+        border-radius: 8px !important;
+        border: 1px solid #30363d !important;
+        background-color: #161b22 !important;
+        height: 45px !important;
+    }
     
     /* Heatmap Layout */
     .heatmap-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 8px; padding: 5px 0; }
@@ -255,8 +263,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix=""):
     sign = "+" if row['C'] > 0 else ""
     tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
     
-    st.markdown("<div class='chart-marker' style='display:none;'></div>", unsafe_allow_html=True)
-    
     if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX"]:
         cb_key = f"cb_{fetch_sym}_{key_suffix}" if key_suffix else f"cb_{fetch_sym}"
         st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=cb_key, on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
@@ -299,18 +305,17 @@ def render_chart(row, df_chart, show_pin=True, key_suffix=""):
     except Exception as e:
         st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:normal !important;'>Chart error</div>", unsafe_allow_html=True)
 
+# 🔥 THIS RESTORES THE PERFECT FLUID GRID BEHAVIOR (NO MORE ST.COLUMNS FOR CHARTS) 🔥
 def render_chart_grid(df_grid, show_pin_option, key_prefix):
     if df_grid.empty: return
-    chunk_size = 8 
-    for i in range(0, len(df_grid), chunk_size):
-        chunk = df_grid.iloc[i:i+chunk_size]
-        cols = st.columns(len(chunk))
-        for j, (_, row) in enumerate(chunk.iterrows()):
-            with cols[j]:
-                render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=show_pin_option, key_suffix=f"{key_prefix}_{i}_{j}")
+    with st.container():
+        st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
+        for j, (_, row) in enumerate(df_grid.iterrows()):
+            with st.container():
+                render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=show_pin_option, key_suffix=f"{key_prefix}_{j}")
 
 
-# --- 6. TOP NAVIGATION & SEARCH ---
+# --- 6. TOP NAVIGATION & SEARCH (UPDATED SORT FILTERS) ---
 c1, c2, c3 = st.columns([0.4, 0.3, 0.3])
 with c1: 
     watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Nifty 50 Heatmap", "One Sided Moves 🚀"], label_visibility="collapsed")
@@ -396,9 +401,9 @@ if not df.empty:
 
     # --- CLICKABLE TREND FILTERS ---
     with st.container():
+        st.markdown("<div class='filter-marker'></div>", unsafe_allow_html=True)
         f1, f2, f3, f4 = st.columns(4)
         with f1: 
-            st.markdown("<div class='filter-marker' style='display:none;'></div>", unsafe_allow_html=True)
             if st.button(f"📊 All ({len(df_filtered)})"): st.session_state.trend_filter = 'All'
         with f2: 
             if st.button(f"🟢 Bullish ({bull_cnt})"): st.session_state.trend_filter = 'Bullish'
@@ -412,7 +417,7 @@ if not df.empty:
     if st.session_state.trend_filter != 'All':
         df_filtered = df_filtered[df_filtered['Fetch_T'].apply(lambda x: stock_trends.get(x) == st.session_state.trend_filter)]
 
-    # 🔥 THE PERFECTED GREEN/RED SEPARATION LOGIC 🔥
+    # 🔥 NEW SORTING LOGIC WITH GREEN/RED SEPARATION 🔥
     if sort_mode == "% Change Up 🟢":
         df_stocks_display = df_filtered.sort_values(by="C", ascending=False)
     elif sort_mode == "% Change Down 🔴":
