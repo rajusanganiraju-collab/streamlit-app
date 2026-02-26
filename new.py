@@ -18,7 +18,7 @@ st.markdown("""
     
     /* Dark Theme Background */
     .stApp { background-color: #0e1117; color: #ffffff; }
-    .block-container { padding-top: 1rem !important; padding-bottom: 0rem !important; margin-top: -10px; }
+    .block-container { padding-top: 1rem !important; padding-bottom: 0rem !important; margin-top: -15px; }
     
     /* Responsive Grid: EXACTLY 10 COLUMNS ON DESKTOP */
     .heatmap-grid {
@@ -92,7 +92,7 @@ st.markdown("""
         border-radius: 8px;
         background: #161b22;
         padding: 10px;
-        margin-bottom: 15px;
+        margin-bottom: 10px;
     }
     
     /* Indicator Labels above chart */
@@ -103,12 +103,12 @@ st.markdown("""
         margin-bottom: 2px;
     }
     
-    /* Custom HR Line */
+    /* Custom HR Line - Gap completely reduced */
     .custom-hr {
         border: 0;
         height: 1px;
         background: #30363d;
-        margin: 15px 0;
+        margin: 5px 0; /* Changed from 15px to 5px to remove empty space */
     }
     </style>
 """, unsafe_allow_html=True)
@@ -275,8 +275,8 @@ def render_chart(row, chart_data):
     st.markdown("</div>", unsafe_allow_html=True)
 
 
-# --- 6. TOP NAVIGATION ---
-st.markdown("<div style='background-color:#161b22; padding:10px; border-radius:8px; margin-bottom:15px; border: 1px solid #30363d;'>", unsafe_allow_html=True)
+# --- 6. TOP NAVIGATION (Reduced Gap) ---
+st.markdown("<div style='background-color:#161b22; padding:8px 10px; border-radius:8px; margin-bottom:10px; border: 1px solid #30363d;'>", unsafe_allow_html=True)
 c1, c2 = st.columns([0.6, 0.4])
 
 with c1:
@@ -327,10 +327,9 @@ if not df.empty:
     if view_mode == "Heat Map":
         
         # 1. RENDER INDICES FIRST + MOOD BOX
-        st.markdown("### 📊 Market Indices", unsafe_allow_html=True)
+        st.markdown("<div style='font-size: 20px; font-weight: bold; margin-bottom: 8px;'>📊 Market Indices</div>", unsafe_allow_html=True)
         
         if not df_indices.empty:
-            # 🔥 BACK TO PERFECT GRID LAYOUT 🔥
             html_idx = '<div class="heatmap-grid">'
             
             # Print Nifty, BankNifty, Vix
@@ -357,10 +356,11 @@ if not df.empty:
             html_idx += '</div>'
             st.markdown(html_idx, unsafe_allow_html=True)
             
+            # Separator
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
-        # 2. RENDER STOCKS
-        st.markdown("### 🔥 High Score Stocks")
+        # 2. RENDER STOCKS (Custom Tight Header)
+        st.markdown("<div style='font-size: 20px; font-weight: bold; margin-top: 5px; margin-bottom: 8px;'>🔥 High Score Stocks</div>", unsafe_allow_html=True)
         html_stk = '<div class="heatmap-grid">'
         for _, row in df_stocks_display.iterrows():
             bg = "bull-card" if row['C'] >= 0 else "bear-card"
@@ -374,8 +374,6 @@ if not df.empty:
         
     else:
         # === MINI CHARTS ===
-        st.markdown("<br>", unsafe_allow_html=True)
-        
         top_stocks_for_charts = df_stocks_display.head(27)
         fetch_tickers = df_indices['Fetch_T'].tolist() + top_stocks_for_charts['Fetch_T'].tolist()
         
@@ -383,7 +381,7 @@ if not df.empty:
             chart_data = yf.download(fetch_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=20)
         
         # 1. RENDER INDICES CHARTS FIRST (NO MOOD BOX HERE)
-        st.markdown("### 📈 Market Indices", unsafe_allow_html=True)
+        st.markdown("<div style='font-size: 20px; font-weight: bold; margin-bottom: 8px;'>📈 Market Indices</div>", unsafe_allow_html=True)
         
         if not df_indices.empty:
             idx_list = [row for _, row in df_indices.iterrows()]
@@ -397,7 +395,7 @@ if not df.empty:
         st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
         # 2. RENDER STOCKS CHARTS
-        st.markdown("### 🔥 High Score Stocks")
+        st.markdown("<div style='font-size: 20px; font-weight: bold; margin-top: 5px; margin-bottom: 8px;'>🔥 High Score Stocks</div>", unsafe_allow_html=True)
         if not top_stocks_for_charts.empty:
             stk_list = [row for _, row in top_stocks_for_charts.iterrows()]
             for i in range(0, len(stk_list), 3):
