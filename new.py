@@ -23,14 +23,14 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- 4. CSS FOR STYLING (PERFECT SIDE-BY-SIDE PIN & NORMAL TEXT) ---
+# --- 4. CSS FOR STYLING ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
     .stApp { background-color: #0e1117; color: #ffffff; }
     .block-container { padding-top: 1rem !important; padding-bottom: 0rem !important; margin-top: -10px; }
     
-    /* 🔥 1. ALL TEXT TO NORMAL (UNBOLD) 🔥 */
+    /* ALL TEXT TO NORMAL (UNBOLD) */
     .stRadio label, .stRadio p, div[role="radiogroup"] p { color: #ffffff !important; font-weight: normal !important; }
     div.stButton > button p, div.stButton > button span { color: #ffffff !important; font-weight: normal !important; font-size: 14px !important; }
     
@@ -39,26 +39,16 @@ st.markdown("""
     .t-pct { font-size: 12px; font-weight: normal !important; }
     .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal !important; }
     
-    /* 🔥 2. BULLETPROOF CHART BOX STYLING 🔥 */
-    /* Turns the entire column into a secure Chart Box */
+    /* BULLETPROOF CHART BOX STYLING */
     div[data-testid="column"]:has(.chart-marker) {
         background-color: #161b22 !important;
         border: 1px solid #30363d !important;
         border-radius: 8px !important;
         padding: 10px 10px 5px 10px !important;
     }
+    div[data-testid="column"]:has(.chart-marker) div[data-testid="column"] { padding: 0 !important; }
     
-    /* Tweaks nested columns to bring the Checkbox & Title tightly Side-by-Side */
-    div[data-testid="column"]:has(.chart-marker) div[data-testid="column"] {
-        padding: 0 !important;
-    }
-    
-    /* Perfect Checkbox alignment */
-    div[data-testid="stCheckbox"] {
-        margin-top: 2px !important;
-        display: flex;
-        justify-content: center;
-    }
+    div[data-testid="stCheckbox"] { margin-top: 2px !important; display: flex; justify-content: center; }
     div[data-testid="stCheckbox"] label { padding: 0 !important; min-height: 0 !important; }
     
     /* Buttons Styling */
@@ -92,6 +82,21 @@ st.markdown("""
 INDICES_MAP = {"^NSEI": "NIFTY", "^NSEBANK": "BANKNIFTY", "^INDIAVIX": "INDIA VIX"}
 TV_INDICES_URL = {"^NSEI": "NSE:NIFTY", "^NSEBANK": "NSE:BANKNIFTY", "^INDIAVIX": "NSE:INDIAVIX"}
 
+# 🔥 NEW: SECTOR INDICES MAP 🔥
+SECTOR_INDICES_MAP = {
+    "^CNXIT": "NIFTY IT",
+    "^CNXAUTO": "NIFTY AUTO",
+    "^CNXMETAL": "NIFTY METAL",
+    "^CNXPHARMA": "NIFTY PHARMA",
+    "^CNXFMCG": "NIFTY FMCG",
+    "^CNXENERGY": "NIFTY ENERGY",
+    "^CNXREALTY": "NIFTY REALTY"
+}
+TV_SECTOR_URL = {
+    "^CNXIT": "NSE:CNXIT", "^CNXAUTO": "NSE:CNXAUTO", "^CNXMETAL": "NSE:CNXMETAL",
+    "^CNXPHARMA": "NSE:CNXPHARMA", "^CNXFMCG": "NSE:CNXFMCG", "^CNXENERGY": "NSE:CNXENERGY", "^CNXREALTY": "NSE:CNXREALTY"
+}
+
 NIFTY_50 = [
     "ADANIENT", "ADANIPORTS", "APOLLOHOSP", "ASIANPAINT", "AXISBANK", "BAJAJ-AUTO", "BAJFINANCE", 
     "BAJAJFINSV", "BEL", "BHARTIARTL", "BRITANNIA", "CIPLA", "COALINDIA", "DIVISLAB", "DRREDDY", 
@@ -118,7 +123,8 @@ def get_minutes_passed():
 @st.cache_data(ttl=60)
 def fetch_all_data():
     all_stocks = set(NIFTY_50 + BROADER_MARKET)
-    tkrs = list(INDICES_MAP.keys()) + [f"{t}.NS" for t in all_stocks]
+    # Added Sector Indices to download list
+    tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + [f"{t}.NS" for t in all_stocks]
     data = yf.download(tkrs, period="5d", progress=False, group_by='ticker', threads=20)
     
     results = []
@@ -153,9 +159,23 @@ def fetch_all_data():
             if (ltp >= high * 0.998 and day_chg > 0.5) or (ltp <= low * 1.002 and day_chg < -0.5): score += 1
             if (ltp > (low * 1.01) and ltp > vwap) or (ltp < (high * 0.99) and ltp < vwap): score += 1
             
-            is_index = symbol in INDICES_MAP
-            disp_name = INDICES_MAP.get(symbol, symbol.replace(".NS", ""))
-            results.append({"Fetch_T": symbol, "T": disp_name, "P": ltp, "C": net_chg, "S": score, "Is_Index": is_index})
+            is_index = False
+            is_sector = False
+            
+            # Identify what type of item this is
+            if symbol in INDICES_MAP:
+                disp_name = INDICES_MAP[symbol]
+                is_index = True
+            elif symbol in SECTOR_INDICES_MAP:
+                disp_name = SECTOR_INDICES_MAP[symbol]
+                is_sector = True
+            else:
+                disp_name = symbol.replace(".NS", "")
+                
+            results.append({
+                "Fetch_T": symbol, "T": disp_name, "P": ltp, "C": net_chg, "S": score, 
+                "Is_Index": is_index, "Is_Sector": is_sector
+            })
         except: continue
         
     return pd.DataFrame(results)
@@ -191,12 +211,10 @@ def render_chart(row, df_chart, show_pin=True):
     sign = "+" if row['C'] > 0 else ""
     tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
     
-    # 🔥 MAGIC MARKER: This tells the CSS to style this whole block as the Chart Box!
     st.markdown("<div class='chart-marker' style='display:none;'></div>", unsafe_allow_html=True)
     
     header_html = f"<a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; font-weight:normal !important;'>{display_sym} <span style='color:{color_hex}; font-weight:normal !important;'>({sign}{row['C']:.2f}%)</span></a>"
     
-    # 🔥 SIDE-BY-SIDE ALIGNMENT: Checkbox and Name beautifully next to each other 🔥
     if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX"]:
         c1, c2 = st.columns([1, 6])
         with c1:
@@ -234,20 +252,25 @@ df = fetch_all_data()
 
 if not df.empty:
     
-    all_names = sorted(df['T'].tolist())
+    all_names = sorted(df[~df['Is_Sector']]['T'].tolist()) # Don't show sectors in search box
     search_stock = st.selectbox("🔍 Search & View Chart", ["-- None --"] + all_names)
     
+    # 🌟 DATA SPLITTING 🌟
     df_indices = df[df['Is_Index']].copy()
     df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3})
     df_indices = df_indices.sort_values("Order")
     
-    df_stocks = df[~df['Is_Index']].copy()
+    df_sectors = df[df['Is_Sector']].copy()
+    df_sectors = df_sectors.sort_values(by="C", ascending=False) # Sort sectors by highest percentage change
+    
+    df_stocks = df[(~df['Is_Index']) & (~df['Is_Sector'])].copy()
     
     if watchlist_mode == "Nifty 50 Heatmap":
         df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
     else:
         df_filtered = df_stocks[(df_stocks['S'] >= 7) & (df_stocks['S'] <= 10)]
 
+    # Fetch 5-min data ONLY for visible charts (Indices + Stocks + Searched)
     all_display_tickers = list(set(df_indices['Fetch_T'].tolist() + df_filtered['Fetch_T'].tolist()))
     if search_stock != "-- None --":
         search_fetch_t = df[df['T'] == search_stock]['Fetch_T'].iloc[0]
@@ -299,6 +322,7 @@ if not df.empty:
 
     # --- RENDER VIEWS ---
     if view_mode == "Heat Map":
+        # 1. RENDER MAIN INDICES
         if not df_indices.empty:
             html_idx = '<div class="heatmap-grid">'
             for _, row in df_indices.iterrows():
@@ -307,6 +331,17 @@ if not df.empty:
                 html_idx += f'<a href="https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(row["Fetch_T"])}" target="_blank" class="stock-card {bg}"><div class="t-score">IDX</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if row["C"]>0 else ""}{row["C"]:.2f}%</div></a>'
             st.markdown(html_idx + '</div><hr class="custom-hr">', unsafe_allow_html=True)
         
+        # 🌟 2. RENDER SECTOR INDICES (ONLY IN HEATMAP) 🌟
+        if not df_sectors.empty:
+            html_sec = '<div class="heatmap-grid">'
+            for _, row in df_sectors.iterrows():
+                bg = "bull-card" if row['C'] > 0 else ("bear-card" if row['C'] < 0 else "neut-card")
+                tv_sym = TV_SECTOR_URL.get(row['Fetch_T'], "")
+                tv_link = f"https://in.tradingview.com/chart/?symbol={tv_sym}"
+                html_sec += f'<a href="{tv_link}" target="_blank" class="stock-card {bg}"><div class="t-score" style="color:#00BFFF;">SEC</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if row["C"]>0 else ""}{row["C"]:.2f}%</div></a>'
+            st.markdown(html_sec + '</div><hr class="custom-hr">', unsafe_allow_html=True)
+
+        # 3. RENDER STOCKS
         if not df_stocks_display.empty:
             html_stk = '<div class="heatmap-grid">'
             for _, row in df_stocks_display.iterrows():
@@ -317,15 +352,14 @@ if not df.empty:
             st.info(f"No {st.session_state.trend_filter} stocks found in this list.")
             
     else:
+        # CHARTS VIEW (SECTORS ARE HIDDEN HERE)
         st.markdown("<br>", unsafe_allow_html=True)
         
         # 1. RENDER SEARCHED CHART
         if search_stock != "-- None --":
             st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:5px; color:#ffd700;'>🔍 Searched Chart: {search_stock}</div>", unsafe_allow_html=True)
             searched_row = df[df['T'] == search_stock].iloc[0]
-            
-            p1, p2, p3 = st.columns([0.2, 0.6, 0.2]) 
-            with p2: render_chart(searched_row, processed_charts.get(searched_row['Fetch_T'], pd.DataFrame()), show_pin=False)
+            render_chart(searched_row, processed_charts.get(searched_row['Fetch_T'], pd.DataFrame()), show_pin=False)
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
         # 2. RENDER INDICES CHARTS
