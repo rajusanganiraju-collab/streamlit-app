@@ -23,15 +23,35 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- 4. CSS FOR STYLING (SPACE SAVING PIN DESIGN) ---
+# --- 4. CSS FOR STYLING (FIXED PIN POSITIONING) ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
     .stApp { background-color: #0e1117; color: #ffffff; }
     .block-container { padding-top: 1rem !important; padding-bottom: 0rem !important; margin-top: -10px; }
     
-    /* Radio Buttons & Checkbox Text to White */
+    /* Radio Buttons Text to White */
     .stRadio label, .stRadio p, div[role="radiogroup"] p { color: #ffffff !important; font-weight: bold !important; }
+    
+    /* 🔥 PERFECT PIN BOX INSIDE CHART BOX 🔥 */
+    div[data-testid="stCheckbox"] {
+        position: relative !important;
+        z-index: 50 !important;
+        margin-bottom: -32px !important; /* Pulls the Chart box up around the pin */
+        margin-left: 8px !important;     /* Pushes it slightly inside the box */
+        background-color: #0e1117 !important; /* Matches app background */
+        width: fit-content !important;
+        padding: 0px 8px !important;
+        border-radius: 4px !important;
+        border: 1px solid #30363d !important;
+    }
+    div[data-testid="stCheckbox"] label { margin-bottom: 0 !important; min-height: auto !important; }
+    div[data-testid="stCheckbox"] p {
+        color: #ffd700 !important; 
+        font-weight: bold !important; 
+        font-size: 11px !important; 
+        margin-bottom: 0 !important;
+    }
     
     /* Button Text to White */
     div.stButton > button {
@@ -44,28 +64,6 @@ st.markdown("""
         color: #ffffff !important;
         font-weight: bold !important;
         font-size: 14px !important;
-    }
-    
-    /* 🔥 MAGICAL CSS TO PUT PIN INSIDE THE CHART BOX AND SAVE SPACE 🔥 */
-    div[data-testid="column"] {
-        position: relative !important; /* Forces absolute items to stay inside the column */
-    }
-    div[data-testid="stCheckbox"] {
-        position: absolute !important;
-        right: 15px !important;
-        top: 15px !important;
-        z-index: 99 !important;
-        background-color: rgba(30, 35, 41, 0.9);
-        padding: 1px 8px;
-        border-radius: 5px;
-        border: 1px solid #30363d;
-    }
-    div[data-testid="stCheckbox"] label { margin-bottom: 0 !important; min-height: auto !important; }
-    div[data-testid="stCheckbox"] p {
-        color: #ffd700 !important; 
-        font-weight: bold !important; 
-        font-size: 12px !important; 
-        margin-bottom: 0 !important;
     }
     
     .heatmap-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 8px; padding: 5px 0; }
@@ -87,7 +85,7 @@ st.markdown("""
     @media screen and (max-width: 800px) { .heatmap-grid { grid-template-columns: repeat(4, 1fr); } }
     @media screen and (max-width: 600px) { .heatmap-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; } .stock-card { height: 95px; } .t-name { font-size: 12px; } .t-price { font-size: 16px; } .t-pct { font-size: 11px; } }
     
-    .chart-box { border: 1px solid #30363d; border-radius: 8px; background: #161b22; padding: 10px; margin-bottom: 15px; }
+    .chart-box { border: 1px solid #30363d; border-radius: 8px; background: #161b22; padding: 15px 10px 10px 10px; margin-bottom: 15px; }
     .ind-labels { text-align: center; font-size: 10px; color: #8b949e; margin-bottom: 2px; }
     .custom-hr { border: 0; height: 1px; background: #30363d; margin: 15px 0; }
     </style>
@@ -196,12 +194,11 @@ def render_chart(row, df_chart, show_pin=True):
     sign = "+" if row['C'] > 0 else ""
     tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
     
-    # 🔥 MAGICAL CSS CHECKBOX: Rendered before chart box so it floats over it and saves space! 🔥
+    # 🔥 SAFE CHECKBOX RENDERING (SITS PERFECTLY INSIDE THE BOX) 🔥
     if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX"]:
         st.checkbox(f"📌 Pin", value=(fetch_sym in st.session_state.pinned_stocks), key=f"cb_{fetch_sym}", on_change=toggle_pin, args=(fetch_sym,))
     
-    # CHART HTML BOX
-    st.markdown(f"<div class='chart-box'><div style='text-align:center; font-weight:bold; font-size:16px;'><a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none;'>{display_sym} <span style='color:{color_hex}'>({sign}{row['C']:.2f}%)</span></a></div><div class='ind-labels'><span style='color:#FFD700; font-weight:bold;'>--- VWAP</span> &nbsp;|&nbsp; <span style='color:#00BFFF; font-weight:bold;'>- - 10 EMA</span></div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='chart-box'><div style='text-align:center; font-weight:bold; font-size:16px; margin-top:-5px;'><a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none;'>{display_sym} <span style='color:{color_hex}'>({sign}{row['C']:.2f}%)</span></a></div><div class='ind-labels'><span style='color:#FFD700; font-weight:bold;'>--- VWAP</span> &nbsp;|&nbsp; <span style='color:#00BFFF; font-weight:bold;'>- - 10 EMA</span></div>", unsafe_allow_html=True)
     
     try:
         if not df_chart.empty:
@@ -230,7 +227,7 @@ df = fetch_all_data()
 
 if not df.empty:
     
-    # 🔥 SEARCH DROPDOWN REMAINS INTACT 🔥
+    # 🔍 SEARCH DROPDOWN
     all_names = sorted(df['T'].tolist())
     search_stock = st.selectbox("🔍 Search & View Chart", ["-- None --"] + all_names)
     
@@ -245,7 +242,6 @@ if not df.empty:
     else:
         df_filtered = df_stocks[(df_stocks['S'] >= 7) & (df_stocks['S'] <= 10)]
 
-    # Fetch 5-min data for visible stocks + searched stock
     all_display_tickers = list(set(df_indices['Fetch_T'].tolist() + df_filtered['Fetch_T'].tolist()))
     if search_stock != "-- None --":
         search_fetch_t = df[df['T'] == search_stock]['Fetch_T'].iloc[0]
