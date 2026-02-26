@@ -23,7 +23,7 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- 4. CSS FOR STYLING (RESPONSIVE CHARTS, NO ZOOM, MOBILE FIX) ---
+# --- 4. CSS FOR STYLING (PERFECT INLINE BUTTONS, FLUID GRID, NO ZOOM) ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
@@ -39,49 +39,47 @@ st.markdown("""
     .t-pct { font-size: 12px; font-weight: normal !important; }
     .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal !important; }
     
-    /* 🔥 2. BULLETPROOF HORIZONTAL BUTTONS (FIT TO TEXT) 🔥 */
-    div[data-testid="stHorizontalBlock"]:has(.filter-marker) {
+    /* 🔥 2. BULLETPROOF INLINE BUTTONS (NO MORE ST.COLUMNS) 🔥 */
+    /* Target the container wrapping the 4 buttons */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) {
         display: flex !important;
         flex-direction: row !important; /* Force side-by-side */
-        flex-wrap: nowrap !important; /* Prevent dropping to next line */
-        justify-content: center !important; /* Center the buttons */
+        flex-wrap: nowrap !important; /* Never drop to next line */
+        justify-content: center !important; /* Center on screen */
         align-items: center !important;
         gap: 8px !important; /* Space between buttons */
         width: 100% !important;
     }
     
-    /* Locks the column width exactly to the text size */
-    div[data-testid="stHorizontalBlock"]:has(.filter-marker) > div[data-testid="column"] {
-        width: max-content !important;
-        min-width: max-content !important;
-        max-width: max-content !important;
-        flex: none !important; /* Do not shrink or grow */
-        padding: 0 !important;
+    /* Hide the marker itself */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) > div[data-testid="stElementContainer"]:has(.filter-marker) {
+        display: none !important;
     }
     
-    /* Locks the button background to the text size */
-    div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton {
-        width: max-content !important;
+    /* Make the button wrappers auto-sized to fit text */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) > div[data-testid="stElementContainer"] {
+        width: auto !important;
+        flex: 0 0 auto !important; /* Shrink exactly to content */
     }
-    div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button {
+    
+    /* Style the actual buttons */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button {
         width: max-content !important;
-        min-width: max-content !important;
         height: 35px !important;
         padding: 0px 12px !important;
     }
     
-    /* Keeps text on a single line */
-    div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button p {
-        font-size: 12px !important; 
-        white-space: nowrap !important; 
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button p {
+        font-size: 12px !important;
+        white-space: nowrap !important; /* Keep text on one line */
         margin: 0 !important;
     }
     
-    /* Slightly smaller font/padding for mobile so all 4 fit beautifully */
+    /* Perfect fit for Mobile Screens */
     @media screen and (max-width: 650px) {
-        div[data-testid="stHorizontalBlock"]:has(.filter-marker) { gap: 4px !important; }
-        div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button { padding: 0px 8px !important; }
-        div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button p { font-size: 10.5px !important; }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) { gap: 4px !important; }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button { padding: 0px 8px !important; }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button p { font-size: 10.5px !important; }
     }
     
     /* 🔥 3. DYNAMIC SCREEN SIZING FOR CHARTS (3 to 8 COLUMNS) 🔥 */
@@ -311,7 +309,6 @@ def render_chart(row, df_chart, show_pin=True):
             fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot')))
             fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash')))
             
-            # 🔥 MAGIC ZOOM FIX: dragmode=False and fixedrange=True COMPLETELY disables scrolling zooms! 🔥
             fig.update_layout(
                 margin=dict(l=0, r=0, t=0, b=0), 
                 height=150, 
@@ -323,8 +320,6 @@ def render_chart(row, df_chart, show_pin=True):
                 showlegend=False,
                 dragmode=False 
             )
-            
-            # 🔥 config={'staticPlot': True} makes the chart 100% immune to touches 🔥
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True})
         else:
             st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:normal !important;'>Data not available</div>", unsafe_allow_html=True)
@@ -392,19 +387,13 @@ if not df.empty:
                 stock_trends[sym] = 'Neutral'
                 neut_cnt += 1
 
-    # --- CLICKABLE TREND FILTERS ---
+    # --- 🔥 PURE INLINE BUTTONS (NO COLUMNS!) 🔥 ---
     with st.container():
-        f1, f2, f3, f4 = st.columns(4)
-        
-        with f1: 
-            st.markdown("<span class='filter-marker'></span>", unsafe_allow_html=True)
-            if st.button(f"📊 All ({len(df_filtered)})"): st.session_state.trend_filter = 'All'
-        with f2: 
-            if st.button(f"🟢 Bullish ({bull_cnt})"): st.session_state.trend_filter = 'Bullish'
-        with f3: 
-            if st.button(f"⚪ Neutral ({neut_cnt})"): st.session_state.trend_filter = 'Neutral'
-        with f4: 
-            if st.button(f"🔴 Bearish ({bear_cnt})"): st.session_state.trend_filter = 'Bearish'
+        st.markdown("<div class='filter-marker'></div>", unsafe_allow_html=True)
+        if st.button(f"📊 All ({len(df_filtered)})"): st.session_state.trend_filter = 'All'
+        if st.button(f"🟢 Bullish ({bull_cnt})"): st.session_state.trend_filter = 'Bullish'
+        if st.button(f"⚪ Neutral ({neut_cnt})"): st.session_state.trend_filter = 'Neutral'
+        if st.button(f"🔴 Bearish ({bear_cnt})"): st.session_state.trend_filter = 'Bearish'
 
     st.markdown(f"<div style='text-align:right; font-size:12px; color:#ffd700; margin-bottom: 10px; font-weight:normal !important;'>Showing: <b>{st.session_state.trend_filter}</b> Stocks</div>", unsafe_allow_html=True)
 
@@ -454,18 +443,7 @@ if not df.empty:
     else:
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # 1. RENDER SEARCHED CHART
-        if search_stock != "-- None --":
-            st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:5px; color:#ffd700;'>🔍 Searched Chart: {search_stock}</div>", unsafe_allow_html=True)
-            searched_row = df[df['T'] == search_stock].iloc[0]
-            
-            with st.container():
-                st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
-                with st.container():
-                    render_chart(searched_row, processed_charts.get(searched_row['Fetch_T'], pd.DataFrame()), show_pin=False)
-            st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
-        
-        # 2. RENDER INDICES CHARTS
+        # 1. RENDER INDICES CHARTS
         st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>📈 Market Indices</div>", unsafe_allow_html=True)
         if not df_indices.empty:
             with st.container():
@@ -475,7 +453,7 @@ if not df.empty:
                         render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=False)
         st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
-        # 3. RENDER PINNED STOCKS CHARTS
+        # 2. RENDER ALL PINNED & SEARCHED STOCKS HERE (PRIORITY ROW)
         pinned_df = df[df['Fetch_T'].isin(st.session_state.pinned_stocks)].copy()
         
         if search_stock != "-- None --":
@@ -494,7 +472,7 @@ if not df.empty:
                         render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=True)
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
-        # 4. RENDER REMAINING STOCKS
+        # 3. RENDER REMAINING STOCKS
         if not unpinned_df.empty:
             st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>{watchlist_mode} ({st.session_state.trend_filter})</div>", unsafe_allow_html=True)
             
