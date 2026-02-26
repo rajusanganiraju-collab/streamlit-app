@@ -23,14 +23,14 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- 4. CSS FOR STYLING ---
+# --- 4. CSS FOR STYLING (FLUID GRID & PERFECT PIN) ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
     .stApp { background-color: #0e1117; color: #ffffff; }
     .block-container { padding-top: 1rem !important; padding-bottom: 0rem !important; margin-top: -10px; }
     
-    /* ALL TEXT TO NORMAL (UNBOLD) */
+    /* 🔥 ALL TEXT TO NORMAL (UNBOLD) 🔥 */
     .stRadio label, .stRadio p, div[role="radiogroup"] p { color: #ffffff !important; font-weight: normal !important; }
     div.stButton > button p, div.stButton > button span { color: #ffffff !important; font-weight: normal !important; font-size: 14px !important; }
     
@@ -39,19 +39,49 @@ st.markdown("""
     .t-pct { font-size: 12px; font-weight: normal !important; }
     .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal !important; }
     
-    /* BULLETPROOF CHART BOX STYLING */
-    div[data-testid="column"]:has(.chart-marker) {
+    /* 🔥 RESPONSIVE FLUID GRID (AUTO ADJUSTS 3 TO 8 COLUMNS) 🔥 */
+    div[data-testid="stHorizontalBlock"]:has(.stock-chart-marker) {
+        flex-wrap: wrap !important;
+        row-gap: 15px !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(.stock-chart-marker) > div[data-testid="column"] {
+        min-width: 160px !important;  /* Mobile / Split screen size */
+        max-width: 260px !important;  /* Stops it from getting too big */
+        flex: 1 1 180px !important;   /* Auto fills available space */
+    }
+    
+    /* INDICES ROW (Tries to stay 3 per row) */
+    div[data-testid="stHorizontalBlock"]:has(.idx-chart-marker) {
+        flex-wrap: wrap !important;
+        row-gap: 15px !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(.idx-chart-marker) > div[data-testid="column"] {
+        min-width: 180px !important;
+        flex: 1 1 30% !important;
+        max-width: 100% !important;
+    }
+
+    /* 🔥 BULLETPROOF CHART BOX STYLING 🔥 */
+    div[data-testid="column"]:has(.stock-chart-marker),
+    div[data-testid="column"]:has(.idx-chart-marker),
+    div[data-testid="column"]:has(.search-chart-marker) {
         background-color: #161b22 !important;
         border: 1px solid #30363d !important;
         border-radius: 8px !important;
         padding: 8px 5px 5px 5px !important;
+        position: relative !important;
     }
-    div[data-testid="column"]:has(.chart-marker) div[data-testid="column"] { padding: 0 !important; }
     
-    div[data-testid="stCheckbox"] { margin-top: 2px !important; display: flex; justify-content: center; }
+    /* PERFECT PIN POSITIONING (Absolute Top Left inside Box) */
+    div[data-testid="column"]:has(.stock-chart-marker) div[data-testid="stCheckbox"] {
+        position: absolute !important;
+        top: 8px !important;
+        left: 10px !important;
+        z-index: 100 !important;
+    }
     div[data-testid="stCheckbox"] label { padding: 0 !important; min-height: 0 !important; }
     
-    /* Buttons Styling */
+    /* General Button Styles */
     div.stButton > button {
         border-radius: 8px !important;
         border: 1px solid #30363d !important;
@@ -59,7 +89,7 @@ st.markdown("""
         height: 45px !important;
     }
     
-    /* Heatmap Grids */
+    /* Heatmap Layout */
     .heatmap-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 8px; padding: 5px 0; }
     .stock-card { border-radius: 4px; padding: 8px 4px; text-align: center; text-decoration: none !important; color: white !important; display: flex; flex-direction: column; justify-content: center; height: 90px; position: relative; box-shadow: 0 1px 3px rgba(0,0,0,0.3); transition: transform 0.2s; }
     .stock-card:hover { transform: scale(1.05); z-index: 10; box-shadow: 0 4px 8px rgba(0,0,0,0.5); }
@@ -188,7 +218,7 @@ def process_5m_data(df_raw):
     except: return pd.DataFrame()
 
 # --- HELPER FUNCTION TO DRAW CHARTS ---
-def render_chart(row, df_chart, show_pin=True):
+def render_chart(row, df_chart, show_pin=True, marker_type='stock-chart'):
     display_sym = row['T']
     fetch_sym = row['Fetch_T']
     
@@ -200,20 +230,24 @@ def render_chart(row, df_chart, show_pin=True):
     sign = "+" if row['C'] > 0 else ""
     tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
     
-    st.markdown("<div class='chart-marker' style='display:none;'></div>", unsafe_allow_html=True)
+    # 🔥 MARKER FOR RESPONSIVE CSS GRIDS 🔥
+    st.markdown(f"<div class='{marker_type}-marker' style='display:none;'></div>", unsafe_allow_html=True)
     
-    header_html = f"<a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; font-weight:normal !important;'>{display_sym} <span style='color:{color_hex}; font-weight:normal !important;'>({sign}{row['C']:.2f}%)</span></a>"
-    
+    # PIN CHECKBOX (Perfectly sits left side, absolutely no extra text)
     if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX"]:
-        c1, c2 = st.columns([1.5, 8.5])
-        with c1:
-            st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=f"cb_{fetch_sym}", on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
-        with c2:
-            st.markdown(f"<div style='text-align:left; font-size:13px; margin-top:2px;'>{header_html}</div>", unsafe_allow_html=True)
-    else:
-        st.markdown(f"<div style='text-align:center; font-size:14px; margin-top:1px;'>{header_html}</div>", unsafe_allow_html=True)
-        
-    st.markdown("<div style='text-align:center; font-size:9px; color:#8b949e; margin-top:2px; margin-bottom:4px; font-weight:normal !important;'><span style='color:#FFD700;'>--- VWAP</span> &nbsp;|&nbsp; <span style='color:#00BFFF;'>- - 10 EMA</span></div>", unsafe_allow_html=True)
+        st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=f"cb_{fetch_sym}", on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
+    
+    # UNBOLDED TEXT
+    st.markdown(f"""
+        <div style='text-align:center; font-size:15px; margin-top:-2px;'>
+            <a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; font-weight:normal !important;'>
+                {display_sym} <span style='color:{color_hex}; font-weight:normal !important;'>({sign}{row['C']:.2f}%)</span>
+            </a>
+        </div>
+        <div style='text-align:center; font-size:9px; color:#8b949e; margin-top:2px; margin-bottom:5px; font-weight:normal !important;'>
+            <span style='color:#FFD700;'>--- VWAP</span> &nbsp;|&nbsp; <span style='color:#00BFFF;'>- - 10 EMA</span>
+        </div>
+    """, unsafe_allow_html=True)
     
     try:
         if not df_chart.empty:
@@ -338,47 +372,46 @@ if not df.empty:
     else:
         st.markdown("<br>", unsafe_allow_html=True)
         
+        # 1. RENDER SEARCHED CHART
         if search_stock != "-- None --":
             st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:5px; color:#ffd700;'>🔍 Searched Chart: {search_stock}</div>", unsafe_allow_html=True)
             searched_row = df[df['T'] == search_stock].iloc[0]
-            render_chart(searched_row, processed_charts.get(searched_row['Fetch_T'], pd.DataFrame()), show_pin=False)
+            # Centers the big chart
+            p1, p2, p3 = st.columns([0.2, 0.6, 0.2])
+            with p2: render_chart(searched_row, processed_charts.get(searched_row['Fetch_T'], pd.DataFrame()), show_pin=False, marker_type='search-chart')
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
-        # 🌟 INDICES: 3 COLUMNS 🌟
+        # 2. RENDER INDICES CHARTS
         st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>📈 Market Indices</div>", unsafe_allow_html=True)
         if not df_indices.empty:
             idx_list = [row for _, row in df_indices.iterrows()]
-            for i in range(0, len(idx_list), 3):
-                cols = st.columns(3)
-                for j in range(3):
-                    if i + j < len(idx_list):
-                        with cols[j]: render_chart(idx_list[i + j], processed_charts.get(idx_list[i+j]['Fetch_T'], pd.DataFrame()), show_pin=False)
+            cols = st.columns(len(idx_list))
+            for i, row in enumerate(idx_list):
+                with cols[i]: render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=False, marker_type='idx-chart')
                             
         st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
-        # 🔥 PINNED STOCKS: 6 COLUMNS 🔥
+        # 3. RENDER PINNED STOCKS CHARTS (PRIORITY ROW)
         pinned_df = df_stocks_display[df_stocks_display['Fetch_T'].isin(st.session_state.pinned_stocks)]
         unpinned_df = df_stocks_display[~df_stocks_display['Fetch_T'].isin(st.session_state.pinned_stocks)]
         
         if not pinned_df.empty:
             st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#ffd700;'>📌 Pinned Priority Charts</div>", unsafe_allow_html=True)
             p_list = [row for _, row in pinned_df.iterrows()]
-            for i in range(0, len(p_list), 6):
-                cols = st.columns(6)
-                for j in range(6):
-                    if i + j < len(p_list):
-                        with cols[j]: render_chart(p_list[i + j], processed_charts.get(p_list[i+j]['Fetch_T'], pd.DataFrame()), show_pin=True)
+            # 🔥 FLUID GRID MAGIC 🔥
+            cols = st.columns(len(p_list))
+            for i, row in enumerate(p_list):
+                with cols[i]: render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=True, marker_type='stock-chart')
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
-        # 🔥 REMAINING STOCKS: 6 COLUMNS 🔥
+        # 4. RENDER REMAINING STOCKS CHARTS
         if not unpinned_df.empty:
             st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>{watchlist_mode} ({st.session_state.trend_filter})</div>", unsafe_allow_html=True)
             u_list = [row for _, row in unpinned_df.iterrows()]
-            for i in range(0, len(u_list), 6):
-                cols = st.columns(6)
-                for j in range(6):
-                    if i + j < len(u_list):
-                        with cols[j]: render_chart(u_list[i + j], processed_charts.get(u_list[i+j]['Fetch_T'], pd.DataFrame()), show_pin=True)
+            # 🔥 FLUID GRID MAGIC 🔥
+            cols = st.columns(len(u_list))
+            for i, row in enumerate(u_list):
+                with cols[i]: render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=True, marker_type='stock-chart')
 
 else:
     st.info("Loading Market Data...")
