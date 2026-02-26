@@ -23,14 +23,14 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- 4. CSS FOR STYLING (PERFECT HORIZONTAL BUTTONS & FLUID GRID) ---
+# --- 4. CSS FOR STYLING (RESTORED TO THE 100% SUCCESSFUL VERSION) ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
     .stApp { background-color: #0e1117; color: #ffffff; }
     .block-container { padding-top: 1rem !important; padding-bottom: 0rem !important; margin-top: -10px; }
     
-    /* ALL TEXT TO NORMAL (UNBOLD) */
+    /* 🔥 1. ALL TEXT TO NORMAL (UNBOLD) 🔥 */
     .stRadio label, .stRadio p, div[role="radiogroup"] p { color: #ffffff !important; font-weight: normal !important; }
     div.stButton > button p, div.stButton > button span { color: #ffffff !important; font-weight: normal !important; font-size: 14px !important; }
     
@@ -39,14 +39,14 @@ st.markdown("""
     .t-pct { font-size: 12px; font-weight: normal !important; }
     .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal !important; }
     
-    /* THE ULTIMATE EQUAL-SIZE HORIZONTAL BUTTONS FIX */
+    /* 🔥 2. THE SUCCESSFUL HORIZONTAL BUTTONS FIX (NO COLUMNS HACK) 🔥 */
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) {
         display: flex !important;
         flex-direction: row !important; 
         flex-wrap: nowrap !important; 
-        justify-content: space-between !important; 
+        justify-content: center !important; 
         align-items: center !important;
-        gap: 6px !important; 
+        gap: 8px !important; 
         width: 100% !important;
     }
     
@@ -55,24 +55,29 @@ st.markdown("""
     }
     
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) > div[data-testid="stElementContainer"] {
-        flex: 1 1 0px !important; 
-        min-width: 0 !important;
-        width: 100% !important;
+        width: auto !important;
+        flex: 0 0 auto !important; 
     }
     
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button {
-        width: 100% !important;
-        height: 38px !important;
-        padding: 0px !important;
+        width: max-content !important;
+        height: 35px !important;
+        padding: 0px 12px !important;
     }
     
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button p {
-        font-size: clamp(9px, 2.5vw, 13px) !important; 
+        font-size: 12px !important;
         white-space: nowrap !important; 
         margin: 0 !important;
     }
     
-    /* FLUID GRID FOR CHARTS */
+    @media screen and (max-width: 650px) {
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) { gap: 4px !important; }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button { padding: 0px 8px !important; }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button p { font-size: 10.5px !important; }
+    }
+    
+    /* 🔥 3. THE SUCCESSFUL FLUID GRID FOR CHARTS 🔥 */
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) {
         display: grid !important;
         gap: 12px !important;
@@ -98,7 +103,7 @@ st.markdown("""
         width: 100% !important;
     }
 
-    /* PERFECT PIN BOX */
+    /* 🔥 4. PERFECT PIN BOX 🔥 */
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] div[data-testid="stCheckbox"] {
         position: absolute !important;
         top: 8px !important;
@@ -336,7 +341,6 @@ if not df.empty:
     
     df_stocks = df[(~df['Is_Index']) & (~df['Is_Sector'])].copy()
     
-    # FILTER LOGIC
     if watchlist_mode == "Nifty 50 Heatmap":
         df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
     elif watchlist_mode == "One Sided Moves 🚀":
@@ -367,19 +371,21 @@ if not df.empty:
             last_price = df_day['Close'].iloc[-1]
             last_vwap = df_day['VWAP'].iloc[-1]
             last_ema = df_day['EMA_10'].iloc[-1]
+            day_open = df_day['Open'].iloc[0]
             
-            # 🔥 THE FIX: STRICT BULLISH / BEARISH LOGIC 🔥
-            # స్టాక్ బుల్లిష్ కావాలంటే కేవలం VWAP పైన ఉంటే సరిపోదు.. ఈరోజు లాభాల్లో (Green) కూడా ఉండాలి!
-            daily_chg = df[df['Fetch_T'] == sym]['C'].iloc[0]
+            # 🔥 PRO STRICT LOGIC (To avoid trap stocks) 🔥
+            net_chg = df[df['Fetch_T'] == sym]['C'].iloc[0]
             
-            if last_price > last_vwap and last_price > last_ema and daily_chg > 0:
+            is_bullish = (net_chg > 0) and (last_price >= day_open) and (last_price > last_vwap) and (last_price > last_ema)
+            is_bearish = (net_chg < 0) and (last_price <= day_open) and (last_price < last_vwap) and (last_price < last_ema)
+            
+            if is_bullish:
                 stock_trends[sym] = 'Bullish'
-            elif last_price < last_vwap and last_price < last_ema and daily_chg < 0:
+            elif is_bearish:
                 stock_trends[sym] = 'Bearish'
             else:
                 stock_trends[sym] = 'Neutral'
                 
-            # ONE SIDED MOVES LOGIC
             total_candles = len(df_day)
             if total_candles >= 3:
                 bull_cond = (df_day['Close'] > df_day['VWAP']) & (df_day['Close'] > df_day['EMA_10'])
@@ -399,18 +405,13 @@ if not df.empty:
     bear_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bearish')
     neut_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Neutral')
 
-    # --- CLICKABLE TREND FILTERS ---
+    # --- 🔥 THE SUCCESSFUL INLINE BUTTONS (NO COLUMNS HACK) 🔥 ---
     with st.container():
         st.markdown("<div class='filter-marker'></div>", unsafe_allow_html=True)
-        f1, f2, f3, f4 = st.columns(4)
-        with f1: 
-            if st.button(f"📊 All ({len(df_filtered)})"): st.session_state.trend_filter = 'All'
-        with f2: 
-            if st.button(f"🟢 Bullish ({bull_cnt})"): st.session_state.trend_filter = 'Bullish'
-        with f3: 
-            if st.button(f"⚪ Neutral ({neut_cnt})"): st.session_state.trend_filter = 'Neutral'
-        with f4: 
-            if st.button(f"🔴 Bearish ({bear_cnt})"): st.session_state.trend_filter = 'Bearish'
+        if st.button(f"📊 All ({len(df_filtered)})"): st.session_state.trend_filter = 'All'
+        if st.button(f"🟢 Bullish ({bull_cnt})"): st.session_state.trend_filter = 'Bullish'
+        if st.button(f"⚪ Neutral ({neut_cnt})"): st.session_state.trend_filter = 'Neutral'
+        if st.button(f"🔴 Bearish ({bear_cnt})"): st.session_state.trend_filter = 'Bearish'
 
     st.markdown(f"<div style='text-align:right; font-size:12px; color:#ffd700; margin-bottom: 10px; font-weight:normal !important;'>Showing: <b>{st.session_state.trend_filter}</b> Stocks</div>", unsafe_allow_html=True)
 
