@@ -77,7 +77,7 @@ st.markdown("""
     
     /* MOBILE PHONES */
     @media screen and (max-width: 600px) {
-        .block-container { padding-top: 1rem !important; margin-top: -15px; } /* Slight adjustment for mobile top bar */
+        .block-container { padding-top: 1rem !important; margin-top: -15px; } 
         .heatmap-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; }
         .stock-card { height: 95px; }
         .t-name { font-size: 12px; }
@@ -102,14 +102,6 @@ st.markdown("""
         font-size: 10px;
         color: #8b949e;
         margin-bottom: 2px;
-    }
-    
-    /* Custom HR Line */
-    .custom-hr {
-        border: 0;
-        height: 1px;
-        background: #30363d;
-        margin: 5px 0;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -161,6 +153,49 @@ def get_minutes_passed():
     if now.weekday() >= 5 or now.time() > dt_time(15, 30): return 375
     open_time = now.replace(hour=9, minute=15, second=0)
     return min(375, max(1, int((now - open_time).total_seconds() / 60)))
+
+# 🔥 EXACT NIFTY VWAP & 10 EMA LOGIC 🔥
+@st.cache_data(ttl=60)
+def get_market_mood():
+    try:
+        # Fetch only Nifty 5m data to be incredibly fast
+        n_data = yf.download("^NSEI", period="5d", interval="5m", progress=False, group_by='ticker')
+        if n_data.empty: return "NEUTRAL ⚖️", "neut-card"
+        
+        # Format the dataframe safely
+        if isinstance(n_data.columns, pd.MultiIndex):
+            try:
+                df_c = n_data["^NSEI"].dropna(subset=['Close']).copy()
+            except:
+                df_c = n_data.dropna(subset=['Close']).copy()
+        else:
+            df_c = n_data.dropna(subset=['Close']).copy()
+            
+        df_c['EMA_10'] = df_c['Close'].ewm(span=10, adjust=False).mean()
+        df_c.index = pd.to_datetime(df_c.index)
+        last_date = df_c.index.date.max()
+        today_df = df_c[df_c.index.date == last_date].copy()
+        
+        # Calculate VWAP
+        today_df['Typical'] = (today_df['High'] + today_df['Low'] + today_df['Close']) / 3
+        if 'Volume' in today_df.columns and today_df['Volume'].fillna(0).sum() > 0:
+            today_df['VWAP'] = (today_df['Typical'] * today_df['Volume']).cumsum() / today_df['Volume'].cumsum()
+        else:
+            today_df['VWAP'] = today_df['Typical'].expanding().mean()
+            
+        curr_p = float(today_df['Close'].iloc[-1])
+        curr_v = float(today_df['VWAP'].iloc[-1])
+        curr_e = float(today_df['EMA_10'].iloc[-1])
+        
+        # PRO TRADER LOGIC:
+        if curr_p > curr_v and curr_p > curr_e:
+            return "BULLISH 🚀", "bull-card"
+        elif curr_p < curr_v and curr_p < curr_e:
+            return "BEARISH 🩸", "bear-card"
+        else:
+            return "NEUTRAL ⚖️", "neut-card"
+    except:
+        return "NEUTRAL ⚖️", "neut-card"
 
 @st.cache_data(ttl=60)
 def fetch_all_data():
@@ -276,20 +311,17 @@ def render_chart(row, chart_data):
     st.markdown("</div>", unsafe_allow_html=True)
 
 
-# --- 6. TOP NAVIGATION (Fixed Empty Black Box) ---
-# Removed the HTML wrapper div that was causing the empty black block. Now just Streamlit columns.
+# --- 6. TOP NAVIGATION ---
 c1, c2 = st.columns([0.6, 0.4])
 with c1:
     watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Nifty 50 Heatmap"], label_visibility="collapsed")
 with c2:
     view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
 
-# Small separation line after Nav
-st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
-
 
 # --- 7. RENDER LOGIC ---
 df = fetch_all_data()
+market_mood_text, mood_class = get_market_mood()
 
 if not df.empty:
     
@@ -299,20 +331,6 @@ if not df.empty:
     df_indices = df_indices.sort_values("Order")
     
     df_stocks = df[~df['Is_Index']].copy()
-    
-    # 🔥 TODAY'S MARKET MOOD LOGIC 🔥
-    market_mood_text = "NEUTRAL ⚖️"
-    mood_class = "neut-card"
-    
-    nifty_row = df_indices[df_indices['T'] == 'NIFTY']
-    if not nifty_row.empty:
-        n_chg = float(nifty_row['C'].iloc[0])
-        if n_chg >= 0.10: 
-            market_mood_text = "BULLISH 🚀"
-            mood_class = "bull-card"
-        elif n_chg <= -0.10: 
-            market_mood_text = "BEARISH 🩸"
-            mood_class = "bear-card"
     
     if watchlist_mode == "Nifty 50 Heatmap":
         df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
@@ -358,10 +376,8 @@ if not df.empty:
             html_idx += '</div>'
             st.markdown(html_idx, unsafe_allow_html=True)
             
-            st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
-        
-        # 2. RENDER STOCKS
-        st.markdown("<div style='font-size: 20px; font-weight: bold; margin-top: 5px; margin-bottom: 8px;'>🔥 High Score Stocks</div>", unsafe_allow_html=True)
+        # 2. RENDER STOCKS (Custom Tight Header - NO LINES)
+        st.markdown("<div style='font-size: 20px; font-weight: bold; margin-top: 15px; margin-bottom: 8px;'>🔥 High Score Stocks</div>", unsafe_allow_html=True)
         html_stk = '<div class="heatmap-grid">'
         for _, row in df_stocks_display.iterrows():
             bg = "bull-card" if row['C'] >= 0 else "bear-card"
@@ -381,8 +397,8 @@ if not df.empty:
         with st.spinner("Loading 5-Min Candlestick Charts (Lightning Speed ⚡)..."):
             chart_data = yf.download(fetch_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=20)
         
-        # 1. RENDER INDICES CHARTS FIRST
-        st.markdown("<div style='font-size: 20px; font-weight: bold; margin-top: 5px; margin-bottom: 8px;'>📈 Market Indices</div>", unsafe_allow_html=True)
+        # 1. RENDER INDICES CHARTS FIRST (NO MOOD BOX HERE)
+        st.markdown("<div style='font-size: 20px; font-weight: bold; margin-bottom: 8px; margin-top: 10px;'>📈 Market Indices</div>", unsafe_allow_html=True)
         
         if not df_indices.empty:
             idx_list = [row for _, row in df_indices.iterrows()]
@@ -393,10 +409,8 @@ if not df.empty:
                         with cols[j]:
                             render_chart(idx_list[i + j], chart_data)
                             
-        st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
-        
-        # 2. RENDER STOCKS CHARTS
-        st.markdown("<div style='font-size: 20px; font-weight: bold; margin-top: 5px; margin-bottom: 8px;'>🔥 High Score Stocks</div>", unsafe_allow_html=True)
+        # 2. RENDER STOCKS CHARTS (NO LINES)
+        st.markdown("<div style='font-size: 20px; font-weight: bold; margin-top: 15px; margin-bottom: 8px;'>🔥 High Score Stocks</div>", unsafe_allow_html=True)
         if not top_stocks_for_charts.empty:
             stk_list = [row for _, row in top_stocks_for_charts.iterrows()]
             for i in range(0, len(stk_list), 3):
