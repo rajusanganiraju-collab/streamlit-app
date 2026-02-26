@@ -23,7 +23,7 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- 4. CSS FOR STYLING (RESTORED TO YOUR SUCCESSFUL FLUID GRID VERSION + NEW BUTTON FIX) ---
+# --- 4. CSS FOR STYLING (RESTORED TO THE 100% SUCCESSFUL VERSION) ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
@@ -39,43 +39,45 @@ st.markdown("""
     .t-pct { font-size: 12px; font-weight: normal !important; }
     .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal !important; }
     
-    /* 🔥 2. THE ULTIMATE HORIZONTAL BUTTONS FIX 🔥 */
-    /* Target the Horizontal Block directly using the marker inside it */
-    div[data-testid="stHorizontalBlock"]:has(.filter-marker) {
+    /* 🔥 2. THE SUCCESSFUL HORIZONTAL BUTTONS FIX (NO COLUMNS HACK) 🔥 */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) {
         display: flex !important;
         flex-direction: row !important; 
         flex-wrap: nowrap !important; 
-        width: 100% !important;
-        gap: 5px !important;
-    }
-    
-    /* Force 4 equal columns and NEVER break to the next line */
-    div[data-testid="stHorizontalBlock"]:has(.filter-marker) > div[data-testid="column"] {
-        flex: 1 1 25% !important;
-        width: 25% !important;
-        min-width: 0 !important; /* CRITICAL FIX: Allows shrinking below default Streamlit limits */
-        padding: 0 !important;
-    }
-    
-    /* Button inside the column */
-    div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button {
-        width: 100% !important;
-        height: 38px !important;
-        padding: 0px !important;
-        margin: 0px !important;
-        display: flex !important;
-        justify-content: center !important;
+        justify-content: center !important; 
         align-items: center !important;
+        gap: 8px !important; 
+        width: 100% !important;
     }
     
-    div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button p {
-        font-size: clamp(8px, 2.5vw, 12px) !important; /* Auto shrinks font based on screen width */
-        white-space: nowrap !important;
-        overflow: hidden !important;
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) > div[data-testid="stElementContainer"]:has(.filter-marker) {
+        display: none !important;
+    }
+    
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) > div[data-testid="stElementContainer"] {
+        width: auto !important;
+        flex: 0 0 auto !important; 
+    }
+    
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button {
+        width: max-content !important;
+        height: 35px !important;
+        padding: 0px 12px !important;
+    }
+    
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button p {
+        font-size: 12px !important;
+        white-space: nowrap !important; 
         margin: 0 !important;
     }
     
-    /* 🔥 3. THE SUCCESSFUL FLUID GRID FOR CHARTS (NO SQUISHING!) 🔥 */
+    @media screen and (max-width: 650px) {
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) { gap: 4px !important; }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button { padding: 0px 8px !important; }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button p { font-size: 10.5px !important; }
+    }
+    
+    /* 🔥 3. THE SUCCESSFUL FLUID GRID FOR CHARTS 🔥 */
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) {
         display: grid !important;
         gap: 12px !important;
@@ -248,7 +250,7 @@ def process_5m_data(df_raw):
         return pd.DataFrame()
     except: return pd.DataFrame()
 
-# --- HELPER FUNCTION TO DRAW CHARTS ---
+# --- HELPER FUNCTION TO DRAW CHARTS (ADDED KEY_SUFFIX FIX) ---
 def render_chart(row, df_chart, show_pin=True, key_suffix=""):
     display_sym = row['T']
     fetch_sym = row['Fetch_T']
@@ -261,6 +263,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix=""):
     sign = "+" if row['C'] > 0 else ""
     tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
     
+    # 🔥 UNIQUE KEY LOGIC TO PREVENT STREAMLIT CRASHES WHEN SEARCHING & PINNING 🔥
     if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX"]:
         cb_key = f"cb_{fetch_sym}_{key_suffix}" if key_suffix else f"cb_{fetch_sym}"
         st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=cb_key, on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
@@ -303,24 +306,10 @@ def render_chart(row, df_chart, show_pin=True, key_suffix=""):
     except Exception as e:
         st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:normal !important;'>Chart error</div>", unsafe_allow_html=True)
 
-def render_chart_grid(df_grid, show_pin_option, key_prefix):
-    if df_grid.empty: return
-    with st.container():
-        st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
-        for j, (_, row) in enumerate(df_grid.iterrows()):
-            with st.container():
-                render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=show_pin_option, key_suffix=f"{key_prefix}_{j}")
-
-
-# --- 6. TOP NAVIGATION & SEARCH (UPDATED SORT FILTERS) ---
-c1, c2, c3 = st.columns([0.4, 0.3, 0.3])
-with c1: 
-    watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Nifty 50 Heatmap", "One Sided Moves 🚀"], label_visibility="collapsed")
-with c2: 
-    sort_mode = st.selectbox("Sort By", ["Custom Sort", "Heatmap Marks Up ⭐", "Heatmap Marks Down ⬇️", "% Change Up 🟢", "% Change Down 🔴"], label_visibility="collapsed")
-with c3: 
-    view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
-
+# --- 6. TOP NAVIGATION & SEARCH ---
+c1, c2 = st.columns([0.6, 0.4])
+with c1: watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Nifty 50 Heatmap", "One Sided Moves 🚀"], label_visibility="collapsed")
+with c2: view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
 
 # --- 7. RENDER LOGIC & TREND ANALYSIS ---
 df = fetch_all_data()
@@ -339,6 +328,7 @@ if not df.empty:
     
     df_stocks = df[(~df['Is_Index']) & (~df['Is_Sector'])].copy()
     
+    # 🔥 FILTER LOGIC 🔥
     if watchlist_mode == "Nifty 50 Heatmap":
         df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
     elif watchlist_mode == "One Sided Moves 🚀":
@@ -369,24 +359,15 @@ if not df.empty:
             last_price = df_day['Close'].iloc[-1]
             last_vwap = df_day['VWAP'].iloc[-1]
             last_ema = df_day['EMA_10'].iloc[-1]
-            day_open = df_day['Open'].iloc[0]
             
-            # 🔥 PRO TRADER STRICT LOGIC: Get Daily Net Change 🔥
-            net_chg = df_filtered[df_filtered['Fetch_T'] == sym]['C'].iloc[0]
-            
-            # A stock is Bullish ONLY if it's Green for the day, above day's open, and above VWAP/EMA.
-            is_bullish = (net_chg > 0) and (last_price >= day_open) and (last_price > last_vwap) and (last_price > last_ema)
-            
-            # A stock is Bearish ONLY if it's Red for the day, below day's open, and below VWAP/EMA.
-            is_bearish = (net_chg < 0) and (last_price <= day_open) and (last_price < last_vwap) and (last_price < last_ema)
-            
-            if is_bullish:
+            if last_price > last_vwap and last_price > last_ema:
                 stock_trends[sym] = 'Bullish'
-            elif is_bearish:
+            elif last_price < last_vwap and last_price < last_ema:
                 stock_trends[sym] = 'Bearish'
             else:
                 stock_trends[sym] = 'Neutral'
                 
+            # ONE SIDED MOVES LOGIC (70% ABOVE/BELOW)
             total_candles = len(df_day)
             if total_candles >= 3:
                 bull_cond = (df_day['Close'] > df_day['VWAP']) & (df_day['Close'] > df_day['EMA_10'])
@@ -406,48 +387,30 @@ if not df.empty:
     bear_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bearish')
     neut_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Neutral')
 
-    # --- CLICKABLE TREND FILTERS (THE FIX) ---
-    f1, f2, f3, f4 = st.columns(4)
-    # 🔥 MARKER MOVED INSIDE THE COLUMNS TO TARGET PROPERLY 🔥
-    with f1: 
-        st.markdown("<div class='filter-marker' style='display:none;'></div>", unsafe_allow_html=True)
-        if st.button(f"📊 All ({len(df_filtered)})", use_container_width=True): st.session_state.trend_filter = 'All'
-    with f2: 
-        if st.button(f"🟢 Bullish ({bull_cnt})", use_container_width=True): st.session_state.trend_filter = 'Bullish'
-    with f3: 
-        if st.button(f"⚪ Neutral ({neut_cnt})", use_container_width=True): st.session_state.trend_filter = 'Neutral'
-    with f4: 
-        if st.button(f"🔴 Bearish ({bear_cnt})", use_container_width=True): st.session_state.trend_filter = 'Bearish'
+    # --- THE SUCCESSFUL INLINE BUTTONS ---
+    with st.container():
+        st.markdown("<div class='filter-marker'></div>", unsafe_allow_html=True)
+        if st.button(f"📊 All ({len(df_filtered)})"): st.session_state.trend_filter = 'All'
+        if st.button(f"🟢 Bullish ({bull_cnt})"): st.session_state.trend_filter = 'Bullish'
+        if st.button(f"⚪ Neutral ({neut_cnt})"): st.session_state.trend_filter = 'Neutral'
+        if st.button(f"🔴 Bearish ({bear_cnt})"): st.session_state.trend_filter = 'Bearish'
 
     st.markdown(f"<div style='text-align:right; font-size:12px; color:#ffd700; margin-bottom: 10px; font-weight:normal !important;'>Showing: <b>{st.session_state.trend_filter}</b> Stocks</div>", unsafe_allow_html=True)
 
     if st.session_state.trend_filter != 'All':
         df_filtered = df_filtered[df_filtered['Fetch_T'].apply(lambda x: stock_trends.get(x) == st.session_state.trend_filter)]
 
-    # 🔥 NEW SORTING LOGIC WITH GREEN/RED SEPARATION 🔥
-    if sort_mode == "% Change Up 🟢":
-        df_stocks_display = df_filtered.sort_values(by="C", ascending=False)
-    elif sort_mode == "% Change Down 🔴":
-        df_stocks_display = df_filtered.sort_values(by="C", ascending=True)
-    elif sort_mode == "Heatmap Marks Up ⭐":
-        greens = df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False])
-        reds = df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[False, True])
-        df_stocks_display = pd.concat([greens, reds])
-    elif sort_mode == "Heatmap Marks Down ⬇️":
-        reds = df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[False, True])
-        greens = df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False])
-        df_stocks_display = pd.concat([reds, greens])
+    # SORTING LOGIC 
+    if st.session_state.trend_filter == 'Bullish':
+        df_stocks_display = df_filtered.sort_values(by=["S", "C"], ascending=[False, False])
+    elif st.session_state.trend_filter == 'Bearish':
+        df_stocks_display = df_filtered.sort_values(by=["S", "C"], ascending=[False, True])
+    elif st.session_state.trend_filter == 'Neutral':
+        df_stocks_display = df_filtered.sort_values(by=["S", "C"], ascending=[False, False])
     else:
-        if st.session_state.trend_filter == 'Bullish':
-            df_stocks_display = df_filtered.sort_values(by=["S", "C"], ascending=[False, False])
-        elif st.session_state.trend_filter == 'Bearish':
-            df_stocks_display = df_filtered.sort_values(by=["S", "C"], ascending=[False, True])
-        elif st.session_state.trend_filter == 'Neutral':
-            df_stocks_display = df_filtered.sort_values(by=["S", "C"], ascending=[False, False])
-        else:
-            greens = df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False])
-            reds = df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[True, True])
-            df_stocks_display = pd.concat([greens, reds])
+        greens = df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False])
+        reds = df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[True, True])
+        df_stocks_display = pd.concat([greens, reds])
 
     # --- RENDER VIEWS ---
     if view_mode == "Heat Map":
@@ -483,31 +446,53 @@ if not df.empty:
     else:
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # 1. RENDER SEARCHED CHART
+        # 1. RENDER SEARCHED CHART (NOW WITH PIN OPTION!)
         if search_stock != "-- None --":
             st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:5px; color:#ffd700;'>🔍 Searched Chart: {search_stock}</div>", unsafe_allow_html=True)
             searched_row = df[df['T'] == search_stock].iloc[0]
-            render_chart_grid(pd.DataFrame([searched_row]), show_pin_option=True, key_prefix="search")
+            
+            with st.container():
+                st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
+                with st.container():
+                    # 🔥 ENABLED PIN HERE WITH UNIQUE KEY "search" 🔥
+                    render_chart(searched_row, processed_charts.get(searched_row['Fetch_T'], pd.DataFrame()), show_pin=True, key_suffix="search")
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
         # 2. RENDER INDICES CHARTS
         st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>📈 Market Indices</div>", unsafe_allow_html=True)
-        render_chart_grid(df_indices, show_pin_option=False, key_prefix="idx")
+        if not df_indices.empty:
+            with st.container():
+                st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
+                for _, row in df_indices.iterrows():
+                    with st.container():
+                        render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=False)
         st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
-        # 3. RENDER ONLY PINNED STOCKS HERE
+        # 3. RENDER ALL PINNED STOCKS HERE (PRIORITY ROW)
         pinned_df = df[df['Fetch_T'].isin(st.session_state.pinned_stocks)].copy()
+        
         unpinned_df = df_stocks_display[~df_stocks_display['Fetch_T'].isin(pinned_df['Fetch_T'].tolist())]
         
         if not pinned_df.empty:
             st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#ffd700;'>📌 Pinned Priority Charts</div>", unsafe_allow_html=True)
-            render_chart_grid(pinned_df, show_pin_option=True, key_prefix="pin")
+            with st.container():
+                st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
+                for _, row in pinned_df.iterrows():
+                    with st.container():
+                        # 🔥 ENABLED PIN HERE WITH UNIQUE KEY "pinned" 🔥
+                        render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=True, key_suffix="pinned")
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
         # 4. RENDER REMAINING STOCKS
         if not unpinned_df.empty:
             st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>{watchlist_mode} ({st.session_state.trend_filter})</div>", unsafe_allow_html=True)
-            render_chart_grid(unpinned_df, show_pin_option=True, key_prefix="main")
+            
+            with st.container():
+                st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
+                for _, row in unpinned_df.iterrows():
+                    with st.container():
+                        # 🔥 ENABLED PIN HERE WITH UNIQUE KEY "main" 🔥
+                        render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=True, key_suffix="main")
 
 else:
     st.info("Loading Market Data...")
