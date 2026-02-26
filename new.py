@@ -159,18 +159,25 @@ def fetch_all_data():
         all_stocks.update(stocks)
     
     tkrs = list(INDICES_MAP.keys()) + [f"{t}.NS" for t in all_stocks]
-    # 🔥 FIX 1: ADDED threads=20 FOR LIGHTNING FAST DOWNLOAD 🔥
+    # 🔥 THREADS=20 ADDED FOR HIGH SPEED DATA FETCH 🔥
     data = yf.download(tkrs, period="5d", progress=False, group_by='ticker', threads=20)
     
     results = []
     minutes = get_minutes_passed()
+
     for symbol in data.columns.levels[0]:
         try:
             df = data[symbol].dropna(subset=['Close'])
             if len(df) < 2: continue
-            ltp, open_p, prev_c, low, high = float(df['Close'].iloc[-1]), float(df['Open'].iloc[-1]), float(df['Close'].iloc[-2]), float(df['Low'].iloc[-1]), float(df['High'].iloc[-1])
-            day_chg, net_chg = ((ltp - open_p) / open_p) * 100, ((ltp - prev_c) / prev_c) * 100
-            vwap = (high + low + ltp) / 3
+            
+            ltp = float(df['Close'].iloc[-1])
+            open_p = float(df['Open'].iloc[-1])
+            prev_c = float(df['Close'].iloc[-2])
+            low = float(df['Low'].iloc[-1])
+            high = float(df['High'].iloc[-1])
+            
+            day_chg = ((ltp - open_p) / open_p) * 100
+            net_chg = ((ltp - prev_c) / prev_c) * 100
             
             if 'Volume' in df.columns and not df['Volume'].isna().all():
                 avg_vol = df['Volume'].iloc[:-1].mean()
@@ -179,104 +186,194 @@ def fetch_all_data():
             else:
                 vol_x = 0.0
                 
+            vwap = (high + low + ltp) / 3
+            
             score = 0
-            if abs(day_chg) >= 2.0: score += 3
-            if abs(open_p - low) <= (ltp * 0.003) or abs(open_p - high) <= (ltp * 0.003): score += 3
-            if vol_x > 1.0: score += 3
+            is_open_low = abs(open_p - low) <= (ltp * 0.003)
+            is_open_high = abs(open_p - high) <= (ltp * 0.003)
+            
+            if day_chg >= 2.0 or day_chg <= -2.0: score += 3 
+            if is_open_low or is_open_high: score += 3 
+            if vol_x > 1.0: score += 3 
             if (ltp >= high * 0.998 and day_chg > 0.5) or (ltp <= low * 1.002 and day_chg < -0.5): score += 1
             if (ltp > (low * 1.01) and ltp > vwap) or (ltp < (high * 0.99) and ltp < vwap): score += 1
             
-            disp_name = INDICES_MAP.get(symbol, symbol.replace(".NS", ""))
-            results.append({"Fetch_T": symbol, "T": disp_name, "P": ltp, "C": net_chg, "S": score, "Is_Idx": symbol in INDICES_MAP})
+            if symbol in INDICES_MAP:
+                disp_name = INDICES_MAP[symbol]
+                is_index = True
+            else:
+                disp_name = symbol.replace(".NS", "")
+                is_index = False
+            
+            results.append({
+                "Fetch_T": symbol, "T": disp_name, "P": ltp, "C": net_chg, "S": score, "Is_Index": is_index
+            })
         except: continue
+        
     return pd.DataFrame(results)
 
+# --- HELPER FUNCTION TO DRAW CHARTS ---
 def render_chart(row, chart_data):
-    color = "#2ea043" if row['C'] >= 0 else "#da3633"
-    if row['T'] == "INDIA VIX": color = "#da3633" if row['C'] >= 0 else "#2ea043"
-    tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(row['Fetch_T'], 'NSE:'+row['T'])}"
-    st.markdown(f"<div class='chart-box'><div style='text-align:center; font-weight:bold; font-size:16px;'><a href='{tv_link}' target='_blank' style='color:white; text-decoration:none;'>{row['T']} <span style='color:{color}'>({row['C']:+.2f}%)</span></a></div><div class='ind-labels'><span style='color:#FFD700;'>--- VWAP</span> | <span style='color:#00BFFF;'>- - 10 EMA</span></div>", unsafe_allow_html=True)
+    fetch_sym = row['Fetch_T']
+    display_sym = row['T']
+    
+    color_hex = "#2ea043" if row['C'] >= 0 else "#da3633"
+    if display_sym == "INDIA VIX": color_hex = "#da3633" if row['C'] >= 0 else "#2ea043"
+        
+    sign = "+" if row['C'] > 0 else ""
+    tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
+    
+    st.markdown(f"<div class='chart-box'>", unsafe_allow_html=True)
+    st.markdown(f"<div style='text-align:center; font-weight:bold; font-size:16px;'><a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none;'>{display_sym} <span style='color:{color_hex}'>({sign}{row['C']:.2f}%)</span></a></div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='ind-labels'><span style='color:#FFD700; font-weight:bold;'>--- VWAP</span> &nbsp;|&nbsp; <span style='color:#00BFFF; font-weight:bold;'>- - 10 EMA</span></div>", unsafe_allow_html=True)
+    
     try:
-        df_c = chart_data[row['Fetch_T']].dropna(subset=['Close']).copy() if isinstance(chart_data.columns, pd.MultiIndex) else chart_data.dropna(subset=['Close']).copy()
-        if not df_c.empty:
-            df_c['EMA_10'] = df_c['Close'].ewm(span=10, adjust=False).mean()
-            df_c.index = pd.to_datetime(df_c.index)
-            df_c = df_c[df_c.index.date == df_c.index.date.max()]
-            df_c['VWAP'] = ((df_c['High']+df_c['Low']+df_c['Close'])/3 * df_c['Volume']).cumsum() / df_c['Volume'].cumsum() if 'Volume' in df_c.columns and df_c['Volume'].sum()>0 else (df_c['High']+df_c['Low']+df_c['Close'])/3
+        df_chart = chart_data[fetch_sym].copy() if isinstance(chart_data.columns, pd.MultiIndex) else chart_data.copy()
+        df_chart = df_chart.dropna(subset=['Close'])
+        
+        if not df_chart.empty:
+            df_chart['EMA_10'] = df_chart['Close'].ewm(span=10, adjust=False).mean()
+            df_chart.index = pd.to_datetime(df_chart.index)
+            last_trading_date = df_chart.index.date.max()
+            df_chart = df_chart[df_chart.index.date == last_trading_date]
+            
+            df_chart['Typical_Price'] = (df_chart['High'] + df_chart['Low'] + df_chart['Close']) / 3
+            if 'Volume' in df_chart.columns and df_chart['Volume'].fillna(0).sum() > 0:
+                df_chart['VWAP'] = (df_chart['Typical_Price'] * df_chart['Volume']).cumsum() / df_chart['Volume'].cumsum()
+            else:
+                df_chart['VWAP'] = df_chart['Typical_Price'].expanding().mean()
+            
+            min_val, max_val = df_chart[['Low', 'VWAP', 'EMA_10']].min().min(), df_chart[['High', 'VWAP', 'EMA_10']].max().max()
+            y_padding = (max_val - min_val) * 0.1 if (max_val - min_val) != 0 else min_val * 0.005 
+            
             fig = go.Figure()
-            fig.add_trace(go.Candlestick(x=df_c.index, open=df_c['Open'], high=df_c['High'], low=df_c['Low'], close=df_c['Close'], increasing_line_color='#2ea043', decreasing_line_color='#da3633'))
-            fig.add_trace(go.Scatter(x=df_c.index, y=df_c['VWAP'], line=dict(color='#FFD700', width=1.5, dash='dot')))
-            fig.add_trace(go.Scatter(x=df_c.index, y=df_c['EMA_10'], line=dict(color='#00BFFF', width=1.5, dash='dash')))
-            fig.update_layout(margin=dict(l=0,r=0,t=0,b=0), height=150, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(visible=False, rangeslider=dict(visible=False)), yaxis=dict(visible=False, range=[min(df_c['Low'].min(), df_c['EMA_10'].min())*0.999, max(df_c['High'].max(), df_c['EMA_10'].max())*1.001]), showlegend=False)
+            fig.add_trace(go.Candlestick(
+                x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
+                increasing_line_color='#2ea043', decreasing_line_color='#da3633', name='Price'
+            ))
+            fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot')))
+            fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash')))
+            
+            fig.update_layout(
+                margin=dict(l=0, r=0, t=0, b=0), height=150, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', 
+                xaxis=dict(visible=False, rangeslider=dict(visible=False)), yaxis=dict(visible=False, range=[min_val - y_padding, max_val + y_padding]), 
+                hovermode=False, showlegend=False
+            )
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-        else: st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Data not available</div>", unsafe_allow_html=True)
-    except: st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Error loading chart</div>", unsafe_allow_html=True)
+        else:
+            st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Data not available</div>", unsafe_allow_html=True)
+    except Exception as e:
+        st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart loading error</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- 6. EXECUTION ---
+
+# --- 6. TOP NAVIGATION ---
+st.markdown("<div style='background-color:#161b22; padding:10px; border-radius:8px; margin-bottom:15px; border: 1px solid #30363d;'>", unsafe_allow_html=True)
+c1, c2 = st.columns([0.6, 0.4])
+
+with c1:
+    watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Nifty 50 Heatmap"], label_visibility="collapsed")
+with c2:
+    view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
+st.markdown("</div>", unsafe_allow_html=True)
+
+# --- 7. RENDER LOGIC ---
 df = fetch_all_data()
+
 if not df.empty:
-    c1, c2 = st.columns([0.6, 0.4])
-    with c1: watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Nifty 50 Heatmap"], label_visibility="collapsed")
-    with c2: view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
-
-    # Order Indices strictly: NIFTY, BANKNIFTY, VIX
-    df_idx = df[df['Is_Idx']].set_index('T').reindex(['NIFTY', 'BANKNIFTY', 'INDIA VIX']).reset_index()
-    df_stk = df[~df['Is_Idx']].copy()
-
-    # 🔥 FIX 2: CREATE A SINGLE SORTED LIST FOR BOTH HEATMAP AND CHARTS 🔥
-    if watchlist_mode == "High Score Stocks 🔥":
-        df_filtered = df_stk[(df_stk['S'] >= 7) & (df_stk['S'] <= 10)]
-        greens = df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False])
-        reds = df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[True, True])
-        df_stocks_display = pd.concat([greens, reds])
-    else:
-        df_filtered = df_stk[df_stk['T'].isin(NIFTY_50)]
+    
+    # 🌟 SEPARATE INDICES AND STOCKS 🌟
+    df_indices = df[df['Is_Index']].copy()
+    df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3})
+    df_indices = df_indices.sort_values("Order")
+    
+    df_stocks = df[~df['Is_Index']].copy()
+    
+    if watchlist_mode == "Nifty 50 Heatmap":
+        df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
         greens = df_filtered[df_filtered['C'] >= 0].sort_values(by="C", ascending=False)
         reds = df_filtered[df_filtered['C'] < 0].sort_values(by="C", ascending=False)
         df_stocks_display = pd.concat([greens, reds])
+        st.markdown("### Nifty 50 Stocks")
+    
+    else:
+        # 🔥 FILTER: ONLY SHOW SCORE 7 TO 10 🔥
+        df_filtered = df_stocks[(df_stocks['S'] >= 7) & (df_stocks['S'] <= 10)]
+        greens = df_filtered[df_filtered['C'] > 0].sort_values(by=["S", "C"], ascending=[False, False])
+        neuts = df_filtered[df_filtered['C'] == 0].sort_values(by="S", ascending=False)
+        reds = df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[True, True])
+        df_stocks_display = pd.concat([greens, neuts, reds])
+        st.markdown("### 🔥 High Score Stocks (7 to 10)")
 
     if view_mode == "Heat Map":
-        # Indices Row
-        html_idx = '<div class="heatmap-grid">'
-        for _, r in df_idx.iterrows():
-            bg = "idx-card" if r['T'] != "INDIA VIX" else ("bear-card" if r['C']>=0 else "bull-card")
-            html_idx += f'<a href="https://in.tradingview.com/chart/?symbol={TV_INDICES_URL[r["Fetch_T"]]}" target="_blank" class="stock-card {bg}"><div class="t-score">IDX</div><div class="t-name">{r["T"]}</div><div class="t-price">{r["P"]:.2f}</div><div class="t-pct">{r["C"]:+.2f}%</div></a>'
-        st.markdown(html_idx + '</div><hr class="custom-hr">', unsafe_allow_html=True)
         
-        # Stocks Row (Using the properly sorted df_stocks_display)
+        # 1. RENDER INDICES FIRST
+        if not df_indices.empty:
+            html_idx = '<div class="heatmap-grid">'
+            for _, row in df_indices.iterrows():
+                if row['T'] == "INDIA VIX":
+                    bg = "bear-card" if row['C'] > 0 else "bull-card"
+                else:
+                    bg = "idx-card" 
+                    
+                badge = "IDX"
+                sign = "+" if row['C'] > 0 else ""
+                tv_sym = TV_INDICES_URL.get(row['Fetch_T'], "")
+                tv_link = f"https://in.tradingview.com/chart/?symbol={tv_sym}"
+                
+                html_idx += f'<a href="{tv_link}" target="_blank" class="stock-card {bg}"><div class="t-score">{badge}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{sign}{row["C"]:.2f}%</div></a>'
+            html_idx += '</div>'
+            st.markdown(html_idx, unsafe_allow_html=True)
+            
+            st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
+        
+        # 2. RENDER STOCKS
         html_stk = '<div class="heatmap-grid">'
-        for _, r in df_stocks_display.iterrows():
-            bg = "bull-card" if r['C'] >= 0 else "bear-card"
-            html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{r["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">⭐{int(r["S"])}</div><div class="t-name">{r["T"]}</div><div class="t-price">{r["P"]:.2f}</div><div class="t-pct">{r["C"]:+.2f}%</div></a>'
-        st.markdown(html_stk + '</div>', unsafe_allow_html=True)
+        for _, row in df_stocks_display.iterrows():
+            bg = "bull-card" if row['C'] >= 0 else "bear-card"
+            badge = f"⭐{int(row['S'])}"
+            sign = "+" if row['C'] > 0 else ""
+            tv_link = f"https://in.tradingview.com/chart/?symbol=NSE:{row['T']}"
+            
+            html_stk += f'<a href="{tv_link}" target="_blank" class="stock-card {bg}"><div class="t-score">{badge}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{sign}{row["C"]:.2f}%</div></a>'
+        html_stk += '</div>'
+        st.markdown(html_stk, unsafe_allow_html=True)
         
     else:
-        # Charts View
-        # Get exactly the top 27 from our ALREADY SORTED list
+        # === MINI CHARTS (PERFECT MOBILE ROW-BY-ROW RENDER) ===
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # Download Data for Charts (Top 27 Stocks + Indices)
         top_stocks_for_charts = df_stocks_display.head(27)
-        fetch_list = df_idx['Fetch_T'].tolist() + top_stocks_for_charts['Fetch_T'].tolist()
+        fetch_tickers = df_indices['Fetch_T'].tolist() + top_stocks_for_charts['Fetch_T'].tolist()
         
         with st.spinner("Loading 5-Min Candlestick Charts (Lightning Speed ⚡)..."):
-            # 🔥 FIX 1: ADDED threads=20 FOR LIGHTNING FAST CHART DOWNLOAD 🔥
-            chart_data = yf.download(fetch_list, period="5d", interval="5m", progress=False, group_by='ticker', threads=20)
+            # 🔥 THREADS=20 FOR CHART DOWNLOAD TOO 🔥
+            chart_data = yf.download(fetch_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=20)
         
-        # 1. INDICES SECTION (STRICTLY FIRST)
-        st.subheader("Indices")
-        idx_cols = st.columns(3)
-        for i, (_, r) in enumerate(df_idx.iterrows()):
-            with idx_cols[i]: render_chart(r, chart_data)
-        
+        # 1. RENDER INDICES CHARTS FIRST
+        st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>📈 Market Indices</div>", unsafe_allow_html=True)
+        if not df_indices.empty:
+            idx_list = [row for _, row in df_indices.iterrows()]
+            for i in range(0, len(idx_list), 3):
+                cols = st.columns(3)
+                for j in range(3):
+                    if i + j < len(idx_list):
+                        with cols[j]:
+                            render_chart(idx_list[i + j], chart_data)
+                            
         st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
-        # 2. STOCKS SECTION (Matches Heatmap Order Exactly)
-        st.subheader("High Score Stocks")
-        stk_list = [row for _, row in top_stocks_for_charts.iterrows()]
-        
-        for i in range(0, len(stk_list), 3):
-            cols = st.columns(3)
-            for j in range(3):
-                if i + j < len(stk_list):
-                    with cols[j]: render_chart(stk_list[i+j], chart_data)
+        # 2. RENDER STOCKS CHARTS
+        st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>🔥 High Score Stocks</div>", unsafe_allow_html=True)
+        if not top_stocks_for_charts.empty:
+            stk_list = [row for _, row in top_stocks_for_charts.iterrows()]
+            for i in range(0, len(stk_list), 3):
+                cols = st.columns(3)
+                for j in range(3):
+                    if i + j < len(stk_list):
+                        with cols[j]:
+                            render_chart(stk_list[i + j], chart_data)
+
 else:
     st.info("Loading Market Data...")
