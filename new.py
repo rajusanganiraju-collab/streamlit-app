@@ -100,18 +100,6 @@ st.markdown("""
         background: #30363d;
         margin: 15px 0;
     }
-    
-    /* MOOD BADGE */
-    .mood-badge {
-        font-size: 15px; 
-        padding: 4px 12px; 
-        background: #1f2937; 
-        border-radius: 6px; 
-        border: 1px solid #30363d; 
-        margin-left: 10px;
-        font-weight: normal;
-        vertical-align: middle;
-    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -299,13 +287,18 @@ if not df.empty:
     df_stocks = df[~df['Is_Index']].copy()
     
     # 🔥 TODAY'S MARKET MOOD LOGIC 🔥
-    market_mood = "🟡 Neutral (న్యూట్రల్)"
+    market_mood_text = "NEUTRAL ⚖️"
+    mood_class = "neut-card"
+    
     nifty_row = df_indices[df_indices['T'] == 'NIFTY']
     if not nifty_row.empty:
         n_chg = float(nifty_row['C'].iloc[0])
-        if n_chg >= 0.10: market_mood = "🟢 Bullish (బుల్లిష్)"
-        elif n_chg <= -0.10: market_mood = "🔴 Bearish (బేరిష్)"
-        else: market_mood = "🟡 Neutral (న్యూట్రల్)"
+        if n_chg >= 0.10: 
+            market_mood_text = "BULLISH 🚀"
+            mood_class = "bull-card"
+        elif n_chg <= -0.10: 
+            market_mood_text = "BEARISH 🩸"
+            mood_class = "bear-card"
     
     if watchlist_mode == "Nifty 50 Heatmap":
         df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
@@ -322,21 +315,30 @@ if not df.empty:
 
     if view_mode == "Heat Map":
         
-        # 1. RENDER INDICES FIRST WITH MOOD BADGE
-        st.markdown(f"### 📊 Market Indices <span class='mood-badge'>Today's Mood: {market_mood}</span>", unsafe_allow_html=True)
+        # 1. RENDER INDICES FIRST + MOOD BOX
+        st.markdown("### 📊 Market Indices", unsafe_allow_html=True)
         
         if not df_indices.empty:
             html_idx = '<div class="heatmap-grid">'
+            
+            # Print Nifty, BankNifty, Vix
             for _, row in df_indices.iterrows():
-                # All indices will show Green for Positive and Red for Negative
                 bg = "bull-card" if row['C'] >= 0 else "bear-card"
-                    
                 badge = "IDX"
                 sign = "+" if row['C'] > 0 else ""
                 tv_sym = TV_INDICES_URL.get(row['Fetch_T'], "")
                 tv_link = f"https://in.tradingview.com/chart/?symbol={tv_sym}"
                 
                 html_idx += f'<a href="{tv_link}" target="_blank" class="stock-card {bg}"><div class="t-score">{badge}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{sign}{row["C"]:.2f}%</div></a>'
+            
+            # 🔥 THE NEW MOOD BOX 🔥 (Placed right next to India Vix)
+            html_idx += f'''
+            <div class="stock-card {mood_class}" style="border: 2px solid rgba(255,255,255,0.4); box-shadow: 0 0 10px rgba(0,0,0,0.5);">
+                <div style="font-size: 11px; color: #ddd; margin-bottom: 2px; font-weight: bold; letter-spacing: 0.5px;">TODAY'S MOOD</div>
+                <div style="font-size: 16px; font-weight: 900;">{market_mood_text}</div>
+            </div>
+            '''
+            
             html_idx += '</div>'
             st.markdown(html_idx, unsafe_allow_html=True)
             
@@ -365,17 +367,29 @@ if not df.empty:
         with st.spinner("Loading 5-Min Candlestick Charts (Lightning Speed ⚡)..."):
             chart_data = yf.download(fetch_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=20)
         
-        # 1. RENDER INDICES CHARTS FIRST WITH MOOD BADGE
-        st.markdown(f"### 📈 Market Indices <span class='mood-badge'>Today's Mood: {market_mood}</span>", unsafe_allow_html=True)
+        # 1. RENDER INDICES CHARTS FIRST
+        st.markdown("### 📈 Market Indices", unsafe_allow_html=True)
         
         if not df_indices.empty:
             idx_list = [row for _, row in df_indices.iterrows()]
-            for i in range(0, len(idx_list), 3):
-                cols = st.columns(3)
-                for j in range(3):
-                    if i + j < len(idx_list):
-                        with cols[j]:
-                            render_chart(idx_list[i + j], chart_data)
+            
+            # 🔥 CHANGED TO 4 COLUMNS TO FIT THE MOOD BOX 🔥
+            cols = st.columns(4)
+            for j in range(3):
+                if j < len(idx_list):
+                    with cols[j]:
+                        render_chart(idx_list[j], chart_data)
+            
+            # 🔥 THE NEW MOOD BOX IN CHARTS VIEW 🔥
+            with cols[3]:
+                st.markdown(f"""
+                <div style="height: 100%; display:flex; align-items:center; justify-content:center; padding-top: 15px;">
+                    <div class="stock-card {mood_class}" style="width: 100%; height: 160px; border: 2px solid rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.5);">
+                        <div style="font-size: 14px; color: #ddd; margin-bottom: 8px; font-weight: bold; letter-spacing: 1px;">TODAY'S MOOD</div>
+                        <div style="font-size: 24px; font-weight: 900;">{market_mood_text}</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
                             
         st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
