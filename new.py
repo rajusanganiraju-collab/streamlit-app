@@ -23,7 +23,7 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- 4. CSS FOR STYLING (RESTORED TO THE 100% SUCCESSFUL VERSION) ---
+# --- 4. CSS FOR STYLING ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
@@ -39,7 +39,7 @@ st.markdown("""
     .t-pct { font-size: 12px; font-weight: normal !important; }
     .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal !important; }
     
-    /* 🔥 2. THE SUCCESSFUL HORIZONTAL BUTTONS FIX (NO COLUMNS HACK) 🔥 */
+    /* 🔥 2. THE SUCCESSFUL HORIZONTAL BUTTONS FIX 🔥 */
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) {
         display: flex !important;
         flex-direction: row !important; 
@@ -365,7 +365,7 @@ if not df.empty:
             else:
                 stock_trends[sym] = 'Neutral'
                 
-            # 🔥 NEW LOGIC: ONE SIDED MOVES (70% ABOVE/BELOW) 🔥
+            # ONE SIDED MOVES LOGIC (70% ABOVE/BELOW)
             total_candles = len(df_day)
             if total_candles >= 3:
                 bull_cond = (df_day['Close'] > df_day['VWAP']) & (df_day['Close'] > df_day['EMA_10'])
@@ -385,7 +385,7 @@ if not df.empty:
     bear_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bearish')
     neut_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Neutral')
 
-    # --- 🔥 THE SUCCESSFUL INLINE BUTTONS (NO COLUMNS!) 🔥 ---
+    # --- THE SUCCESSFUL INLINE BUTTONS ---
     with st.container():
         st.markdown("<div class='filter-marker'></div>", unsafe_allow_html=True)
         if st.button(f"📊 All ({len(df_filtered)})"): st.session_state.trend_filter = 'All'
@@ -444,12 +444,11 @@ if not df.empty:
     else:
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # 1. RENDER SEARCHED CHART
+        # 1. RENDER SEARCHED CHART (ISOLATED - DOES NOT MIX WITH PINS ANYMORE)
         if search_stock != "-- None --":
             st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:5px; color:#ffd700;'>🔍 Searched Chart: {search_stock}</div>", unsafe_allow_html=True)
             searched_row = df[df['T'] == search_stock].iloc[0]
             
-            # 🔥 THE SUCCESSFUL FLUID BOARD CSS HACK 🔥
             with st.container():
                 st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
                 with st.container():
@@ -466,13 +465,8 @@ if not df.empty:
                         render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=False)
         st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
-        # 3. RENDER ALL PINNED & SEARCHED STOCKS HERE (PRIORITY ROW)
+        # 🔥 3. RENDER ONLY ACTUAL PINNED STOCKS (THE FIX IS HERE) 🔥
         pinned_df = df[df['Fetch_T'].isin(st.session_state.pinned_stocks)].copy()
-        
-        if search_stock != "-- None --":
-            searched_row = df[df['T'] == search_stock].iloc[0]
-            if searched_row['Fetch_T'] not in st.session_state.pinned_stocks:
-                 pinned_df = pd.concat([pd.DataFrame([searched_row]), pinned_df])
         
         unpinned_df = df_stocks_display[~df_stocks_display['Fetch_T'].isin(pinned_df['Fetch_T'].tolist())]
         
