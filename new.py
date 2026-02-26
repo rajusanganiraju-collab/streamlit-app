@@ -23,7 +23,7 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- 4. CSS FOR STYLING ---
+# --- 4. CSS FOR STYLING (RESTORED TO YOUR SUCCESSFUL FLUID GRID VERSION + NEW BUTTON FIX) ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
@@ -39,48 +39,40 @@ st.markdown("""
     .t-pct { font-size: 12px; font-weight: normal !important; }
     .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal !important; }
     
-    /* 🔥 2. BULLETPROOF HORIZONTAL BUTTONS FIX 🔥 */
-    /* Target the Horizontal Block (st.columns) to prevent stacking */
-    div[data-testid="stVerticalBlock"]:has(.filter-marker) div[data-testid="stHorizontalBlock"] {
+    /* 🔥 2. THE ULTIMATE HORIZONTAL BUTTONS FIX 🔥 */
+    /* Target the Horizontal Block directly using the marker inside it */
+    div[data-testid="stHorizontalBlock"]:has(.filter-marker) {
         display: flex !important;
-        flex-direction: row !important; /* Force horizontal on ALL screens */
-        flex-wrap: nowrap !important;
+        flex-direction: row !important; 
+        flex-wrap: nowrap !important; 
         width: 100% !important;
         gap: 5px !important;
     }
     
-    /* Force 4 equal columns, override Streamlit's mobile 100% width */
-    div[data-testid="stVerticalBlock"]:has(.filter-marker) div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+    /* Force 4 equal columns and NEVER break to the next line */
+    div[data-testid="stHorizontalBlock"]:has(.filter-marker) > div[data-testid="column"] {
+        flex: 1 1 25% !important;
         width: 25% !important;
-        min-width: 0px !important; /* 🔥 THIS CRITICAL FIX STOPS MOBILE WRAPPING 🔥 */
-        flex: 1 1 0px !important;
+        min-width: 0 !important; /* CRITICAL FIX: Allows shrinking below default Streamlit limits */
         padding: 0 !important;
     }
     
-    /* Hide the marker div */
-    div[data-testid="stVerticalBlock"]:has(.filter-marker) > div[data-testid="stElementContainer"]:has(.filter-marker) {
-        display: none !important;
-    }
-    
-    /* Button sizing */
-    div[data-testid="stVerticalBlock"]:has(.filter-marker) div.stButton > button {
+    /* Button inside the column */
+    div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button {
         width: 100% !important;
         height: 38px !important;
-        padding: 0 2px !important;
+        padding: 0px !important;
+        margin: 0px !important;
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
     }
     
-    div[data-testid="stVerticalBlock"]:has(.filter-marker) div.stButton > button p {
-        font-size: 11px !important;
+    div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button p {
+        font-size: clamp(8px, 2.5vw, 12px) !important; /* Auto shrinks font based on screen width */
         white-space: nowrap !important;
+        overflow: hidden !important;
         margin: 0 !important;
-    }
-    
-    /* Make text fit on small screens */
-    @media screen and (max-width: 650px) {
-        div[data-testid="stVerticalBlock"]:has(.filter-marker) div.stButton > button p {
-            font-size: 9px !important; 
-            letter-spacing: -0.3px !important;
-        }
     }
     
     /* 🔥 3. THE SUCCESSFUL FLUID GRID FOR CHARTS (NO SQUISHING!) 🔥 */
@@ -414,18 +406,18 @@ if not df.empty:
     bear_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bearish')
     neut_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Neutral')
 
-    # --- CLICKABLE TREND FILTERS ---
-    with st.container():
-        st.markdown("<div class='filter-marker'></div>", unsafe_allow_html=True)
-        f1, f2, f3, f4 = st.columns(4)
-        with f1: 
-            if st.button(f"📊 All ({len(df_filtered)})"): st.session_state.trend_filter = 'All'
-        with f2: 
-            if st.button(f"🟢 Bullish ({bull_cnt})"): st.session_state.trend_filter = 'Bullish'
-        with f3: 
-            if st.button(f"⚪ Neutral ({neut_cnt})"): st.session_state.trend_filter = 'Neutral'
-        with f4: 
-            if st.button(f"🔴 Bearish ({bear_cnt})"): st.session_state.trend_filter = 'Bearish'
+    # --- CLICKABLE TREND FILTERS (THE FIX) ---
+    f1, f2, f3, f4 = st.columns(4)
+    # 🔥 MARKER MOVED INSIDE THE COLUMNS TO TARGET PROPERLY 🔥
+    with f1: 
+        st.markdown("<div class='filter-marker' style='display:none;'></div>", unsafe_allow_html=True)
+        if st.button(f"📊 All ({len(df_filtered)})", use_container_width=True): st.session_state.trend_filter = 'All'
+    with f2: 
+        if st.button(f"🟢 Bullish ({bull_cnt})", use_container_width=True): st.session_state.trend_filter = 'Bullish'
+    with f3: 
+        if st.button(f"⚪ Neutral ({neut_cnt})", use_container_width=True): st.session_state.trend_filter = 'Neutral'
+    with f4: 
+        if st.button(f"🔴 Bearish ({bear_cnt})", use_container_width=True): st.session_state.trend_filter = 'Bearish'
 
     st.markdown(f"<div style='text-align:right; font-size:12px; color:#ffd700; margin-bottom: 10px; font-weight:normal !important;'>Showing: <b>{st.session_state.trend_filter}</b> Stocks</div>", unsafe_allow_html=True)
 
