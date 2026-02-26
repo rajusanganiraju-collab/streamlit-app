@@ -30,7 +30,7 @@ st.markdown("""
     .stApp { background-color: #0e1117; color: #ffffff; }
     .block-container { padding-top: 1rem !important; padding-bottom: 0rem !important; margin-top: -10px; }
     
-    /* 🔥 ALL TEXT TO NORMAL (UNBOLD) 🔥 */
+    /* 🔥 1. ALL TEXT TO NORMAL (UNBOLD) 🔥 */
     .stRadio label, .stRadio p, div[role="radiogroup"] p { color: #ffffff !important; font-weight: normal !important; }
     div.stButton > button p, div.stButton > button span { color: #ffffff !important; font-weight: normal !important; font-size: 14px !important; }
     
@@ -39,41 +39,34 @@ st.markdown("""
     .t-pct { font-size: 12px; font-weight: normal !important; }
     .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal !important; }
     
-    /* 🔥 RESPONSIVE FLUID GRID (AUTO ADJUSTS 3 TO 8 COLUMNS) 🔥 */
-    div[data-testid="stHorizontalBlock"]:has(.stock-chart-marker) {
-        flex-wrap: wrap !important;
-        row-gap: 15px !important;
-    }
-    div[data-testid="stHorizontalBlock"]:has(.stock-chart-marker) > div[data-testid="column"] {
-        min-width: 160px !important;  /* Mobile / Split screen size */
-        max-width: 260px !important;  /* Stops it from getting too big */
-        flex: 1 1 180px !important;   /* Auto fills available space */
+    /* 🔥 2. AUTO-ADJUSTING FLUID GRID MAGIC 🔥 */
+    /* Turns the wrapper into a smart responsive grid */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .fluid-board) {
+        display: grid !important;
+        /* Adjusts from 3 items (split screen) to 8+ items (full screen) automatically! */
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) !important; 
+        gap: 15px !important;
+        flex-direction: unset !important;
+        align-items: unset !important;
     }
     
-    /* INDICES ROW (Tries to stay 3 per row) */
-    div[data-testid="stHorizontalBlock"]:has(.idx-chart-marker) {
-        flex-wrap: wrap !important;
-        row-gap: 15px !important;
+    /* Hides the invisible trigger marker so it doesn't take space */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .fluid-board) > div[data-testid="stElementContainer"]:has(.fluid-board) {
+        display: none !important;
     }
-    div[data-testid="stHorizontalBlock"]:has(.idx-chart-marker) > div[data-testid="column"] {
-        min-width: 180px !important;
-        flex: 1 1 30% !important;
-        max-width: 100% !important;
-    }
-
-    /* 🔥 BULLETPROOF CHART BOX STYLING 🔥 */
-    div[data-testid="column"]:has(.stock-chart-marker),
-    div[data-testid="column"]:has(.idx-chart-marker),
-    div[data-testid="column"]:has(.search-chart-marker) {
+    
+    /* 🔥 3. INDIVIDUAL CHART BOX STYLING 🔥 */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .fluid-board) > div[data-testid="stVerticalBlock"] {
         background-color: #161b22 !important;
         border: 1px solid #30363d !important;
         border-radius: 8px !important;
-        padding: 8px 5px 5px 5px !important;
+        padding: 10px 5px 5px 5px !important;
         position: relative !important;
+        gap: 0px !important; /* Removes internal spacing */
     }
-    
-    /* PERFECT PIN POSITIONING (Absolute Top Left inside Box) */
-    div[data-testid="column"]:has(.stock-chart-marker) div[data-testid="stCheckbox"] {
+
+    /* 🔥 4. PERFECT PIN BOX (Top-Left Absolute) 🔥 */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .fluid-board) > div[data-testid="stVerticalBlock"] div[data-testid="stCheckbox"] {
         position: absolute !important;
         top: 8px !important;
         left: 10px !important;
@@ -218,7 +211,7 @@ def process_5m_data(df_raw):
     except: return pd.DataFrame()
 
 # --- HELPER FUNCTION TO DRAW CHARTS ---
-def render_chart(row, df_chart, show_pin=True, marker_type='stock-chart'):
+def render_chart(row, df_chart, show_pin=True):
     display_sym = row['T']
     fetch_sym = row['Fetch_T']
     
@@ -230,21 +223,17 @@ def render_chart(row, df_chart, show_pin=True, marker_type='stock-chart'):
     sign = "+" if row['C'] > 0 else ""
     tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
     
-    # 🔥 MARKER FOR RESPONSIVE CSS GRIDS 🔥
-    st.markdown(f"<div class='{marker_type}-marker' style='display:none;'></div>", unsafe_allow_html=True)
-    
-    # PIN CHECKBOX (Perfectly sits left side, absolutely no extra text)
+    # 🔥 PURE CHECKBOX: Handled perfectly by CSS Container 🔥
     if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX"]:
         st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=f"cb_{fetch_sym}", on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
     
-    # UNBOLDED TEXT
     st.markdown(f"""
-        <div style='text-align:center; font-size:15px; margin-top:-2px;'>
+        <div style='text-align:center; font-size:15px; margin-top:2px;'>
             <a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; font-weight:normal !important;'>
                 {display_sym} <span style='color:{color_hex}; font-weight:normal !important;'>({sign}{row['C']:.2f}%)</span>
             </a>
         </div>
-        <div style='text-align:center; font-size:9px; color:#8b949e; margin-top:2px; margin-bottom:5px; font-weight:normal !important;'>
+        <div style='text-align:center; font-size:10px; color:#8b949e; margin-top:2px; margin-bottom:5px; font-weight:normal !important;'>
             <span style='color:#FFD700;'>--- VWAP</span> &nbsp;|&nbsp; <span style='color:#00BFFF;'>- - 10 EMA</span>
         </div>
     """, unsafe_allow_html=True)
@@ -263,7 +252,7 @@ def render_chart(row, df_chart, show_pin=True, marker_type='stock-chart'):
         else:
             st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:normal !important;'>Data not available</div>", unsafe_allow_html=True)
     except Exception as e:
-        st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:normal !important;'>Chart loading error</div>", unsafe_allow_html=True)
+        st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:normal !important;'>Chart error</div>", unsafe_allow_html=True)
 
 # --- 6. TOP NAVIGATION & SEARCH ---
 c1, c2 = st.columns([0.6, 0.4])
@@ -376,42 +365,46 @@ if not df.empty:
         if search_stock != "-- None --":
             st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:5px; color:#ffd700;'>🔍 Searched Chart: {search_stock}</div>", unsafe_allow_html=True)
             searched_row = df[df['T'] == search_stock].iloc[0]
-            # Centers the big chart
-            p1, p2, p3 = st.columns([0.2, 0.6, 0.2])
-            with p2: render_chart(searched_row, processed_charts.get(searched_row['Fetch_T'], pd.DataFrame()), show_pin=False, marker_type='search-chart')
+            
+            with st.container():
+                st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
+                with st.container():
+                    render_chart(searched_row, processed_charts.get(searched_row['Fetch_T'], pd.DataFrame()), show_pin=False)
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
         # 2. RENDER INDICES CHARTS
         st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>📈 Market Indices</div>", unsafe_allow_html=True)
         if not df_indices.empty:
-            idx_list = [row for _, row in df_indices.iterrows()]
-            cols = st.columns(len(idx_list))
-            for i, row in enumerate(idx_list):
-                with cols[i]: render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=False, marker_type='idx-chart')
-                            
+            with st.container():
+                st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
+                for _, row in df_indices.iterrows():
+                    with st.container():
+                        render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=False)
         st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
-        # 3. RENDER PINNED STOCKS CHARTS (PRIORITY ROW)
+        # 3. RENDER PINNED STOCKS CHARTS
         pinned_df = df_stocks_display[df_stocks_display['Fetch_T'].isin(st.session_state.pinned_stocks)]
         unpinned_df = df_stocks_display[~df_stocks_display['Fetch_T'].isin(st.session_state.pinned_stocks)]
         
         if not pinned_df.empty:
             st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#ffd700;'>📌 Pinned Priority Charts</div>", unsafe_allow_html=True)
-            p_list = [row for _, row in pinned_df.iterrows()]
-            # 🔥 FLUID GRID MAGIC 🔥
-            cols = st.columns(len(p_list))
-            for i, row in enumerate(p_list):
-                with cols[i]: render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=True, marker_type='stock-chart')
+            with st.container():
+                st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
+                for _, row in pinned_df.iterrows():
+                    with st.container():
+                        render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=True)
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
-        # 4. RENDER REMAINING STOCKS CHARTS
+        # 🔥 4. RENDER REMAINING STOCKS (AUTO-FLUID GRID!) 🔥
         if not unpinned_df.empty:
             st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>{watchlist_mode} ({st.session_state.trend_filter})</div>", unsafe_allow_html=True)
-            u_list = [row for _, row in unpinned_df.iterrows()]
-            # 🔥 FLUID GRID MAGIC 🔥
-            cols = st.columns(len(u_list))
-            for i, row in enumerate(u_list):
-                with cols[i]: render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=True, marker_type='stock-chart')
+            
+            with st.container():
+                # This invisible div triggers the CSS Grid!
+                st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
+                for _, row in unpinned_df.iterrows():
+                    with st.container():
+                        render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=True)
 
 else:
     st.info("Loading Market Data...")
