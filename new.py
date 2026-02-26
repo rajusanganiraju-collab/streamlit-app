@@ -158,6 +158,7 @@ def fetch_all_data():
         all_stocks.update(stocks)
     
     tkrs = list(INDICES_MAP.keys()) + [f"{t}.NS" for t in all_stocks]
+    # LIGHTNING FAST DOWNLOAD
     data = yf.download(tkrs, period="5d", progress=False, group_by='ticker', threads=20)
     
     results = []
@@ -215,7 +216,6 @@ def render_chart(row, chart_data):
     fetch_sym = row['Fetch_T']
     display_sym = row['T']
     
-    # 🌟 PERFECT COLOR LOGIC FOR CHARTS TEXT 🌟
     if display_sym == "INDIA VIX": 
         if row['C'] > 0: color_hex = "#da3633" # Red
         elif row['C'] < 0: color_hex = "#2ea043" # Green
@@ -271,7 +271,6 @@ def render_chart(row, chart_data):
         st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart loading error</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-
 # --- 6. TOP NAVIGATION ---
 st.markdown("<div style='background-color:#161b22; padding:10px; border-radius:8px; margin-bottom:15px; border: 1px solid #30363d;'>", unsafe_allow_html=True)
 c1, c2 = st.columns([0.6, 0.4])
@@ -300,15 +299,32 @@ if not df.empty:
         neuts = df_filtered[df_filtered['C'] == 0].sort_values(by="C", ascending=False)
         reds = df_filtered[df_filtered['C'] < 0].sort_values(by="C", ascending=False)
         df_stocks_display = pd.concat([greens, neuts, reds])
-        st.markdown("### Nifty 50 Stocks")
-    
     else:
         df_filtered = df_stocks[(df_stocks['S'] >= 7) & (df_stocks['S'] <= 10)]
         greens = df_filtered[df_filtered['C'] > 0].sort_values(by=["S", "C"], ascending=[False, False])
         neuts = df_filtered[df_filtered['C'] == 0].sort_values(by="S", ascending=False)
         reds = df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[True, True])
         df_stocks_display = pd.concat([greens, neuts, reds])
-        st.markdown("### 🔥 High Score Stocks (7 to 10)")
+
+    # 🔥 NEW: ADDED BACK THE BULLISH, NEUTRAL, BEARISH BOXES 🔥
+    bull_cnt = len(df_stocks_display[df_stocks_display['C'] > 0])
+    neut_cnt = len(df_stocks_display[df_stocks_display['C'] == 0])
+    bear_cnt = len(df_stocks_display[df_stocks_display['C'] < 0])
+    
+    st.markdown(f"""
+    <div style='display:flex; justify-content:space-between; margin-bottom: 15px; gap: 8px;'>
+        <div style='flex:1; background-color:rgba(30, 95, 41, 0.4); border: 1px solid #1e5f29; padding:8px; border-radius:6px; text-align:center; font-weight:bold; font-size:15px;'>
+            🟢 Bullish : {bull_cnt}
+        </div>
+        <div style='flex:1; background-color:rgba(48, 54, 61, 0.4); border: 1px solid #30363d; padding:8px; border-radius:6px; text-align:center; font-weight:bold; font-size:15px;'>
+            ⚪ Neutral : {neut_cnt}
+        </div>
+        <div style='flex:1; background-color:rgba(181, 37, 36, 0.4); border: 1px solid #b52524; padding:8px; border-radius:6px; text-align:center; font-weight:bold; font-size:15px;'>
+            🔴 Bearish : {bear_cnt}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
 
     if view_mode == "Heat Map":
         
@@ -316,7 +332,6 @@ if not df.empty:
         if not df_indices.empty:
             html_idx = '<div class="heatmap-grid">'
             for _, row in df_indices.iterrows():
-                # 🌟 PERFECT COLOR LOGIC FOR INDICES 🌟
                 if row['T'] == "INDIA VIX":
                     if row['C'] > 0: bg = "bear-card"
                     elif row['C'] < 0: bg = "bull-card"
@@ -340,7 +355,6 @@ if not df.empty:
         # 2. RENDER STOCKS
         html_stk = '<div class="heatmap-grid">'
         for _, row in df_stocks_display.iterrows():
-            # 🌟 PERFECT COLOR LOGIC FOR STOCKS 🌟
             if row['C'] > 0: bg = "bull-card"
             elif row['C'] < 0: bg = "bear-card"
             else: bg = "neut-card"
