@@ -15,12 +15,30 @@ st_autorefresh(interval=60000, key="datarefresh")
 if 'trend_filter' not in st.session_state:
     st.session_state.trend_filter = 'All'
 
-# --- 4. CSS FOR STYLING ---
+# --- 4. CSS FOR STYLING (FIXED TEXT COLORS) ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
     .stApp { background-color: #0e1117; color: #ffffff; }
     .block-container { padding-top: 1rem !important; padding-bottom: 0rem !important; margin-top: -10px; }
+    
+    /* 🔥 FIX: Radio Buttons Text to White 🔥 */
+    .stRadio label, .stRadio p, div[role="radiogroup"] p { color: #ffffff !important; font-weight: bold !important; }
+    
+    /* 🔥 FIX: Button Text to White 🔥 */
+    div.stButton > button {
+        border-radius: 8px !important;
+        border: 1px solid #30363d !important;
+        background-color: #161b22 !important;
+        height: 45px !important;
+    }
+    div.stButton > button p, div.stButton > button span {
+        color: #ffffff !important;
+        font-weight: bold !important;
+        font-size: 14px !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+    }
     
     .heatmap-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 8px; padding: 5px 0; }
     .stock-card { border-radius: 4px; padding: 8px 4px; text-align: center; text-decoration: none !important; color: white !important; display: flex; flex-direction: column; justify-content: center; height: 90px; position: relative; box-shadow: 0 1px 3px rgba(0,0,0,0.3); transition: transform 0.2s; }
@@ -44,9 +62,6 @@ st.markdown("""
     .chart-box { border: 1px solid #30363d; border-radius: 8px; background: #161b22; padding: 10px; margin-bottom: 15px; }
     .ind-labels { text-align: center; font-size: 10px; color: #8b949e; margin-bottom: 2px; }
     .custom-hr { border: 0; height: 1px; background: #30363d; margin: 15px 0; }
-    
-    /* Active Filter Button Style */
-    div.stButton > button { font-weight: bold; border-radius: 8px; height: 45px; border: 1px solid #30363d; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -123,7 +138,24 @@ def fetch_all_data():
         
     return pd.DataFrame(results)
 
-# --- HELPER FUNCTION TO DRAW CHARTS ---
+def process_5m_data(df_raw):
+    try:
+        df_s = df_raw.dropna(subset=['Close']).copy()
+        if df_s.empty: return pd.DataFrame()
+        df_s['EMA_10'] = df_s['Close'].ewm(span=10, adjust=False).mean()
+        df_s.index = pd.to_datetime(df_s.index)
+        df_day = df_s[df_s.index.date == df_s.index.date.max()].copy()
+        
+        if not df_day.empty:
+            df_day['Typical_Price'] = (df_day['High'] + df_day['Low'] + df_day['Close']) / 3
+            if 'Volume' in df_day.columns and df_day['Volume'].fillna(0).sum() > 0:
+                df_day['VWAP'] = (df_day['Typical_Price'] * df_day['Volume']).cumsum() / df_day['Volume'].cumsum()
+            else:
+                df_day['VWAP'] = df_day['Typical_Price'].expanding().mean()
+            return df_day
+        return pd.DataFrame()
+    except: return pd.DataFrame()
+
 def render_chart(row, df_chart):
     display_sym = row['T']
     fetch_sym = row['Fetch_T']
@@ -151,21 +183,24 @@ def render_chart(row, df_chart):
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
         else:
             st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Data not available</div>", unsafe_allow_html=True)
-    except Exception as e:
+    except:
         st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart loading error</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- 6. TOP NAVIGATION ---
-st.markdown("<div style='background-color:#161b22; padding:10px; border-radius:8px; margin-bottom:15px; border: 1px solid #30363d;'>", unsafe_allow_html=True)
+# --- 6. TOP NAVIGATION & SEARCH (FIXED DIV ISSUE) ---
 c1, c2 = st.columns([0.6, 0.4])
 with c1: watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Nifty 50 Heatmap"], label_visibility="collapsed")
 with c2: view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
-st.markdown("</div>", unsafe_allow_html=True)
 
 # --- 7. RENDER LOGIC & TREND ANALYSIS ---
 df = fetch_all_data()
 
 if not df.empty:
+    
+    # 🔥 FIX: Search / Pin Chart Feature 🔥
+    all_names = sorted(df['T'].tolist())
+    search_stock = st.selectbox("🔍 Search & Pin Chart at Top", ["-- None --"] + all_names)
+    
     df_indices = df[df['Is_Index']].copy()
     df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3})
     df_indices = df_indices.sort_values("Order")
@@ -177,70 +212,56 @@ if not df.empty:
     else:
         df_filtered = df_stocks[(df_stocks['S'] >= 7) & (df_stocks['S'] <= 10)]
 
-    # FETCH 5-MIN DATA ONCE FOR ALL TICKERS
-    all_display_tickers = df_indices['Fetch_T'].tolist() + df_filtered['Fetch_T'].tolist()
+    all_display_tickers = list(set(df_indices['Fetch_T'].tolist() + df_filtered['Fetch_T'].tolist() + ([df[df['T'] == search_stock]['Fetch_T'].iloc[0]] if search_stock != "-- None --" else [])))
+    
     with st.spinner("Analyzing VWAP & 10 EMA Trends (Lightning Speed ⚡)..."):
         five_min_data = yf.download(all_display_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=20)
 
     bull_cnt, bear_cnt, neut_cnt = 0, 0, 0
     processed_charts = {}
-    stock_trends = {} # Store trend for filtering
+    stock_trends = {}
 
-    # CALCULATE TRENDS
     for sym in all_display_tickers:
-        try:
-            df_s = five_min_data[sym].dropna(subset=['Close']).copy() if isinstance(five_min_data.columns, pd.MultiIndex) else five_min_data.dropna(subset=['Close']).copy()
-            if df_s.empty: 
-                processed_charts[sym] = pd.DataFrame()
-                continue
+        df_raw = five_min_data[sym] if isinstance(five_min_data.columns, pd.MultiIndex) else five_min_data
+        df_day = process_5m_data(df_raw)
+        processed_charts[sym] = df_day
+        
+        if sym in df_filtered['Fetch_T'].tolist() and not df_day.empty:
+            last_price = df_day['Close'].iloc[-1]
+            last_vwap = df_day['VWAP'].iloc[-1]
+            last_ema = df_day['EMA_10'].iloc[-1]
             
-            df_s['EMA_10'] = df_s['Close'].ewm(span=10, adjust=False).mean()
-            df_s.index = pd.to_datetime(df_s.index)
-            df_day = df_s[df_s.index.date == df_s.index.date.max()].copy()
-            
-            if not df_day.empty:
-                df_day['Typical_Price'] = (df_day['High'] + df_day['Low'] + df_day['Close']) / 3
-                if 'Volume' in df_day.columns and df_day['Volume'].fillna(0).sum() > 0:
-                    df_day['VWAP'] = (df_day['Typical_Price'] * df_day['Volume']).cumsum() / df_day['Volume'].cumsum()
-                else:
-                    df_day['VWAP'] = df_day['Typical_Price'].expanding().mean()
-                
-                processed_charts[sym] = df_day
-                
-                # Check VWAP & EMA Logic ONLY for Stocks
-                if sym in df_filtered['Fetch_T'].tolist():
-                    last_price = df_day['Close'].iloc[-1]
-                    last_vwap = df_day['VWAP'].iloc[-1]
-                    last_ema = df_day['EMA_10'].iloc[-1]
-                    
-                    if last_price > last_vwap and last_price > last_ema:
-                        stock_trends[sym] = 'Bullish'
-                        bull_cnt += 1
-                    elif last_price < last_vwap and last_price < last_ema:
-                        stock_trends[sym] = 'Bearish'
-                        bear_cnt += 1
-                    else:
-                        stock_trends[sym] = 'Neutral'
-                        neut_cnt += 1
-            else: processed_charts[sym] = pd.DataFrame()
-        except: processed_charts[sym] = pd.DataFrame()
+            if last_price > last_vwap and last_price > last_ema:
+                stock_trends[sym] = 'Bullish'
+                bull_cnt += 1
+            elif last_price < last_vwap and last_price < last_ema:
+                stock_trends[sym] = 'Bearish'
+                bear_cnt += 1
+            else:
+                stock_trends[sym] = 'Neutral'
+                neut_cnt += 1
 
-    # --- CLICKABLE FILTER BUTTONS ---
-    st.markdown("<div style='font-size:14px; font-weight:bold; color:#8b949e; margin-bottom:5px;'>Filter by Trend (Price vs VWAP & EMA):</div>", unsafe_allow_html=True)
+    # 🔥 PINNED CHART DISPLAY 🔥
+    if search_stock != "-- None --":
+        st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:5px; color:#ffd700;'>📌 Pinned Chart: {search_stock}</div>", unsafe_allow_html=True)
+        pinned_row = df[df['T'] == search_stock].iloc[0]
+        p1, p2, p3 = st.columns([0.2, 0.6, 0.2]) # Centered big chart
+        with p2: render_chart(pinned_row, processed_charts.get(pinned_row['Fetch_T'], pd.DataFrame()))
+        st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
+
+    # --- CLICKABLE FILTER BUTTONS (FIXED TEXT VISIBILITY) ---
     f1, f2, f3, f4 = st.columns(4)
     if f1.button(f"📊 All ({len(df_filtered)})", use_container_width=True): st.session_state.trend_filter = 'All'
     if f2.button(f"🟢 Bullish ({bull_cnt})", use_container_width=True): st.session_state.trend_filter = 'Bullish'
     if f3.button(f"⚪ Neutral ({neut_cnt})", use_container_width=True): st.session_state.trend_filter = 'Neutral'
     if f4.button(f"🔴 Bearish ({bear_cnt})", use_container_width=True): st.session_state.trend_filter = 'Bearish'
 
-    # Show Active Filter
-    st.markdown(f"<div style='text-align:right; font-size:12px; color:#ffd700;'>Showing: <b>{st.session_state.trend_filter}</b> Stocks</div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='text-align:right; font-size:12px; color:#ffd700; margin-bottom: 10px;'>Showing: <b>{st.session_state.trend_filter}</b> Stocks</div>", unsafe_allow_html=True)
 
-    # --- APPLY FILTER TO STOCKS ---
+    # Apply Active Filter
     if st.session_state.trend_filter != 'All':
         df_filtered = df_filtered[df_filtered['Fetch_T'].apply(lambda x: stock_trends.get(x) == st.session_state.trend_filter)]
 
-    # Final Sort after filtering
     greens = df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False])
     reds = df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[True, True])
     df_stocks_display = pd.concat([greens, reds])
@@ -265,7 +286,6 @@ if not df.empty:
             st.info(f"No {st.session_state.trend_filter} stocks found in this list.")
             
     else:
-        st.markdown("<br>", unsafe_allow_html=True)
         st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>📈 Market Indices</div>", unsafe_allow_html=True)
         if not df_indices.empty:
             idx_list = [row for _, row in df_indices.iterrows()]
@@ -276,7 +296,6 @@ if not df.empty:
                         with cols[j]: render_chart(idx_list[i + j], processed_charts.get(idx_list[i+j]['Fetch_T'], pd.DataFrame()))
                             
         st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
-        st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>{watchlist_mode} ({st.session_state.trend_filter})</div>", unsafe_allow_html=True)
         
         if not df_stocks_display.empty:
             stk_list = [row for _, row in df_stocks_display.iterrows()]
