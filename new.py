@@ -11,14 +11,14 @@ st.set_page_config(page_title="Market Heatmap", page_icon="📊", layout="wide")
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
 
-# --- 3. CSS FOR EXACT 10-COLUMN HEATMAP & NORMAL FONTS ---
+# --- 3. CSS FOR EXACT 10-COLUMN HEATMAP & ZERO SPACING ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
     
-    /* Dark Theme Background */
+    /* Dark Theme Background & Zero Top Spacing */
     .stApp { background-color: #0e1117; color: #ffffff; }
-    .block-container { padding-top: 1rem !important; padding-bottom: 0rem !important; margin-top: -15px; }
+    .block-container { padding-top: 0rem !important; padding-bottom: 0rem !important; margin-top: -25px; }
     
     /* Responsive Grid: EXACTLY 10 COLUMNS ON DESKTOP */
     .heatmap-grid {
@@ -64,11 +64,11 @@ st.markdown("""
     
     /* MOOD BOX SPECIFIC STYLES */
     .mood-box {
-        grid-column: span 2; /* Takes 2 columns width on desktop */
+        grid-column: span 2; 
         border: 2px solid rgba(255,255,255,0.4);
         box-shadow: 0 0 10px rgba(0,0,0,0.5);
     }
-    .hide-mobile { grid-column: span 1; } /* Empty gap on desktop */
+    .hide-mobile { grid-column: span 1; }
 
     /* Auto adjust columns based on screen size */
     @media screen and (max-width: 1400px) { .heatmap-grid { grid-template-columns: repeat(8, 1fr); } }
@@ -77,13 +77,14 @@ st.markdown("""
     
     /* MOBILE PHONES */
     @media screen and (max-width: 600px) {
+        .block-container { padding-top: 1rem !important; margin-top: -15px; } /* Slight adjustment for mobile top bar */
         .heatmap-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; }
         .stock-card { height: 95px; }
         .t-name { font-size: 12px; }
         .t-price { font-size: 16px; }
         .t-pct { font-size: 11px; }
-        .hide-mobile { display: none; } /* Remove gap on mobile */
-        .mood-box { grid-column: span 3; margin-top: 5px; } /* Full width on mobile */
+        .hide-mobile { display: none; }
+        .mood-box { grid-column: span 3; margin-top: 5px; }
     }
     
     /* Chart Box Styling */
@@ -103,12 +104,12 @@ st.markdown("""
         margin-bottom: 2px;
     }
     
-    /* Custom HR Line - Gap completely reduced */
+    /* Custom HR Line */
     .custom-hr {
         border: 0;
         height: 1px;
         background: #30363d;
-        margin: 5px 0; /* Changed from 15px to 5px to remove empty space */
+        margin: 5px 0;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -168,7 +169,7 @@ def fetch_all_data():
         all_stocks.update(stocks)
     
     tkrs = list(INDICES_MAP.keys()) + [f"{t}.NS" for t in all_stocks]
-    # 🔥 THREADS=20 ADDED FOR HIGH SPEED DATA FETCH 🔥
+    # LIGHTNING FAST DOWNLOAD
     data = yf.download(tkrs, period="5d", progress=False, group_by='ticker', threads=20)
     
     results = []
@@ -275,15 +276,17 @@ def render_chart(row, chart_data):
     st.markdown("</div>", unsafe_allow_html=True)
 
 
-# --- 6. TOP NAVIGATION (Reduced Gap) ---
-st.markdown("<div style='background-color:#161b22; padding:8px 10px; border-radius:8px; margin-bottom:10px; border: 1px solid #30363d;'>", unsafe_allow_html=True)
+# --- 6. TOP NAVIGATION (Fixed Empty Black Box) ---
+# Removed the HTML wrapper div that was causing the empty black block. Now just Streamlit columns.
 c1, c2 = st.columns([0.6, 0.4])
-
 with c1:
     watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Nifty 50 Heatmap"], label_visibility="collapsed")
 with c2:
     view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
-st.markdown("</div>", unsafe_allow_html=True)
+
+# Small separation line after Nav
+st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
+
 
 # --- 7. RENDER LOGIC ---
 df = fetch_all_data()
@@ -327,12 +330,11 @@ if not df.empty:
     if view_mode == "Heat Map":
         
         # 1. RENDER INDICES FIRST + MOOD BOX
-        st.markdown("<div style='font-size: 20px; font-weight: bold; margin-bottom: 8px;'>📊 Market Indices</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size: 20px; font-weight: bold; margin-top: 5px; margin-bottom: 8px;'>📊 Market Indices</div>", unsafe_allow_html=True)
         
         if not df_indices.empty:
             html_idx = '<div class="heatmap-grid">'
             
-            # Print Nifty, BankNifty, Vix
             for _, row in df_indices.iterrows():
                 bg = "bull-card" if row['C'] >= 0 else "bear-card"
                 badge = "IDX"
@@ -356,10 +358,9 @@ if not df.empty:
             html_idx += '</div>'
             st.markdown(html_idx, unsafe_allow_html=True)
             
-            # Separator
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
-        # 2. RENDER STOCKS (Custom Tight Header)
+        # 2. RENDER STOCKS
         st.markdown("<div style='font-size: 20px; font-weight: bold; margin-top: 5px; margin-bottom: 8px;'>🔥 High Score Stocks</div>", unsafe_allow_html=True)
         html_stk = '<div class="heatmap-grid">'
         for _, row in df_stocks_display.iterrows():
@@ -380,8 +381,8 @@ if not df.empty:
         with st.spinner("Loading 5-Min Candlestick Charts (Lightning Speed ⚡)..."):
             chart_data = yf.download(fetch_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=20)
         
-        # 1. RENDER INDICES CHARTS FIRST (NO MOOD BOX HERE)
-        st.markdown("<div style='font-size: 20px; font-weight: bold; margin-bottom: 8px;'>📈 Market Indices</div>", unsafe_allow_html=True)
+        # 1. RENDER INDICES CHARTS FIRST
+        st.markdown("<div style='font-size: 20px; font-weight: bold; margin-top: 5px; margin-bottom: 8px;'>📈 Market Indices</div>", unsafe_allow_html=True)
         
         if not df_indices.empty:
             idx_list = [row for _, row in df_indices.iterrows()]
