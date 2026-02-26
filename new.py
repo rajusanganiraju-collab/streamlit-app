@@ -23,7 +23,7 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- 4. CSS FOR STYLING (RESTORED TO YOUR SUCCESSFUL FLUID GRID VERSION) ---
+# --- 4. CSS FOR STYLING ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
@@ -39,42 +39,48 @@ st.markdown("""
     .t-pct { font-size: 12px; font-weight: normal !important; }
     .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal !important; }
     
-    /* 🔥 2. THE SUCCESSFUL HORIZONTAL BUTTONS FIX (NO COLUMNS HACK) 🔥 */
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) {
+    /* 🔥 2. BULLETPROOF HORIZONTAL BUTTONS FIX 🔥 */
+    /* Target the Horizontal Block (st.columns) to prevent stacking */
+    div[data-testid="stVerticalBlock"]:has(.filter-marker) div[data-testid="stHorizontalBlock"] {
         display: flex !important;
-        flex-direction: row !important; 
-        flex-wrap: nowrap !important; 
-        justify-content: center !important; 
-        align-items: center !important;
-        gap: 8px !important; 
+        flex-direction: row !important; /* Force horizontal on ALL screens */
+        flex-wrap: nowrap !important;
         width: 100% !important;
+        gap: 5px !important;
     }
     
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) > div[data-testid="stElementContainer"]:has(.filter-marker) {
+    /* Force 4 equal columns, override Streamlit's mobile 100% width */
+    div[data-testid="stVerticalBlock"]:has(.filter-marker) div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+        width: 25% !important;
+        min-width: 0px !important; /* 🔥 THIS CRITICAL FIX STOPS MOBILE WRAPPING 🔥 */
+        flex: 1 1 0px !important;
+        padding: 0 !important;
+    }
+    
+    /* Hide the marker div */
+    div[data-testid="stVerticalBlock"]:has(.filter-marker) > div[data-testid="stElementContainer"]:has(.filter-marker) {
         display: none !important;
     }
     
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) > div[data-testid="stElementContainer"] {
-        width: auto !important;
-        flex: 0 0 auto !important; 
+    /* Button sizing */
+    div[data-testid="stVerticalBlock"]:has(.filter-marker) div.stButton > button {
+        width: 100% !important;
+        height: 38px !important;
+        padding: 0 2px !important;
     }
     
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button {
-        width: max-content !important;
-        height: 35px !important;
-        padding: 0px 12px !important;
-    }
-    
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button p {
-        font-size: 12px !important;
-        white-space: nowrap !important; 
+    div[data-testid="stVerticalBlock"]:has(.filter-marker) div.stButton > button p {
+        font-size: 11px !important;
+        white-space: nowrap !important;
         margin: 0 !important;
     }
     
+    /* Make text fit on small screens */
     @media screen and (max-width: 650px) {
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) { gap: 4px !important; }
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button { padding: 0px 8px !important; }
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button p { font-size: 10.5px !important; }
+        div[data-testid="stVerticalBlock"]:has(.filter-marker) div.stButton > button p {
+            font-size: 9px !important; 
+            letter-spacing: -0.3px !important;
+        }
     }
     
     /* 🔥 3. THE SUCCESSFUL FLUID GRID FOR CHARTS (NO SQUISHING!) 🔥 */
