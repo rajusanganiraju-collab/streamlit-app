@@ -23,41 +23,45 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- 4. CSS FOR STYLING (PERFECT PIN ALIGNMENT & NORMAL FONTS) ---
+# --- 4. CSS FOR STYLING (PERFECT IN-BOX PIN & NORMAL TEXT) ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
     .stApp { background-color: #0e1117; color: #ffffff; }
     .block-container { padding-top: 1rem !important; padding-bottom: 0rem !important; margin-top: -10px; }
     
-    /* 🔥 1. ALL TEXT TO NORMAL (UNBOLD) 🔥 */
-    .stRadio label, .stRadio p, div[role="radiogroup"] p { color: #ffffff !important; font-weight: 400 !important; }
-    div.stButton > button p, div.stButton > button span { color: #ffffff !important; font-weight: 400 !important; font-size: 14px !important; }
+    /* 🔥 ALL TEXT TO NORMAL (UNBOLD) 🔥 */
+    .stRadio label, .stRadio p, div[role="radiogroup"] p { color: #ffffff !important; font-weight: normal !important; }
+    div.stButton > button p, div.stButton > button span { color: #ffffff !important; font-weight: normal !important; font-size: 14px !important; }
     
-    .t-name { font-size: 13px; font-weight: 400 !important; margin-bottom: 2px; }
-    .t-price { font-size: 17px; font-weight: 400 !important; margin-bottom: 2px; }
-    .t-pct { font-size: 12px; font-weight: 400 !important; }
-    .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: 400 !important; }
+    .t-name { font-size: 13px; font-weight: normal !important; margin-bottom: 2px; }
+    .t-price { font-size: 17px; font-weight: normal !important; margin-bottom: 2px; }
+    .t-pct { font-size: 12px; font-weight: normal !important; }
+    .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal !important; }
     
-    /* 🔥 2. BULLETPROOF PIN BOX POSITIONING 🔥 */
-    /* Keeps the Checkbox exactly inside its parent column */
-    div[data-testid="column"] {
-        position: relative !important; 
+    /* 🔥 BULLETPROOF BOX & PIN POSITIONING 🔥 */
+    /* This makes the ENTIRE column act as the Chart Box securely */
+    div[data-testid="column"] > div:has(.chart-marker) {
+        background-color: #161b22 !important;
+        border: 1px solid #30363d !important;
+        border-radius: 8px !important;
+        padding: 12px 5px 5px 5px !important;
+        position: relative !important;
+        margin-bottom: 15px !important;
     }
     
-    /* Absolute positioning slaps the Checkbox right into the Top-Right corner */
-    div[data-testid="stCheckbox"] {
+    /* Places the Pin strictly INSIDE the box on the LEFT side */
+    div[data-testid="column"] > div:has(.chart-marker) div[data-testid="stCheckbox"] {
         position: absolute !important;
         top: 12px !important;
-        right: 15px !important;
+        left: 12px !important;
         z-index: 100 !important;
-        width: 20px !important;
-        height: 20px !important;
-        background-color: transparent !important;
+        width: 25px !important;
+        height: 25px !important;
     }
     div[data-testid="stCheckbox"] label { padding: 0 !important; min-height: 0 !important; }
     
-    /* Buttons Styling */
+    /* General Button Styles */
     div.stButton > button {
         border-radius: 8px !important;
         border: 1px solid #30363d !important;
@@ -65,7 +69,7 @@ st.markdown("""
         height: 45px !important;
     }
     
-    /* Heatmap Grids */
+    /* Heatmap Layout */
     .heatmap-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 8px; padding: 5px 0; }
     .stock-card { border-radius: 4px; padding: 8px 4px; text-align: center; text-decoration: none !important; color: white !important; display: flex; flex-direction: column; justify-content: center; height: 90px; position: relative; box-shadow: 0 1px 3px rgba(0,0,0,0.3); transition: transform 0.2s; }
     .stock-card:hover { transform: scale(1.05); z-index: 10; box-shadow: 0 4px 8px rgba(0,0,0,0.5); }
@@ -80,8 +84,6 @@ st.markdown("""
     @media screen and (max-width: 800px) { .heatmap-grid { grid-template-columns: repeat(4, 1fr); } }
     @media screen and (max-width: 600px) { .heatmap-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; } .stock-card { height: 95px; } .t-name { font-size: 12px; } .t-price { font-size: 16px; } .t-pct { font-size: 11px; } }
     
-    .chart-box { border: 1px solid #30363d; border-radius: 8px; background: #161b22; padding: 15px 10px 10px 10px; margin-bottom: 15px; }
-    .ind-labels { text-align: center; font-size: 10px; color: #8b949e; margin-bottom: 2px; }
     .custom-hr { border: 0; height: 1px; background: #30363d; margin: 15px 0; }
     </style>
 """, unsafe_allow_html=True)
@@ -189,21 +191,23 @@ def render_chart(row, df_chart, show_pin=True):
     sign = "+" if row['C'] > 0 else ""
     tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
     
-    # 🔥 PURE CHECKBOX: Positioned perfectly via CSS 🔥
+    # 🌟 MAGIC MARKER: Tells the CSS to turn this whole column into a secure Box!
+    st.markdown("<div class='chart-marker' style='display:none;'></div>", unsafe_allow_html=True)
+    
+    # 🔥 PURE CHECKBOX: Positioned strictly top-left inside the box 🔥
     if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX"]:
         st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=f"cb_{fetch_sym}", on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
     
-    # 🔥 UNBOLDED CHART TITLES 🔥
+    # 🔥 TEXT COMPLETELY UN-BOLDED 🔥
     st.markdown(f"""
-        <div class='chart-box'>
-            <div style='text-align:center; font-size:16px; margin-top:-5px;'>
-                <a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; font-weight:400 !important;'>
-                    {display_sym} <span style='color:{color_hex}; font-weight:400 !important;'>({sign}{row['C']:.2f}%)</span>
-                </a>
-            </div>
-            <div class='ind-labels' style='font-weight:400 !important;'>
-                <span style='color:#FFD700;'>--- VWAP</span> &nbsp;|&nbsp; <span style='color:#00BFFF;'>- - 10 EMA</span>
-            </div>
+        <div style='text-align:center; font-size:16px; margin-top:-5px;'>
+            <a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; font-weight:normal !important;'>
+                {display_sym} <span style='color:{color_hex}; font-weight:normal !important;'>({sign}{row['C']:.2f}%)</span>
+            </a>
+        </div>
+        <div style='text-align:center; font-size:10px; color:#8b949e; margin-bottom:5px; font-weight:normal !important;'>
+            <span style='color:#FFD700;'>--- VWAP</span> &nbsp;|&nbsp; <span style='color:#00BFFF;'>- - 10 EMA</span>
+        </div>
     """, unsafe_allow_html=True)
     
     try:
@@ -218,10 +222,9 @@ def render_chart(row, df_chart, show_pin=True):
             fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=150, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(visible=False, rangeslider=dict(visible=False)), yaxis=dict(visible=False, range=[min_val - y_padding, max_val + y_padding]), hovermode=False, showlegend=False)
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
         else:
-            st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:400 !important;'>Data not available</div>", unsafe_allow_html=True)
+            st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:normal !important;'>Data not available</div>", unsafe_allow_html=True)
     except Exception as e:
-        st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:400 !important;'>Chart loading error</div>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:normal !important;'>Chart loading error</div>", unsafe_allow_html=True)
 
 # --- 6. TOP NAVIGATION & SEARCH ---
 c1, c2 = st.columns([0.6, 0.4])
@@ -287,7 +290,7 @@ if not df.empty:
     if f3.button(f"⚪ Neutral ({neut_cnt})", use_container_width=True): st.session_state.trend_filter = 'Neutral'
     if f4.button(f"🔴 Bearish ({bear_cnt})", use_container_width=True): st.session_state.trend_filter = 'Bearish'
 
-    st.markdown(f"<div style='text-align:right; font-size:12px; color:#ffd700; margin-bottom: 10px; font-weight:400 !important;'>Showing: <b>{st.session_state.trend_filter}</b> Stocks</div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='text-align:right; font-size:12px; color:#ffd700; margin-bottom: 10px; font-weight:normal !important;'>Showing: <b>{st.session_state.trend_filter}</b> Stocks</div>", unsafe_allow_html=True)
 
     if st.session_state.trend_filter != 'All':
         df_filtered = df_filtered[df_filtered['Fetch_T'].apply(lambda x: stock_trends.get(x) == st.session_state.trend_filter)]
@@ -325,7 +328,7 @@ if not df.empty:
             render_chart(searched_row, processed_charts.get(searched_row['Fetch_T'], pd.DataFrame()), show_pin=False)
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
-        # 2. RENDER INDICES CHARTS (These Headers stay Bold)
+        # 2. RENDER INDICES CHARTS
         st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>📈 Market Indices</div>", unsafe_allow_html=True)
         if not df_indices.empty:
             idx_list = [row for _, row in df_indices.iterrows()]
