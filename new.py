@@ -327,7 +327,6 @@ def render_chart(row, df_chart, show_pin=True):
 
 # --- 6. TOP NAVIGATION & SEARCH ---
 c1, c2 = st.columns([0.6, 0.4])
-# 🔥 ADDED NEW FILTER OPTION HERE 🔥
 with c1: watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Nifty 50 Heatmap", "One Sided Moves 🚀"], label_visibility="collapsed")
 with c2: view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
 
@@ -348,11 +347,9 @@ if not df.empty:
     
     df_stocks = df[(~df['Is_Index']) & (~df['Is_Sector'])].copy()
     
-    # 🔥 STAGE 1 FILTER LOGIC 🔥
     if watchlist_mode == "Nifty 50 Heatmap":
         df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
     elif watchlist_mode == "One Sided Moves 🚀":
-        # Initially pick stocks moving more than 1% to save processing time
         df_filtered = df_stocks[df_stocks['C'].abs() >= 1.0]
     else:
         df_filtered = df_stocks[(df_stocks['S'] >= 7) & (df_stocks['S'] <= 10)]
@@ -367,11 +364,10 @@ if not df.empty:
     with st.spinner("Analyzing VWAP & 10 EMA Trends (Lightning Speed ⚡)..."):
         five_min_data = yf.download(all_display_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=20)
 
-    processed_charts = {}  # 🔥 THIS LINE FIXED THE ERROR 🔥
+    processed_charts = {}
     stock_trends = {}
     one_sided_tickers = []
 
-    # 🔥 STAGE 2: 5-MIN TREND & ONE-SIDED CALCULATION 🔥
     for sym in all_display_tickers:
         df_raw = five_min_data[sym] if isinstance(five_min_data.columns, pd.MultiIndex) else five_min_data
         df_day = process_5m_data(df_raw)
@@ -382,7 +378,6 @@ if not df.empty:
             last_vwap = df_day['VWAP'].iloc[-1]
             last_ema = df_day['EMA_10'].iloc[-1]
             
-            # 1. Normal Trend Calculation
             if last_price > last_vwap and last_price > last_ema:
                 stock_trends[sym] = 'Bullish'
             elif last_price < last_vwap and last_price < last_ema:
@@ -390,37 +385,32 @@ if not df.empty:
             else:
                 stock_trends[sym] = 'Neutral'
                 
-            # 2. 🔥 ONE SIDED MOVE CALCULATION (EKKUVA SEPU VWAP & EMA PAINA) 🔥
             total_candles = len(df_day)
             if total_candles >= 3:
-                # How many candles are strictly above both VWAP and 10 EMA?
                 bull_cond = (df_day['Close'] > df_day['VWAP']) & (df_day['Close'] > df_day['EMA_10'])
                 bear_cond = (df_day['Close'] < df_day['VWAP']) & (df_day['Close'] < df_day['EMA_10'])
-                
                 bull_ratio = bull_cond.sum() / total_candles
                 bear_ratio = bear_cond.sum() / total_candles
                 
-                # If it stayed above for > 70% of the day, it's a One Sided Move!
                 if bull_ratio >= 0.70 and stock_trends[sym] == 'Bullish':
                     one_sided_tickers.append(sym)
                 elif bear_ratio >= 0.70 and stock_trends[sym] == 'Bearish':
                     one_sided_tickers.append(sym)
 
-    # Apply the strict 5-min filter if One Sided is selected
     if watchlist_mode == "One Sided Moves 🚀":
         df_filtered = df_filtered[df_filtered['Fetch_T'].isin(one_sided_tickers)]
 
-    # Recalculate Button Counts based on final list
     bull_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bullish')
     bear_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bearish')
     neut_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Neutral')
 
     # --- CLICKABLE TREND FILTERS ---
     with st.container():
-        st.markdown("<div class='filter-marker'></div>", unsafe_allow_html=True)
         f1, f2, f3, f4 = st.columns(4)
         
         with f1: 
+            # 🔥 THIS IS THE MAGIC FIX: Marker placed strictly inside f1 🔥
+            st.markdown("<div class='filter-marker' style='display:none;'></div>", unsafe_allow_html=True)
             if st.button(f"📊 All ({len(df_filtered)})"): st.session_state.trend_filter = 'All'
         with f2: 
             if st.button(f"🟢 Bullish ({bull_cnt})"): st.session_state.trend_filter = 'Bullish'
@@ -470,7 +460,6 @@ if not df.empty:
             for _, row in df_stocks_display.iterrows():
                 bg = "bull-card" if row['C'] > 0 else ("bear-card" if row['C'] < 0 else "neut-card")
                 
-                # 🔥 Show Rocket Icon for One Sided Moves 🔥
                 special_icon = "🚀" if watchlist_mode == "One Sided Moves 🚀" else f"⭐{int(row['S'])}"
                 
                 html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">{special_icon}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if row["C"]>0 else ""}{row["C"]:.2f}%</div></a>'
