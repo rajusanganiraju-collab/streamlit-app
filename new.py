@@ -49,7 +49,6 @@ st.markdown("""
     .bull-card { background-color: #1e5f29 !important; } /* Dark Green */
     .bear-card { background-color: #b52524 !important; } /* Dark Red */
     .neut-card { background-color: #30363d !important; } /* Grey */
-    .idx-card { background-color: #0d47a1 !important; border: 1px solid #1976d2; } /* Dark Blue for Indices */
     
     /* NORMAL TEXT FONTS */
     .t-name { font-size: 13px; font-weight: 500; margin-bottom: 2px; }
@@ -218,7 +217,6 @@ def render_chart(row, chart_data):
     display_sym = row['T']
     
     color_hex = "#2ea043" if row['C'] >= 0 else "#da3633"
-    if display_sym == "INDIA VIX": color_hex = "#da3633" if row['C'] >= 0 else "#2ea043"
         
     sign = "+" if row['C'] > 0 else ""
     tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
@@ -289,32 +287,38 @@ if not df.empty:
     
     df_stocks = df[~df['Is_Index']].copy()
     
+    # 🔥 TODAY'S MARKET MOOD LOGIC (Based on Nifty) 🔥
+    market_mood = "🟡 Neutral"
+    nifty_row = df_indices[df_indices['T'] == 'NIFTY']
+    if not nifty_row.empty:
+        n_chg = float(nifty_row['C'].iloc[0])
+        if n_chg >= 0.15: market_mood = "🟢 Bullish"
+        elif n_chg <= -0.15: market_mood = "🔴 Bearish"
+        else: market_mood = "🟡 Neutral"
+    
     if watchlist_mode == "Nifty 50 Heatmap":
         df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
         greens = df_filtered[df_filtered['C'] >= 0].sort_values(by="C", ascending=False)
         reds = df_filtered[df_filtered['C'] < 0].sort_values(by="C", ascending=False)
         df_stocks_display = pd.concat([greens, reds])
-        st.markdown("### Nifty 50 Stocks")
     
     else:
-        # 🔥 FILTER: ONLY SHOW SCORE 7 TO 10 🔥
         df_filtered = df_stocks[(df_stocks['S'] >= 7) & (df_stocks['S'] <= 10)]
         greens = df_filtered[df_filtered['C'] > 0].sort_values(by=["S", "C"], ascending=[False, False])
         neuts = df_filtered[df_filtered['C'] == 0].sort_values(by="S", ascending=False)
         reds = df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[True, True])
         df_stocks_display = pd.concat([greens, neuts, reds])
-        st.markdown("### 🔥 High Score Stocks (7 to 10)")
 
     if view_mode == "Heat Map":
         
-        # 1. RENDER INDICES FIRST
+        # 1. RENDER INDICES FIRST WITH MOOD
+        st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:5px; color:#e6edf3;'>📊 Market Indices &nbsp;&nbsp;<span style='font-size:14px; color:#8b949e; font-weight:normal;'>|&nbsp; Today's Mood: <b>{market_mood}</b></span></div>", unsafe_allow_html=True)
+        
         if not df_indices.empty:
             html_idx = '<div class="heatmap-grid">'
             for _, row in df_indices.iterrows():
-                if row['T'] == "INDIA VIX":
-                    bg = "bear-card" if row['C'] > 0 else "bull-card"
-                else:
-                    bg = "idx-card" 
+                # ALL indices (including VIX) will now just be standard green/red based on their +/-
+                bg = "bull-card" if row['C'] >= 0 else "bear-card"
                     
                 badge = "IDX"
                 sign = "+" if row['C'] > 0 else ""
@@ -328,6 +332,7 @@ if not df.empty:
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
         # 2. RENDER STOCKS
+        st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:5px; color:#e6edf3;'>🔥 High Score Stocks</div>", unsafe_allow_html=True)
         html_stk = '<div class="heatmap-grid">'
         for _, row in df_stocks_display.iterrows():
             bg = "bull-card" if row['C'] >= 0 else "bear-card"
@@ -340,19 +345,18 @@ if not df.empty:
         st.markdown(html_stk, unsafe_allow_html=True)
         
     else:
-        # === MINI CHARTS (PERFECT MOBILE ROW-BY-ROW RENDER) ===
+        # === MINI CHARTS ===
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # Download Data for Charts (Top 27 Stocks + Indices)
         top_stocks_for_charts = df_stocks_display.head(27)
         fetch_tickers = df_indices['Fetch_T'].tolist() + top_stocks_for_charts['Fetch_T'].tolist()
         
         with st.spinner("Loading 5-Min Candlestick Charts (Lightning Speed ⚡)..."):
-            # 🔥 THREADS=20 FOR CHART DOWNLOAD TOO 🔥
             chart_data = yf.download(fetch_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=20)
         
-        # 1. RENDER INDICES CHARTS FIRST
-        st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>📈 Market Indices</div>", unsafe_allow_html=True)
+        # 1. RENDER INDICES CHARTS FIRST WITH MOOD
+        st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>📈 Market Indices &nbsp;&nbsp;<span style='font-size:14px; color:#8b949e; font-weight:normal;'>|&nbsp; Today's Mood: <b>{market_mood}</b></span></div>", unsafe_allow_html=True)
+        
         if not df_indices.empty:
             idx_list = [row for _, row in df_indices.iterrows()]
             for i in range(0, len(idx_list), 3):
