@@ -23,7 +23,7 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- 4. CSS FOR STYLING (FLUID GRID, PERFECT PIN, CUSTOM HORIZONTAL BUTTONS) ---
+# --- 4. CSS FOR STYLING (RESPONSIVE CHARTS, NO ZOOM, MOBILE FIX) ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
@@ -39,51 +39,79 @@ st.markdown("""
     .t-pct { font-size: 12px; font-weight: normal !important; }
     .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal !important; }
     
-    /* 🔥 2. CUSTOM HORIZONTAL BUTTON ROW (Mobile & Desktop) 🔥 */
-    /* We override Streamlit's annoying auto-stacking columns */
-    div[data-testid="stHorizontalBlock"]:has(.custom-buttons-row) {
+    /* 🔥 2. PERFECT HORIZONTAL BUTTONS FIX (TEXT FIT, CENTERED, NO STACKING) 🔥 */
+    div[data-testid="stHorizontalBlock"]:has(.filter-marker) {
         display: flex !important;
-        flex-direction: row !important; /* Force Horizontal */
-        justify-content: center !important; /* Center the buttons */
-        flex-wrap: nowrap !important; /* Never wrap to next line */
-        gap: 8px !important; /* Space between buttons */
+        flex-direction: row !important; /* Force side-by-side */
+        flex-wrap: nowrap !important; /* Never move to next line */
+        justify-content: center !important; /* Align everything in center */
+        align-items: center !important;
+        gap: 10px !important; /* Space between buttons */
         width: 100% !important;
     }
     
-    div[data-testid="stHorizontalBlock"]:has(.custom-buttons-row) > div[data-testid="column"] {
-        width: auto !important; /* Don't take 100% width */
-        min-width: 0 !important; /* Allow shrinking */
-        flex: 0 1 auto !important; /* Fit to content */
+    /* Shrink the column wrappers to fit text tightly */
+    div[data-testid="stHorizontalBlock"]:has(.filter-marker) > div[data-testid="column"] {
+        width: auto !important;
+        min-width: 0px !important; 
+        flex: 0 1 auto !important; /* Shrink to fit text */
+        padding: 0 !important;
     }
     
-    div[data-testid="stHorizontalBlock"]:has(.custom-buttons-row) div.stButton > button {
+    /* Make button box small and perfect */
+    div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button {
         height: 35px !important;
-        padding: 0px 12px !important; /* Tight padding to fit text */
-        width: auto !important; /* Hug the text! */
-        min-width: fit-content !important;
-        white-space: nowrap !important; /* Keep text on one line */
+        width: auto !important; 
+        padding: 0px 15px !important;
     }
     
-    /* Make text smaller on mobile to ensure they all fit on one line */
+    /* Prevent text from breaking inside button */
+    div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button p {
+        font-size: 12px !important; 
+        white-space: nowrap !important; 
+        margin: 0 !important;
+    }
+    
+    /* Adjust sizes slightly for small mobile screens */
     @media screen and (max-width: 650px) {
-        div[data-testid="stHorizontalBlock"]:has(.custom-buttons-row) div.stButton > button {
-            padding: 0px 6px !important;
-        }
-        div[data-testid="stHorizontalBlock"]:has(.custom-buttons-row) div.stButton > button p {
-            font-size: 10px !important; 
-        }
+        div[data-testid="stHorizontalBlock"]:has(.filter-marker) { gap: 4px !important; }
+        div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button { padding: 0px 8px !important; }
+        div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button p { font-size: 10px !important; }
     }
     
-    /* 🔥 3. AUTO-ADJUSTING FLUID GRID MAGIC (CHARTS) 🔥 */
+    /* 🔥 3. DYNAMIC SCREEN SIZING FOR CHARTS (3 to 8 COLUMNS) 🔥 */
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) {
         display: grid !important;
-        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important; 
         gap: 12px !important;
         align-items: start !important;
     }
-    /* Hide the marker */
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div:nth-child(1) {
-        display: none !important;
+        display: none !important; /* Hide invisible marker */
+    }
+    
+    /* MEGA SCREEN (Extra Large Desktop) -> 8 CHARTS */
+    @media screen and (min-width: 1700px) {
+        div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(8, 1fr) !important; }
+    }
+    /* FULL SCREEN (Large Desktop) -> 6 CHARTS */
+    @media screen and (min-width: 1400px) and (max-width: 1699px) {
+        div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(6, 1fr) !important; }
+    }
+    /* NORMAL DESKTOP -> 5 CHARTS */
+    @media screen and (min-width: 1100px) and (max-width: 1399px) {
+        div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(5, 1fr) !important; }
+    }
+    /* SMALL DESKTOP / TABLET -> 4 CHARTS */
+    @media screen and (min-width: 850px) and (max-width: 1099px) {
+        div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(4, 1fr) !important; }
+    }
+    /* SPLIT SCREEN DESKTOP -> 3 CHARTS */
+    @media screen and (min-width: 651px) and (max-width: 849px) {
+        div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(3, 1fr) !important; }
+    }
+    /* MOBILE PHONES -> 2 CHARTS */
+    @media screen and (max-width: 650px) {
+        div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(2, 1fr) !important; gap: 6px !important; }
     }
     
     /* 🔥 4. INDIVIDUAL CHART BOX STYLING 🔥 */
@@ -105,11 +133,12 @@ st.markdown("""
     }
     div[data-testid="stCheckbox"] label { padding: 0 !important; min-height: 0 !important; }
     
-    /* General Button Styles (for non-filter buttons if any) */
+    /* General Button Styles */
     div.stButton > button {
         border-radius: 8px !important;
         border: 1px solid #30363d !important;
         background-color: #161b22 !important;
+        height: 45px !important;
     }
     
     /* Heatmap Layout */
@@ -277,6 +306,7 @@ def render_chart(row, df_chart, show_pin=True):
             fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot')))
             fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash')))
             
+            # 🔥 MAGIC ZOOM FIX: dragmode=False and fixedrange=True COMPLETELY disables scrolling zooms! 🔥
             fig.update_layout(
                 margin=dict(l=0, r=0, t=0, b=0), 
                 height=150, 
@@ -288,6 +318,8 @@ def render_chart(row, df_chart, show_pin=True):
                 showlegend=False,
                 dragmode=False 
             )
+            
+            # 🔥 config={'staticPlot': True} makes the chart 100% immune to touches 🔥
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True})
         else:
             st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:normal !important;'>Data not available</div>", unsafe_allow_html=True)
@@ -355,12 +387,13 @@ if not df.empty:
                 stock_trends[sym] = 'Neutral'
                 neut_cnt += 1
 
-    # --- 🔥 THE PERFECT HORIZONTAL COMPACT BUTTONS 🔥 ---
+    # --- CLICKABLE TREND FILTERS (PERFECTLY CENTERED & FIT TO TEXT) ---
     with st.container():
-        st.markdown("<div class='custom-buttons-row'></div>", unsafe_allow_html=True)
         f1, f2, f3, f4 = st.columns(4)
         
+        # NOTE: Removed use_container_width=True so they fit their text!
         with f1: 
+            st.markdown("<span class='filter-marker'></span>", unsafe_allow_html=True)
             if st.button(f"📊 All ({len(df_filtered)})"): st.session_state.trend_filter = 'All'
         with f2: 
             if st.button(f"🟢 Bullish ({bull_cnt})"): st.session_state.trend_filter = 'Bullish'
