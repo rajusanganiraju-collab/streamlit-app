@@ -23,14 +23,14 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- 4. CSS FOR STYLING (RESPONSIVE CHARTS, NO ZOOM, MOBILE FIX) ---
+# --- 4. CSS FOR STYLING (FLUID GRID, PERFECT PIN, HORIZONTAL MOBILE BUTTONS) ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
     .stApp { background-color: #0e1117; color: #ffffff; }
     .block-container { padding-top: 1rem !important; padding-bottom: 0rem !important; margin-top: -10px; }
     
-    /* 🔥 1. ALL TEXT TO NORMAL (UNBOLD) 🔥 */
+    /* 🔥 ALL TEXT TO NORMAL (UNBOLD) 🔥 */
     .stRadio label, .stRadio p, div[role="radiogroup"] p { color: #ffffff !important; font-weight: normal !important; }
     div.stButton > button p, div.stButton > button span { color: #ffffff !important; font-weight: normal !important; font-size: 14px !important; }
     
@@ -39,7 +39,7 @@ st.markdown("""
     .t-pct { font-size: 12px; font-weight: normal !important; }
     .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal !important; }
     
-    /* 🔥 2. MOBILE HORIZONTAL BUTTONS FIX (NO SWIPING!) 🔥 */
+    /* 🔥 MOBILE HORIZONTAL BUTTONS FIX 🔥 */
     @media screen and (max-width: 650px) {
         div[data-testid="stHorizontalBlock"]:has(.filter-marker) {
             display: flex !important;
@@ -65,42 +65,22 @@ st.markdown("""
         }
     }
     
-    /* 🔥 3. DYNAMIC SCREEN SIZING FOR CHARTS (3 to 8 COLUMNS) 🔥 */
+    /* 🔥 DYNAMIC SCREEN SIZING FOR CHARTS 🔥 */
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) {
         display: grid !important;
         gap: 12px !important;
         align-items: start !important;
     }
-    div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div:nth-child(1) {
-        display: none !important; /* Hide invisible marker */
-    }
+    div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div:nth-child(1) { display: none !important; }
     
-    /* MEGA SCREEN (Extra Large Desktop) -> 8 CHARTS */
-    @media screen and (min-width: 1700px) {
-        div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(8, 1fr) !important; }
-    }
-    /* FULL SCREEN (Large Desktop) -> 6 CHARTS */
-    @media screen and (min-width: 1400px) and (max-width: 1699px) {
-        div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(6, 1fr) !important; }
-    }
-    /* NORMAL DESKTOP -> 5 CHARTS */
-    @media screen and (min-width: 1100px) and (max-width: 1399px) {
-        div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(5, 1fr) !important; }
-    }
-    /* SMALL DESKTOP / TABLET -> 4 CHARTS */
-    @media screen and (min-width: 850px) and (max-width: 1099px) {
-        div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(4, 1fr) !important; }
-    }
-    /* SPLIT SCREEN DESKTOP -> 3 CHARTS */
-    @media screen and (min-width: 651px) and (max-width: 849px) {
-        div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(3, 1fr) !important; }
-    }
-    /* MOBILE PHONES -> 2 CHARTS */
-    @media screen and (max-width: 650px) {
-        div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(2, 1fr) !important; gap: 6px !important; }
-    }
+    @media screen and (min-width: 1700px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(8, 1fr) !important; } }
+    @media screen and (min-width: 1400px) and (max-width: 1699px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(6, 1fr) !important; } }
+    @media screen and (min-width: 1100px) and (max-width: 1399px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(5, 1fr) !important; } }
+    @media screen and (min-width: 850px) and (max-width: 1099px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(4, 1fr) !important; } }
+    @media screen and (min-width: 651px) and (max-width: 849px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(3, 1fr) !important; } }
+    @media screen and (max-width: 650px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(2, 1fr) !important; gap: 6px !important; } }
     
-    /* 🔥 4. INDIVIDUAL CHART BOX STYLING 🔥 */
+    /* 🔥 INDIVIDUAL CHART BOX STYLING 🔥 */
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] {
         background-color: #161b22 !important;
         border: 1px solid #30363d !important;
@@ -110,7 +90,7 @@ st.markdown("""
         width: 100% !important;
     }
 
-    /* 🔥 5. PERFECT PIN BOX (Top-Left Absolute) 🔥 */
+    /* 🔥 PERFECT PIN BOX 🔥 */
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] div[data-testid="stCheckbox"] {
         position: absolute !important;
         top: 8px !important;
@@ -119,13 +99,12 @@ st.markdown("""
     }
     div[data-testid="stCheckbox"] label { padding: 0 !important; min-height: 0 !important; }
     
-    /* General Button Styles */
-    div.stButton > button {
-        border-radius: 8px !important;
-        border: 1px solid #30363d !important;
-        background-color: #161b22 !important;
-        height: 45px !important;
-    }
+    /* Buttons Styling */
+    div.stButton > button { border-radius: 8px !important; border: 1px solid #30363d !important; background-color: #161b22 !important; height: 45px !important; }
+    
+    /* Responsive Text Classes for Charts */
+    .c-title { text-align:center; font-size:15px; margin-top:2px; font-weight:normal !important; }
+    .c-labels { text-align:center; font-size:10px; color:#8b949e; margin-top:2px; margin-bottom:5px; font-weight:normal !important; }
     
     /* Heatmap Layout */
     .heatmap-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 8px; padding: 5px 0; }
@@ -140,13 +119,16 @@ st.markdown("""
     @media screen and (max-width: 1400px) { .heatmap-grid { grid-template-columns: repeat(8, 1fr); } }
     @media screen and (max-width: 1100px) { .heatmap-grid { grid-template-columns: repeat(6, 1fr); } }
     @media screen and (max-width: 800px) { .heatmap-grid { grid-template-columns: repeat(4, 1fr); } }
-    @media screen and (max-width: 600px) { .heatmap-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; } .stock-card { height: 95px; } .t-name { font-size: 12px; } .t-price { font-size: 16px; } .t-pct { font-size: 11px; } }
+    @media screen and (max-width: 600px) { 
+        .heatmap-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; } .stock-card { height: 95px; } .t-name { font-size: 12px; } .t-price { font-size: 16px; } .t-pct { font-size: 11px; } 
+        .c-title { font-size: 11px !important; margin-top:1px; } .c-title a { font-size: 11px !important; } .c-labels { font-size: 8px !important; margin-bottom:2px; }
+    }
     
     .custom-hr { border: 0; height: 1px; background: #30363d; margin: 15px 0; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 5. DATA SETUP ---
+# --- 5. DATA SETUP & SECTOR MAPPING ---
 INDICES_MAP = {"^NSEI": "NIFTY", "^NSEBANK": "BANKNIFTY", "^INDIAVIX": "INDIA VIX"}
 TV_INDICES_URL = {"^NSEI": "NSE:NIFTY", "^NSEBANK": "NSE:BANKNIFTY", "^INDIAVIX": "NSE:INDIAVIX"}
 
@@ -157,6 +139,17 @@ SECTOR_INDICES_MAP = {
 TV_SECTOR_URL = {
     "^CNXIT": "NSE:CNXIT", "^CNXAUTO": "NSE:CNXAUTO", "^CNXMETAL": "NSE:CNXMETAL",
     "^CNXPHARMA": "NSE:CNXPHARMA", "^CNXFMCG": "NSE:CNXFMCG", "^CNXENERGY": "NSE:CNXENERGY", "^CNXREALTY": "NSE:CNXREALTY"
+}
+
+# 🔥 MAPPING STOCKS TO SECTORS FOR THE TOP-DOWN LOGIC 🔥
+STOCK_SECTOR_MAP = {
+    "INFY": "^CNXIT", "TCS": "^CNXIT", "HCLTECH": "^CNXIT", "TECHM": "^CNXIT", "WIPRO": "^CNXIT",
+    "BAJAJ-AUTO": "^CNXAUTO", "EICHERMOT": "^CNXAUTO", "HEROMOTOCO": "^CNXAUTO", "M&M": "^CNXAUTO", "MARUTI": "^CNXAUTO", "TATAMOTORS": "^CNXAUTO", "MOTHERSON": "^CNXAUTO", "SONACOMS": "^CNXAUTO", "BOSCHLTD": "^CNXAUTO", "MRF": "^CNXAUTO", "EXIDEIND": "^CNXAUTO", "AMARAJABAT": "^CNXAUTO",
+    "HINDALCO": "^CNXMETAL", "JSWSTEEL": "^CNXMETAL", "TATASTEEL": "^CNXMETAL", "VEDL": "^CNXMETAL", "SAIL": "^CNXMETAL",
+    "APOLLOHOSP": "^CNXPHARMA", "CIPLA": "^CNXPHARMA", "DIVISLAB": "^CNXPHARMA", "DRREDDY": "^CNXPHARMA", "SUNPHARMA": "^CNXPHARMA",
+    "ASIANPAINT": "^CNXFMCG", "BRITANNIA": "^CNXFMCG", "HINDUNILVR": "^CNXFMCG", "ITC": "^CNXFMCG", "NESTLEIND": "^CNXFMCG", "TATACONSUM": "^CNXFMCG", "AWL": "^CNXFMCG",
+    "NTPC": "^CNXENERGY", "ONGC": "^CNXENERGY", "POWERGRID": "^CNXENERGY", "RELIANCE": "^CNXENERGY", "ADANIGREEN": "^CNXENERGY", "ADANIPOWER": "^CNXENERGY", "NHPC": "^CNXENERGY", "SJVN": "^CNXENERGY", "BHEL": "^CNXENERGY", "CGPOWER": "^CNXENERGY", "SUZLON": "^CNXENERGY", "ATGL": "^CNXENERGY",
+    "AXISBANK": "^NSEBANK", "HDFCBANK": "^NSEBANK", "ICICIBANK": "^NSEBANK", "KOTAKBANK": "^NSEBANK", "SBIN": "^NSEBANK", "IOB": "^NSEBANK", "UCOBANK": "^NSEBANK", "MAHABANK": "^NSEBANK", "CANBK": "^NSEBANK"
 }
 
 NIFTY_50 = [
@@ -188,9 +181,11 @@ def fetch_all_data():
     tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + [f"{t}.NS" for t in all_stocks]
     data = yf.download(tkrs, period="5d", progress=False, group_by='ticker', threads=20)
     
-    results = []
     minutes = get_minutes_passed()
+    temp_data = {}
+    sector_chg = {}
 
+    # Pass 1: Collect Data & Sector Performance
     for symbol in data.columns.levels[0]:
         try:
             df = data[symbol].dropna(subset=['Close'])
@@ -209,31 +204,52 @@ def fetch_all_data():
                 avg_vol = df['Volume'].iloc[:-1].mean()
                 curr_vol = float(df['Volume'].iloc[-1])
                 vol_x = round(curr_vol / ((avg_vol/375) * minutes), 1) if avg_vol > 0 else 0.0
-            else:
-                vol_x = 0.0
+            else: vol_x = 0.0
                 
             vwap = (high + low + ltp) / 3
-            score = 0
+            
+            temp_data[symbol] = {
+                'ltp': ltp, 'open_p': open_p, 'low': low, 'high': high, 
+                'day_chg': day_chg, 'net_chg': net_chg, 'vol_x': vol_x, 'vwap': vwap
+            }
+            
+            # Track Sector % Change (Include BankNifty as a sector for banking stocks)
+            if symbol in SECTOR_INDICES_MAP or symbol == "^NSEBANK":
+                sector_chg[symbol] = net_chg
+        except: continue
+
+    # Identify Top Bullish and Top Bearish Sectors
+    top_bull_sec = max(sector_chg, key=sector_chg.get) if sector_chg and max(sector_chg.values()) > 0 else None
+    top_bear_sec = min(sector_chg, key=sector_chg.get) if sector_chg and min(sector_chg.values()) < 0 else None
+
+    # Pass 2: Calculate Final Scores with SECTOR BONUS
+    results = []
+    for symbol, vals in temp_data.items():
+        ltp = vals['ltp']; open_p = vals['open_p']; low = vals['low']; high = vals['high']
+        day_chg = vals['day_chg']; net_chg = vals['net_chg']; vol_x = vals['vol_x']; vwap = vals['vwap']
+        
+        is_index = symbol in INDICES_MAP
+        is_sector = symbol in SECTOR_INDICES_MAP
+        disp_name = INDICES_MAP.get(symbol, SECTOR_INDICES_MAP.get(symbol, symbol.replace(".NS", "")))
+        
+        score = 0
+        if not is_index and not is_sector:
+            # Base Scoring
             if abs(day_chg) >= 2.0: score += 3 
             if abs(open_p - low) <= (ltp * 0.003) or abs(open_p - high) <= (ltp * 0.003): score += 3 
             if vol_x > 1.0: score += 3 
             if (ltp >= high * 0.998 and day_chg > 0.5) or (ltp <= low * 1.002 and day_chg < -0.5): score += 1
             if (ltp > (low * 1.01) and ltp > vwap) or (ltp < (high * 0.99) and ltp < vwap): score += 1
             
-            is_index = False
-            is_sector = False
-            
-            if symbol in INDICES_MAP:
-                disp_name = INDICES_MAP[symbol]
-                is_index = True
-            elif symbol in SECTOR_INDICES_MAP:
-                disp_name = SECTOR_INDICES_MAP[symbol]
-                is_sector = True
-            else:
-                disp_name = symbol.replace(".NS", "")
-                
-            results.append({"Fetch_T": symbol, "T": disp_name, "P": ltp, "C": net_chg, "S": score, "Is_Index": is_index, "Is_Sector": is_sector})
-        except: continue
+            # 🔥 SECTOR LEADER BONUS LOGIC 🔥
+            stock_sec = STOCK_SECTOR_MAP.get(disp_name)
+            if stock_sec:
+                if stock_sec == top_bull_sec and day_chg > 0:
+                    score += 2  # Boost Top Sector Gainers
+                elif stock_sec == top_bear_sec and day_chg < 0:
+                    score += 2  # Boost Weakest Sector Losers
+
+        results.append({"Fetch_T": symbol, "T": disp_name, "P": ltp, "C": net_chg, "S": score, "Is_Index": is_index, "Is_Sector": is_sector})
         
     return pd.DataFrame(results)
 
@@ -272,12 +288,12 @@ def render_chart(row, df_chart, show_pin=True):
         st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=f"cb_{fetch_sym}", on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
     
     st.markdown(f"""
-        <div style='text-align:center; font-size:15px; margin-top:2px;'>
+        <div class="c-title">
             <a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; font-weight:normal !important;'>
                 {display_sym} <span style='color:{color_hex}; font-weight:normal !important;'>({sign}{row['C']:.2f}%)</span>
             </a>
         </div>
-        <div style='text-align:center; font-size:10px; color:#8b949e; margin-top:2px; margin-bottom:5px; font-weight:normal !important;'>
+        <div class="c-labels">
             <span style='color:#FFD700;'>--- VWAP</span> &nbsp;|&nbsp; <span style='color:#00BFFF;'>- - 10 EMA</span>
         </div>
     """, unsafe_allow_html=True)
@@ -292,7 +308,7 @@ def render_chart(row, df_chart, show_pin=True):
             fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot')))
             fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash')))
             
-            # 🔥 MAGIC ZOOM FIX: dragmode=False and fixedrange=True COMPLETELY disables scrolling zooms! 🔥
+            # 🔥 MAGIC ZOOM FIX: NO SCROLL ZOOM 🔥
             fig.update_layout(
                 margin=dict(l=0, r=0, t=0, b=0), 
                 height=150, 
@@ -305,12 +321,11 @@ def render_chart(row, df_chart, show_pin=True):
                 dragmode=False 
             )
             
-            # 🔥 config={'staticPlot': True} makes the chart 100% immune to touches 🔥
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True})
         else:
-            st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:normal !important;'>Data not available</div>", unsafe_allow_html=True)
+            st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:normal !important; font-size:12px;'>Data not available</div>", unsafe_allow_html=True)
     except Exception as e:
-        st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:normal !important;'>Chart error</div>", unsafe_allow_html=True)
+        st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:normal !important; font-size:12px;'>Chart error</div>", unsafe_allow_html=True)
 
 # --- 6. TOP NAVIGATION & SEARCH ---
 c1, c2 = st.columns([0.6, 0.4])
@@ -337,7 +352,7 @@ if not df.empty:
     if watchlist_mode == "Nifty 50 Heatmap":
         df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
     else:
-        df_filtered = df_stocks[(df_stocks['S'] >= 7) & (df_stocks['S'] <= 10)]
+        df_filtered = df_stocks[(df_stocks['S'] >= 7) & (df_stocks['S'] <= 13)] # Max score can now be 13 (11 base + 2 bonus)
 
     all_display_tickers = list(set(df_indices['Fetch_T'].tolist() + df_filtered['Fetch_T'].tolist() + st.session_state.pinned_stocks))
     
