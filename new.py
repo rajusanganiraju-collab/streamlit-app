@@ -245,7 +245,10 @@ def fetch_all_data():
             else:
                 disp_name = symbol.replace(".NS", "")
                 
-            results.append({"Fetch_T": symbol, "T": disp_name, "P": ltp, "C": net_chg, "S": score, "Is_Index": is_index, "Is_Sector": is_sector})
+            results.append({
+                "Fetch_T": symbol, "T": disp_name, "P": ltp, "C": net_chg, "S": score, 
+                "Is_Index": is_index, "Is_Sector": is_sector
+            })
         except: continue
         
     return pd.DataFrame(results)
@@ -364,6 +367,7 @@ if not df.empty:
     with st.spinner("Analyzing VWAP & 10 EMA Trends (Lightning Speed ⚡)..."):
         five_min_data = yf.download(all_display_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=20)
 
+    processed_charts = {}  # 🔥 THIS LINE FIXED THE ERROR 🔥
     stock_trends = {}
     one_sided_tickers = []
 
