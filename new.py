@@ -23,7 +23,7 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- 4. CSS FOR STYLING (FLUID GRID, PERFECT PIN, HORIZONTAL MOBILE BUTTONS) ---
+# --- 4. CSS FOR STYLING (MOBILE HORIZONTAL FIX, FLUID GRID, STATIC CHARTS) ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
@@ -39,31 +39,59 @@ st.markdown("""
     .t-pct { font-size: 12px; font-weight: normal !important; }
     .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal !important; }
     
-    /* 🔥 2. AUTO-ADJUSTING FLUID GRID MAGIC 🔥 */
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .fluid-board) {
-        display: grid !important;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) !important; 
-        gap: 15px !important;
-        flex-direction: unset !important;
-        align-items: unset !important;
+    /* 🔥 2. MOBILE HORIZONTAL BUTTONS FIX (NO SWIPING!) 🔥 */
+    @media screen and (max-width: 650px) {
+        /* Force the block to be a single horizontal row */
+        div[data-testid="stHorizontalBlock"]:has(.filter-marker) {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            gap: 4px !important;
+            overflow: hidden !important;
+        }
+        /* Break Streamlit's default 100% width on mobile columns */
+        div[data-testid="stHorizontalBlock"]:has(.filter-marker) > div[data-testid="column"] {
+            width: 25% !important;
+            min-width: 0px !important; /* CRITICAL FIX */
+            flex: 1 1 0px !important;
+            padding: 0 !important;
+        }
+        /* Resize buttons to fit mobile perfectly */
+        div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button {
+            height: 38px !important;
+            padding: 0 !important;
+            width: 100% !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button p {
+            font-size: 9px !important; 
+            white-space: nowrap !important; /* Prevents text from going to second line */
+        }
     }
     
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .fluid-board) > div[data-testid="stElementContainer"]:has(.fluid-board) {
+    /* 🔥 3. AUTO-ADJUSTING FLUID GRID MAGIC 🔥 */
+    div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) {
+        display: grid !important;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important; 
+        gap: 12px !important;
+        align-items: start !important;
+    }
+    /* Hide the marker */
+    div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div:nth-child(1) {
         display: none !important;
     }
     
-    /* 🔥 3. INDIVIDUAL CHART BOX STYLING 🔥 */
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .fluid-board) > div[data-testid="stVerticalBlock"] {
+    /* 🔥 4. INDIVIDUAL CHART BOX STYLING 🔥 */
+    div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] {
         background-color: #161b22 !important;
         border: 1px solid #30363d !important;
         border-radius: 8px !important;
-        padding: 10px 5px 5px 5px !important;
+        padding: 8px 5px 5px 5px !important;
         position: relative !important;
-        gap: 0px !important;
+        width: 100% !important;
     }
 
-    /* 🔥 4. PERFECT PIN BOX (Top-Left Absolute) 🔥 */
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .fluid-board) > div[data-testid="stVerticalBlock"] div[data-testid="stCheckbox"] {
+    /* 🔥 5. PERFECT PIN BOX (Top-Left Absolute) 🔥 */
+    div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] div[data-testid="stCheckbox"] {
         position: absolute !important;
         top: 8px !important;
         left: 10px !important;
@@ -77,29 +105,6 @@ st.markdown("""
         border: 1px solid #30363d !important;
         background-color: #161b22 !important;
         height: 45px !important;
-    }
-    
-    /* 🔥 5. MOBILE HORIZONTAL BUTTONS FIX 🔥 */
-    @media screen and (max-width: 650px) {
-        div[data-testid="stHorizontalBlock"]:has(.filter-marker) {
-            display: flex !important;
-            flex-direction: row !important; /* Force Horizontal */
-            flex-wrap: nowrap !important;
-            gap: 4px !important;
-        }
-        div[data-testid="stHorizontalBlock"]:has(.filter-marker) > div[data-testid="column"] {
-            width: 25% !important;
-            min-width: 25% !important;
-            flex: 1 1 25% !important;
-        }
-        div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button {
-            height: 40px !important;
-            padding: 0px !important;
-        }
-        /* Make text small enough to fit horizontally on mobile */
-        div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button p {
-            font-size: 10.5px !important; 
-        }
     }
     
     /* Heatmap Layout */
@@ -267,7 +272,7 @@ def render_chart(row, df_chart, show_pin=True):
             fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot')))
             fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash')))
             
-            # 🔥 MAGIC ZOOM FIX: dragmode=False and fixedrange=True disables all scrolling zooms! 🔥
+            # 🔥 MAGIC ZOOM FIX: dragmode=False and fixedrange=True 🔥
             fig.update_layout(
                 margin=dict(l=0, r=0, t=0, b=0), 
                 height=150, 
@@ -280,7 +285,7 @@ def render_chart(row, df_chart, show_pin=True):
                 dragmode=False 
             )
             
-            # 🔥 config={'staticPlot': True} makes the chart 100% immune to touches and scrolls 🔥
+            # 🔥 staticPlot: True PREVENTS ANY SCROLLING ISSUES 🔥
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True})
         else:
             st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:normal !important;'>Data not available</div>", unsafe_allow_html=True)
@@ -349,7 +354,7 @@ if not df.empty:
 
     # --- CLICKABLE TREND FILTERS ---
     f1, f2, f3, f4 = st.columns(4)
-    # 🔥 MARKER FOR MOBILE CSS 🔥
+    # 🔥 MARKER FOR MOBILE HORIZONTAL CSS 🔥
     with f1: st.markdown("<div class='filter-marker' style='display:none;'></div>", unsafe_allow_html=True)
     
     with f1: 
