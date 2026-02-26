@@ -158,7 +158,6 @@ def fetch_all_data():
         all_stocks.update(stocks)
     
     tkrs = list(INDICES_MAP.keys()) + [f"{t}.NS" for t in all_stocks]
-    # LIGHTNING FAST DOWNLOAD
     data = yf.download(tkrs, period="5d", progress=False, group_by='ticker', threads=20)
     
     results = []
@@ -212,18 +211,15 @@ def fetch_all_data():
     return pd.DataFrame(results)
 
 # --- HELPER FUNCTION TO DRAW CHARTS ---
-def render_chart(row, chart_data):
-    fetch_sym = row['Fetch_T']
+def render_chart(row, df_chart):
     display_sym = row['T']
+    fetch_sym = row['Fetch_T']
     
+    # Text Color Logic
     if display_sym == "INDIA VIX": 
-        if row['C'] > 0: color_hex = "#da3633" # Red
-        elif row['C'] < 0: color_hex = "#2ea043" # Green
-        else: color_hex = "#8b949e" # Grey Neutral
+        color_hex = "#da3633" if row['C'] > 0 else ("#2ea043" if row['C'] < 0 else "#8b949e")
     else:
-        if row['C'] > 0: color_hex = "#2ea043" # Green
-        elif row['C'] < 0: color_hex = "#da3633" # Red
-        else: color_hex = "#8b949e" # Grey Neutral
+        color_hex = "#2ea043" if row['C'] > 0 else ("#da3633" if row['C'] < 0 else "#8b949e")
         
     sign = "+" if row['C'] > 0 else ""
     tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
@@ -233,21 +229,7 @@ def render_chart(row, chart_data):
     st.markdown(f"<div class='ind-labels'><span style='color:#FFD700; font-weight:bold;'>--- VWAP</span> &nbsp;|&nbsp; <span style='color:#00BFFF; font-weight:bold;'>- - 10 EMA</span></div>", unsafe_allow_html=True)
     
     try:
-        df_chart = chart_data[fetch_sym].copy() if isinstance(chart_data.columns, pd.MultiIndex) else chart_data.copy()
-        df_chart = df_chart.dropna(subset=['Close'])
-        
         if not df_chart.empty:
-            df_chart['EMA_10'] = df_chart['Close'].ewm(span=10, adjust=False).mean()
-            df_chart.index = pd.to_datetime(df_chart.index)
-            last_trading_date = df_chart.index.date.max()
-            df_chart = df_chart[df_chart.index.date == last_trading_date]
-            
-            df_chart['Typical_Price'] = (df_chart['High'] + df_chart['Low'] + df_chart['Close']) / 3
-            if 'Volume' in df_chart.columns and df_chart['Volume'].fillna(0).sum() > 0:
-                df_chart['VWAP'] = (df_chart['Typical_Price'] * df_chart['Volume']).cumsum() / df_chart['Volume'].cumsum()
-            else:
-                df_chart['VWAP'] = df_chart['Typical_Price'].expanding().mean()
-            
             min_val, max_val = df_chart[['Low', 'VWAP', 'EMA_10']].min().min(), df_chart[['High', 'VWAP', 'EMA_10']].max().max()
             y_padding = (max_val - min_val) * 0.1 if (max_val - min_val) != 0 else min_val * 0.005 
             
@@ -271,6 +253,7 @@ def render_chart(row, chart_data):
         st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart loading error</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
+
 # --- 6. TOP NAVIGATION ---
 st.markdown("<div style='background-color:#161b22; padding:10px; border-radius:8px; margin-bottom:15px; border: 1px solid #30363d;'>", unsafe_allow_html=True)
 c1, c2 = st.columns([0.6, 0.4])
@@ -286,7 +269,6 @@ df = fetch_all_data()
 
 if not df.empty:
     
-    # 🌟 SEPARATE INDICES AND STOCKS 🌟
     df_indices = df[df['Is_Index']].copy()
     df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3})
     df_indices = df_indices.sort_values("Order")
@@ -295,22 +277,68 @@ if not df.empty:
     
     if watchlist_mode == "Nifty 50 Heatmap":
         df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
-        greens = df_filtered[df_filtered['C'] > 0].sort_values(by="C", ascending=False)
-        neuts = df_filtered[df_filtered['C'] == 0].sort_values(by="C", ascending=False)
+        greens = df_filtered[df_filtered['C'] >= 0].sort_values(by="C", ascending=False)
         reds = df_filtered[df_filtered['C'] < 0].sort_values(by="C", ascending=False)
-        df_stocks_display = pd.concat([greens, neuts, reds])
+        df_stocks_display = pd.concat([greens, reds])
     else:
         df_filtered = df_stocks[(df_stocks['S'] >= 7) & (df_stocks['S'] <= 10)]
-        greens = df_filtered[df_filtered['C'] > 0].sort_values(by=["S", "C"], ascending=[False, False])
-        neuts = df_filtered[df_filtered['C'] == 0].sort_values(by="S", ascending=False)
+        greens = df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False])
         reds = df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[True, True])
-        df_stocks_display = pd.concat([greens, neuts, reds])
+        df_stocks_display = pd.concat([greens, reds])
 
-    # 🔥 NEW: ADDED BACK THE BULLISH, NEUTRAL, BEARISH BOXES 🔥
-    bull_cnt = len(df_stocks_display[df_stocks_display['C'] > 0])
-    neut_cnt = len(df_stocks_display[df_stocks_display['C'] == 0])
-    bear_cnt = len(df_stocks_display[df_stocks_display['C'] < 0])
+    # 🔥 FETCH 5-MIN DATA ONCE FOR BOTH TOP BOXES AND CHARTS 🔥
+    all_display_tickers = df_indices['Fetch_T'].tolist() + df_stocks_display['Fetch_T'].tolist()
     
+    with st.spinner("Analyzing VWAP & EMA Trends..."):
+        five_min_data = yf.download(all_display_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=20)
+
+    # 🌟 YOUR EXACT LOGIC FOR TOP TREND BOXES 🌟
+    bull_cnt = 0
+    bear_cnt = 0
+    neut_cnt = 0
+    
+    # We will process 5-min data and store it so we don't have to calculate VWAP twice
+    processed_charts = {}
+
+    for sym in all_display_tickers:
+        try:
+            df_s = five_min_data[sym].dropna(subset=['Close']).copy() if isinstance(five_min_data.columns, pd.MultiIndex) else five_min_data.dropna(subset=['Close']).copy()
+            if df_s.empty: 
+                processed_charts[sym] = pd.DataFrame()
+                continue
+            
+            df_s['EMA_10'] = df_s['Close'].ewm(span=10, adjust=False).mean()
+            df_s.index = pd.to_datetime(df_s.index)
+            last_date = df_s.index.date.max()
+            df_day = df_s[df_s.index.date == last_date].copy()
+            
+            if not df_day.empty:
+                df_day['Typical_Price'] = (df_day['High'] + df_day['Low'] + df_day['Close']) / 3
+                if 'Volume' in df_day.columns and df_day['Volume'].fillna(0).sum() > 0:
+                    df_day['VWAP'] = (df_day['Typical_Price'] * df_day['Volume']).cumsum() / df_day['Volume'].cumsum()
+                else:
+                    df_day['VWAP'] = df_day['Typical_Price'].expanding().mean()
+                
+                processed_charts[sym] = df_day
+                
+                # Check VWAP & EMA Logic ONLY for Stocks (Not Indices) to show in the boxes
+                if sym in df_stocks_display['Fetch_T'].tolist():
+                    last_price = df_day['Close'].iloc[-1]
+                    last_vwap = df_day['VWAP'].iloc[-1]
+                    last_ema = df_day['EMA_10'].iloc[-1]
+                    
+                    if last_price > last_vwap and last_price > last_ema:
+                        bull_cnt += 1
+                    elif last_price < last_vwap and last_price < last_ema:
+                        bear_cnt += 1
+                    else:
+                        neut_cnt += 1
+            else:
+                processed_charts[sym] = pd.DataFrame()
+        except:
+            processed_charts[sym] = pd.DataFrame()
+
+    # --- TOP TREND BOXES DISPLAY ---
     st.markdown(f"""
     <div style='display:flex; justify-content:space-between; margin-bottom: 15px; gap: 8px;'>
         <div style='flex:1; background-color:rgba(30, 95, 41, 0.4); border: 1px solid #1e5f29; padding:8px; border-radius:6px; text-align:center; font-weight:bold; font-size:15px;'>
@@ -371,12 +399,6 @@ if not df.empty:
         # === MINI CHARTS ===
         st.markdown("<br>", unsafe_allow_html=True)
         
-        top_stocks_for_charts = df_stocks_display
-        fetch_tickers = df_indices['Fetch_T'].tolist() + top_stocks_for_charts['Fetch_T'].tolist()
-        
-        with st.spinner("Loading 5-Min Candlestick Charts (Lightning Speed ⚡)..."):
-            chart_data = yf.download(fetch_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=20)
-        
         # 1. RENDER INDICES CHARTS FIRST
         st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>📈 Market Indices</div>", unsafe_allow_html=True)
         if not df_indices.empty:
@@ -386,20 +408,22 @@ if not df.empty:
                 for j in range(3):
                     if i + j < len(idx_list):
                         with cols[j]:
-                            render_chart(idx_list[i + j], chart_data)
+                            row_data = idx_list[i + j]
+                            render_chart(row_data, processed_charts.get(row_data['Fetch_T'], pd.DataFrame()))
                             
         st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
         # 2. RENDER STOCKS CHARTS
         st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>{watchlist_mode}</div>", unsafe_allow_html=True)
-        if not top_stocks_for_charts.empty:
-            stk_list = [row for _, row in top_stocks_for_charts.iterrows()]
+        if not df_stocks_display.empty:
+            stk_list = [row for _, row in df_stocks_display.iterrows()]
             for i in range(0, len(stk_list), 3):
                 cols = st.columns(3)
                 for j in range(3):
                     if i + j < len(stk_list):
                         with cols[j]:
-                            render_chart(stk_list[i + j], chart_data)
+                            row_data = stk_list[i + j]
+                            render_chart(row_data, processed_charts.get(row_data['Fetch_T'], pd.DataFrame()))
 
 else:
     st.info("Loading Market Data...")
