@@ -23,7 +23,7 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- 4. CSS FOR STYLING (PERFECT INLINE BUTTONS, FLUID GRID, NO ZOOM) ---
+# --- 4. CSS FOR STYLING (RESPONSIVE CHARTS, NO ZOOM, MOBILE FIX) ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
@@ -39,8 +39,7 @@ st.markdown("""
     .t-pct { font-size: 12px; font-weight: normal !important; }
     .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal !important; }
     
-    /* 🔥 2. BULLETPROOF INLINE BUTTONS (NO MORE ST.COLUMNS) 🔥 */
-    /* Target the container wrapping the 4 buttons */
+    /* 🔥 2. PERFECT HORIZONTAL BUTTONS FIX (ALL SCREENS - FIT TO TEXT) 🔥 */
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) {
         display: flex !important;
         flex-direction: row !important; /* Force side-by-side */
@@ -237,6 +236,14 @@ def fetch_all_data():
             if (ltp >= high * 0.998 and day_chg > 0.5) or (ltp <= low * 1.002 and day_chg < -0.5): score += 1
             if (ltp > (low * 1.01) and ltp > vwap) or (ltp < (high * 0.99) and ltp < vwap): score += 1
             
+            # 🔥 ONE SIDED MOVEMENT LOGIC 🔥
+            # Bullish: Open is near Low (within 0.2%), and LTP is near High (within 0.5%), moves up > 0.5%
+            bull_oneside = ((open_p - low) <= (open_p * 0.002)) and ((high - ltp) <= (high * 0.005)) and (day_chg >= 0.5)
+            # Bearish: Open is near High (within 0.2%), and LTP is near Low (within 0.5%), moves down > 0.5%
+            bear_oneside = ((high - open_p) <= (open_p * 0.002)) and ((ltp - low) <= (low * 0.005)) and (day_chg <= -0.5)
+            
+            is_oneside = bull_oneside or bear_oneside
+            
             is_index = False
             is_sector = False
             
@@ -249,7 +256,10 @@ def fetch_all_data():
             else:
                 disp_name = symbol.replace(".NS", "")
                 
-            results.append({"Fetch_T": symbol, "T": disp_name, "P": ltp, "C": net_chg, "S": score, "Is_Index": is_index, "Is_Sector": is_sector})
+            results.append({
+                "Fetch_T": symbol, "T": disp_name, "P": ltp, "C": net_chg, "S": score, 
+                "Is_Index": is_index, "Is_Sector": is_sector, "Is_One_Sided": is_oneside
+            })
         except: continue
         
     return pd.DataFrame(results)
@@ -328,7 +338,8 @@ def render_chart(row, df_chart, show_pin=True):
 
 # --- 6. TOP NAVIGATION & SEARCH ---
 c1, c2 = st.columns([0.6, 0.4])
-with c1: watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Nifty 50 Heatmap"], label_visibility="collapsed")
+# 🔥 ADDED NEW FILTER OPTION HERE 🔥
+with c1: watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Nifty 50 Heatmap", "One Sided Moves 🚀"], label_visibility="collapsed")
 with c2: view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
 
 # --- 7. RENDER LOGIC & TREND ANALYSIS ---
@@ -348,8 +359,11 @@ if not df.empty:
     
     df_stocks = df[(~df['Is_Index']) & (~df['Is_Sector'])].copy()
     
+    # 🔥 FILTER LOGIC ADDED HERE 🔥
     if watchlist_mode == "Nifty 50 Heatmap":
         df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
+    elif watchlist_mode == "One Sided Moves 🚀":
+        df_filtered = df_stocks[df_stocks['Is_One_Sided'] == True]
     else:
         df_filtered = df_stocks[(df_stocks['S'] >= 7) & (df_stocks['S'] <= 10)]
 
@@ -387,7 +401,7 @@ if not df.empty:
                 stock_trends[sym] = 'Neutral'
                 neut_cnt += 1
 
-    # --- 🔥 PURE INLINE BUTTONS (NO COLUMNS!) 🔥 ---
+    # --- CLICKABLE TREND FILTERS ---
     with st.container():
         st.markdown("<div class='filter-marker'></div>", unsafe_allow_html=True)
         if st.button(f"📊 All ({len(df_filtered)})"): st.session_state.trend_filter = 'All'
@@ -435,7 +449,11 @@ if not df.empty:
             html_stk = '<div class="heatmap-grid">'
             for _, row in df_stocks_display.iterrows():
                 bg = "bull-card" if row['C'] > 0 else ("bear-card" if row['C'] < 0 else "neut-card")
-                html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">⭐{int(row["S"])}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if row["C"]>0 else ""}{row["C"]:.2f}%</div></a>'
+                
+                # Check for One-Sided move to show special icon
+                special_icon = "🚀" if getattr(row, 'Is_One_Sided', False) else f"⭐{int(row['S'])}"
+                
+                html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">{special_icon}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if row["C"]>0 else ""}{row["C"]:.2f}%</div></a>'
             st.markdown(html_stk + '</div>', unsafe_allow_html=True)
         else:
             st.info(f"No {st.session_state.trend_filter} stocks found in this list.")
@@ -443,7 +461,18 @@ if not df.empty:
     else:
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # 1. RENDER INDICES CHARTS
+        # 1. RENDER SEARCHED CHART
+        if search_stock != "-- None --":
+            st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:5px; color:#ffd700;'>🔍 Searched Chart: {search_stock}</div>", unsafe_allow_html=True)
+            searched_row = df[df['T'] == search_stock].iloc[0]
+            
+            with st.container():
+                st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
+                with st.container():
+                    render_chart(searched_row, processed_charts.get(searched_row['Fetch_T'], pd.DataFrame()), show_pin=False)
+            st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
+        
+        # 2. RENDER INDICES CHARTS
         st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>📈 Market Indices</div>", unsafe_allow_html=True)
         if not df_indices.empty:
             with st.container():
@@ -453,7 +482,7 @@ if not df.empty:
                         render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=False)
         st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
-        # 2. RENDER ALL PINNED & SEARCHED STOCKS HERE (PRIORITY ROW)
+        # 3. RENDER ALL PINNED & SEARCHED STOCKS HERE (PRIORITY ROW)
         pinned_df = df[df['Fetch_T'].isin(st.session_state.pinned_stocks)].copy()
         
         if search_stock != "-- None --":
@@ -472,7 +501,7 @@ if not df.empty:
                         render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=True)
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
-        # 3. RENDER REMAINING STOCKS
+        # 4. RENDER REMAINING STOCKS
         if not unpinned_df.empty:
             st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>{watchlist_mode} ({st.session_state.trend_filter})</div>", unsafe_allow_html=True)
             
