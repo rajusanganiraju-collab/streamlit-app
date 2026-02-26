@@ -23,7 +23,7 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- 4. CSS FOR STYLING (PERFECT MINIMALIST PIN) ---
+# --- 4. CSS FOR STYLING (PERFECT IN-BOX CHECKBOX) ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
@@ -33,30 +33,15 @@ st.markdown("""
     /* Radio Buttons Text to White */
     .stRadio label, .stRadio p, div[role="radiogroup"] p { color: #ffffff !important; font-weight: bold !important; }
     
-    /* 🔥 PERFECT MINIMALIST PIN POSITIONING 🔥 */
-    /* Ensure the column acts as the boundary */
+    /* 🔥 PERFECT CHECKBOX POSITIONING (TOP-RIGHT CORNER INSIDE CHART BOX) 🔥 */
     div[data-testid="column"] {
-        position: relative !important;
+        position: relative !important; 
     }
-    /* Position the checkbox absolutely in the top-right */
     div[data-testid="stCheckbox"] {
         position: absolute !important;
-        top: 5px !important;
-        right: 5px !important;
-        z-index: 50 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        background-color: transparent !important; /* No background box */
-        border: none !important; /* No border */
-    }
-    /* Remove default padding from the label part */
-    div[data-testid="stCheckbox"] > label {
-        padding: 0 !important;
-    }
-    /* Style the pin symbol slightly bigger */
-    div[data-testid="stCheckbox"] p {
-        font-size: 14px !important; 
-        margin-bottom: 0 !important;
+        top: 15px !important;
+        right: 15px !important;
+        z-index: 100 !important;
     }
     
     /* Button Text to White */
@@ -91,7 +76,7 @@ st.markdown("""
     @media screen and (max-width: 800px) { .heatmap-grid { grid-template-columns: repeat(4, 1fr); } }
     @media screen and (max-width: 600px) { .heatmap-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; } .stock-card { height: 95px; } .t-name { font-size: 12px; } .t-price { font-size: 16px; } .t-pct { font-size: 11px; } }
     
-    .chart-box { border: 1px solid #30363d; border-radius: 8px; background: #161b22; padding: 15px 10px 10px 10px; margin-bottom: 15px; position: relative; }
+    .chart-box { border: 1px solid #30363d; border-radius: 8px; background: #161b22; padding: 15px 10px 10px 10px; margin-bottom: 15px; }
     .ind-labels { text-align: center; font-size: 10px; color: #8b949e; margin-bottom: 2px; }
     .custom-hr { border: 0; height: 1px; background: #30363d; margin: 15px 0; }
     </style>
@@ -200,9 +185,9 @@ def render_chart(row, df_chart, show_pin=True):
     sign = "+" if row['C'] > 0 else ""
     tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
     
-    # 🔥 CLEAN CHECKBOX: Only symbol, no text, perfect position 🔥
+    # 🔥 PURE CHECKBOX: label_visibility="collapsed" hides the label entirely! 🔥
     if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX"]:
-        st.checkbox("📌", value=(fetch_sym in st.session_state.pinned_stocks), key=f"cb_{fetch_sym}", on_change=toggle_pin, args=(fetch_sym,))
+        st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=f"cb_{fetch_sym}", on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
     
     st.markdown(f"<div class='chart-box'><div style='text-align:center; font-weight:bold; font-size:16px; margin-top:-5px;'><a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none;'>{display_sym} <span style='color:{color_hex}'>({sign}{row['C']:.2f}%)</span></a></div><div class='ind-labels'><span style='color:#FFD700; font-weight:bold;'>--- VWAP</span> &nbsp;|&nbsp; <span style='color:#00BFFF; font-weight:bold;'>- - 10 EMA</span></div>", unsafe_allow_html=True)
     
@@ -233,7 +218,6 @@ df = fetch_all_data()
 
 if not df.empty:
     
-    # 🔍 SEARCH DROPDOWN
     all_names = sorted(df['T'].tolist())
     search_stock = st.selectbox("🔍 Search & View Chart", ["-- None --"] + all_names)
     
