@@ -23,110 +23,89 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- 4. CSS FOR STYLING (MOBILE HORIZONTAL FIX, FLUID GRID, STATIC CHARTS) ---
+# --- 4. CSS FOR STYLING (PERFECT ALIGNMENT & RESPONSIVE BUTTONS) ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
     .stApp { background-color: #0e1117; color: #ffffff; }
     .block-container { padding-top: 1rem !important; padding-bottom: 0rem !important; margin-top: -10px; }
     
-    /* 🔥 1. ALL TEXT TO NORMAL (UNBOLD) 🔥 */
-    .stRadio label, .stRadio p, div[role="radiogroup"] p { color: #ffffff !important; font-weight: normal !important; }
-    div.stButton > button p, div.stButton > button span { color: #ffffff !important; font-weight: normal !important; font-size: 14px !important; }
+    /* Normal Text Settings */
+    .stRadio label, .stRadio p, div[role="radiogroup"] p { color: #ffffff !important; font-weight: 400 !important; }
+    div.stButton > button p, div.stButton > button span { color: #ffffff !important; font-weight: 400 !important; font-size: 14px !important; }
     
-    .t-name { font-size: 13px; font-weight: normal !important; margin-bottom: 2px; }
-    .t-price { font-size: 17px; font-weight: normal !important; margin-bottom: 2px; }
-    .t-pct { font-size: 12px; font-weight: normal !important; }
-    .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal !important; }
+    .t-name, .t-price, .t-pct { font-weight: 400 !important; }
+    .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: 400 !important; }
     
-    /* 🔥 2. MOBILE HORIZONTAL BUTTONS FIX (NO SWIPING!) 🔥 */
+    /* 🔥 1. BUTTON ALIGNMENT FIX (Desktop & Mobile) 🔥 */
+    div[data-testid="stHorizontalBlock"]:has(.filter-marker) {
+        align-items: center !important; /* Fixes Desktop misalignment */
+        gap: 8px !important;
+    }
+    
     @media screen and (max-width: 650px) {
-        /* Force the block to be a single horizontal row */
         div[data-testid="stHorizontalBlock"]:has(.filter-marker) {
             display: flex !important;
             flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            gap: 4px !important;
-            overflow: hidden !important;
+            flex-wrap: nowrap !important; /* Keeps them in one line */
+            justify-content: space-between !important;
         }
-        /* Break Streamlit's default 100% width on mobile columns */
         div[data-testid="stHorizontalBlock"]:has(.filter-marker) > div[data-testid="column"] {
-            width: 25% !important;
-            min-width: 0px !important; /* CRITICAL FIX */
-            flex: 1 1 0px !important;
-            padding: 0 !important;
-        }
-        /* Resize buttons to fit mobile perfectly */
-        div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button {
-            height: 38px !important;
-            padding: 0 !important;
-            width: 100% !important;
+            width: 24% !important;
+            min-width: 0px !important;
+            flex: 1 1 auto !important;
         }
         div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button p {
-            font-size: 9px !important; 
-            white-space: nowrap !important; /* Prevents text from going to second line */
+            font-size: 9px !important;
         }
     }
-    
-    /* 🔥 3. AUTO-ADJUSTING FLUID GRID MAGIC 🔥 */
+
+    /* 🔥 2. FLUID GRID LOGIC 🔥 */
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) {
         display: grid !important;
-        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important; 
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)) !important; 
         gap: 12px !important;
-        align-items: start !important;
     }
-    /* Hide the marker */
-    div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div:nth-child(1) {
-        display: none !important;
-    }
+    div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div:nth-child(1) { display: none !important; }
     
-    /* 🔥 4. INDIVIDUAL CHART BOX STYLING 🔥 */
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] {
         background-color: #161b22 !important;
         border: 1px solid #30363d !important;
         border-radius: 8px !important;
-        padding: 8px 5px 5px 5px !important;
+        padding: 10px 5px !important;
         position: relative !important;
-        width: 100% !important;
     }
 
-    /* 🔥 5. PERFECT PIN BOX (Top-Left Absolute) 🔥 */
+    /* Pin positioning */
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] div[data-testid="stCheckbox"] {
         position: absolute !important;
         top: 8px !important;
-        left: 10px !important;
+        left: 8px !important;
         z-index: 100 !important;
     }
-    div[data-testid="stCheckbox"] label { padding: 0 !important; min-height: 0 !important; }
+
+    /* Chart box styling */
+    .chart-box { padding: 5px; }
+    .ind-labels { text-align: center; font-size: 9px; color: #8b949e; margin-bottom: 5px; font-weight: 400 !important; }
     
-    /* General Button Styles */
-    div.stButton > button {
-        border-radius: 8px !important;
-        border: 1px solid #30363d !important;
-        background-color: #161b22 !important;
-        height: 45px !important;
-    }
-    
-    /* Heatmap Layout */
+    /* Heatmap Grids */
     .heatmap-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 8px; padding: 5px 0; }
-    .stock-card { border-radius: 4px; padding: 8px 4px; text-align: center; text-decoration: none !important; color: white !important; display: flex; flex-direction: column; justify-content: center; height: 90px; position: relative; box-shadow: 0 1px 3px rgba(0,0,0,0.3); transition: transform 0.2s; }
-    .stock-card:hover { transform: scale(1.05); z-index: 10; box-shadow: 0 4px 8px rgba(0,0,0,0.5); }
+    .stock-card { border-radius: 4px; padding: 8px 4px; text-align: center; text-decoration: none !important; color: white !important; display: flex; flex-direction: column; justify-content: center; height: 90px; position: relative; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
     
     .bull-card { background-color: #1e5f29 !important; } 
     .bear-card { background-color: #b52524 !important; } 
     .neut-card { background-color: #30363d !important; } 
     .idx-card { background-color: #0d47a1 !important; border: 1px solid #1976d2; } 
     
-    @media screen and (max-width: 1400px) { .heatmap-grid { grid-template-columns: repeat(8, 1fr); } }
-    @media screen and (max-width: 1100px) { .heatmap-grid { grid-template-columns: repeat(6, 1fr); } }
-    @media screen and (max-width: 800px) { .heatmap-grid { grid-template-columns: repeat(4, 1fr); } }
-    @media screen and (max-width: 600px) { .heatmap-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; } .stock-card { height: 95px; } .t-name { font-size: 12px; } .t-price { font-size: 16px; } .t-pct { font-size: 11px; } }
+    @media screen and (max-width: 600px) {
+        .heatmap-grid { grid-template-columns: repeat(3, 1fr); }
+    }
     
     .custom-hr { border: 0; height: 1px; background: #30363d; margin: 15px 0; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 5. DATA SETUP ---
+# --- 5. DATA FETCH ---
 INDICES_MAP = {"^NSEI": "NIFTY", "^NSEBANK": "BANKNIFTY", "^INDIAVIX": "INDIA VIX"}
 TV_INDICES_URL = {"^NSEI": "NSE:NIFTY", "^NSEBANK": "NSE:BANKNIFTY", "^INDIAVIX": "NSE:INDIAVIX"}
 
@@ -134,38 +113,12 @@ SECTOR_INDICES_MAP = {
     "^CNXIT": "NIFTY IT", "^CNXAUTO": "NIFTY AUTO", "^CNXMETAL": "NIFTY METAL",
     "^CNXPHARMA": "NIFTY PHARMA", "^CNXFMCG": "NIFTY FMCG", "^CNXENERGY": "NIFTY ENERGY", "^CNXREALTY": "NIFTY REALTY"
 }
-TV_SECTOR_URL = {
-    "^CNXIT": "NSE:CNXIT", "^CNXAUTO": "NSE:CNXAUTO", "^CNXMETAL": "NSE:CNXMETAL",
-    "^CNXPHARMA": "NSE:CNXPHARMA", "^CNXFMCG": "NSE:CNXFMCG", "^CNXENERGY": "NSE:CNXENERGY", "^CNXREALTY": "NSE:CNXREALTY"
-}
-
-NIFTY_50 = [
-    "ADANIENT", "ADANIPORTS", "APOLLOHOSP", "ASIANPAINT", "AXISBANK", "BAJAJ-AUTO", "BAJFINANCE", 
-    "BAJAJFINSV", "BEL", "BHARTIARTL", "BRITANNIA", "CIPLA", "COALINDIA", "DIVISLAB", "DRREDDY", 
-    "EICHERMOT", "GRASIM", "HCLTECH", "HDFCBANK", "HDFCLIFE", "HEROMOTOCO", "HINDALCO", "HINDUNILVR", 
-    "ICICIBANK", "INDIGO", "INFY", "ITC", "JSWSTEEL", "KOTAKBANK", "LT", "M&M", "MARUTI", "NESTLEIND", 
-    "NTPC", "ONGC", "POWERGRID", "RELIANCE", "SBILIFE", "SBIN", "SHRIRAMFIN", "SUNPHARMA", "TATACONSUM", 
-    "TATAMOTORS", "TATASTEEL", "TCS", "TECHM", "TITAN", "TRENT", "ULTRACEMCO", "WIPRO"
-]
-
-BROADER_MARKET = [
-    "HAL", "BDL", "MAZDOCK", "COCHINSHIP", "GRSE", "RVNL", "IRFC", "IRCON", "TITAGARH", "RAILTEL", "RITES",
-    "ADANIPOWER", "ADANIGREEN", "NHPC", "SJVN", "BHEL", "CGPOWER", "SUZLON", "PFC", "RECLTD", "IREDA", "IOB", "UCOBANK", "MAHABANK", "CANBK",
-    "CHOLAFIN", "JIOFIN", "MUTHOOTFIN", "MANAPPURAM", "M&MFIN", "DIXON", "POLYCAB", "KAYNES", "HAVELLS", "KEI", "RRKABEL",
-    "SRF", "TATACHEM", "DEEPAKNTR", "AARTIIND", "PIIND", "FACT", "UPL", "AMBUJACEM", "SHREECEM", "DALBHARAT", "CUMMINSIND", "ABB", "SIEMENS",
-    "IDEA", "ZOMATO", "DMART", "PAYTM", "ZENTEC", "ATGL", "AWL", "BOSCHLTD", "MRF", "MOTHERSON", "SONACOMS", "EXIDEIND", "AMARAJABAT", "VEDL", "SAIL"
-]
-
-def get_minutes_passed():
-    now = datetime.now()
-    if now.weekday() >= 5 or now.time() > dt_time(15, 30): return 375
-    open_time = now.replace(hour=9, minute=15, second=0)
-    return min(375, max(1, int((now - open_time).total_seconds() / 60)))
 
 @st.cache_data(ttl=60)
 def fetch_all_data():
-    all_stocks = set(NIFTY_50 + BROADER_MARKET)
-    tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + [f"{t}.NS" for t in all_stocks]
+    all_tickers = ["ADANIENT", "ADANIPORTS", "APOLLOHOSP", "ASIANPAINT", "AXISBANK", "BAJAJ-AUTO", "BAJFINANCE", "BAJAJFINSV", "BEL", "BHARTIARTL", "BRITANNIA", "CIPLA", "COALINDIA", "DIVISLAB", "DRREDDY", "EICHERMOT", "GRASIM", "HCLTECH", "HDFCBANK", "HDFCLIFE", "HEROMOTOCO", "HINDALCO", "HINDUNILVR", "ICICIBANK", "INDIGO", "INFY", "ITC", "JSWSTEEL", "KOTAKBANK", "LT", "M&M", "MARUTI", "NESTLEIND", "NTPC", "ONGC", "POWERGRID", "RELIANCE", "SBILIFE", "SBIN", "SHRIRAMFIN", "SUNPHARMA", "TATACONSUM", "TATAMOTORS", "TATASTEEL", "TCS", "TECHM", "TITAN", "TRENT", "ULTRACEMCO", "WIPRO", "HAL", "BDL", "MAZDOCK", "COCHINSHIP", "GRSE", "RVNL", "IRFC", "IRCON", "TITAGARH", "RAILTEL", "RITES", "ADANIPOWER", "ADANIGREEN", "NHPC", "SJVN", "BHEL", "CGPOWER", "SUZLON", "PFC", "RECLTD", "IREDA", "IOB", "UCOBANK", "MAHABANK", "CANBK", "CHOLAFIN", "JIOFIN", "MUTHOOTFIN", "MANAPPURAM", "M&MFIN", "DIXON", "POLYCAB", "KAYNES", "HAVELLS", "KEI", "RRKABEL", "SRF", "TATACHEM", "DEEPAKNTR", "AARTIIND", "PIIND", "FACT", "UPL", "AMBUJACEM", "SHREECEM", "DALBHARAT", "CUMMINSIND", "ABB", "SIEMENS", "IDEA", "ZOMATO", "DMART", "PAYTM", "ZENTEC", "ATGL", "AWL", "BOSCHLTD", "MRF", "MOTHERSON", "SONACOMS", "EXIDEIND", "AMARAJABAT", "VEDL", "SAIL"]
+    
+    tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + [f"{t}.NS" for t in all_tickers]
     data = yf.download(tkrs, period="5d", progress=False, group_by='ticker', threads=20)
     
     results = []
@@ -175,280 +128,72 @@ def fetch_all_data():
         try:
             df = data[symbol].dropna(subset=['Close'])
             if len(df) < 2: continue
-            
-            ltp = float(df['Close'].iloc[-1])
-            open_p = float(df['Open'].iloc[-1])
-            prev_c = float(df['Close'].iloc[-2])
-            low = float(df['Low'].iloc[-1])
-            high = float(df['High'].iloc[-1])
-            
-            day_chg = ((ltp - open_p) / open_p) * 100
+            ltp, open_p, prev_c = float(df['Close'].iloc[-1]), float(df['Open'].iloc[-1]), float(df['Close'].iloc[-2])
+            low, high = float(df['Low'].iloc[-1]), float(df['High'].iloc[-1])
             net_chg = ((ltp - prev_c) / prev_c) * 100
             
-            if 'Volume' in df.columns and not df['Volume'].isna().all():
-                avg_vol = df['Volume'].iloc[:-1].mean()
-                curr_vol = float(df['Volume'].iloc[-1])
-                vol_x = round(curr_vol / ((avg_vol/375) * minutes), 1) if avg_vol > 0 else 0.0
-            else:
-                vol_x = 0.0
-                
-            vwap = (high + low + ltp) / 3
             score = 0
-            if abs(day_chg) >= 2.0: score += 3 
+            if abs(((ltp - open_p) / open_p) * 100) >= 2.0: score += 3 
             if abs(open_p - low) <= (ltp * 0.003) or abs(open_p - high) <= (ltp * 0.003): score += 3 
-            if vol_x > 1.0: score += 3 
-            if (ltp >= high * 0.998 and day_chg > 0.5) or (ltp <= low * 1.002 and day_chg < -0.5): score += 1
-            if (ltp > (low * 1.01) and ltp > vwap) or (ltp < (high * 0.99) and ltp < vwap): score += 1
             
-            is_index = False
-            is_sector = False
-            
-            if symbol in INDICES_MAP:
-                disp_name = INDICES_MAP[symbol]
-                is_index = True
-            elif symbol in SECTOR_INDICES_MAP:
-                disp_name = SECTOR_INDICES_MAP[symbol]
-                is_sector = True
-            else:
-                disp_name = symbol.replace(".NS", "")
-                
+            is_index, is_sector = symbol in INDICES_MAP, symbol in SECTOR_INDICES_MAP
+            disp_name = INDICES_MAP.get(symbol, SECTOR_INDICES_MAP.get(symbol, symbol.replace(".NS", "")))
             results.append({"Fetch_T": symbol, "T": disp_name, "P": ltp, "C": net_chg, "S": score, "Is_Index": is_index, "Is_Sector": is_sector})
         except: continue
-        
     return pd.DataFrame(results)
 
-def process_5m_data(df_raw):
-    try:
-        df_s = df_raw.dropna(subset=['Close']).copy()
-        if df_s.empty: return pd.DataFrame()
-        df_s['EMA_10'] = df_s['Close'].ewm(span=10, adjust=False).mean()
-        df_s.index = pd.to_datetime(df_s.index)
-        df_day = df_s[df_s.index.date == df_s.index.date.max()].copy()
-        
-        if not df_day.empty:
-            df_day['Typical_Price'] = (df_day['High'] + df_day['Low'] + df_day['Close']) / 3
-            if 'Volume' in df_day.columns and df_day['Volume'].fillna(0).sum() > 0:
-                df_day['VWAP'] = (df_day['Typical_Price'] * df_day['Volume']).cumsum() / df_day['Volume'].cumsum()
-            else:
-                df_day['VWAP'] = df_day['Typical_Price'].expanding().mean()
-            return df_day
-        return pd.DataFrame()
-    except: return pd.DataFrame()
+def get_minutes_passed():
+    now = datetime.now()
+    if now.weekday() >= 5 or now.time() > dt_time(15, 30): return 375
+    open_time = now.replace(hour=9, minute=15, second=0)
+    return min(375, max(1, int((now - open_time).total_seconds() / 60)))
 
-# --- HELPER FUNCTION TO DRAW CHARTS ---
 def render_chart(row, df_chart, show_pin=True):
-    display_sym = row['T']
-    fetch_sym = row['Fetch_T']
+    color_hex = "#2ea043" if row['C'] > 0 else "#da3633"
+    tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(row['Fetch_T'], 'NSE:' + row['T'])}"
     
-    if display_sym == "INDIA VIX": 
-        color_hex = "#da3633" if row['C'] > 0 else ("#2ea043" if row['C'] < 0 else "#8b949e")
-    else:
-        color_hex = "#2ea043" if row['C'] > 0 else ("#da3633" if row['C'] < 0 else "#8b949e")
-        
-    sign = "+" if row['C'] > 0 else ""
-    tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
+    if show_pin and not row['Is_Index']:
+        st.checkbox("pin", value=(row['Fetch_T'] in st.session_state.pinned_stocks), key=f"cb_{row['Fetch_T']}", on_change=toggle_pin, args=(row['Fetch_T'],), label_visibility="collapsed")
     
-    if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX"]:
-        st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=f"cb_{fetch_sym}", on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
+    st.markdown(f"<div style='text-align:center; font-size:14px;'><a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none;'>{row['T']} <span style='color:{color_hex}'>({row['C']:.2f}%)</span></a></div>", unsafe_allow_html=True)
+    st.markdown("<div class='ind-labels'><span style='color:#FFD700;'>--- VWAP</span> | <span style='color:#00BFFF;'>-- 10 EMA</span></div>", unsafe_allow_html=True)
     
-    st.markdown(f"""
-        <div style='text-align:center; font-size:15px; margin-top:2px;'>
-            <a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; font-weight:normal !important;'>
-                {display_sym} <span style='color:{color_hex}; font-weight:normal !important;'>({sign}{row['C']:.2f}%)</span>
-            </a>
-        </div>
-        <div style='text-align:center; font-size:10px; color:#8b949e; margin-top:2px; margin-bottom:5px; font-weight:normal !important;'>
-            <span style='color:#FFD700;'>--- VWAP</span> &nbsp;|&nbsp; <span style='color:#00BFFF;'>- - 10 EMA</span>
-        </div>
-    """, unsafe_allow_html=True)
-    
-    try:
-        if not df_chart.empty:
-            min_val, max_val = df_chart[['Low', 'VWAP', 'EMA_10']].min().min(), df_chart[['High', 'VWAP', 'EMA_10']].max().max()
-            y_padding = (max_val - min_val) * 0.1 if (max_val - min_val) != 0 else min_val * 0.005 
-            
-            fig = go.Figure()
-            fig.add_trace(go.Candlestick(x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], increasing_line_color='#2ea043', decreasing_line_color='#da3633', name='Price'))
-            fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot')))
-            fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash')))
-            
-            # 🔥 MAGIC ZOOM FIX: dragmode=False and fixedrange=True 🔥
-            fig.update_layout(
-                margin=dict(l=0, r=0, t=0, b=0), 
-                height=150, 
-                paper_bgcolor='rgba(0,0,0,0)', 
-                plot_bgcolor='rgba(0,0,0,0)', 
-                xaxis=dict(visible=False, rangeslider=dict(visible=False), fixedrange=True), 
-                yaxis=dict(visible=False, range=[min_val - y_padding, max_val + y_padding], fixedrange=True), 
-                hovermode=False, 
-                showlegend=False,
-                dragmode=False 
-            )
-            
-            # 🔥 staticPlot: True PREVENTS ANY SCROLLING ISSUES 🔥
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True})
-        else:
-            st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:normal !important;'>Data not available</div>", unsafe_allow_html=True)
-    except Exception as e:
-        st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:normal !important;'>Chart error</div>", unsafe_allow_html=True)
+    if not df_chart.empty:
+        fig = go.Figure(data=[go.Candlestick(x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], increasing_line_color='#2ea043', decreasing_line_color='#da3633')])
+        fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=140, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(visible=False, fixedrange=True), yaxis=dict(visible=False, fixedrange=True), dragmode=False)
+        st.plotly_chart(fig, use_container_width=True, config={'staticPlot': True, 'displayModeBar': False})
 
-# --- 6. TOP NAVIGATION & SEARCH ---
-c1, c2 = st.columns([0.6, 0.4])
-with c1: watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Nifty 50 Heatmap"], label_visibility="collapsed")
-with c2: view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
-
-# --- 7. RENDER LOGIC & TREND ANALYSIS ---
+# --- 6. RENDER LOGIC ---
 df = fetch_all_data()
-
 if not df.empty:
+    watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Nifty 50 Heatmap"], label_visibility="collapsed")
+    view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
     
-    all_names = sorted(df[~df['Is_Sector']]['T'].tolist())
-    search_stock = st.selectbox("🔍 Search & View Chart", ["-- None --"] + all_names)
-    
-    df_indices = df[df['Is_Index']].copy()
-    df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3})
-    df_indices = df_indices.sort_values("Order")
-    
-    df_sectors = df[df['Is_Sector']].copy()
-    df_sectors = df_sectors.sort_values(by="C", ascending=False)
-    
-    df_stocks = df[(~df['Is_Index']) & (~df['Is_Sector'])].copy()
-    
-    if watchlist_mode == "Nifty 50 Heatmap":
-        df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
-    else:
-        df_filtered = df_stocks[(df_stocks['S'] >= 7) & (df_stocks['S'] <= 10)]
+    df_indices = df[df['Is_Index']].sort_values("T")
+    df_filtered = df[(df['S'] >= 6)] if watchlist_mode == "High Score Stocks 🔥" else df[~df['Is_Index'] & ~df['Is_Sector']]
 
-    all_display_tickers = list(set(df_indices['Fetch_T'].tolist() + df_filtered['Fetch_T'].tolist()))
-    if search_stock != "-- None --":
-        search_fetch_t = df[df['T'] == search_stock]['Fetch_T'].iloc[0]
-        if search_fetch_t not in all_display_tickers:
-            all_display_tickers.append(search_fetch_t)
-            
-    with st.spinner("Analyzing VWAP & 10 EMA Trends (Lightning Speed ⚡)..."):
-        five_min_data = yf.download(all_display_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=20)
-
-    bull_cnt, bear_cnt, neut_cnt = 0, 0, 0
-    processed_charts = {}
-    stock_trends = {}
-
-    for sym in all_display_tickers:
-        df_raw = five_min_data[sym] if isinstance(five_min_data.columns, pd.MultiIndex) else five_min_data
-        df_day = process_5m_data(df_raw)
-        processed_charts[sym] = df_day
-        
-        if sym in df_filtered['Fetch_T'].tolist() and not df_day.empty:
-            last_price = df_day['Close'].iloc[-1]
-            last_vwap = df_day['VWAP'].iloc[-1]
-            last_ema = df_day['EMA_10'].iloc[-1]
-            
-            if last_price > last_vwap and last_price > last_ema:
-                stock_trends[sym] = 'Bullish'
-                bull_cnt += 1
-            elif last_price < last_vwap and last_price < last_ema:
-                stock_trends[sym] = 'Bearish'
-                bear_cnt += 1
-            else:
-                stock_trends[sym] = 'Neutral'
-                neut_cnt += 1
-
-    # --- CLICKABLE TREND FILTERS ---
+    # 🔥 ALIGNED BUTTONS 🔥
     f1, f2, f3, f4 = st.columns(4)
-    # 🔥 MARKER FOR MOBILE HORIZONTAL CSS 🔥
-    with f1: st.markdown("<div class='filter-marker' style='display:none;'></div>", unsafe_allow_html=True)
-    
-    with f1: 
-        if st.button(f"📊 All ({len(df_filtered)})", use_container_width=True): st.session_state.trend_filter = 'All'
-    with f2: 
-        if st.button(f"🟢 Bullish ({bull_cnt})", use_container_width=True): st.session_state.trend_filter = 'Bullish'
-    with f3: 
-        if st.button(f"⚪ Neutral ({neut_cnt})", use_container_width=True): st.session_state.trend_filter = 'Neutral'
-    with f4: 
-        if st.button(f"🔴 Bearish ({bear_cnt})", use_container_width=True): st.session_state.trend_filter = 'Bearish'
+    with f1: st.markdown("<div class='filter-marker'></div>", unsafe_allow_html=True); st.button(f"All ({len(df_filtered)})", key="btn_all", on_click=setattr, args=(st.session_state, 'trend_filter', 'All'), use_container_width=True)
+    with f2: st.button(f"Bullish", key="btn_bull", on_click=setattr, args=(st.session_state, 'trend_filter', 'Bullish'), use_container_width=True)
+    with f3: st.button(f"Neutral", key="btn_neut", on_click=setattr, args=(st.session_state, 'trend_filter', 'Neutral'), use_container_width=True)
+    with f4: st.button(f"Bearish", key="btn_bear", on_click=setattr, args=(st.session_state, 'trend_filter', 'Bearish'), use_container_width=True)
 
-    st.markdown(f"<div style='text-align:right; font-size:12px; color:#ffd700; margin-bottom: 10px; font-weight:normal !important;'>Showing: <b>{st.session_state.trend_filter}</b> Stocks</div>", unsafe_allow_html=True)
-
-    if st.session_state.trend_filter != 'All':
-        df_filtered = df_filtered[df_filtered['Fetch_T'].apply(lambda x: stock_trends.get(x) == st.session_state.trend_filter)]
-
-    greens = df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False])
-    reds = df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[True, True])
-    df_stocks_display = pd.concat([greens, reds])
-
-    # --- RENDER VIEWS ---
     if view_mode == "Heat Map":
-        if not df_indices.empty:
-            html_idx = '<div class="heatmap-grid">'
-            for _, row in df_indices.iterrows():
-                bg = "bear-card" if (row['T'] == "INDIA VIX" and row['C'] > 0) else ("bull-card" if row['C'] > 0 else "neut-card")
-                if row['T'] != "INDIA VIX" and row['C'] < 0: bg = "bear-card"
-                html_idx += f'<a href="https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(row["Fetch_T"])}" target="_blank" class="stock-card {bg}"><div class="t-score">IDX</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if row["C"]>0 else ""}{row["C"]:.2f}%</div></a>'
-            st.markdown(html_idx + '</div><hr class="custom-hr">', unsafe_allow_html=True)
-        
-        if not df_sectors.empty:
-            html_sec = '<div class="heatmap-grid">'
-            for _, row in df_sectors.iterrows():
-                bg = "bull-card" if row['C'] > 0 else ("bear-card" if row['C'] < 0 else "neut-card")
-                tv_sym = TV_SECTOR_URL.get(row['Fetch_T'], "")
-                tv_link = f"https://in.tradingview.com/chart/?symbol={tv_sym}"
-                html_sec += f'<a href="{tv_link}" target="_blank" class="stock-card {bg}"><div class="t-score" style="color:#00BFFF;">SEC</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if row["C"]>0 else ""}{row["C"]:.2f}%</div></a>'
-            st.markdown(html_sec + '</div><hr class="custom-hr">', unsafe_allow_html=True)
-
-        if not df_stocks_display.empty:
-            html_stk = '<div class="heatmap-grid">'
-            for _, row in df_stocks_display.iterrows():
-                bg = "bull-card" if row['C'] > 0 else ("bear-card" if row['C'] < 0 else "neut-card")
-                html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">⭐{int(row["S"])}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if row["C"]>0 else ""}{row["C"]:.2f}%</div></a>'
-            st.markdown(html_stk + '</div>', unsafe_allow_html=True)
-        else:
-            st.info(f"No {st.session_state.trend_filter} stocks found in this list.")
-            
+        st.markdown('<div class="heatmap-grid">' + "".join([f'<div class="stock-card idx-card"><div class="t-name">{r.T}</div><div class="t-price">{r.P:.2f}</div><div class="t-pct">{r.C:.2f}%</div></div>' for _, r in df_indices.iterrows()]) + '</div><hr class="custom-hr">', unsafe_allow_html=True)
+        st.markdown('<div class="heatmap-grid">' + "".join([f'<div class="stock-card {"bull-card" if r.C>0 else "bear-card"}"><div class="t-score">⭐{int(r.S)}</div><div class="t-name">{r.T}</div><div class="t-price">{r.P:.2f}</div><div class="t-pct">{r.C:.2f}%</div></div>' for _, r in df_filtered.iterrows()]) + '</div>', unsafe_allow_html=True)
     else:
-        st.markdown("<br>", unsafe_allow_html=True)
+        chart_tkrs = list(set(df_indices['Fetch_T'].tolist() + df_filtered['Fetch_T'].tolist()))
+        chart_data = yf.download(chart_tkrs, period="5d", interval="5m", progress=False, group_by='ticker')
         
-        # 1. RENDER SEARCHED CHART
-        if search_stock != "-- None --":
-            st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:5px; color:#ffd700;'>🔍 Searched Chart: {search_stock}</div>", unsafe_allow_html=True)
-            searched_row = df[df['T'] == search_stock].iloc[0]
-            
-            with st.container():
-                st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
-                with st.container():
-                    render_chart(searched_row, processed_charts.get(searched_row['Fetch_T'], pd.DataFrame()), show_pin=False)
-            st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
+        st.markdown("### 📈 Market Indices")
+        with st.container():
+            st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
+            for _, r in df_indices.iterrows():
+                with st.container(): render_chart(r, chart_data[r.Fetch_T] if r.Fetch_T in chart_data else pd.DataFrame(), False)
         
-        # 2. RENDER INDICES CHARTS
-        st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>📈 Market Indices</div>", unsafe_allow_html=True)
-        if not df_indices.empty:
-            with st.container():
-                st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
-                for _, row in df_indices.iterrows():
-                    with st.container():
-                        render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=False)
-        st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
-        
-        # 3. RENDER PINNED STOCKS CHARTS
-        pinned_df = df_stocks_display[df_stocks_display['Fetch_T'].isin(st.session_state.pinned_stocks)]
-        unpinned_df = df_stocks_display[~df_stocks_display['Fetch_T'].isin(st.session_state.pinned_stocks)]
-        
-        if not pinned_df.empty:
-            st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#ffd700;'>📌 Pinned Priority Charts</div>", unsafe_allow_html=True)
-            with st.container():
-                st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
-                for _, row in pinned_df.iterrows():
-                    with st.container():
-                        render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=True)
-            st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
-        
-        # 4. RENDER REMAINING STOCKS
-        if not unpinned_df.empty:
-            st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>{watchlist_mode} ({st.session_state.trend_filter})</div>", unsafe_allow_html=True)
-            
-            with st.container():
-                st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
-                for _, row in unpinned_df.iterrows():
-                    with st.container():
-                        render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=True)
-
-else:
-    st.info("Loading Market Data...")
+        st.markdown("<hr class='custom-hr'> ### Stocks", unsafe_allow_html=True)
+        with st.container():
+            st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
+            for _, r in df_filtered.iterrows():
+                with st.container(): render_chart(r, chart_data[r.Fetch_T] if r.Fetch_T in chart_data else pd.DataFrame())
