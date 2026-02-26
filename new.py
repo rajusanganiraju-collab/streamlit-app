@@ -23,7 +23,7 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- 4. CSS FOR STYLING (RESTORED TO THE 100% SUCCESSFUL VERSION) ---
+# --- 4. CSS FOR STYLING (PERFECT HORIZONTAL BUTTONS & FLUID GRID) ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
@@ -39,14 +39,14 @@ st.markdown("""
     .t-pct { font-size: 12px; font-weight: normal !important; }
     .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal !important; }
     
-    /* 🔥 2. THE SUCCESSFUL HORIZONTAL BUTTONS FIX (NO COLUMNS HACK) 🔥 */
+    /* 🔥 2. THE ULTIMATE EQUAL-SIZE HORIZONTAL BUTTONS FIX 🔥 */
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) {
         display: flex !important;
         flex-direction: row !important; 
         flex-wrap: nowrap !important; 
-        justify-content: center !important; 
+        justify-content: space-between !important; 
         align-items: center !important;
-        gap: 8px !important; 
+        gap: 6px !important; 
         width: 100% !important;
     }
     
@@ -55,26 +55,21 @@ st.markdown("""
     }
     
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) > div[data-testid="stElementContainer"] {
-        width: auto !important;
-        flex: 0 0 auto !important; 
+        flex: 1 1 0px !important; /* 🔥 THIS MAKES ALL 4 BUTTONS EXACTLY EQUAL SIZE 🔥 */
+        min-width: 0 !important;
+        width: 100% !important;
     }
     
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button {
-        width: max-content !important;
-        height: 35px !important;
-        padding: 0px 12px !important;
+        width: 100% !important;
+        height: 38px !important;
+        padding: 0px !important;
     }
     
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button p {
-        font-size: 12px !important;
+        font-size: clamp(9px, 2.5vw, 13px) !important; /* Auto-shrinks text perfectly */
         white-space: nowrap !important; 
         margin: 0 !important;
-    }
-    
-    @media screen and (max-width: 650px) {
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) { gap: 4px !important; }
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button { padding: 0px 8px !important; }
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button p { font-size: 10.5px !important; }
     }
     
     /* 🔥 3. THE SUCCESSFUL FLUID GRID FOR CHARTS 🔥 */
@@ -306,10 +301,24 @@ def render_chart(row, df_chart, show_pin=True, key_suffix=""):
     except Exception as e:
         st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:normal !important;'>Chart error</div>", unsafe_allow_html=True)
 
+def render_chart_grid(df_grid, show_pin_option, key_prefix):
+    if df_grid.empty: return
+    with st.container():
+        st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
+        for j, (_, row) in enumerate(df_grid.iterrows()):
+            with st.container():
+                render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=show_pin_option, key_suffix=f"{key_prefix}_{j}")
+
+
 # --- 6. TOP NAVIGATION & SEARCH ---
-c1, c2 = st.columns([0.6, 0.4])
-with c1: watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Nifty 50 Heatmap", "One Sided Moves 🚀"], label_visibility="collapsed")
-with c2: view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
+c1, c2, c3 = st.columns([0.4, 0.3, 0.3])
+with c1: 
+    watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Nifty 50 Heatmap", "One Sided Moves 🚀"], label_visibility="collapsed")
+with c2: 
+    sort_mode = st.selectbox("Sort By", ["Custom Sort", "Heatmap Marks Up ⭐", "Heatmap Marks Down ⬇️", "% Change Up 🟢", "% Change Down 🔴"], label_visibility="collapsed")
+with c3: 
+    view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
+
 
 # --- 7. RENDER LOGIC & TREND ANALYSIS ---
 df = fetch_all_data()
