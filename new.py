@@ -39,42 +39,41 @@ st.markdown("""
     .t-pct { font-size: 12px; font-weight: normal !important; }
     .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal !important; }
     
-    /* 🔥 2. PERFECT HORIZONTAL BUTTONS FIX (TEXT FIT, CENTERED, NO STACKING) 🔥 */
+    /* 🔥 2. PERFECT HORIZONTAL BUTTONS FIX (ALL SCREENS - FIT TO TEXT) 🔥 */
     div[data-testid="stHorizontalBlock"]:has(.filter-marker) {
         display: flex !important;
-        flex-direction: row !important; /* Force side-by-side */
-        flex-wrap: nowrap !important; /* Never move to next line */
-        justify-content: center !important; /* Align everything in center */
+        flex-direction: row !important; /* Force Side-by-Side */
+        flex-wrap: nowrap !important; /* NEVER stack vertically */
+        justify-content: center !important; /* Center the buttons */
         align-items: center !important;
         gap: 10px !important; /* Space between buttons */
         width: 100% !important;
     }
     
-    /* Shrink the column wrappers to fit text tightly */
+    /* Make the columns shrink to fit the buttons exactly */
     div[data-testid="stHorizontalBlock"]:has(.filter-marker) > div[data-testid="column"] {
         width: auto !important;
         min-width: 0px !important; 
-        flex: 0 1 auto !important; /* Shrink to fit text */
+        flex: 0 1 auto !important; /* Shrink to content */
         padding: 0 !important;
     }
     
-    /* Make button box small and perfect */
+    /* Style the buttons to fit text */
     div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button {
         height: 35px !important;
-        width: auto !important; 
+        width: auto !important; /* Text ki taggattu box! */
         padding: 0px 15px !important;
     }
     
-    /* Prevent text from breaking inside button */
     div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button p {
         font-size: 12px !important; 
-        white-space: nowrap !important; 
+        white-space: nowrap !important; /* Text single line lo untundi */
         margin: 0 !important;
     }
     
-    /* Adjust sizes slightly for small mobile screens */
+    /* Slightly smaller for mobile phones */
     @media screen and (max-width: 650px) {
-        div[data-testid="stHorizontalBlock"]:has(.filter-marker) { gap: 4px !important; }
+        div[data-testid="stHorizontalBlock"]:has(.filter-marker) { gap: 6px !important; }
         div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button { padding: 0px 8px !important; }
         div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button p { font-size: 10px !important; }
     }
@@ -387,12 +386,12 @@ if not df.empty:
                 stock_trends[sym] = 'Neutral'
                 neut_cnt += 1
 
-    # --- CLICKABLE TREND FILTERS (PERFECTLY CENTERED & FIT TO TEXT) ---
+    # --- 🔥 THE PERFECT HORIZONTAL COMPACT BUTTONS 🔥 ---
     with st.container():
         f1, f2, f3, f4 = st.columns(4)
         
-        # NOTE: Removed use_container_width=True so they fit their text!
         with f1: 
+            # 🔥 MARKER ADDED INSIDE F1 🔥
             st.markdown("<span class='filter-marker'></span>", unsafe_allow_html=True)
             if st.button(f"📊 All ({len(df_filtered)})"): st.session_state.trend_filter = 'All'
         with f2: 
