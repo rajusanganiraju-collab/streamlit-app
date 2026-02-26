@@ -23,7 +23,7 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- 4. CSS FOR STYLING (FLUID GRID, PERFECT PIN, HORIZONTAL MOBILE BUTTONS) ---
+# --- 4. CSS FOR STYLING (PERFECT MOBILE GRID & HORIZONTAL BUTTONS) ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
@@ -39,44 +39,38 @@ st.markdown("""
     .t-pct { font-size: 12px; font-weight: normal !important; }
     .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal !important; }
     
-    /* 🔥 2. MOBILE HORIZONTAL BUTTONS FIX (NO SWIPING!) 🔥 */
-    @media screen and (max-width: 650px) {
-        div[data-testid="stHorizontalBlock"]:has(.filter-marker) {
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            gap: 4px !important;
-            overflow: hidden !important;
-        }
-        div[data-testid="stHorizontalBlock"]:has(.filter-marker) > div[data-testid="column"] {
-            width: 25% !important;
-            min-width: 0px !important; 
-            flex: 1 1 0px !important;
-            padding: 0 !important;
-        }
-        div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button {
-            height: 38px !important;
-            padding: 0 !important;
-            width: 100% !important;
-        }
-        div[data-testid="stHorizontalBlock"]:has(.filter-marker) div.stButton > button p {
-            font-size: 9px !important; 
-            white-space: nowrap !important; 
-        }
+    /* 🔥 2. BULLETPROOF HORIZONTAL BUTTONS FOR MOBILE & DESKTOP 🔥 */
+    div[data-testid="stVerticalBlock"]:has(.filter-container-marker) > div[data-testid="stHorizontalBlock"] {
+        display: flex !important;
+        flex-direction: row !important; /* FORCES HORIZONTAL ALWAYS */
+        flex-wrap: nowrap !important;
+        gap: 6px !important;
+        align-items: center !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(.filter-container-marker) > div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+        width: 25% !important;
+        min-width: 0 !important;
+        flex: 1 1 0px !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(.filter-container-marker) button {
+        height: 42px !important;
+        padding: 0 !important;
+        width: 100% !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(.filter-container-marker) button p {
+        white-space: nowrap !important;
     }
     
-    /* 🔥 3. AUTO-ADJUSTING FLUID GRID MAGIC 🔥 */
+    /* 🔥 3. DESKTOP FLUID GRID (AUTO ADJUST) 🔥 */
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) {
         display: grid !important;
         grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important; 
         gap: 12px !important;
         align-items: start !important;
     }
-    div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div:nth-child(1) {
-        display: none !important;
-    }
+    div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div:nth-child(1) { display: none !important; }
     
-    /* 🔥 4. INDIVIDUAL CHART BOX STYLING 🔥 */
+    /* INDIVIDUAL CHART BOX */
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] {
         background-color: #161b22 !important;
         border: 1px solid #30363d !important;
@@ -86,37 +80,52 @@ st.markdown("""
         width: 100% !important;
     }
 
-    /* 🔥 5. PERFECT PIN BOX (Top-Left Absolute) 🔥 */
+    /* PERFECT PIN BOX */
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] div[data-testid="stCheckbox"] {
         position: absolute !important;
         top: 8px !important;
-        left: 10px !important;
+        left: 8px !important;
         z-index: 100 !important;
     }
     div[data-testid="stCheckbox"] label { padding: 0 !important; min-height: 0 !important; }
     
     /* General Button Styles */
-    div.stButton > button {
-        border-radius: 8px !important;
-        border: 1px solid #30363d !important;
-        background-color: #161b22 !important;
-        height: 45px !important;
-    }
+    div.stButton > button { border-radius: 8px !important; border: 1px solid #30363d !important; background-color: #161b22 !important; }
     
-    /* Heatmap Layout */
+    /* Responsive Text Classes for Charts */
+    .c-title { text-align:center; font-size:15px; margin-top:2px; font-weight:normal !important; }
+    .c-labels { text-align:center; font-size:10px; color:#8b949e; margin-top:2px; margin-bottom:5px; font-weight:normal !important; }
+    
+    /* Heatmap Grids */
     .heatmap-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 8px; padding: 5px 0; }
     .stock-card { border-radius: 4px; padding: 8px 4px; text-align: center; text-decoration: none !important; color: white !important; display: flex; flex-direction: column; justify-content: center; height: 90px; position: relative; box-shadow: 0 1px 3px rgba(0,0,0,0.3); transition: transform 0.2s; }
-    .stock-card:hover { transform: scale(1.05); z-index: 10; box-shadow: 0 4px 8px rgba(0,0,0,0.5); }
     
     .bull-card { background-color: #1e5f29 !important; } 
     .bear-card { background-color: #b52524 !important; } 
     .neut-card { background-color: #30363d !important; } 
     .idx-card { background-color: #0d47a1 !important; border: 1px solid #1976d2; } 
     
-    @media screen and (max-width: 1400px) { .heatmap-grid { grid-template-columns: repeat(8, 1fr); } }
-    @media screen and (max-width: 1100px) { .heatmap-grid { grid-template-columns: repeat(6, 1fr); } }
-    @media screen and (max-width: 800px) { .heatmap-grid { grid-template-columns: repeat(4, 1fr); } }
-    @media screen and (max-width: 600px) { .heatmap-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; } .stock-card { height: 95px; } .t-name { font-size: 12px; } .t-price { font-size: 16px; } .t-pct { font-size: 11px; } }
+    /* 🔥 4. MOBILE SPECIFIC OVERRIDES 🔥 */
+    @media screen and (max-width: 650px) {
+        /* EXACTLY 2 CHARTS PER ROW ON MOBILE */
+        div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 6px !important;
+        }
+        
+        /* Make Chart Text Smaller to fit 2-per-row perfectly */
+        .c-title { font-size: 11px !important; margin-top:1px; }
+        .c-title a { font-size: 11px !important; }
+        .c-labels { font-size: 8px !important; margin-bottom:2px; }
+        
+        /* Shrink Button Text on Mobile */
+        div[data-testid="stVerticalBlock"]:has(.filter-container-marker) button p {
+            font-size: 10px !important; 
+        }
+        
+        .heatmap-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; } 
+        .stock-card { height: 95px; }
+    }
     
     .custom-hr { border: 0; height: 1px; background: #30363d; margin: 15px 0; }
     </style>
@@ -247,13 +256,14 @@ def render_chart(row, df_chart, show_pin=True):
     if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX"]:
         st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=f"cb_{fetch_sym}", on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
     
+    # Text and Link uses CSS classes for responsiveness
     st.markdown(f"""
-        <div style='text-align:center; font-size:15px; margin-top:2px;'>
+        <div class="c-title">
             <a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; font-weight:normal !important;'>
                 {display_sym} <span style='color:{color_hex}; font-weight:normal !important;'>({sign}{row['C']:.2f}%)</span>
             </a>
         </div>
-        <div style='text-align:center; font-size:10px; color:#8b949e; margin-top:2px; margin-bottom:5px; font-weight:normal !important;'>
+        <div class="c-labels">
             <span style='color:#FFD700;'>--- VWAP</span> &nbsp;|&nbsp; <span style='color:#00BFFF;'>- - 10 EMA</span>
         </div>
     """, unsafe_allow_html=True)
@@ -284,9 +294,9 @@ def render_chart(row, df_chart, show_pin=True):
             # 🔥 config={'staticPlot': True} makes the chart 100% immune to touches 🔥
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True})
         else:
-            st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:normal !important;'>Data not available</div>", unsafe_allow_html=True)
+            st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:normal !important; font-size:12px;'>Data not available</div>", unsafe_allow_html=True)
     except Exception as e:
-        st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:normal !important;'>Chart error</div>", unsafe_allow_html=True)
+        st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888; font-weight:normal !important; font-size:12px;'>Chart error</div>", unsafe_allow_html=True)
 
 # --- 6. TOP NAVIGATION & SEARCH ---
 c1, c2 = st.columns([0.6, 0.4])
@@ -351,18 +361,19 @@ if not df.empty:
                 stock_trends[sym] = 'Neutral'
                 neut_cnt += 1
 
-    # --- CLICKABLE TREND FILTERS ---
-    f1, f2, f3, f4 = st.columns(4)
-    with f1: st.markdown("<div class='filter-marker' style='display:none;'></div>", unsafe_allow_html=True)
-    
-    with f1: 
-        if st.button(f"📊 All ({len(df_filtered)})", use_container_width=True): st.session_state.trend_filter = 'All'
-    with f2: 
-        if st.button(f"🟢 Bullish ({bull_cnt})", use_container_width=True): st.session_state.trend_filter = 'Bullish'
-    with f3: 
-        if st.button(f"⚪ Neutral ({neut_cnt})", use_container_width=True): st.session_state.trend_filter = 'Neutral'
-    with f4: 
-        if st.button(f"🔴 Bearish ({bear_cnt})", use_container_width=True): st.session_state.trend_filter = 'Bearish'
+    # --- 🔥 BULLETPROOF HORIZONTAL BUTTONS CONTAINER 🔥 ---
+    with st.container():
+        st.markdown("<div class='filter-container-marker' style='display:none;'></div>", unsafe_allow_html=True)
+        f1, f2, f3, f4 = st.columns(4)
+        
+        with f1: 
+            if st.button(f"📊 All ({len(df_filtered)})", use_container_width=True): st.session_state.trend_filter = 'All'
+        with f2: 
+            if st.button(f"🟢 Bullish ({bull_cnt})", use_container_width=True): st.session_state.trend_filter = 'Bullish'
+        with f3: 
+            if st.button(f"⚪ Neutral ({neut_cnt})", use_container_width=True): st.session_state.trend_filter = 'Neutral'
+        with f4: 
+            if st.button(f"🔴 Bearish ({bear_cnt})", use_container_width=True): st.session_state.trend_filter = 'Bearish'
 
     st.markdown(f"<div style='text-align:right; font-size:12px; color:#ffd700; margin-bottom: 10px; font-weight:normal !important;'>Showing: <b>{st.session_state.trend_filter}</b> Stocks</div>", unsafe_allow_html=True)
 
@@ -370,21 +381,14 @@ if not df.empty:
     if st.session_state.trend_filter != 'All':
         df_filtered = df_filtered[df_filtered['Fetch_T'].apply(lambda x: stock_trends.get(x) == st.session_state.trend_filter)]
 
-    # 🔥 NEW SORTING LOGIC 🔥 
+    # SORTING LOGIC 
     if st.session_state.trend_filter == 'Bullish':
-        # For Bullish: Highest score (10) first, then most positive % change
         df_stocks_display = df_filtered.sort_values(by=["S", "C"], ascending=[False, False])
-    
     elif st.session_state.trend_filter == 'Bearish':
-        # For Bearish: Highest score (10) first, then most negative % change
         df_stocks_display = df_filtered.sort_values(by=["S", "C"], ascending=[False, True])
-        
     elif st.session_state.trend_filter == 'Neutral':
-        # For Neutral: Highest score (10) first
         df_stocks_display = df_filtered.sort_values(by=["S", "C"], ascending=[False, False])
-        
     else:
-        # For 'All': Old logic (Greens with 10 on top, Reds with 10 on bottom)
         greens = df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False])
         reds = df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[True, True])
         df_stocks_display = pd.concat([greens, reds])
