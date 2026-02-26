@@ -23,14 +23,14 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- 4. CSS FOR STYLING (PERFECT IN-BOX PIN & NORMAL TEXT) ---
+# --- 4. CSS FOR STYLING (PERFECT SIDE-BY-SIDE PIN & NORMAL TEXT) ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
     .stApp { background-color: #0e1117; color: #ffffff; }
     .block-container { padding-top: 1rem !important; padding-bottom: 0rem !important; margin-top: -10px; }
     
-    /* 🔥 ALL TEXT TO NORMAL (UNBOLD) 🔥 */
+    /* 🔥 1. ALL TEXT TO NORMAL (UNBOLD) 🔥 */
     .stRadio label, .stRadio p, div[role="radiogroup"] p { color: #ffffff !important; font-weight: normal !important; }
     div.stButton > button p, div.stButton > button span { color: #ffffff !important; font-weight: normal !important; font-size: 14px !important; }
     
@@ -39,29 +39,29 @@ st.markdown("""
     .t-pct { font-size: 12px; font-weight: normal !important; }
     .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal !important; }
     
-    /* 🔥 BULLETPROOF BOX & PIN POSITIONING 🔥 */
-    /* This makes the ENTIRE column act as the Chart Box securely */
-    div[data-testid="column"] > div:has(.chart-marker) {
+    /* 🔥 2. BULLETPROOF CHART BOX STYLING 🔥 */
+    /* Turns the entire column into a secure Chart Box */
+    div[data-testid="column"]:has(.chart-marker) {
         background-color: #161b22 !important;
         border: 1px solid #30363d !important;
         border-radius: 8px !important;
-        padding: 12px 5px 5px 5px !important;
-        position: relative !important;
-        margin-bottom: 15px !important;
+        padding: 10px 10px 5px 10px !important;
     }
     
-    /* Places the Pin strictly INSIDE the box on the LEFT side */
-    div[data-testid="column"] > div:has(.chart-marker) div[data-testid="stCheckbox"] {
-        position: absolute !important;
-        top: 12px !important;
-        left: 12px !important;
-        z-index: 100 !important;
-        width: 25px !important;
-        height: 25px !important;
+    /* Tweaks nested columns to bring the Checkbox & Title tightly Side-by-Side */
+    div[data-testid="column"]:has(.chart-marker) div[data-testid="column"] {
+        padding: 0 !important;
+    }
+    
+    /* Perfect Checkbox alignment */
+    div[data-testid="stCheckbox"] {
+        margin-top: 2px !important;
+        display: flex;
+        justify-content: center;
     }
     div[data-testid="stCheckbox"] label { padding: 0 !important; min-height: 0 !important; }
     
-    /* General Button Styles */
+    /* Buttons Styling */
     div.stButton > button {
         border-radius: 8px !important;
         border: 1px solid #30363d !important;
@@ -69,7 +69,7 @@ st.markdown("""
         height: 45px !important;
     }
     
-    /* Heatmap Layout */
+    /* Heatmap Grids */
     .heatmap-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 8px; padding: 5px 0; }
     .stock-card { border-radius: 4px; padding: 8px 4px; text-align: center; text-decoration: none !important; color: white !important; display: flex; flex-direction: column; justify-content: center; height: 90px; position: relative; box-shadow: 0 1px 3px rgba(0,0,0,0.3); transition: transform 0.2s; }
     .stock-card:hover { transform: scale(1.05); z-index: 10; box-shadow: 0 4px 8px rgba(0,0,0,0.5); }
@@ -191,24 +191,22 @@ def render_chart(row, df_chart, show_pin=True):
     sign = "+" if row['C'] > 0 else ""
     tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
     
-    # 🌟 MAGIC MARKER: Tells the CSS to turn this whole column into a secure Box!
+    # 🔥 MAGIC MARKER: This tells the CSS to style this whole block as the Chart Box!
     st.markdown("<div class='chart-marker' style='display:none;'></div>", unsafe_allow_html=True)
     
-    # 🔥 PURE CHECKBOX: Positioned strictly top-left inside the box 🔥
-    if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX"]:
-        st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=f"cb_{fetch_sym}", on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
+    header_html = f"<a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; font-weight:normal !important;'>{display_sym} <span style='color:{color_hex}; font-weight:normal !important;'>({sign}{row['C']:.2f}%)</span></a>"
     
-    # 🔥 TEXT COMPLETELY UN-BOLDED 🔥
-    st.markdown(f"""
-        <div style='text-align:center; font-size:16px; margin-top:-5px;'>
-            <a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; font-weight:normal !important;'>
-                {display_sym} <span style='color:{color_hex}; font-weight:normal !important;'>({sign}{row['C']:.2f}%)</span>
-            </a>
-        </div>
-        <div style='text-align:center; font-size:10px; color:#8b949e; margin-bottom:5px; font-weight:normal !important;'>
-            <span style='color:#FFD700;'>--- VWAP</span> &nbsp;|&nbsp; <span style='color:#00BFFF;'>- - 10 EMA</span>
-        </div>
-    """, unsafe_allow_html=True)
+    # 🔥 SIDE-BY-SIDE ALIGNMENT: Checkbox and Name beautifully next to each other 🔥
+    if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX"]:
+        c1, c2 = st.columns([1, 6])
+        with c1:
+            st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=f"cb_{fetch_sym}", on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
+        with c2:
+            st.markdown(f"<div style='text-align:left; font-size:15px; margin-top:1px;'>{header_html}</div>", unsafe_allow_html=True)
+    else:
+        st.markdown(f"<div style='text-align:center; font-size:15px; margin-top:1px;'>{header_html}</div>", unsafe_allow_html=True)
+        
+    st.markdown("<div style='text-align:center; font-size:10px; color:#8b949e; margin-top:3px; margin-bottom:5px; font-weight:normal !important;'><span style='color:#FFD700;'>--- VWAP</span> &nbsp;|&nbsp; <span style='color:#00BFFF;'>- - 10 EMA</span></div>", unsafe_allow_html=True)
     
     try:
         if not df_chart.empty:
@@ -325,7 +323,9 @@ if not df.empty:
         if search_stock != "-- None --":
             st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:5px; color:#ffd700;'>🔍 Searched Chart: {search_stock}</div>", unsafe_allow_html=True)
             searched_row = df[df['T'] == search_stock].iloc[0]
-            render_chart(searched_row, processed_charts.get(searched_row['Fetch_T'], pd.DataFrame()), show_pin=False)
+            
+            p1, p2, p3 = st.columns([0.2, 0.6, 0.2]) 
+            with p2: render_chart(searched_row, processed_charts.get(searched_row['Fetch_T'], pd.DataFrame()), show_pin=False)
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
         # 2. RENDER INDICES CHARTS
@@ -340,7 +340,7 @@ if not df.empty:
                             
         st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
-        # 3. RENDER PINNED STOCKS CHARTS (PRIORITY ROW)
+        # 3. RENDER PINNED STOCKS CHARTS
         pinned_df = df_stocks_display[df_stocks_display['Fetch_T'].isin(st.session_state.pinned_stocks)]
         unpinned_df = df_stocks_display[~df_stocks_display['Fetch_T'].isin(st.session_state.pinned_stocks)]
         
