@@ -2,6 +2,7 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import plotly.graph_objects as go
+import os
 from datetime import datetime, time as dt_time
 from streamlit_autorefresh import st_autorefresh
 
@@ -23,7 +24,18 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- 4. CSS FOR STYLING (BUTTONS, GRID & NEW TERMINAL TABLES) ---
+# --- PORTFOLIO FILE SETUP ---
+PORTFOLIO_FILE = "my_portfolio.csv"
+def load_portfolio():
+    if os.path.exists(PORTFOLIO_FILE):
+        return pd.read_csv(PORTFOLIO_FILE)
+    else:
+        return pd.DataFrame(columns=["Symbol", "Buy_Price", "Quantity", "Date"])
+
+def save_portfolio(df_port):
+    df_port.to_csv(PORTFOLIO_FILE, index=False)
+
+# --- 4. CSS FOR STYLING ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
@@ -38,7 +50,7 @@ st.markdown("""
     .t-pct { font-size: 12px; font-weight: normal !important; }
     .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal !important; }
     
-    /* 🔥 THE ULTIMATE EQUAL-SIZE HORIZONTAL BUTTONS FIX 🔥 */
+    /* HORIZONTAL BUTTONS FIX */
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) {
         display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; 
         justify-content: space-between !important; align-items: center !important; gap: 6px !important; width: 100% !important;
@@ -47,14 +59,10 @@ st.markdown("""
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) > div[data-testid="stElementContainer"] {
         flex: 1 1 0px !important; min-width: 0 !important; width: 100% !important;
     }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button {
-        width: 100% !important; height: 38px !important; padding: 0px !important;
-    }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button p {
-        font-size: clamp(9px, 2.5vw, 13px) !important; white-space: nowrap !important; margin: 0 !important;
-    }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button { width: 100% !important; height: 38px !important; padding: 0px !important; }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button p { font-size: clamp(9px, 2.5vw, 13px) !important; white-space: nowrap !important; margin: 0 !important; }
     
-    /* 🔥 FLUID GRID FOR CHARTS 🔥 */
+    /* FLUID GRID FOR CHARTS */
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { display: grid !important; gap: 12px !important; align-items: start !important; }
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div:nth-child(1) { display: none !important; }
     @media screen and (min-width: 1700px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(8, 1fr) !important; } }
@@ -86,7 +94,7 @@ st.markdown("""
     @media screen and (max-width: 600px) { .heatmap-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; } .stock-card { height: 95px; } .t-name { font-size: 12px; } .t-price { font-size: 16px; } .t-pct { font-size: 11px; } }
     .custom-hr { border: 0; height: 1px; background: #30363d; margin: 15px 0; }
 
-    /* 🔥 TERMINAL TABLE STYLES (WITH FIXED ALIGNMENT) 🔥 */
+    /* 🔥 TERMINAL & PORTFOLIO TABLE STYLES 🔥 */
     .term-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-family: monospace; font-size: 11.5px; color: #e6edf3; background-color: #0e1117; table-layout: fixed; }
     .term-table th { padding: 6px 4px; text-align: center; border: 1px solid #30363d; font-weight: bold; overflow: hidden; }
     .term-table td { padding: 6px 4px; text-align: center; border: 1px solid #30363d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -94,9 +102,11 @@ st.markdown("""
     .term-head-sell { background-color: #b52524; color: white; text-align: left !important; padding-left: 10px !important; }
     .term-head-ind { background-color: #9e6a03; color: white; text-align: left !important; padding-left: 10px !important; }
     .term-head-brd { background-color: #0d47a1; color: white; text-align: left !important; padding-left: 10px !important; }
+    .term-head-port { background-color: #4a148c; color: white; text-align: left !important; padding-left: 10px !important; font-size:14px; }
     .row-dark { background-color: #161b22; } .row-light { background-color: #0e1117; }
     .text-green { color: #3fb950; font-weight: bold; } .text-red { color: #f85149; font-weight: bold; }
     .t-symbol { text-align: left !important; font-weight: bold; }
+    .port-total { background-color: #21262d; font-weight: bold; font-size: 13px; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -135,8 +145,11 @@ def get_minutes_passed():
 
 @st.cache_data(ttl=60)
 def fetch_all_data():
-    all_stocks = set(NIFTY_50 + BROADER_MARKET)
-    tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + [f"{t}.NS" for t in all_stocks]
+    port_df = load_portfolio()
+    port_stocks = port_df['Symbol'].tolist() if not port_df.empty else []
+    
+    all_stocks = set(NIFTY_50 + BROADER_MARKET + port_stocks)
+    tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + [f"{t}.NS" for t in all_stocks if str(t).strip() != ""]
     data = yf.download(tkrs, period="5d", progress=False, group_by='ticker', threads=20)
     
     results = []
@@ -149,7 +162,7 @@ def fetch_all_data():
             
             ltp = float(df['Close'].iloc[-1])
             open_p = float(df['Open'].iloc[-1])
-            prev_c = float(df['Close'].iloc[-2])
+            prev_c = float(df['Close'].iloc[-2]) # 🔥 Previous Close for Day P&L 🔥
             low = float(df['Low'].iloc[-1])
             high = float(df['High'].iloc[-1])
             
@@ -182,7 +195,7 @@ def fetch_all_data():
                         break
                 
             results.append({
-                "Fetch_T": symbol, "T": disp_name, "P": ltp, "O": open_p, "H": high, "L": low,
+                "Fetch_T": symbol, "T": disp_name, "P": ltp, "O": open_p, "H": high, "L": low, "Prev_C": prev_c,
                 "Day_C": day_chg, "C": net_chg, "S": score, "VolX": vol_x,
                 "Is_Index": is_index, "Is_Sector": is_sector, "Sector": stock_sector
             })
@@ -206,7 +219,7 @@ def process_5m_data(df_raw):
         return pd.DataFrame()
     except: return pd.DataFrame()
 
-# --- TERMINAL TABLE GENERATOR (ALIGNED & SCALED) ---
+# --- TABLES HTML GENERATORS ---
 def generate_status(row):
     status = ""
     p = row['P']
@@ -219,20 +232,80 @@ def generate_status(row):
 
 def render_html_table(df_subset, title, color_class):
     if df_subset.empty: return ""
-    
-    # 🔥 FIXED WIDTHS APPLIED HERE SO ALL 4 TABLES MATCH EXACTLY 🔥
     html = f'<table class="term-table"><thead><tr><th colspan="7" class="{color_class}">{title}</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:20%;">STOCK</th><th style="width:12%;">PRICE</th><th style="width:12%;">DAY%</th><th style="width:12%;">NET%</th><th style="width:10%;">VOL</th><th style="width:26%;">STATUS</th><th style="width:8%;">SCORE</th></tr></thead><tbody>'
-    
     for i, (_, row) in enumerate(df_subset.iterrows()):
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
         day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
         net_color = "text-green" if row['C'] >= 0 else "text-red"
         status = generate_status(row)
-        
         html += f'<tr class="{bg_class}"><td class="t-symbol {net_color}">{row["T"]}</td><td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td class="{net_color}">{row["C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
-        
     html += "</tbody></table>"
     return html
+
+# 🔥 NEW: PORTFOLIO TABLE WITH TREND AND DAY P&L 🔥
+def render_portfolio_table(df_port, df_stocks, stock_trends):
+    if df_port.empty: return "<p style='color:#888;'>Your portfolio is empty. Expand the form above to add stocks!</p>"
+    
+    html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-port">💼 LIVE PORTFOLIO P&L</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:12%;">STOCK</th><th style="width:6%;">QTY</th><th style="width:9%;">BUY AVG</th><th style="width:9%;">LTP</th><th style="width:10%;">TREND</th><th style="width:12%;">INVESTED</th><th style="width:12%;">CURRENT</th><th style="width:10%;">DAY P&L</th><th style="width:10%;">TOTAL P&L</th><th style="width:10%;">P&L %</th></tr></thead><tbody>'
+    
+    total_invested = 0
+    total_current = 0
+    total_day_pnl = 0
+    
+    for i, (_, row) in enumerate(df_port.iterrows()):
+        bg_class = "row-dark" if i % 2 == 0 else "row-light"
+        
+        sym = str(row['Symbol']).upper().strip()
+        try: qty = float(row['Quantity'])
+        except: qty = 0
+        try: buy_p = float(row['Buy_Price'])
+        except: buy_p = 0
+        
+        live_row = df_stocks[df_stocks['T'] == sym]
+        if not live_row.empty:
+            ltp = float(live_row['P'].iloc[0])
+            prev_c = float(live_row['Prev_C'].iloc[0])
+            fetch_t = live_row['Fetch_T'].iloc[0]
+            trend_state = stock_trends.get(fetch_t, "Neutral")
+        else:
+            ltp = buy_p
+            prev_c = buy_p
+            trend_state = "N/A"
+            
+        invested = buy_p * qty
+        current = ltp * qty
+        overall_pnl = current - invested
+        pnl_pct = (overall_pnl / invested * 100) if invested > 0 else 0
+        day_pnl = (ltp - prev_c) * qty
+        
+        total_invested += invested
+        total_current += current
+        total_day_pnl += day_pnl
+        
+        # Trend HTML
+        if trend_state == 'Bullish': trend_html = "🟢 Bullish"
+        elif trend_state == 'Bearish': trend_html = "🔴 Bearish"
+        elif trend_state == 'Neutral': trend_html = "⚪ Neutral"
+        else: trend_html = "➖"
+        
+        tpnl_color = "text-green" if overall_pnl >= 0 else "text-red"
+        dpnl_color = "text-green" if day_pnl >= 0 else "text-red"
+        t_sign = "+" if overall_pnl > 0 else ""
+        d_sign = "+" if day_pnl > 0 else ""
+        
+        html += f'<tr class="{bg_class}"><td class="t-symbol {tpnl_color}">{sym}</td><td>{int(qty)}</td><td>{buy_p:.2f}</td><td>{ltp:.2f}</td><td style="font-size:10px;">{trend_html}</td><td>{invested:,.0f}</td><td>{current:,.0f}</td><td class="{dpnl_color}">{d_sign}{day_pnl:,.0f}</td><td class="{tpnl_color}">{t_sign}{overall_pnl:,.0f}</td><td class="{tpnl_color}">{t_sign}{pnl_pct:.2f}%</td></tr>'
+    
+    overall_total_pnl = total_current - total_invested
+    overall_total_pct = (overall_total_pnl / total_invested * 100) if total_invested > 0 else 0
+    o_color = "text-green" if overall_total_pnl >= 0 else "text-red"
+    o_sign = "+" if overall_total_pnl > 0 else ""
+    d_color = "text-green" if total_day_pnl >= 0 else "text-red"
+    d_sign = "+" if total_day_pnl > 0 else ""
+    
+    html += f'<tr class="port-total"><td colspan="5" style="text-align:right;">TOTALS:</td><td>₹{total_invested:,.0f}</td><td>₹{total_current:,.0f}</td><td class="{d_color}">{d_sign}₹{total_day_pnl:,.0f}</td><td class="{o_color}">{o_sign}₹{overall_total_pnl:,.0f}</td><td class="{o_color}">{o_sign}{overall_total_pct:.2f}%</td></tr>'
+    html += "</tbody></table>"
+    return html
+
 
 # --- HELPER FUNCTION TO DRAW CHARTS ---
 def render_chart(row, df_chart, show_pin=True, key_suffix=""):
@@ -282,7 +355,7 @@ def render_chart_grid(df_grid, show_pin_option, key_prefix):
 # --- 6. TOP NAVIGATION & SEARCH ---
 c1, c2, c3 = st.columns([0.4, 0.3, 0.3])
 with c1: 
-    watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Nifty 50 Heatmap", "One Sided Moves 🚀", "Terminal Tables 🗃️"], label_visibility="collapsed")
+    watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Nifty 50 Heatmap", "One Sided Moves 🚀", "Terminal Tables 🗃️", "My Portfolio 💼"], label_visibility="collapsed")
 with c2: 
     sort_mode = st.selectbox("Sort By", ["Custom Sort", "Heatmap Marks Up ⭐", "Heatmap Marks Down ⬇️", "% Change Up 🟢", "% Change Down 🔴"], label_visibility="collapsed")
 with c3: 
@@ -305,10 +378,8 @@ if not df.empty:
     
     df_stocks = df[(~df['Is_Index']) & (~df['Is_Sector'])].copy()
     
-    # 🔥 TERMINAL DATA CALCULATION 🔥
     df_nifty = df_stocks[df_stocks['T'].isin(NIFTY_50)].copy()
     sector_perf = df_nifty.groupby('Sector')['C'].mean().sort_values(ascending=False)
-    
     valid_sectors = [s for s in sector_perf.index if s != "OTHER"]
     
     if valid_sectors:
@@ -318,17 +389,21 @@ if not df.empty:
         top_buy_sector = "PHARMA" 
         top_sell_sector = "IT" 
         
-    # 🔥 FIXED: SORTING BUY/SELL LEADERS BY SCORE FIRST, THEN NET% 🔥
     df_buy_sector = df_nifty[df_nifty['Sector'] == top_buy_sector].sort_values(by=['S', 'C'], ascending=[False, False])
     df_sell_sector = df_nifty[df_nifty['Sector'] == top_sell_sector].sort_values(by=['S', 'C'], ascending=[False, True])
-    
     df_independent = df_nifty[(~df_nifty['Sector'].isin([top_buy_sector, top_sell_sector])) & (df_nifty['S'] >= 6)].sort_values(by='S', ascending=False).head(8)
     df_broader = df_stocks[(df_stocks['T'].isin(BROADER_MARKET)) & (df_stocks['S'] >= 6)].sort_values(by='S', ascending=False).head(8)
+
+    # Load Portfolio
+    df_port_saved = load_portfolio()
 
     # Watchlist Filtering
     if watchlist_mode == "Terminal Tables 🗃️":
         terminal_tickers = pd.concat([df_buy_sector, df_sell_sector, df_independent, df_broader])['Fetch_T'].unique().tolist()
         df_filtered = df_stocks[df_stocks['Fetch_T'].isin(terminal_tickers)]
+    elif watchlist_mode == "My Portfolio 💼":
+        port_tickers = [f"{str(sym).strip()}.NS" for sym in df_port_saved['Symbol'].tolist() if str(sym).strip() != ""]
+        df_filtered = df_stocks[df_stocks['Fetch_T'].isin(port_tickers)]
     elif watchlist_mode == "Nifty 50 Heatmap":
         df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
     elif watchlist_mode == "One Sided Moves 🚀":
@@ -423,6 +498,20 @@ if not df.empty:
         st.markdown(render_html_table(df_independent, "🌟 INDEPENDENT MOVERS", "term-head-ind"), unsafe_allow_html=True)
         st.markdown(render_html_table(df_broader, "🌌 BROADER MARKET", "term-head-brd"), unsafe_allow_html=True)
 
+    # 🔥 NEW: PORTFOLIO VIEW LOGIC 🔥
+    elif watchlist_mode == "My Portfolio 💼" and view_mode == "Heat Map":
+        with st.expander("➕ Add / Edit Holdings (Click to Expand)", expanded=df_port_saved.empty):
+            st.markdown("<p style='font-size:12px; color:#888;'><i>Type EXACT symbol (e.g., ITC, HDFCBANK). Double click a cell to edit. Select a row and press Delete to remove.</i></p>", unsafe_allow_html=True)
+            edited_df = st.data_editor(df_port_saved, num_rows="dynamic", use_container_width=True)
+            
+            if st.button("💾 Save Portfolio Changes", use_container_width=True):
+                save_portfolio(edited_df)
+                st.success("Portfolio Updated Successfully! Refreshing...")
+                st.rerun()
+                
+        # Call the new Portfolio table renderer
+        st.markdown(render_portfolio_table(df_port_saved, df_stocks, stock_trends), unsafe_allow_html=True)
+
     elif view_mode == "Heat Map":
         if not df_indices.empty:
             html_idx = '<div class="heatmap-grid">'
@@ -456,7 +545,7 @@ if not df.empty:
             render_chart_grid(pd.DataFrame([df[df['T'] == search_stock].iloc[0]]), show_pin_option=True, key_prefix="search")
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
-        if watchlist_mode != "Terminal Tables 🗃️":
+        if watchlist_mode not in ["Terminal Tables 🗃️", "My Portfolio 💼"]:
             st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>📈 Market Indices</div>", unsafe_allow_html=True)
             render_chart_grid(df_indices, show_pin_option=False, key_prefix="idx")
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
