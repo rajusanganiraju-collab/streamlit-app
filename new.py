@@ -8,7 +8,7 @@ from datetime import datetime, time as dt_time
 from streamlit_autorefresh import st_autorefresh
 
 # --- 1. PAGE CONFIGURATION ---
-st.set_page_config(page_title="Market Heatmap", page_icon="📊", layout="wide")
+st.set_page_config(page_title="Market Heatmap", page_icon="ðŸ“Š", layout="wide")
 
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
@@ -107,7 +107,7 @@ st.markdown("""
     @media screen and (max-width: 600px) { .heatmap-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; } .stock-card { height: 95px; } .t-name { font-size: 12px; } .t-price { font-size: 16px; } .t-pct { font-size: 11px; } }
     .custom-hr { border: 0; height: 1px; background: #30363d; margin: 15px 0; }
 
-    /* 🔥 TERMINAL & PORTFOLIO TABLE STYLES 🔥 */
+    /* ðŸ”¥ TERMINAL & PORTFOLIO TABLE STYLES ðŸ”¥ */
     .term-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-family: monospace; font-size: 11.5px; color: #e6edf3; background-color: #0e1117; table-layout: fixed; }
     .term-table th { padding: 6px 4px; text-align: center; border: 1px solid #30363d; font-weight: bold; overflow: hidden; }
     .term-table td { padding: 6px 4px; text-align: center; border: 1px solid #30363d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -278,15 +278,15 @@ def process_5m_data(df_raw):
 def generate_status(row):
     status = ""
     p = row['P']
-    if row['VolX'] > 1.2: status += "VOL🟢 "
-    if abs(row['O'] - row['L']) < (p * 0.002): status += "O=L🔥 "
-    if abs(row['O'] - row['H']) < (p * 0.002): status += "O=H🩸 "
-    if abs(row['C']) >= 2.0: status += "BigMove🚀 " if row['C'] > 0 else "BigMove🩸 "
+    if row['VolX'] > 1.2: status += "VOLðŸŸ¢ "
+    if abs(row['O'] - row['L']) < (p * 0.002): status += "O=LðŸ”¥ "
+    if abs(row['O'] - row['H']) < (p * 0.002): status += "O=HðŸ©¸ "
+    if abs(row['C']) >= 2.0: status += "BigMoveðŸš€ " if row['C'] > 0 else "BigMoveðŸ©¸ "
     
     if 'BounceTag' in row and row['BounceTag']:
         status += f"{row['BounceTag']} "
     
-    if row['C'] > 0 and row['Day_C'] > 0 and row['VolX'] > 1: status += "Rec ⇈ "
+    if row['C'] > 0 and row['Day_C'] > 0 and row['VolX'] > 1: status += "Rec â‡ˆ "
     return status.strip()
 
 def render_html_table(df_subset, title, color_class):
@@ -304,7 +304,7 @@ def render_html_table(df_subset, title, color_class):
 def render_portfolio_table(df_port, df_stocks, stock_trends):
     if df_port.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>Portfolio is empty. Add a stock using the option below!</div>"
     
-    html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-port">💼 LIVE PORTFOLIO TERMINAL</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:11%;">STOCK</th><th style="width:9%;">DATE</th><th style="width:6%;">QTY</th><th style="width:8%;">AVG</th><th style="width:8%;">LTP</th><th style="width:10%;">TREND</th><th style="width:18%;">STATUS</th><th style="width:10%;">DAY P&L</th><th style="width:10%;">TOT P&L</th><th style="width:10%;">P&L %</th></tr></thead><tbody>'
+    html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-port">ðŸ’¼ LIVE PORTFOLIO TERMINAL</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:11%;">STOCK</th><th style="width:9%;">DATE</th><th style="width:6%;">QTY</th><th style="width:8%;">AVG</th><th style="width:8%;">LTP</th><th style="width:10%;">TREND</th><th style="width:18%;">STATUS</th><th style="width:10%;">DAY P&L</th><th style="width:10%;">TOT P&L</th><th style="width:10%;">P&L %</th></tr></thead><tbody>'
     
     total_invested = 0
     total_current = 0
@@ -323,7 +323,7 @@ def render_portfolio_table(df_port, df_stocks, stock_trends):
         
         live_row = df_stocks[df_stocks['T'] == sym]
         status_html = ""
-        trend_html = "➖"
+        trend_html = "âž–"
         
         if not live_row.empty:
             ltp = float(live_row['P'].iloc[0])
@@ -332,9 +332,9 @@ def render_portfolio_table(df_port, df_stocks, stock_trends):
             
             fetch_t = live_row['Fetch_T'].iloc[0]
             trend_state = stock_trends.get(fetch_t, "Neutral")
-            if trend_state == 'Bullish': trend_html = "🟢 Bullish"
-            elif trend_state == 'Bearish': trend_html = "🔴 Bearish"
-            else: trend_html = "⚪ Neutral"
+            if trend_state == 'Bullish': trend_html = "ðŸŸ¢ Bullish"
+            elif trend_state == 'Bearish': trend_html = "ðŸ”´ Bearish"
+            else: trend_html = "âšª Neutral"
         else:
             ltp = buy_p
             prev_c = buy_p
@@ -364,22 +364,22 @@ def render_portfolio_table(df_port, df_stocks, stock_trends):
     d_color = "text-green" if total_day_pnl >= 0 else "text-red"
     d_sign = "+" if total_day_pnl > 0 else ""
     
-    html += f'<tr class="port-total"><td colspan="7" style="text-align:right; padding-right:15px; font-size:12px;">INVESTED: ₹{total_invested:,.0f} &nbsp;|&nbsp; CURRENT: ₹{total_current:,.0f} &nbsp;|&nbsp; OVERALL P&L:</td><td class="{d_color}">{d_sign}₹{total_day_pnl:,.0f}</td><td class="{o_color}">{o_sign}₹{overall_total_pnl:,.0f}</td><td class="{o_color}">{o_sign}{overall_total_pct:.2f}%</td></tr>'
+    html += f'<tr class="port-total"><td colspan="7" style="text-align:right; padding-right:15px; font-size:12px;">INVESTED: â‚¹{total_invested:,.0f} &nbsp;|&nbsp; CURRENT: â‚¹{total_current:,.0f} &nbsp;|&nbsp; OVERALL P&L:</td><td class="{d_color}">{d_sign}â‚¹{total_day_pnl:,.0f}</td><td class="{o_color}">{o_sign}â‚¹{overall_total_pnl:,.0f}</td><td class="{o_color}">{o_sign}{overall_total_pct:.2f}%</td></tr>'
     html += "</tbody></table>"
     return html
 
 def render_levels_table(df_subset, stock_trends):
     if df_subset.empty: return ""
-    html = f'<table class="term-table"><thead><tr><th colspan="8" class="term-head-levels">🎯 TRADING LEVELS (TARGETS & STOP LOSS)</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:15%;">STOCK</th><th style="width:10%;">TREND</th><th style="width:12%;">LTP</th><th style="width:12%;">PIVOT</th><th style="width:12%; color:#f85149;">STOP LOSS</th><th style="width:12%; color:#3fb950;">TARGET 1</th><th style="width:12%; color:#3fb950;">TARGET 2</th><th style="width:15%;">EXTREME TGT/SL</th></tr></thead><tbody>'
+    html = f'<table class="term-table"><thead><tr><th colspan="8" class="term-head-levels">ðŸŽ¯ TRADING LEVELS (TARGETS & STOP LOSS)</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:15%;">STOCK</th><th style="width:10%;">TREND</th><th style="width:12%;">LTP</th><th style="width:12%;">PIVOT</th><th style="width:12%; color:#f85149;">STOP LOSS</th><th style="width:12%; color:#3fb950;">TARGET 1</th><th style="width:12%; color:#3fb950;">TARGET 2</th><th style="width:15%;">EXTREME TGT/SL</th></tr></thead><tbody>'
     for i, (_, row) in enumerate(df_subset.iterrows()):
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
         
         trend_state = stock_trends.get(row['Fetch_T'], "Neutral")
         is_down = trend_state == 'Bearish' or (trend_state == 'Neutral' and row['C'] < 0)
         
-        if trend_state == 'Bullish': trend_html = "🟢 Bullish"
-        elif trend_state == 'Bearish': trend_html = "🔴 Bearish"
-        else: trend_html = "⚪ Neutral"
+        if trend_state == 'Bullish': trend_html = "ðŸŸ¢ Bullish"
+        elif trend_state == 'Bearish': trend_html = "ðŸ”´ Bearish"
+        else: trend_html = "âšª Neutral"
             
         if is_down:
             sl_val, t1_val, t2_val, ext_val = row["R1"], row["S1"], row["S2"], row["R2"]
@@ -394,7 +394,7 @@ def render_swing_terminal_table(df_subset, stock_trends):
     if df_subset.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No Swing Trading Setups found right now.</div>"
     
     df_sorted = df_subset.sort_values(by=['S', 'VolX', 'C'], ascending=[False, False, False]).reset_index(drop=True)
-    html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-swing">🌊 SWING TRADING RADAR (RANKED ALGORITHM)</th></tr><tr style="background-color: #21262d;"><th style="width:5%;">RANK</th><th style="text-align:left; width:13%;">STOCK</th><th style="width:8%;">LTP</th><th style="width:8%;">DAY%</th><th style="width:8%;">VOL</th><th style="width:16%;">STATUS</th><th style="width:11%; color:#f85149;">🛑 STOP LOSS</th><th style="width:11%; color:#3fb950;">🎯 TARGET 1</th><th style="width:11%; color:#3fb950;">🎯 TARGET 2</th><th style="width:9%;">SCORE</th></tr></thead><tbody>'
+    html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-swing">ðŸŒŠ SWING TRADING RADAR (RANKED ALGORITHM)</th></tr><tr style="background-color: #21262d;"><th style="width:5%;">RANK</th><th style="text-align:left; width:13%;">STOCK</th><th style="width:8%;">LTP</th><th style="width:8%;">DAY%</th><th style="width:8%;">VOL</th><th style="width:16%;">STATUS</th><th style="width:11%; color:#f85149;">ðŸ›‘ STOP LOSS</th><th style="width:11%; color:#3fb950;">ðŸŽ¯ TARGET 1</th><th style="width:11%; color:#3fb950;">ðŸŽ¯ TARGET 2</th><th style="width:9%;">SCORE</th></tr></thead><tbody>'
     for i, row in df_sorted.iterrows():
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
         day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
@@ -403,15 +403,15 @@ def render_swing_terminal_table(df_subset, stock_trends):
         trend_state = stock_trends.get(row['Fetch_T'], "Neutral")
         is_down = trend_state == 'Bearish' or (trend_state == 'Neutral' and row['C'] < 0)
         
-        if trend_state == 'Bullish': status += " 🟢Trend"
-        elif trend_state == 'Bearish': status += " 🔴Trend"
+        if trend_state == 'Bullish': status += " ðŸŸ¢Trend"
+        elif trend_state == 'Bearish': status += " ðŸ”´Trend"
         
         if is_down:
             sl_val, t1_val, t2_val = row["R1"], row["S1"], row["S2"]
         else:
             sl_val, t1_val, t2_val = row["S1"], row["R1"], row["R2"]
             
-        rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
+        rank_badge = f"ðŸ† 1" if i == 0 else f"{i+1}"
         html += f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td><td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td><td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
     html += "</tbody></table>"
     return html
@@ -420,7 +420,7 @@ def render_highscore_terminal_table(df_subset, stock_trends):
     if df_subset.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No High Score Stocks found right now.</div>"
     
     df_sorted = df_subset.sort_values(by=['S', 'VolX', 'C'], ascending=[False, False, False]).reset_index(drop=True)
-    html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-high">🔥 HIGH SCORE RADAR (RANKED INTRADAY MOVERS)</th></tr><tr style="background-color: #21262d;"><th style="width:5%;">RANK</th><th style="text-align:left; width:13%;">STOCK</th><th style="width:8%;">LTP</th><th style="width:8%;">DAY%</th><th style="width:8%;">VOL</th><th style="width:16%;">STATUS</th><th style="width:11%; color:#f85149;">🛑 STOP LOSS</th><th style="width:11%; color:#3fb950;">🎯 TARGET 1</th><th style="width:11%; color:#3fb950;">🎯 TARGET 2</th><th style="width:9%;">SCORE</th></tr></thead><tbody>'
+    html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-high">ðŸ”¥ HIGH SCORE RADAR (RANKED INTRADAY MOVERS)</th></tr><tr style="background-color: #21262d;"><th style="width:5%;">RANK</th><th style="text-align:left; width:13%;">STOCK</th><th style="width:8%;">LTP</th><th style="width:8%;">DAY%</th><th style="width:8%;">VOL</th><th style="width:16%;">STATUS</th><th style="width:11%; color:#f85149;">ðŸ›‘ STOP LOSS</th><th style="width:11%; color:#3fb950;">ðŸŽ¯ TARGET 1</th><th style="width:11%; color:#3fb950;">ðŸŽ¯ TARGET 2</th><th style="width:9%;">SCORE</th></tr></thead><tbody>'
     for i, row in df_sorted.iterrows():
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
         day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
@@ -429,15 +429,15 @@ def render_highscore_terminal_table(df_subset, stock_trends):
         trend_state = stock_trends.get(row['Fetch_T'], "Neutral")
         is_down = trend_state == 'Bearish' or (trend_state == 'Neutral' and row['C'] < 0)
         
-        if trend_state == 'Bullish': status += " 🟢Trend"
-        elif trend_state == 'Bearish': status += " 🔴Trend"
+        if trend_state == 'Bullish': status += " ðŸŸ¢Trend"
+        elif trend_state == 'Bearish': status += " ðŸ”´Trend"
         
         if is_down:
             sl_val, t1_val, t2_val = row["R1"], row["S1"], row["S2"]
         else:
             sl_val, t1_val, t2_val = row["S1"], row["R1"], row["R2"]
             
-        rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
+        rank_badge = f"ðŸ† 1" if i == 0 else f"{i+1}"
         html += f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td><td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td><td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
     html += "</tbody></table>"
     return html
@@ -490,11 +490,11 @@ def render_chart_grid(df_grid, show_pin_option, key_prefix):
 # --- 6. TOP NAVIGATION & SEARCH ---
 c1, c2, c3 = st.columns([0.4, 0.3, 0.3])
 with c1: 
-    watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "One Sided Moves 🚀", "Terminal Tables 🗃️", "My Portfolio 💼"], label_visibility="collapsed")
+    watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks ðŸ”¥", "Swing Trading ðŸ“ˆ", "Nifty 50 Heatmap", "One Sided Moves ðŸš€", "Terminal Tables ðŸ—ƒï¸", "My Portfolio ðŸ’¼"], label_visibility="collapsed")
 with c2: 
-    sort_mode = st.selectbox("Sort By", ["Custom Sort", "Heatmap Marks Up ⭐", "Heatmap Marks Down ⬇️", "% Change Up 🟢", "% Change Down 🔴"], label_visibility="collapsed")
+    sort_mode = st.selectbox("Sort By", ["Custom Sort", "Heatmap Marks Up â­", "Heatmap Marks Down â¬‡ï¸", "% Change Up ðŸŸ¢", "% Change Down ðŸ”´"], label_visibility="collapsed")
 with c3: 
-    view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
+    view_mode = st.radio("Display", ["Heat Map", "Chart ðŸ“ˆ"], horizontal=True, label_visibility="collapsed")
 
 
 # --- 7. RENDER LOGIC & TREND ANALYSIS ---
@@ -502,7 +502,7 @@ df = fetch_all_data()
 
 if not df.empty:
     all_names = sorted(df[~df['Is_Sector']]['T'].tolist())
-    search_stock = st.selectbox("🔍 Search & View Chart", ["-- None --"] + all_names)
+    search_stock = st.selectbox("ðŸ” Search & View Chart", ["-- None --"] + all_names)
     
     df_indices = df[df['Is_Index']].copy()
     df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3})
@@ -532,17 +532,17 @@ if not df.empty:
     df_port_saved = load_portfolio()
 
     # Watchlist Filtering
-    if watchlist_mode == "Terminal Tables 🗃️":
+    if watchlist_mode == "Terminal Tables ðŸ—ƒï¸":
         terminal_tickers = pd.concat([df_buy_sector, df_sell_sector, df_independent, df_broader])['Fetch_T'].unique().tolist()
         df_filtered = df_stocks[df_stocks['Fetch_T'].isin(terminal_tickers)]
-    elif watchlist_mode == "My Portfolio 💼":
+    elif watchlist_mode == "My Portfolio ðŸ’¼":
         port_tickers = [f"{str(sym).upper().strip()}.NS" for sym in df_port_saved['Symbol'].tolist() if str(sym).strip() != ""]
         df_filtered = df_stocks[df_stocks['Fetch_T'].isin(port_tickers)]
     elif watchlist_mode == "Nifty 50 Heatmap":
         df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
-    elif watchlist_mode == "One Sided Moves 🚀":
+    elif watchlist_mode == "One Sided Moves ðŸš€":
         df_filtered = df_stocks[df_stocks['C'].abs() >= 1.0]
-    elif watchlist_mode == "Swing Trading 📈":
+    elif watchlist_mode == "Swing Trading ðŸ“ˆ":
         df_filtered = df_stocks[df_stocks['Is_Swing'] == True]
     else:
         df_filtered = df_stocks[(df_stocks['S'] >= 7) & (df_stocks['S'] <= 10)]
@@ -584,13 +584,13 @@ if not df.empty:
                 ema50 = df_day['EMA_50'].iloc[-1]
                 vwap = df_day['VWAP'].iloc[-1]
                 
-                # 🔥 FALLING KNIFE GUARD: Check if the trend is structurally intact 🔥
+                # ðŸ”¥ FALLING KNIFE GUARD: Check if the trend is structurally intact ðŸ”¥
                 if net_chg > 0: # Bullish Setup
                     # Trend should be Up: 10 EMA above 20 EMA, 20 EMA above 50 EMA
                     trend_intact = (ema10 >= ema20) and (ema20 >= ema50)
                     
                     if trend_intact:
-                        # 🔥 SUPPORT CHECK: Price MUST be >= the Line to be a support bounce. 
+                        # ðŸ”¥ SUPPORT CHECK: Price MUST be >= the Line to be a support bounce. 
                         # We removed absolute `abs()` to ensure it hasn't broken down below the line.
                         d50 = (last_price - ema50) / ema50 * 100 if ema50 > 0 else -1
                         dvw = (last_price - vwap) / vwap * 100 if vwap > 0 else -1
@@ -598,13 +598,13 @@ if not df.empty:
                         d10 = (last_price - ema10) / ema10 * 100 if ema10 > 0 else -1
                         
                         if 0 <= d50 <= 0.4:
-                            tag, b_score = "🔥50EMA-Bounce", 5
+                            tag, b_score = "ðŸ”¥50EMA-Bounce", 5
                         elif 0 <= dvw <= 0.4:
-                            tag, b_score = "🔥VWAP-Bounce", 5
+                            tag, b_score = "ðŸ”¥VWAP-Bounce", 5
                         elif 0 <= d20 <= 0.4:
-                            tag, b_score = "🔥20EMA-Bounce", 5
+                            tag, b_score = "ðŸ”¥20EMA-Bounce", 5
                         elif 0 <= d10 <= 0.3:
-                            tag, b_score = "🔥10EMA-Bounce", 5
+                            tag, b_score = "ðŸ”¥10EMA-Bounce", 5
                             
                 else: # Bearish Setup (Shorting)
                     # Trend should be Down: 10 EMA below 20 EMA, 20 EMA below 50 EMA
@@ -618,13 +618,13 @@ if not df.empty:
                         d10 = (ema10 - last_price) / last_price * 100 if last_price > 0 else -1
                         
                         if 0 <= d50 <= 0.4:
-                            tag, b_score = "🩸50EMA-Reject", 5
+                            tag, b_score = "ðŸ©¸50EMA-Reject", 5
                         elif 0 <= dvw <= 0.4:
-                            tag, b_score = "🩸VWAP-Reject", 5
+                            tag, b_score = "ðŸ©¸VWAP-Reject", 5
                         elif 0 <= d20 <= 0.4:
-                            tag, b_score = "🩸20EMA-Reject", 5
+                            tag, b_score = "ðŸ©¸20EMA-Reject", 5
                         elif 0 <= d10 <= 0.3:
-                            tag, b_score = "🩸10EMA-Reject", 5
+                            tag, b_score = "ðŸ©¸10EMA-Reject", 5
 
             bounce_tags[sym] = tag
             bounce_scores[sym] = b_score
@@ -647,10 +647,10 @@ if not df.empty:
     # --- BUTTONS ---
     with st.container():
         st.markdown("<div class='filter-marker'></div>", unsafe_allow_html=True)
-        if st.button(f"📊 All ({len(df_filtered)})"): st.session_state.trend_filter = 'All'
-        if st.button(f"🟢 Bullish ({bull_cnt})"): st.session_state.trend_filter = 'Bullish'
-        if st.button(f"⚪ Neutral ({neut_cnt})"): st.session_state.trend_filter = 'Neutral'
-        if st.button(f"🔴 Bearish ({bear_cnt})"): st.session_state.trend_filter = 'Bearish'
+        if st.button(f"ðŸ“Š All ({len(df_filtered)})"): st.session_state.trend_filter = 'All'
+        if st.button(f"ðŸŸ¢ Bullish ({bull_cnt})"): st.session_state.trend_filter = 'Bullish'
+        if st.button(f"âšª Neutral ({neut_cnt})"): st.session_state.trend_filter = 'Neutral'
+        if st.button(f"ðŸ”´ Bearish ({bear_cnt})"): st.session_state.trend_filter = 'Bearish'
 
     st.markdown(f"<div style='text-align:right; font-size:12px; color:#ffd700; margin-bottom: 10px;'>Showing: <b>{st.session_state.trend_filter}</b> Stocks</div>", unsafe_allow_html=True)
 
@@ -658,10 +658,10 @@ if not df.empty:
         df_filtered = df_filtered[df_filtered['Fetch_T'].apply(lambda x: stock_trends.get(x) == st.session_state.trend_filter)]
 
     # SORTING LOGIC 
-    if sort_mode == "% Change Up 🟢": df_stocks_display = df_filtered.sort_values(by="C", ascending=False)
-    elif sort_mode == "% Change Down 🔴": df_stocks_display = df_filtered.sort_values(by="C", ascending=True)
-    elif sort_mode == "Heatmap Marks Up ⭐": df_stocks_display = pd.concat([df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False]), df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[False, True])])
-    elif sort_mode == "Heatmap Marks Down ⬇️": df_stocks_display = pd.concat([df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[False, True]), df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False])])
+    if sort_mode == "% Change Up ðŸŸ¢": df_stocks_display = df_filtered.sort_values(by="C", ascending=False)
+    elif sort_mode == "% Change Down ðŸ”´": df_stocks_display = df_filtered.sort_values(by="C", ascending=True)
+    elif sort_mode == "Heatmap Marks Up â­": df_stocks_display = pd.concat([df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False]), df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[False, True])])
+    elif sort_mode == "Heatmap Marks Down â¬‡ï¸": df_stocks_display = pd.concat([df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[False, True]), df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False])])
     else:
         if st.session_state.trend_filter == 'Bullish': df_stocks_display = df_filtered.sort_values(by=["S", "C"], ascending=[False, False])
         elif st.session_state.trend_filter == 'Bearish': df_stocks_display = df_filtered.sort_values(by=["S", "C"], ascending=[False, True])
@@ -671,8 +671,8 @@ if not df.empty:
     # --- RENDER VIEWS ---
     
     # 1. TERMINAL VIEW
-    if watchlist_mode == "Terminal Tables 🗃️" and view_mode == "Heat Map":
-        st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>🗃️ Professional Terminal View</div>", unsafe_allow_html=True)
+    if watchlist_mode == "Terminal Tables ðŸ—ƒï¸" and view_mode == "Heat Map":
+        st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>ðŸ—ƒï¸ Professional Terminal View</div>", unsafe_allow_html=True)
         
         if st.session_state.trend_filter != 'All':
             df_buy_sector = df_buy_sector[df_buy_sector['Fetch_T'].isin(df_filtered['Fetch_T'])]
@@ -680,37 +680,37 @@ if not df.empty:
             df_independent = df_independent[df_independent['Fetch_T'].isin(df_filtered['Fetch_T'])]
             df_broader = df_broader[df_broader['Fetch_T'].isin(df_filtered['Fetch_T'])]
 
-        st.markdown(render_html_table(df_buy_sector, f"🚀 BUY LEADER: {top_buy_sector}", "term-head-buy"), unsafe_allow_html=True)
-        st.markdown(render_html_table(df_sell_sector, f"🩸 SELL LAGGARD: {top_sell_sector}", "term-head-sell"), unsafe_allow_html=True)
-        st.markdown(render_html_table(df_independent, "🌟 INDEPENDENT MOVERS", "term-head-ind"), unsafe_allow_html=True)
-        st.markdown(render_html_table(df_broader, "🌌 BROADER MARKET", "term-head-brd"), unsafe_allow_html=True)
+        st.markdown(render_html_table(df_buy_sector, f"ðŸš€ BUY LEADER: {top_buy_sector}", "term-head-buy"), unsafe_allow_html=True)
+        st.markdown(render_html_table(df_sell_sector, f"ðŸ©¸ SELL LAGGARD: {top_sell_sector}", "term-head-sell"), unsafe_allow_html=True)
+        st.markdown(render_html_table(df_independent, "ðŸŒŸ INDEPENDENT MOVERS", "term-head-ind"), unsafe_allow_html=True)
+        st.markdown(render_html_table(df_broader, "ðŸŒŒ BROADER MARKET", "term-head-brd"), unsafe_allow_html=True)
 
     # 2. PORTFOLIO VIEW
-    elif watchlist_mode == "My Portfolio 💼" and view_mode == "Heat Map":
+    elif watchlist_mode == "My Portfolio ðŸ’¼" and view_mode == "Heat Map":
         st.markdown(render_portfolio_table(df_port_saved, df_stocks, stock_trends), unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
         
-        with st.expander("➕ Search & Add Stock to Portfolio", expanded=False):
+        with st.expander("âž• Search & Add Stock to Portfolio", expanded=False):
             with st.form("portfolio_add_form", clear_on_submit=True):
                 c1, c2, c3, c4, c5 = st.columns([2.5, 1.5, 2, 2, 2])
                 with c1:
-                    new_sym = st.text_input("🔍 NSE Symbol (e.g. itc)", placeholder="Type Symbol...").upper().strip()
+                    new_sym = st.text_input("ðŸ” NSE Symbol (e.g. itc)", placeholder="Type Symbol...").upper().strip()
                 with c2:
-                    new_qty = st.number_input("📦 Quantity", min_value=1, value=10)
+                    new_qty = st.number_input("ðŸ“¦ Quantity", min_value=1, value=10)
                 with c3:
-                    new_price = st.number_input("💰 Buy Price (₹)", min_value=0.0, value=100.0)
+                    new_price = st.number_input("ðŸ’° Buy Price (â‚¹)", min_value=0.0, value=100.0)
                 with c4:
-                    new_date = st.date_input("📅 Purchase Date")
+                    new_date = st.date_input("ðŸ“… Purchase Date")
                 with c5:
                     st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-                    submit_btn = st.form_submit_button("➕ Verify & Add", use_container_width=True)
+                    submit_btn = st.form_submit_button("âž• Verify & Add", use_container_width=True)
 
             if submit_btn:
                 if new_sym:
                     with st.spinner(f"Searching NSE for {new_sym}..."):
                         chk_data = yf.download(f"{new_sym}.NS", period="1d", progress=False)
                         if chk_data.empty:
-                            st.error(f"❌ '{new_sym}' not found in NSE! Please check the spelling.")
+                            st.error(f"âŒ '{new_sym}' not found in NSE! Please check the spelling.")
                         else:
                             new_date_str = new_date.strftime("%d-%b-%Y")
                             if new_sym in df_port_saved['Symbol'].values:
@@ -725,7 +725,7 @@ if not df.empty:
                     st.warning("Type a symbol first!")
         
         if not df_port_saved.empty:
-            with st.expander("✏️ Edit Existing Holdings (Qty, Price, Date)", expanded=False):
+            with st.expander("âœï¸ Edit Existing Holdings (Qty, Price, Date)", expanded=False):
                 st.markdown("<p style='font-size:12px; color:#888;'><i>Modify your Buy Price, Quantity, or Date directly in the table below and click Save.</i></p>", unsafe_allow_html=True)
                 edited_df = st.data_editor(
                     df_port_saved, 
@@ -734,23 +734,23 @@ if not df.empty:
                     column_config={
                         "Symbol": st.column_config.TextColumn("Stock Symbol", disabled=True),
                         "Quantity": st.column_config.NumberColumn("Quantity", min_value=1, step=1),
-                        "Buy_Price": st.column_config.NumberColumn("Buy Average (₹)", min_value=0.0, format="%.2f"),
+                        "Buy_Price": st.column_config.NumberColumn("Buy Average (â‚¹)", min_value=0.0, format="%.2f"),
                         "Date": st.column_config.TextColumn("Purchase Date")
                     }
                 )
-                if st.button("💾 Save Edited Changes", use_container_width=True):
+                if st.button("ðŸ’¾ Save Edited Changes", use_container_width=True):
                     save_portfolio(edited_df)
                     fetch_all_data.clear()
                     st.rerun()
 
         if not df_port_saved.empty:
-            with st.expander("🗑️ Remove Stock from Portfolio", expanded=False):
+            with st.expander("ðŸ—‘ï¸ Remove Stock from Portfolio", expanded=False):
                 with st.form("portfolio_remove_form"):
                     rc1, rc2, rc3 = st.columns([3, 2, 5])
                     with rc1:
                         del_sym = st.selectbox("Select Stock to Remove", ["-- Select --"] + df_port_saved['Symbol'].tolist(), label_visibility="collapsed")
                     with rc2:
-                        remove_btn = st.form_submit_button("❌ Remove", use_container_width=True)
+                        remove_btn = st.form_submit_button("âŒ Remove", use_container_width=True)
                     with rc3:
                         pass
                     if remove_btn and del_sym != "-- Select --":
@@ -781,26 +781,26 @@ if not df.empty:
             for _, row in df_stocks_display.iterrows():
                 bg = "bull-card" if row['C'] > 0 else ("bear-card" if row['C'] < 0 else "neut-card")
                 
-                if watchlist_mode == "Swing Trading 📈": special_icon = "🌊"
-                elif watchlist_mode == "One Sided Moves 🚀": special_icon = "🚀"
-                else: special_icon = f"⭐{int(row['S'])}"
+                if watchlist_mode == "Swing Trading ðŸ“ˆ": special_icon = "ðŸŒŠ"
+                elif watchlist_mode == "One Sided Moves ðŸš€": special_icon = "ðŸš€"
+                else: special_icon = f"â­{int(row['S'])}"
                 
                 html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">{special_icon}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if row["C"]>0 else ""}{row["C"]:.2f}%</div></a>'
             st.markdown(html_stk + '</div>', unsafe_allow_html=True)
             
             st.markdown("<br>", unsafe_allow_html=True)
             
-            # 🔥 THE NEW TOGGLES FOR HIGH SCORE AND SWING 🔥
-            if watchlist_mode == "Swing Trading 📈":
-                with st.expander("🌊 View Swing Trading Radar (Ranked Table)", expanded=True):
+            # ðŸ”¥ THE NEW TOGGLES FOR HIGH SCORE AND SWING ðŸ”¥
+            if watchlist_mode == "Swing Trading ðŸ“ˆ":
+                with st.expander("ðŸŒŠ View Swing Trading Radar (Ranked Table)", expanded=True):
                     st.markdown(render_swing_terminal_table(df_stocks_display, stock_trends), unsafe_allow_html=True)
             
-            elif watchlist_mode == "High Score Stocks 🔥":
-                with st.expander("🔥 View High Score Radar (Ranked Intraday Table)", expanded=True):
+            elif watchlist_mode == "High Score Stocks ðŸ”¥":
+                with st.expander("ðŸ”¥ View High Score Radar (Ranked Intraday Table)", expanded=True):
                     st.markdown(render_highscore_terminal_table(df_stocks_display, stock_trends), unsafe_allow_html=True)
             
             else:
-                with st.expander("🎯 View Trading Levels (Targets & Stop Loss)", expanded=True):
+                with st.expander("ðŸŽ¯ View Trading Levels (Targets & Stop Loss)", expanded=True):
                     st.markdown(render_levels_table(df_stocks_display, stock_trends), unsafe_allow_html=True)
                 
         else: st.info(f"No {st.session_state.trend_filter} stocks found.")
@@ -809,12 +809,12 @@ if not df.empty:
         st.markdown("<br>", unsafe_allow_html=True)
         
         if search_stock != "-- None --":
-            st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:5px; color:#ffd700;'>🔍 Searched Chart: {search_stock}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:5px; color:#ffd700;'>ðŸ” Searched Chart: {search_stock}</div>", unsafe_allow_html=True)
             render_chart_grid(pd.DataFrame([df[df['T'] == search_stock].iloc[0]]), show_pin_option=True, key_prefix="search")
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
-        if watchlist_mode not in ["Terminal Tables 🗃️", "My Portfolio 💼"]:
-            st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>📈 Market Indices</div>", unsafe_allow_html=True)
+        if watchlist_mode not in ["Terminal Tables ðŸ—ƒï¸", "My Portfolio ðŸ’¼"]:
+            st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>ðŸ“ˆ Market Indices</div>", unsafe_allow_html=True)
             render_chart_grid(df_indices, show_pin_option=False, key_prefix="idx")
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
@@ -822,7 +822,7 @@ if not df.empty:
         unpinned_df = df_stocks_display[~df_stocks_display['Fetch_T'].isin(pinned_df['Fetch_T'].tolist())]
         
         if not pinned_df.empty:
-            st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#ffd700;'>📌 Pinned Priority Charts</div>", unsafe_allow_html=True)
+            st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#ffd700;'>ðŸ“Œ Pinned Priority Charts</div>", unsafe_allow_html=True)
             render_chart_grid(pinned_df, show_pin_option=True, key_prefix="pin")
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
