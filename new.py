@@ -169,8 +169,7 @@ def fetch_all_data():
     
     all_stocks = set(NIFTY_50 + BROADER_MARKET + port_stocks)
     tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + [f"{t}.NS" for t in all_stocks if t]
-    # 🔥 FIX 1: Reduced threads to 10 to prevent Streamlit OS Thread limit error
-    data = yf.download(tkrs, period="1y", progress=False, group_by='ticker', threads=10)
+    data = yf.download(tkrs, period="1y", progress=False, group_by='ticker', threads=20)
     
     results = []
     minutes = get_minutes_passed()
@@ -555,8 +554,7 @@ if not df.empty:
         if search_fetch_t not in all_display_tickers: all_display_tickers.append(search_fetch_t)
             
     with st.spinner("Analyzing VWAP & EMA Intraday Pullbacks (Sniper Mode)..."):
-        # 🔥 FIX 2: Disabled threading here to prevent crashes on Streamlit Cloud 🔥
-        five_min_data = yf.download(all_display_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=False)
+        five_min_data = yf.download(all_display_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=20)
 
     processed_charts = {}
     stock_trends = {}
@@ -586,24 +584,34 @@ if not df.empty:
                 ema50 = df_day['EMA_50'].iloc[-1]
                 vwap = df_day['VWAP'].iloc[-1]
                 
-                if net_chg > 0: 
-                    d50 = (last_price - ema50) / ema50 * 100 if ema50 > 0 else -1
-                    dvw = (last_price - vwap) / vwap * 100 if vwap > 0 else -1
-                    d20 = (last_price - ema20) / ema20 * 100 if ema20 > 0 else -1
-                    d10 = (last_price - ema10) / ema10 * 100 if ema10 > 0 else -1
+                # 🔥 FALLING KNIFE GUARD: Check if the trend is structurally intact 🔥
+                if net_chg > 0: # Bullish Setup
+                    # Trend should be Up: 10 EMA above 20 EMA, 20 EMA above 50 EMA
+                    trend_intact = (ema10 >= ema20) and (ema20 >= ema50)
                     
-                    if 0 <= d50 <= 0.4 and (ema20 >= ema50):
-                        tag, b_score = "🔥50EMA-Bounce", 5
-                    elif 0 <= dvw <= 0.4 and (ema10 >= ema20):
-                        tag, b_score = "🔥VWAP-Bounce", 5
-                    elif 0 <= d20 <= 0.4 and (ema10 >= ema20):
-                        tag, b_score = "🔥20EMA-Bounce", 5
-                    elif 0 <= d10 <= 0.3:
-                        tag, b_score = "🔥10EMA-Bounce", 5
-                        
-                else: 
-                    trend_intact = (ema10 <= ema20) and (ema20 <= ema50)
                     if trend_intact:
+                        # 🔥 SUPPORT CHECK: Price MUST be >= the Line to be a support bounce. 
+                        # We removed absolute `abs()` to ensure it hasn't broken down below the line.
+                        d50 = (last_price - ema50) / ema50 * 100 if ema50 > 0 else -1
+                        dvw = (last_price - vwap) / vwap * 100 if vwap > 0 else -1
+                        d20 = (last_price - ema20) / ema20 * 100 if ema20 > 0 else -1
+                        d10 = (last_price - ema10) / ema10 * 100 if ema10 > 0 else -1
+                        
+                        if 0 <= d50 <= 0.4:
+                            tag, b_score = "🔥50EMA-Bounce", 5
+                        elif 0 <= dvw <= 0.4:
+                            tag, b_score = "🔥VWAP-Bounce", 5
+                        elif 0 <= d20 <= 0.4:
+                            tag, b_score = "🔥20EMA-Bounce", 5
+                        elif 0 <= d10 <= 0.3:
+                            tag, b_score = "🔥10EMA-Bounce", 5
+                            
+                else: # Bearish Setup (Shorting)
+                    # Trend should be Down: 10 EMA below 20 EMA, 20 EMA below 50 EMA
+                    trend_intact = (ema10 <= ema20) and (ema20 <= ema50)
+                    
+                    if trend_intact:
+                        # Price MUST be <= the Line to be a resistance rejection.
                         d50 = (ema50 - last_price) / last_price * 100 if last_price > 0 else -1
                         dvw = (vwap - last_price) / last_price * 100 if last_price > 0 else -1
                         d20 = (ema20 - last_price) / last_price * 100 if last_price > 0 else -1
