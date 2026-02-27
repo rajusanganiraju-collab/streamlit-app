@@ -98,10 +98,10 @@ st.markdown("""
     .term-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-family: monospace; font-size: 11.5px; color: #e6edf3; background-color: #0e1117; table-layout: fixed; }
     .term-table th { padding: 6px 4px; text-align: center; border: 1px solid #30363d; font-weight: bold; overflow: hidden; }
     .term-table td { padding: 6px 4px; text-align: center; border: 1px solid #30363d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .term-head-buy { background-color: #1e5f29; color: white; text-align: left !important; padding-left: 10px !important; }
-    .term-head-sell { background-color: #b52524; color: white; text-align: left !important; padding-left: 10px !important; }
-    .term-head-ind { background-color: #9e6a03; color: white; text-align: left !important; padding-left: 10px !important; }
-    .term-head-brd { background-color: #0d47a1; color: white; text-align: left !important; padding-left: 10px !important; }
+    .term-head-buy { background-color: #1e5f29; color: white; text-align: left !important; padding-left: 10px !important; font-size:13px; }
+    .term-head-sell { background-color: #b52524; color: white; text-align: left !important; padding-left: 10px !important; font-size:13px; }
+    .term-head-ind { background-color: #9e6a03; color: white; text-align: left !important; padding-left: 10px !important; font-size:13px; }
+    .term-head-brd { background-color: #0d47a1; color: white; text-align: left !important; padding-left: 10px !important; font-size:13px; }
     .term-head-port { background-color: #4a148c; color: white; text-align: left !important; padding-left: 10px !important; font-size:14px; }
     .row-dark { background-color: #161b22; } .row-light { background-color: #0e1117; }
     .text-green { color: #3fb950; font-weight: bold; } .text-red { color: #f85149; font-weight: bold; }
@@ -146,10 +146,11 @@ def get_minutes_passed():
 @st.cache_data(ttl=60)
 def fetch_all_data():
     port_df = load_portfolio()
-    port_stocks = port_df['Symbol'].tolist() if not port_df.empty else []
+    # 🔥 AUTO-CLEAN SYMBOLS FOR SEARCH 🔥
+    port_stocks = [str(sym).upper().strip() for sym in port_df['Symbol'].tolist() if str(sym).strip() != ""]
     
     all_stocks = set(NIFTY_50 + BROADER_MARKET + port_stocks)
-    tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + [f"{t}.NS" for t in all_stocks if str(t).strip() != ""]
+    tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + [f"{t}.NS" for t in all_stocks if t]
     data = yf.download(tkrs, period="5d", progress=False, group_by='ticker', threads=20)
     
     results = []
@@ -162,7 +163,7 @@ def fetch_all_data():
             
             ltp = float(df['Close'].iloc[-1])
             open_p = float(df['Open'].iloc[-1])
-            prev_c = float(df['Close'].iloc[-2]) # 🔥 Previous Close for Day P&L 🔥
+            prev_c = float(df['Close'].iloc[-2])
             low = float(df['Low'].iloc[-1])
             high = float(df['High'].iloc[-1])
             
@@ -242,11 +243,11 @@ def render_html_table(df_subset, title, color_class):
     html += "</tbody></table>"
     return html
 
-# 🔥 NEW: PORTFOLIO TABLE WITH TREND AND DAY P&L 🔥
-def render_portfolio_table(df_port, df_stocks, stock_trends):
+# 🔥 NEW: TERMINAL STYLE PORTFOLIO TABLE 🔥
+def render_portfolio_table(df_port, df_stocks):
     if df_port.empty: return "<p style='color:#888;'>Your portfolio is empty. Expand the form above to add stocks!</p>"
     
-    html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-port">💼 LIVE PORTFOLIO P&L</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:12%;">STOCK</th><th style="width:6%;">QTY</th><th style="width:9%;">BUY AVG</th><th style="width:9%;">LTP</th><th style="width:10%;">TREND</th><th style="width:12%;">INVESTED</th><th style="width:12%;">CURRENT</th><th style="width:10%;">DAY P&L</th><th style="width:10%;">TOTAL P&L</th><th style="width:10%;">P&L %</th></tr></thead><tbody>'
+    html = f'<table class="term-table"><thead><tr><th colspan="8" class="term-head-port">💼 LIVE PORTFOLIO TERMINAL</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:16%;">STOCK</th><th style="width:7%;">QTY</th><th style="width:11%;">AVG</th><th style="width:11%;">LTP</th><th style="width:23%;">STATUS</th><th style="width:11%;">DAY P&L</th><th style="width:11%;">TOT P&L</th><th style="width:10%;">P&L %</th></tr></thead><tbody>'
     
     total_invested = 0
     total_current = 0
@@ -262,15 +263,16 @@ def render_portfolio_table(df_port, df_stocks, stock_trends):
         except: buy_p = 0
         
         live_row = df_stocks[df_stocks['T'] == sym]
+        status_html = ""
+        
         if not live_row.empty:
             ltp = float(live_row['P'].iloc[0])
             prev_c = float(live_row['Prev_C'].iloc[0])
-            fetch_t = live_row['Fetch_T'].iloc[0]
-            trend_state = stock_trends.get(fetch_t, "Neutral")
+            status_html = generate_status(live_row.iloc[0])
         else:
             ltp = buy_p
             prev_c = buy_p
-            trend_state = "N/A"
+            status_html = "Search Error"
             
         invested = buy_p * qty
         current = ltp * qty
@@ -282,18 +284,12 @@ def render_portfolio_table(df_port, df_stocks, stock_trends):
         total_current += current
         total_day_pnl += day_pnl
         
-        # Trend HTML
-        if trend_state == 'Bullish': trend_html = "🟢 Bullish"
-        elif trend_state == 'Bearish': trend_html = "🔴 Bearish"
-        elif trend_state == 'Neutral': trend_html = "⚪ Neutral"
-        else: trend_html = "➖"
-        
         tpnl_color = "text-green" if overall_pnl >= 0 else "text-red"
         dpnl_color = "text-green" if day_pnl >= 0 else "text-red"
         t_sign = "+" if overall_pnl > 0 else ""
         d_sign = "+" if day_pnl > 0 else ""
         
-        html += f'<tr class="{bg_class}"><td class="t-symbol {tpnl_color}">{sym}</td><td>{int(qty)}</td><td>{buy_p:.2f}</td><td>{ltp:.2f}</td><td style="font-size:10px;">{trend_html}</td><td>{invested:,.0f}</td><td>{current:,.0f}</td><td class="{dpnl_color}">{d_sign}{day_pnl:,.0f}</td><td class="{tpnl_color}">{t_sign}{overall_pnl:,.0f}</td><td class="{tpnl_color}">{t_sign}{pnl_pct:.2f}%</td></tr>'
+        html += f'<tr class="{bg_class}"><td class="t-symbol {tpnl_color}">{sym}</td><td>{int(qty)}</td><td>{buy_p:.2f}</td><td>{ltp:.2f}</td><td style="font-size:10px;">{status_html}</td><td class="{dpnl_color}">{d_sign}{day_pnl:,.0f}</td><td class="{tpnl_color}">{t_sign}{overall_pnl:,.0f}</td><td class="{tpnl_color}">{t_sign}{pnl_pct:.2f}%</td></tr>'
     
     overall_total_pnl = total_current - total_invested
     overall_total_pct = (overall_total_pnl / total_invested * 100) if total_invested > 0 else 0
@@ -302,10 +298,9 @@ def render_portfolio_table(df_port, df_stocks, stock_trends):
     d_color = "text-green" if total_day_pnl >= 0 else "text-red"
     d_sign = "+" if total_day_pnl > 0 else ""
     
-    html += f'<tr class="port-total"><td colspan="5" style="text-align:right;">TOTALS:</td><td>₹{total_invested:,.0f}</td><td>₹{total_current:,.0f}</td><td class="{d_color}">{d_sign}₹{total_day_pnl:,.0f}</td><td class="{o_color}">{o_sign}₹{overall_total_pnl:,.0f}</td><td class="{o_color}">{o_sign}{overall_total_pct:.2f}%</td></tr>'
+    html += f'<tr class="port-total"><td colspan="5" style="text-align:right; padding-right:15px;">INVESTED: ₹{total_invested:,.0f} &nbsp;|&nbsp; CURRENT: ₹{total_current:,.0f} &nbsp;|&nbsp; OVERALL P&L:</td><td class="{d_color}">{d_sign}₹{total_day_pnl:,.0f}</td><td class="{o_color}">{o_sign}₹{overall_total_pnl:,.0f}</td><td class="{o_color}">{o_sign}{overall_total_pct:.2f}%</td></tr>'
     html += "</tbody></table>"
     return html
-
 
 # --- HELPER FUNCTION TO DRAW CHARTS ---
 def render_chart(row, df_chart, show_pin=True, key_suffix=""):
@@ -402,7 +397,8 @@ if not df.empty:
         terminal_tickers = pd.concat([df_buy_sector, df_sell_sector, df_independent, df_broader])['Fetch_T'].unique().tolist()
         df_filtered = df_stocks[df_stocks['Fetch_T'].isin(terminal_tickers)]
     elif watchlist_mode == "My Portfolio 💼":
-        port_tickers = [f"{str(sym).strip()}.NS" for sym in df_port_saved['Symbol'].tolist() if str(sym).strip() != ""]
+        # Handle custom typed symbols automatically converting to Yahoo Finance format
+        port_tickers = [f"{str(sym).upper().strip()}.NS" for sym in df_port_saved['Symbol'].tolist() if str(sym).strip() != ""]
         df_filtered = df_stocks[df_stocks['Fetch_T'].isin(port_tickers)]
     elif watchlist_mode == "Nifty 50 Heatmap":
         df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
@@ -498,19 +494,37 @@ if not df.empty:
         st.markdown(render_html_table(df_independent, "🌟 INDEPENDENT MOVERS", "term-head-ind"), unsafe_allow_html=True)
         st.markdown(render_html_table(df_broader, "🌌 BROADER MARKET", "term-head-brd"), unsafe_allow_html=True)
 
-    # 🔥 NEW: PORTFOLIO VIEW LOGIC 🔥
+    # 🔥 NEW & IMPROVED PORTFOLIO VIEW LOGIC 🔥
     elif watchlist_mode == "My Portfolio 💼" and view_mode == "Heat Map":
-        with st.expander("➕ Add / Edit Holdings (Click to Expand)", expanded=df_port_saved.empty):
-            st.markdown("<p style='font-size:12px; color:#888;'><i>Type EXACT symbol (e.g., ITC, HDFCBANK). Double click a cell to edit. Select a row and press Delete to remove.</i></p>", unsafe_allow_html=True)
-            edited_df = st.data_editor(df_port_saved, num_rows="dynamic", use_container_width=True)
+        with st.expander("➕ Add / Edit Holdings (Search & Auto-Format)", expanded=df_port_saved.empty):
+            st.markdown("<p style='font-size:12px; color:#888;'><i>Type the Stock Symbol (e.g. itc, tcs). Don't worry about spaces or capital letters, system will auto-fix and fetch live data!</i></p>", unsafe_allow_html=True)
             
-            if st.button("💾 Save Portfolio Changes", use_container_width=True):
+            # Formatted Editor
+            edited_df = st.data_editor(
+                df_port_saved, 
+                num_rows="dynamic", 
+                use_container_width=True,
+                column_config={
+                    "Symbol": st.column_config.TextColumn("Stock Symbol (Type Here)", required=True),
+                    "Buy_Price": st.column_config.NumberColumn("Buy Average (₹)", min_value=0.0, format="%.2f"),
+                    "Quantity": st.column_config.NumberColumn("Quantity", min_value=1, step=1),
+                    "Date": st.column_config.TextColumn("Date/Notes (Optional)")
+                }
+            )
+            
+            if st.button("💾 Save & Fetch Live Data", use_container_width=True):
+                # Auto-Format Magic: Clean spaces and make UPPERCASE
+                edited_df['Symbol'] = edited_df['Symbol'].astype(str).str.upper().str.strip()
+                # Remove empty rows
+                edited_df = edited_df[edited_df['Symbol'] != "NAN"]
+                edited_df = edited_df[edited_df['Symbol'] != ""]
+                
                 save_portfolio(edited_df)
-                st.success("Portfolio Updated Successfully! Refreshing...")
+                st.success("Portfolio Updated Successfully! Fetching live data...")
                 st.rerun()
                 
-        # Call the new Portfolio table renderer
-        st.markdown(render_portfolio_table(df_port_saved, df_stocks, stock_trends), unsafe_allow_html=True)
+        # Call the new Terminal-Style Portfolio Table renderer
+        st.markdown(render_portfolio_table(df_port_saved, df_stocks), unsafe_allow_html=True)
 
     elif view_mode == "Heat Map":
         if not df_indices.empty:
