@@ -205,17 +205,14 @@ def fetch_all_data():
                 vol_x = 0.0
                 curr_vol = 0.0
                 
-            ema20 = df['Close'].ewm(span=20, adjust=False).mean().iloc[-1] if len(df) >= 20 else 0
-            ema50 = df['Close'].ewm(span=50, adjust=False).mean().iloc[-1] if len(df) >= 50 else 0
             vwap = (high + low + ltp) / 3
-            
-            near_vwap = vwap > 0 and (abs(ltp - vwap) / vwap) <= 0.005
-            near_ema20 = ema20 > 0 and (abs(ltp - ema20) / ema20) <= 0.005
-            near_ema50 = ema50 > 0 and (abs(ltp - ema50) / ema50) <= 0.005
             
             is_swing = False
             if len(df) >= 50:
+                ema20 = df['Close'].ewm(span=20, adjust=False).mean().iloc[-1]
+                ema50 = df['Close'].ewm(span=50, adjust=False).mean().iloc[-1]
                 ema200 = df['Close'].ewm(span=200, adjust=False).mean().iloc[-1] if len(df) >= 200 else 0
+                
                 delta = df['Close'].diff()
                 gain = delta.clip(lower=0).ewm(alpha=1/14, adjust=False).mean()
                 loss = -delta.clip(upper=0).ewm(alpha=1/14, adjust=False).mean()
@@ -230,16 +227,13 @@ def fetch_all_data():
                 if (ltp > ema50) and (ema20 > ema50) and (current_rsi >= 55) and vol_breakout and (net_chg > 0):
                     is_swing = True
 
+            # 🔥 1. BASE SCORE CALCULATION (PURE PARAMETERS ONLY) 🔥
             score = 0
             if abs(day_chg) >= 2.0: score += 3 
             if abs(open_p - low) <= (ltp * 0.003) or abs(open_p - high) <= (ltp * 0.003): score += 3 
             if vol_x > 1.0: score += 3 
             if (ltp >= high * 0.998 and day_chg > 0.5) or (ltp <= low * 1.002 and day_chg < -0.5): score += 1
             if (ltp > (low * 1.01) and ltp > vwap) or (ltp < (high * 0.99) and ltp < vwap): score += 1
-            
-            if near_vwap: score += 2
-            if near_ema20: score += 1
-            if near_ema50: score += 1
             
             is_index = symbol in INDICES_MAP
             is_sector = symbol in SECTOR_INDICES_MAP
@@ -255,7 +249,6 @@ def fetch_all_data():
             results.append({
                 "Fetch_T": symbol, "T": disp_name, "P": ltp, "O": open_p, "H": high, "L": low, "Prev_C": prev_c,
                 "Day_C": day_chg, "C": net_chg, "S": score, "VolX": vol_x, "Is_Swing": is_swing,
-                "Near_VWAP": near_vwap, "Near_EMA20": near_ema20, "Near_EMA50": near_ema50, 
                 "Pivot": pivot, "R1": r1, "R2": r2, "S1": s1, "S2": s2,
                 "Is_Index": is_index, "Is_Sector": is_sector, "Sector": stock_sector
             })
@@ -266,7 +259,12 @@ def process_5m_data(df_raw):
     try:
         df_s = df_raw.dropna(subset=['Close']).copy()
         if df_s.empty: return pd.DataFrame()
+        
+        # Calculate Intraday EMAs
         df_s['EMA_10'] = df_s['Close'].ewm(span=10, adjust=False).mean()
+        df_s['EMA_20'] = df_s['Close'].ewm(span=20, adjust=False).mean()
+        df_s['EMA_50'] = df_s['Close'].ewm(span=50, adjust=False).mean()
+        
         df_s.index = pd.to_datetime(df_s.index)
         df_day = df_s[df_s.index.date == df_s.index.date.max()].copy()
         
@@ -288,9 +286,8 @@ def generate_status(row):
     if abs(row['O'] - row['H']) < (p * 0.002): status += "O=H🩸 "
     if abs(row['C']) >= 2.0: status += "BigMove🚀 " if row['C'] > 0 else "BigMove🩸 "
     
-    if row.get('Near_VWAP', False): status += "NearVWAP🎯 "
-    elif row.get('Near_EMA20', False): status += "Near20EMA🎯 "
-    elif row.get('Near_EMA50', False): status += "Near50EMA🎯 "
+    if 'BounceTag' in row and row['BounceTag']:
+        status += f"{row['BounceTag']} "
     
     if row['C'] > 0 and row['Day_C'] > 0 and row['VolX'] > 1: status += "Rec ⇈ "
     return status.strip()
@@ -559,12 +556,13 @@ if not df.empty:
         search_fetch_t = df[df['T'] == search_stock]['Fetch_T'].iloc[0]
         if search_fetch_t not in all_display_tickers: all_display_tickers.append(search_fetch_t)
             
-    with st.spinner("Analyzing VWAP & 10 EMA Trends..."):
+    with st.spinner("Analyzing VWAP & EMA Intraday Pullbacks (Sniper Mode)..."):
         five_min_data = yf.download(all_display_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=20)
 
     processed_charts = {}
     stock_trends = {}
-    one_sided_tickers = []
+    bounce_tags = {}
+    bounce_scores = {}
 
     for sym in all_display_tickers:
         df_raw = five_min_data[sym] if isinstance(five_min_data.columns, pd.MultiIndex) else five_min_data
@@ -579,24 +577,52 @@ if not df.empty:
             
             net_chg = df[df['Fetch_T'] == sym]['C'].iloc[0]
             
-            # 🔥 FIXED: RELAXED THE STRICT INTRADAY BULLISH/BEARISH TREND RULES 🔥
-            # Now, if it's green and above VWAP, it's firmly considered Bullish for the trend tag!
+            # Get the BASE SCORE (Purely Volume, O=L, etc.) before adding any bounce bonus
+            base_score = int(df_filtered[df_filtered['Fetch_T'] == sym]['S'].iloc[0])
+            
+            # 🔥 THE FIX: ONLY APPLY BOUNCE LOGIC IF IT HAS VOLUME AND MOMENTUM (Score >= 6) 🔥
+            tag = ""
+            b_score = 0
+            
+            if len(df_day) >= 50 and base_score >= 6: 
+                ema10 = df_day['EMA_10'].iloc[-1]
+                ema20 = df_day['EMA_20'].iloc[-1]
+                ema50 = df_day['EMA_50'].iloc[-1]
+                vwap = df_day['VWAP'].iloc[-1]
+                
+                # Calculate absolute distance in percentage (LTP vs Line)
+                dist_50 = abs(last_price - ema50) / ema50 * 100 if ema50 > 0 else -1
+                dist_vwap = abs(last_price - vwap) / vwap * 100 if vwap > 0 else -1
+                dist_20 = abs(last_price - ema20) / ema20 * 100 if ema20 > 0 else -1
+                dist_10 = abs(last_price - ema10) / ema10 * 100 if ema10 > 0 else -1
+                
+                if 0 <= dist_50 <= 0.4:
+                    tag = "🔥50EMA-Bounce"
+                    b_score = 20
+                elif 0 <= dist_vwap <= 0.4:
+                    tag = "🔥VWAP-Bounce"
+                    b_score = 15
+                elif 0 <= dist_20 <= 0.4:
+                    tag = "🔥20EMA-Bounce"
+                    b_score = 10
+                elif 0 <= dist_10 <= 0.3:
+                    tag = "🔥10EMA-Bounce"
+                    b_score = 5
+
+            bounce_tags[sym] = tag
+            bounce_scores[sym] = b_score
+            
             is_bullish = (net_chg > 0) and (last_price >= last_vwap)
             is_bearish = (net_chg < 0) and (last_price <= last_vwap)
             
             if is_bullish: stock_trends[sym] = 'Bullish'
             elif is_bearish: stock_trends[sym] = 'Bearish'
             else: stock_trends[sym] = 'Neutral'
-                
-            total_candles = len(df_day)
-            if total_candles >= 3:
-                bull_cond = (df_day['Close'] > df_day['VWAP']) & (df_day['Close'] > df_day['EMA_10'])
-                bear_cond = (df_day['Close'] < df_day['VWAP']) & (df_day['Close'] < df_day['EMA_10'])
-                if (bull_cond.sum() / total_candles) >= 0.70 and stock_trends[sym] == 'Bullish': one_sided_tickers.append(sym)
-                elif (bear_cond.sum() / total_candles) >= 0.70 and stock_trends[sym] == 'Bearish': one_sided_tickers.append(sym)
 
-    if watchlist_mode == "One Sided Moves 🚀":
-        df_filtered = df_filtered[df_filtered['Fetch_T'].isin(one_sided_tickers)]
+    # 🔥 APPLY BOUNCE SCORES AND TAGS 🔥
+    if not df_filtered.empty:
+        df_filtered['BounceTag'] = df_filtered['Fetch_T'].map(bounce_tags).fillna("")
+        df_filtered['S'] = df_filtered.apply(lambda row: row['S'] + bounce_scores.get(row['Fetch_T'], 0), axis=1)
 
     bull_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bullish')
     bear_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bearish')
