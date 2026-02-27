@@ -190,7 +190,6 @@ def fetch_all_data():
             day_chg = ((ltp - open_p) / open_p) * 100
             net_chg = ((ltp - prev_c) / prev_c) * 100
             
-            # PIVOT POINTS
             pivot = (prev_h + prev_l + prev_c) / 3
             r1 = (2 * pivot) - prev_l
             s1 = (2 * pivot) - prev_h
@@ -227,7 +226,6 @@ def fetch_all_data():
                 if (ltp > ema50) and (ema20 > ema50) and (current_rsi >= 55) and vol_breakout and (net_chg > 0):
                     is_swing = True
 
-            # 🔥 1. BASE SCORE CALCULATION (PURE PARAMETERS ONLY) 🔥
             score = 0
             if abs(day_chg) >= 2.0: score += 3 
             if abs(open_p - low) <= (ltp * 0.003) or abs(open_p - high) <= (ltp * 0.003): score += 3 
@@ -575,37 +573,58 @@ if not df.empty:
             day_open = df_day['Open'].iloc[0]
             
             net_chg = df[df['Fetch_T'] == sym]['C'].iloc[0]
-            
             base_score = int(df_filtered[df_filtered['Fetch_T'] == sym]['S'].iloc[0])
             
             tag = ""
             b_score = 0
             
-            # 🔥 THE FIX: ONLY APPLY BOUNCE LOGIC IF IT HAS ACTION (Score >= 6) 🔥
             if len(df_day) >= 50 and base_score >= 6: 
                 ema10 = df_day['EMA_10'].iloc[-1]
                 ema20 = df_day['EMA_20'].iloc[-1]
                 ema50 = df_day['EMA_50'].iloc[-1]
                 vwap = df_day['VWAP'].iloc[-1]
                 
-                dist_50 = abs(last_price - ema50) / ema50 * 100 if ema50 > 0 else -1
-                dist_vwap = abs(last_price - vwap) / vwap * 100 if vwap > 0 else -1
-                dist_20 = abs(last_price - ema20) / ema20 * 100 if ema20 > 0 else -1
-                dist_10 = abs(last_price - ema10) / ema10 * 100 if ema10 > 0 else -1
-                
-                # 🔥 EQUAL BONUS (+5) FOR ANY BOUNCE (Avoids 50 EMA overpowering 20 EMA) 🔥
-                if 0 <= dist_50 <= 0.4:
-                    tag = "🔥50EMA-Bounce"
-                    b_score = 5
-                elif 0 <= dist_vwap <= 0.4:
-                    tag = "🔥VWAP-Bounce"
-                    b_score = 5
-                elif 0 <= dist_20 <= 0.4:
-                    tag = "🔥20EMA-Bounce"
-                    b_score = 5
-                elif 0 <= dist_10 <= 0.3:
-                    tag = "🔥10EMA-Bounce"
-                    b_score = 5
+                # 🔥 FALLING KNIFE GUARD: Check if the trend is structurally intact 🔥
+                if net_chg > 0: # Bullish Setup
+                    # Trend should be Up: 10 EMA above 20 EMA, 20 EMA above 50 EMA
+                    trend_intact = (ema10 >= ema20) and (ema20 >= ema50)
+                    
+                    if trend_intact:
+                        # 🔥 SUPPORT CHECK: Price MUST be >= the Line to be a support bounce. 
+                        # We removed absolute `abs()` to ensure it hasn't broken down below the line.
+                        d50 = (last_price - ema50) / ema50 * 100 if ema50 > 0 else -1
+                        dvw = (last_price - vwap) / vwap * 100 if vwap > 0 else -1
+                        d20 = (last_price - ema20) / ema20 * 100 if ema20 > 0 else -1
+                        d10 = (last_price - ema10) / ema10 * 100 if ema10 > 0 else -1
+                        
+                        if 0 <= d50 <= 0.4:
+                            tag, b_score = "🔥50EMA-Bounce", 5
+                        elif 0 <= dvw <= 0.4:
+                            tag, b_score = "🔥VWAP-Bounce", 5
+                        elif 0 <= d20 <= 0.4:
+                            tag, b_score = "🔥20EMA-Bounce", 5
+                        elif 0 <= d10 <= 0.3:
+                            tag, b_score = "🔥10EMA-Bounce", 5
+                            
+                else: # Bearish Setup (Shorting)
+                    # Trend should be Down: 10 EMA below 20 EMA, 20 EMA below 50 EMA
+                    trend_intact = (ema10 <= ema20) and (ema20 <= ema50)
+                    
+                    if trend_intact:
+                        # Price MUST be <= the Line to be a resistance rejection.
+                        d50 = (ema50 - last_price) / last_price * 100 if last_price > 0 else -1
+                        dvw = (vwap - last_price) / last_price * 100 if last_price > 0 else -1
+                        d20 = (ema20 - last_price) / last_price * 100 if last_price > 0 else -1
+                        d10 = (ema10 - last_price) / last_price * 100 if last_price > 0 else -1
+                        
+                        if 0 <= d50 <= 0.4:
+                            tag, b_score = "🩸50EMA-Reject", 5
+                        elif 0 <= dvw <= 0.4:
+                            tag, b_score = "🩸VWAP-Reject", 5
+                        elif 0 <= d20 <= 0.4:
+                            tag, b_score = "🩸20EMA-Reject", 5
+                        elif 0 <= d10 <= 0.3:
+                            tag, b_score = "🩸10EMA-Reject", 5
 
             bounce_tags[sym] = tag
             bounce_scores[sym] = b_score
