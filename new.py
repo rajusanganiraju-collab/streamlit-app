@@ -103,7 +103,17 @@ st.markdown("""
 # --- 5. DATA SETUP & SECTOR MAPPING ---
 INDICES_MAP = {"^NSEI": "NIFTY", "^NSEBANK": "BANKNIFTY", "^INDIAVIX": "INDIA VIX"}
 TV_INDICES_URL = {"^NSEI": "NSE:NIFTY", "^NSEBANK": "NSE:BANKNIFTY", "^INDIAVIX": "NSE:INDIAVIX"}
-SECTOR_INDICES_MAP = { "^CNXIT": "NIFTY IT", "^CNXAUTO": "NIFTY AUTO", "^CNXMETAL": "NIFTY METAL", "^CNXPHARMA": "NIFTY PHARMA", "^CNXFMCG": "NIFTY FMCG", "^CNXENERGY": "NIFTY ENERGY" }
+
+SECTOR_INDICES_MAP = {
+    "^CNXIT": "NIFTY IT", "^CNXAUTO": "NIFTY AUTO", "^CNXMETAL": "NIFTY METAL",
+    "^CNXPHARMA": "NIFTY PHARMA", "^CNXFMCG": "NIFTY FMCG", "^CNXENERGY": "NIFTY ENERGY", "^CNXREALTY": "NIFTY REALTY"
+}
+
+# 🔥 ADDED THE MISSING URL MAPPING HERE 🔥
+TV_SECTOR_URL = {
+    "^CNXIT": "NSE:CNXIT", "^CNXAUTO": "NSE:CNXAUTO", "^CNXMETAL": "NSE:CNXMETAL",
+    "^CNXPHARMA": "NSE:CNXPHARMA", "^CNXFMCG": "NSE:CNXFMCG", "^CNXENERGY": "NSE:CNXENERGY", "^CNXREALTY": "NSE:CNXREALTY"
+}
 
 NIFTY_50_SECTORS = {
     "PHARMA": ["SUNPHARMA", "CIPLA", "DRREDDY", "DIVISLAB", "APOLLOHOSP"],
@@ -115,7 +125,7 @@ NIFTY_50_SECTORS = {
     "FMCG": ["ITC", "HINDUNILVR", "NESTLEIND", "BRITANNIA", "TATACONSUM"]
 }
 
-NIFTY_50 = [stock for sector in NIFTY_50_SECTORS.values() for stock in sector] + ["LARSEN", "BAJFINANCE", "ASIANPAINT", "TITAN", "ADANIENT"] # Add remaining for full 50 if needed
+NIFTY_50 = [stock for sector in NIFTY_50_SECTORS.values() for stock in sector] + ["LARSEN", "BAJFINANCE", "ASIANPAINT", "TITAN", "ADANIENT"]
 BROADER_MARKET = ["HAL", "BDL", "MAZDOCK", "RVNL", "IRFC", "BHEL", "CGPOWER", "SUZLON", "PFC", "RECLTD", "DIXON", "POLYCAB", "KAYNES", "ZOMATO", "DMART", "MANAPPURAM", "MUTHOOTFIN", "KEI"]
 
 def get_minutes_passed():
@@ -290,7 +300,6 @@ def render_chart_grid(df_grid, show_pin_option, key_prefix):
 # --- 6. TOP NAVIGATION & SEARCH ---
 c1, c2, c3 = st.columns([0.4, 0.3, 0.3])
 with c1: 
-    # 🔥 ADDED TERMINAL TABLES OPTION HERE 🔥
     watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Nifty 50 Heatmap", "One Sided Moves 🚀", "Terminal Tables 🗃️"], label_visibility="collapsed")
 with c2: 
     sort_mode = st.selectbox("Sort By", ["Custom Sort", "Heatmap Marks Up ⭐", "Heatmap Marks Down ⬇️", "% Change Up 🟢", "% Change Down 🔴"], label_visibility="collapsed")
@@ -318,28 +327,23 @@ if not df.empty:
     df_nifty = df_stocks[df_stocks['T'].isin(NIFTY_50)].copy()
     sector_perf = df_nifty.groupby('Sector')['C'].mean().sort_values(ascending=False)
     
-    # Exclude "OTHER" from finding top buy/sell sectors
     valid_sectors = [s for s in sector_perf.index if s != "OTHER"]
     
     if valid_sectors:
         top_buy_sector = valid_sectors[0]
         top_sell_sector = valid_sectors[-1]
     else:
-        top_buy_sector = "PHARMA" # Fallback
-        top_sell_sector = "IT" # Fallback
+        top_buy_sector = "PHARMA" 
+        top_sell_sector = "IT" 
         
     df_buy_sector = df_nifty[df_nifty['Sector'] == top_buy_sector].sort_values(by='C', ascending=False)
     df_sell_sector = df_nifty[df_nifty['Sector'] == top_sell_sector].sort_values(by='C', ascending=True)
     
-    # Independent Movers: High Score Nifty 50 stocks NOT in buy/sell sectors
     df_independent = df_nifty[(~df_nifty['Sector'].isin([top_buy_sector, top_sell_sector])) & (df_nifty['S'] >= 6)].sort_values(by='S', ascending=False).head(8)
-    
-    # Broader Market: High Score Broader Market stocks
     df_broader = df_stocks[(df_stocks['T'].isin(BROADER_MARKET)) & (df_stocks['S'] >= 6)].sort_values(by='S', ascending=False).head(8)
 
     # Watchlist Filtering
     if watchlist_mode == "Terminal Tables 🗃️":
-        # In terminal mode, we collect all stocks from the 4 tables to fetch their 5m data for charts
         terminal_tickers = pd.concat([df_buy_sector, df_sell_sector, df_independent, df_broader])['Fetch_T'].unique().tolist()
         df_filtered = df_stocks[df_stocks['Fetch_T'].isin(terminal_tickers)]
     elif watchlist_mode == "Nifty 50 Heatmap":
@@ -426,7 +430,6 @@ if not df.empty:
     if watchlist_mode == "Terminal Tables 🗃️" and view_mode == "Heat Map":
         st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>🗃️ Professional Terminal View</div>", unsafe_allow_html=True)
         
-        # We apply trend filters to the terminal tables as well!
         if st.session_state.trend_filter != 'All':
             df_buy_sector = df_buy_sector[df_buy_sector['Fetch_T'].isin(df_filtered['Fetch_T'])]
             df_sell_sector = df_sell_sector[df_sell_sector['Fetch_T'].isin(df_filtered['Fetch_T'])]
