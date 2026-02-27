@@ -146,7 +146,7 @@ def get_minutes_passed():
 @st.cache_data(ttl=60)
 def fetch_all_data():
     port_df = load_portfolio()
-    # 🔥 AUTO-CLEAN SYMBOLS FOR SEARCH 🔥
+    # Pull dynamic portfolio stocks
     port_stocks = [str(sym).upper().strip() for sym in port_df['Symbol'].tolist() if str(sym).strip() != ""]
     
     all_stocks = set(NIFTY_50 + BROADER_MARKET + port_stocks)
@@ -243,11 +243,11 @@ def render_html_table(df_subset, title, color_class):
     html += "</tbody></table>"
     return html
 
-# 🔥 NEW: TERMINAL STYLE PORTFOLIO TABLE 🔥
-def render_portfolio_table(df_port, df_stocks):
-    if df_port.empty: return "<p style='color:#888;'>Your portfolio is empty. Expand the form above to add stocks!</p>"
+# 🔥 NEW: COLORFUL TERMINAL PORTFOLIO TABLE 🔥
+def render_portfolio_table(df_port, df_stocks, stock_trends):
+    if df_port.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>Portfolio is empty. Add a stock using the search bar above!</div>"
     
-    html = f'<table class="term-table"><thead><tr><th colspan="8" class="term-head-port">💼 LIVE PORTFOLIO TERMINAL</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:16%;">STOCK</th><th style="width:7%;">QTY</th><th style="width:11%;">AVG</th><th style="width:11%;">LTP</th><th style="width:23%;">STATUS</th><th style="width:11%;">DAY P&L</th><th style="width:11%;">TOT P&L</th><th style="width:10%;">P&L %</th></tr></thead><tbody>'
+    html = f'<table class="term-table"><thead><tr><th colspan="9" class="term-head-port">💼 LIVE PORTFOLIO TERMINAL</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:13%;">STOCK</th><th style="width:7%;">QTY</th><th style="width:9%;">AVG</th><th style="width:9%;">LTP</th><th style="width:11%;">TREND</th><th style="width:20%;">STATUS</th><th style="width:10%;">DAY P&L</th><th style="width:11%;">TOT P&L</th><th style="width:10%;">P&L %</th></tr></thead><tbody>'
     
     total_invested = 0
     total_current = 0
@@ -255,20 +255,24 @@ def render_portfolio_table(df_port, df_stocks):
     
     for i, (_, row) in enumerate(df_port.iterrows()):
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
-        
         sym = str(row['Symbol']).upper().strip()
-        try: qty = float(row['Quantity'])
-        except: qty = 0
-        try: buy_p = float(row['Buy_Price'])
-        except: buy_p = 0
+        qty = float(row['Quantity'])
+        buy_p = float(row['Buy_Price'])
         
         live_row = df_stocks[df_stocks['T'] == sym]
         status_html = ""
+        trend_html = "➖"
         
         if not live_row.empty:
             ltp = float(live_row['P'].iloc[0])
             prev_c = float(live_row['Prev_C'].iloc[0])
             status_html = generate_status(live_row.iloc[0])
+            
+            fetch_t = live_row['Fetch_T'].iloc[0]
+            trend_state = stock_trends.get(fetch_t, "Neutral")
+            if trend_state == 'Bullish': trend_html = "🟢 Bullish"
+            elif trend_state == 'Bearish': trend_html = "🔴 Bearish"
+            else: trend_html = "⚪ Neutral"
         else:
             ltp = buy_p
             prev_c = buy_p
@@ -289,7 +293,7 @@ def render_portfolio_table(df_port, df_stocks):
         t_sign = "+" if overall_pnl > 0 else ""
         d_sign = "+" if day_pnl > 0 else ""
         
-        html += f'<tr class="{bg_class}"><td class="t-symbol {tpnl_color}">{sym}</td><td>{int(qty)}</td><td>{buy_p:.2f}</td><td>{ltp:.2f}</td><td style="font-size:10px;">{status_html}</td><td class="{dpnl_color}">{d_sign}{day_pnl:,.0f}</td><td class="{tpnl_color}">{t_sign}{overall_pnl:,.0f}</td><td class="{tpnl_color}">{t_sign}{pnl_pct:.2f}%</td></tr>'
+        html += f'<tr class="{bg_class}"><td class="t-symbol {tpnl_color}">{sym}</td><td>{int(qty)}</td><td>{buy_p:.2f}</td><td>{ltp:.2f}</td><td style="font-size:10px;">{trend_html}</td><td style="font-size:10px;">{status_html}</td><td class="{dpnl_color}">{d_sign}{day_pnl:,.0f}</td><td class="{tpnl_color}">{t_sign}{overall_pnl:,.0f}</td><td class="{tpnl_color}">{t_sign}{pnl_pct:.2f}%</td></tr>'
     
     overall_total_pnl = total_current - total_invested
     overall_total_pct = (overall_total_pnl / total_invested * 100) if total_invested > 0 else 0
@@ -298,7 +302,7 @@ def render_portfolio_table(df_port, df_stocks):
     d_color = "text-green" if total_day_pnl >= 0 else "text-red"
     d_sign = "+" if total_day_pnl > 0 else ""
     
-    html += f'<tr class="port-total"><td colspan="5" style="text-align:right; padding-right:15px;">INVESTED: ₹{total_invested:,.0f} &nbsp;|&nbsp; CURRENT: ₹{total_current:,.0f} &nbsp;|&nbsp; OVERALL P&L:</td><td class="{d_color}">{d_sign}₹{total_day_pnl:,.0f}</td><td class="{o_color}">{o_sign}₹{overall_total_pnl:,.0f}</td><td class="{o_color}">{o_sign}{overall_total_pct:.2f}%</td></tr>'
+    html += f'<tr class="port-total"><td colspan="6" style="text-align:right; padding-right:15px; font-size:12px;">INVESTED: ₹{total_invested:,.0f} &nbsp;|&nbsp; CURRENT: ₹{total_current:,.0f} &nbsp;|&nbsp; OVERALL P&L:</td><td class="{d_color}">{d_sign}₹{total_day_pnl:,.0f}</td><td class="{o_color}">{o_sign}₹{overall_total_pnl:,.0f}</td><td class="{o_color}">{o_sign}{overall_total_pct:.2f}%</td></tr>'
     html += "</tbody></table>"
     return html
 
@@ -397,7 +401,6 @@ if not df.empty:
         terminal_tickers = pd.concat([df_buy_sector, df_sell_sector, df_independent, df_broader])['Fetch_T'].unique().tolist()
         df_filtered = df_stocks[df_stocks['Fetch_T'].isin(terminal_tickers)]
     elif watchlist_mode == "My Portfolio 💼":
-        # Handle custom typed symbols automatically converting to Yahoo Finance format
         port_tickers = [f"{str(sym).upper().strip()}.NS" for sym in df_port_saved['Symbol'].tolist() if str(sym).strip() != ""]
         df_filtered = df_stocks[df_stocks['Fetch_T'].isin(port_tickers)]
     elif watchlist_mode == "Nifty 50 Heatmap":
@@ -479,7 +482,6 @@ if not df.empty:
         else: df_stocks_display = pd.concat([df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False]), df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[True, True])])
 
     # --- RENDER VIEWS ---
-    
     if watchlist_mode == "Terminal Tables 🗃️" and view_mode == "Heat Map":
         st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>🗃️ Professional Terminal View</div>", unsafe_allow_html=True)
         
@@ -494,37 +496,54 @@ if not df.empty:
         st.markdown(render_html_table(df_independent, "🌟 INDEPENDENT MOVERS", "term-head-ind"), unsafe_allow_html=True)
         st.markdown(render_html_table(df_broader, "🌌 BROADER MARKET", "term-head-brd"), unsafe_allow_html=True)
 
-    # 🔥 NEW & IMPROVED PORTFOLIO VIEW LOGIC 🔥
+    # 🔥 THE FIX: PROFESSIONAL ONLINE SEARCH & ENTRY FOR PORTFOLIO 🔥
     elif watchlist_mode == "My Portfolio 💼" and view_mode == "Heat Map":
-        with st.expander("➕ Add / Edit Holdings (Search & Auto-Format)", expanded=df_port_saved.empty):
-            st.markdown("<p style='font-size:12px; color:#888;'><i>Type the Stock Symbol (e.g. itc, tcs). Don't worry about spaces or capital letters, system will auto-fix and fetch live data!</i></p>", unsafe_allow_html=True)
-            
-            # Formatted Editor
-            edited_df = st.data_editor(
-                df_port_saved, 
-                num_rows="dynamic", 
-                use_container_width=True,
-                column_config={
-                    "Symbol": st.column_config.TextColumn("Stock Symbol (Type Here)", required=True),
-                    "Buy_Price": st.column_config.NumberColumn("Buy Average (₹)", min_value=0.0, format="%.2f"),
-                    "Quantity": st.column_config.NumberColumn("Quantity", min_value=1, step=1),
-                    "Date": st.column_config.TextColumn("Date/Notes (Optional)")
-                }
-            )
-            
-            if st.button("💾 Save & Fetch Live Data", use_container_width=True):
-                # Auto-Format Magic: Clean spaces and make UPPERCASE
-                edited_df['Symbol'] = edited_df['Symbol'].astype(str).str.upper().str.strip()
-                # Remove empty rows
-                edited_df = edited_df[edited_df['Symbol'] != "NAN"]
-                edited_df = edited_df[edited_df['Symbol'] != ""]
-                
-                save_portfolio(edited_df)
-                st.success("Portfolio Updated Successfully! Fetching live data...")
-                st.rerun()
-                
-        # Call the new Terminal-Style Portfolio Table renderer
-        st.markdown(render_portfolio_table(df_port_saved, df_stocks), unsafe_allow_html=True)
+        
+        # 1. LIVE SEARCH ADD BOX
+        st.markdown("<div style='background-color:#161b22; padding:15px; border-radius:8px; border:1px solid #30363d; margin-bottom:15px;'>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:14px; font-weight:bold; color:#ffd700; margin-bottom:10px;'>➕ Search & Add Stock to Portfolio</div>", unsafe_allow_html=True)
+        
+        c1, c2, c3, c4 = st.columns([3, 2, 2, 3])
+        with c1:
+            new_sym = st.text_input("🔍 NSE Symbol (e.g. itc, zomato)", key="new_sym", label_visibility="collapsed", placeholder="Type Symbol...").upper().strip()
+        with c2:
+            new_qty = st.number_input("📦 Quantity", min_value=1, value=10, key="new_qty", label_visibility="collapsed")
+        with c3:
+            new_price = st.number_input("💰 Buy Price (₹)", min_value=0.0, value=100.0, key="new_prc", label_visibility="collapsed")
+        with c4:
+            if st.button("➕ Verify & Add", use_container_width=True):
+                if new_sym:
+                    with st.spinner(f"Searching NSE for {new_sym}..."):
+                        chk_data = yf.download(f"{new_sym}.NS", period="1d", progress=False)
+                        if chk_data.empty:
+                            st.error(f"❌ '{new_sym}' not found! Please check spelling.")
+                        else:
+                            if new_sym in df_port_saved['Symbol'].values:
+                                df_port_saved.loc[df_port_saved['Symbol'] == new_sym, ['Buy_Price', 'Quantity']] = [new_price, new_qty]
+                            else:
+                                new_row = pd.DataFrame({"Symbol": [new_sym], "Buy_Price": [new_price], "Quantity": [new_qty], "Date": [""]})
+                                df_port_saved = pd.concat([df_port_saved, new_row], ignore_index=True)
+                            save_portfolio(df_port_saved)
+                            st.success(f"✅ {new_sym} Added to Portfolio!")
+                            st.rerun()
+                else:
+                    st.warning("Type a symbol first!")
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+        # 2. REMOVE BOX (Side by side with Table if needed, but let's keep it clean)
+        if not df_port_saved.empty:
+            rc1, rc2, rc3 = st.columns([3, 2, 5])
+            with rc1:
+                del_sym = st.selectbox("🗑️ Remove Stock", ["-- Select --"] + df_port_saved['Symbol'].tolist(), label_visibility="collapsed")
+            with rc2:
+                if st.button("❌ Remove", use_container_width=True):
+                    if del_sym != "-- Select --":
+                        df_port_saved = df_port_saved[df_port_saved['Symbol'] != del_sym]
+                        save_portfolio(df_port_saved)
+                        st.rerun()
+
+        # 3. COLORFUL TERMINAL TABLE RENDER
+        st.markdown(render_portfolio_table(df_port_saved, df_stocks, stock_trends), unsafe_allow_html=True)
 
     elif view_mode == "Heat Map":
         if not df_indices.empty:
