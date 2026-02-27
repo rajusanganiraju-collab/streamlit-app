@@ -202,12 +202,19 @@ def fetch_all_data():
                 vol_x = 0.0
                 curr_vol = 0.0
                 
+            # PROXIMITY LOGIC (PULLBACKS) - EMA20 and EMA50 for all stocks
+            ema20 = df['Close'].ewm(span=20, adjust=False).mean().iloc[-1] if len(df) >= 20 else 0
+            ema50 = df['Close'].ewm(span=50, adjust=False).mean().iloc[-1] if len(df) >= 50 else 0
+            vwap = (high + low + ltp) / 3
+            
+            # Distance <= 0.5% means "Near"
+            near_vwap = vwap > 0 and (abs(ltp - vwap) / vwap) <= 0.005
+            near_ema20 = ema20 > 0 and (abs(ltp - ema20) / ema20) <= 0.005
+            near_ema50 = ema50 > 0 and (abs(ltp - ema50) / ema50) <= 0.005
+            
             is_swing = False
             if len(df) >= 50:
-                ema20 = df['Close'].ewm(span=20, adjust=False).mean().iloc[-1]
-                ema50 = df['Close'].ewm(span=50, adjust=False).mean().iloc[-1]
                 ema200 = df['Close'].ewm(span=200, adjust=False).mean().iloc[-1] if len(df) >= 200 else 0
-                
                 delta = df['Close'].diff()
                 gain = delta.clip(lower=0).ewm(alpha=1/14, adjust=False).mean()
                 loss = -delta.clip(upper=0).ewm(alpha=1/14, adjust=False).mean()
@@ -222,13 +229,18 @@ def fetch_all_data():
                 if (ltp > ema50) and (ema20 > ema50) and (current_rsi >= 55) and vol_breakout and (net_chg > 0):
                     is_swing = True
 
-            vwap = (high + low + ltp) / 3
+            # 🔥 SCORE CALCULATION WITH PULLBACK BOOST 🔥
             score = 0
             if abs(day_chg) >= 2.0: score += 3 
             if abs(open_p - low) <= (ltp * 0.003) or abs(open_p - high) <= (ltp * 0.003): score += 3 
             if vol_x > 1.0: score += 3 
             if (ltp >= high * 0.998 and day_chg > 0.5) or (ltp <= low * 1.002 and day_chg < -0.5): score += 1
             if (ltp > (low * 1.01) and ltp > vwap) or (ltp < (high * 0.99) and ltp < vwap): score += 1
+            
+            # BOOST SCORE IF IT'S A PULLBACK (Near VWAP or EMA)
+            if near_vwap: score += 2
+            if near_ema20: score += 1
+            if near_ema50: score += 1
             
             is_index = symbol in INDICES_MAP
             is_sector = symbol in SECTOR_INDICES_MAP
@@ -244,6 +256,7 @@ def fetch_all_data():
             results.append({
                 "Fetch_T": symbol, "T": disp_name, "P": ltp, "O": open_p, "H": high, "L": low, "Prev_C": prev_c,
                 "Day_C": day_chg, "C": net_chg, "S": score, "VolX": vol_x, "Is_Swing": is_swing,
+                "Near_VWAP": near_vwap, "Near_EMA20": near_ema20, "Near_EMA50": near_ema50, # 🔥 Passing Proximity info 🔥
                 "Pivot": pivot, "R1": r1, "R2": r2, "S1": s1, "S2": s2,
                 "Is_Index": is_index, "Is_Sector": is_sector, "Sector": stock_sector
             })
@@ -275,6 +288,12 @@ def generate_status(row):
     if abs(row['O'] - row['L']) < (p * 0.002): status += "O=L🔥 "
     if abs(row['O'] - row['H']) < (p * 0.002): status += "O=H🩸 "
     if abs(row['C']) >= 2.0: status += "BigMove🚀 " if row['C'] > 0 else "BigMove🩸 "
+    
+    # 🔥 ADD PULLBACK TAGS TO STATUS 🔥
+    if row.get('Near_VWAP', False): status += "NearVWAP🎯 "
+    elif row.get('Near_EMA20', False): status += "Near20EMA🎯 "
+    elif row.get('Near_EMA50', False): status += "Near50EMA🎯 "
+    
     if row['C'] > 0 and row['Day_C'] > 0 and row['VolX'] > 1: status += "Rec ⇈ "
     return status.strip()
 
@@ -357,7 +376,6 @@ def render_portfolio_table(df_port, df_stocks, stock_trends):
     html += "</tbody></table>"
     return html
 
-# 🔥 FIXED: DYNAMIC TARGETS & SL FOR BEARISH/BULLISH IN LEVELS TABLE 🔥
 def render_levels_table(df_subset, stock_trends):
     if df_subset.empty: return ""
     html = f'<table class="term-table"><thead><tr><th colspan="8" class="term-head-levels">🎯 TRADING LEVELS (TARGETS & STOP LOSS)</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:15%;">STOCK</th><th style="width:10%;">TREND</th><th style="width:12%;">LTP</th><th style="width:12%;">PIVOT</th><th style="width:12%; color:#f85149;">STOP LOSS</th><th style="width:12%; color:#3fb950;">TARGET 1</th><th style="width:12%; color:#3fb950;">TARGET 2</th><th style="width:15%;">EXTREME TGT/SL</th></tr></thead><tbody>'
@@ -371,7 +389,6 @@ def render_levels_table(df_subset, stock_trends):
         elif trend_state == 'Bearish': trend_html = "🔴 Bearish"
         else: trend_html = "⚪ Neutral"
             
-        # Dynamic Swap: If Bearish, Targets are below (S1, S2) and Stop Loss is above (R1)
         if is_down:
             sl_val, t1_val, t2_val, ext_val = row["R1"], row["S1"], row["S2"], row["R2"]
         else:
@@ -381,7 +398,6 @@ def render_levels_table(df_subset, stock_trends):
     html += "</tbody></table>"
     return html
 
-# 🔥 FIXED: SWING TRADING RANKED TERMINAL TABLE WITH DYNAMIC SL/TGTS 🔥
 def render_swing_terminal_table(df_subset, stock_trends):
     if df_subset.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No Swing Trading Setups found right now.</div>"
     
@@ -408,7 +424,6 @@ def render_swing_terminal_table(df_subset, stock_trends):
     html += "</tbody></table>"
     return html
 
-# 🔥 FIXED: HIGH SCORE RANKED TERMINAL TABLE WITH DYNAMIC SL/TGTS 🔥
 def render_highscore_terminal_table(df_subset, stock_trends):
     if df_subset.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No High Score Stocks found right now.</div>"
     
@@ -425,7 +440,6 @@ def render_highscore_terminal_table(df_subset, stock_trends):
         if trend_state == 'Bullish': status += " 🟢Trend"
         elif trend_state == 'Bearish': status += " 🔴Trend"
         
-        # Dynamic Swap for Intraday Shorting
         if is_down:
             sl_val, t1_val, t2_val = row["R1"], row["S1"], row["S2"]
         else:
