@@ -24,13 +24,26 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- PORTFOLIO FILE SETUP ---
+# --- 🔥 THE FIX: PORTFOLIO FILE SETUP WITH STRICT TYPE CASTING 🔥 ---
 PORTFOLIO_FILE = "my_portfolio.csv"
 def load_portfolio():
     if os.path.exists(PORTFOLIO_FILE):
-        return pd.read_csv(PORTFOLIO_FILE)
+        df = pd.read_csv(PORTFOLIO_FILE)
+        if not df.empty:
+            # Force numeric types to prevent Streamlit column_config errors
+            df['Quantity'] = pd.to_numeric(df['Quantity'], errors='coerce').fillna(1).astype(int)
+            df['Buy_Price'] = pd.to_numeric(df['Buy_Price'], errors='coerce').fillna(0.0).astype(float)
+            df['Symbol'] = df['Symbol'].astype(str).replace('nan', '')
+            df['Date'] = df['Date'].astype(str).replace('nan', '')
+        else:
+            df['Quantity'] = pd.Series(dtype=int)
+            df['Buy_Price'] = pd.Series(dtype=float)
+        return df
     else:
-        return pd.DataFrame(columns=["Symbol", "Buy_Price", "Quantity", "Date"])
+        df = pd.DataFrame(columns=["Symbol", "Buy_Price", "Quantity", "Date"])
+        df['Quantity'] = df['Quantity'].astype(int)
+        df['Buy_Price'] = df['Buy_Price'].astype(float)
+        return df
 
 def save_portfolio(df_port):
     df_port.to_csv(PORTFOLIO_FILE, index=False)
@@ -541,18 +554,17 @@ if not df.empty:
                 else:
                     st.warning("Type a symbol first!")
         
-        # 🔥 3. NEW: EDIT HOLDINGS FORM 🔥
+        # 3. EDIT HOLDINGS FORM
         if not df_port_saved.empty:
             with st.expander("✏️ Edit Existing Holdings (Qty, Price, Date)", expanded=False):
-                st.markdown("<p style='font-size:12px; color:#888;'><i>Modify your Buy Price, Quantity, or Date directly in the table below and click Save. You cannot change the Symbol here.</i></p>", unsafe_allow_html=True)
+                st.markdown("<p style='font-size:12px; color:#888;'><i>Modify your Buy Price, Quantity, or Date directly in the table below and click Save.</i></p>", unsafe_allow_html=True)
                 
-                # Using st.data_editor for inline quick edits
                 edited_df = st.data_editor(
                     df_port_saved, 
                     use_container_width=True,
                     hide_index=True,
                     column_config={
-                        "Symbol": st.column_config.TextColumn("Stock Symbol", disabled=True), # Disabled so they don't break the symbol
+                        "Symbol": st.column_config.TextColumn("Stock Symbol", disabled=True),
                         "Quantity": st.column_config.NumberColumn("Quantity", min_value=1, step=1),
                         "Buy_Price": st.column_config.NumberColumn("Buy Average (₹)", min_value=0.0, format="%.2f"),
                         "Date": st.column_config.TextColumn("Purchase Date")
