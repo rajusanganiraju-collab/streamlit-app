@@ -242,7 +242,6 @@ def render_html_table(df_subset, title, color_class):
     html += "</tbody></table>"
     return html
 
-# 🔥 NEW: PORTFOLIO TABLE WITH DATE OF PURCHASE 🔥
 def render_portfolio_table(df_port, df_stocks, stock_trends):
     if df_port.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>Portfolio is empty. Add a stock using the option below!</div>"
     
@@ -500,14 +499,14 @@ if not df.empty:
         st.markdown(render_html_table(df_independent, "🌟 INDEPENDENT MOVERS", "term-head-ind"), unsafe_allow_html=True)
         st.markdown(render_html_table(df_broader, "🌌 BROADER MARKET", "term-head-brd"), unsafe_allow_html=True)
 
-    # 🔥 PORTFOLIO VIEW: TABLE FIRST, FORMS BELOW 🔥
+    # 🔥 PORTFOLIO VIEW 🔥
     elif watchlist_mode == "My Portfolio 💼" and view_mode == "Heat Map":
         
         # 1. SHOW THE PORTFOLIO TABLE FIRST
         st.markdown(render_portfolio_table(df_port_saved, df_stocks, stock_trends), unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # 2. ADD STOCK FORM (IN EXPANDER BELOW TABLE)
+        # 2. ADD STOCK FORM
         with st.expander("➕ Search & Add Stock to Portfolio", expanded=False):
             with st.form("portfolio_add_form", clear_on_submit=True):
                 c1, c2, c3, c4, c5 = st.columns([2.5, 1.5, 2, 2, 2])
@@ -530,19 +529,42 @@ if not df.empty:
                         if chk_data.empty:
                             st.error(f"❌ '{new_sym}' not found in NSE! Please check the spelling.")
                         else:
-                            new_date_str = new_date.strftime("%d-%b-%Y") # Format Date nicely
+                            new_date_str = new_date.strftime("%d-%b-%Y")
                             if new_sym in df_port_saved['Symbol'].values:
                                 df_port_saved.loc[df_port_saved['Symbol'] == new_sym, ['Buy_Price', 'Quantity', 'Date']] = [new_price, new_qty, new_date_str]
                             else:
                                 new_row = pd.DataFrame({"Symbol": [new_sym], "Buy_Price": [new_price], "Quantity": [new_qty], "Date": [new_date_str]})
                                 df_port_saved = pd.concat([df_port_saved, new_row], ignore_index=True)
                             save_portfolio(df_port_saved)
-                            fetch_all_data.clear() # Cache clear to get live data immediately
+                            fetch_all_data.clear()
                             st.rerun()
                 else:
                     st.warning("Type a symbol first!")
         
-        # 3. REMOVE STOCK FORM (IN EXPANDER BELOW ADD OPTION)
+        # 🔥 3. NEW: EDIT HOLDINGS FORM 🔥
+        if not df_port_saved.empty:
+            with st.expander("✏️ Edit Existing Holdings (Qty, Price, Date)", expanded=False):
+                st.markdown("<p style='font-size:12px; color:#888;'><i>Modify your Buy Price, Quantity, or Date directly in the table below and click Save. You cannot change the Symbol here.</i></p>", unsafe_allow_html=True)
+                
+                # Using st.data_editor for inline quick edits
+                edited_df = st.data_editor(
+                    df_port_saved, 
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "Symbol": st.column_config.TextColumn("Stock Symbol", disabled=True), # Disabled so they don't break the symbol
+                        "Quantity": st.column_config.NumberColumn("Quantity", min_value=1, step=1),
+                        "Buy_Price": st.column_config.NumberColumn("Buy Average (₹)", min_value=0.0, format="%.2f"),
+                        "Date": st.column_config.TextColumn("Purchase Date")
+                    }
+                )
+                
+                if st.button("💾 Save Edited Changes", use_container_width=True):
+                    save_portfolio(edited_df)
+                    fetch_all_data.clear()
+                    st.rerun()
+
+        # 4. REMOVE STOCK FORM
         if not df_port_saved.empty:
             with st.expander("🗑️ Remove Stock from Portfolio", expanded=False):
                 with st.form("portfolio_remove_form"):
