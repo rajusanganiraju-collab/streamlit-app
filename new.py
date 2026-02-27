@@ -86,10 +86,10 @@ st.markdown("""
     @media screen and (max-width: 600px) { .heatmap-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; } .stock-card { height: 95px; } .t-name { font-size: 12px; } .t-price { font-size: 16px; } .t-pct { font-size: 11px; } }
     .custom-hr { border: 0; height: 1px; background: #30363d; margin: 15px 0; }
 
-    /* 🔥 TERMINAL TABLE STYLES 🔥 */
-    .term-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-family: monospace; font-size: 11.5px; color: #e6edf3; background-color: #0e1117; }
-    .term-table th { padding: 6px 4px; text-align: center; border: 1px solid #30363d; font-weight: bold; }
-    .term-table td { padding: 6px 4px; text-align: center; border: 1px solid #30363d; }
+    /* 🔥 TERMINAL TABLE STYLES (WITH FIXED ALIGNMENT) 🔥 */
+    .term-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-family: monospace; font-size: 11.5px; color: #e6edf3; background-color: #0e1117; table-layout: fixed; }
+    .term-table th { padding: 6px 4px; text-align: center; border: 1px solid #30363d; font-weight: bold; overflow: hidden; }
+    .term-table td { padding: 6px 4px; text-align: center; border: 1px solid #30363d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .term-head-buy { background-color: #1e5f29; color: white; text-align: left !important; padding-left: 10px !important; }
     .term-head-sell { background-color: #b52524; color: white; text-align: left !important; padding-left: 10px !important; }
     .term-head-ind { background-color: #9e6a03; color: white; text-align: left !important; padding-left: 10px !important; }
@@ -206,7 +206,7 @@ def process_5m_data(df_raw):
         return pd.DataFrame()
     except: return pd.DataFrame()
 
-# --- 🔥 THE FIX: TERMINAL TABLE GENERATOR WITH NO NEWLINES 🔥 ---
+# --- TERMINAL TABLE GENERATOR (ALIGNED & SCALED) ---
 def generate_status(row):
     status = ""
     p = row['P']
@@ -220,8 +220,8 @@ def generate_status(row):
 def render_html_table(df_subset, title, color_class):
     if df_subset.empty: return ""
     
-    # Streamlit Markdown parser bug fix: Single line HTML construction
-    html = f'<table class="term-table"><thead><tr><th colspan="7" class="{color_class}">{title}</th></tr><tr style="background-color: #21262d;"><th style="text-align:left;">STOCK</th><th>PRICE</th><th>DAY%</th><th>NET%</th><th>VOL</th><th>STATUS</th><th>SCORE</th></tr></thead><tbody>'
+    # 🔥 FIXED WIDTHS APPLIED HERE SO ALL 4 TABLES MATCH EXACTLY 🔥
+    html = f'<table class="term-table"><thead><tr><th colspan="7" class="{color_class}">{title}</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:20%;">STOCK</th><th style="width:12%;">PRICE</th><th style="width:12%;">DAY%</th><th style="width:12%;">NET%</th><th style="width:10%;">VOL</th><th style="width:26%;">STATUS</th><th style="width:8%;">SCORE</th></tr></thead><tbody>'
     
     for i, (_, row) in enumerate(df_subset.iterrows()):
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
@@ -229,7 +229,6 @@ def render_html_table(df_subset, title, color_class):
         net_color = "text-green" if row['C'] >= 0 else "text-red"
         status = generate_status(row)
         
-        # Single line row construction
         html += f'<tr class="{bg_class}"><td class="t-symbol {net_color}">{row["T"]}</td><td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td class="{net_color}">{row["C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
         
     html += "</tbody></table>"
@@ -319,8 +318,9 @@ if not df.empty:
         top_buy_sector = "PHARMA" 
         top_sell_sector = "IT" 
         
-    df_buy_sector = df_nifty[df_nifty['Sector'] == top_buy_sector].sort_values(by='C', ascending=False)
-    df_sell_sector = df_nifty[df_nifty['Sector'] == top_sell_sector].sort_values(by='C', ascending=True)
+    # 🔥 FIXED: SORTING BUY/SELL LEADERS BY SCORE FIRST, THEN NET% 🔥
+    df_buy_sector = df_nifty[df_nifty['Sector'] == top_buy_sector].sort_values(by=['S', 'C'], ascending=[False, False])
+    df_sell_sector = df_nifty[df_nifty['Sector'] == top_sell_sector].sort_values(by=['S', 'C'], ascending=[False, True])
     
     df_independent = df_nifty[(~df_nifty['Sector'].isin([top_buy_sector, top_sell_sector])) & (df_nifty['S'] >= 6)].sort_values(by='S', ascending=False).head(8)
     df_broader = df_stocks[(df_stocks['T'].isin(BROADER_MARKET)) & (df_stocks['S'] >= 6)].sort_values(by='S', ascending=False).head(8)
@@ -409,7 +409,6 @@ if not df.empty:
 
     # --- RENDER VIEWS ---
     
-    # 🔥 THE FIX: TERMINAL TABLE LOGIC 🔥
     if watchlist_mode == "Terminal Tables 🗃️" and view_mode == "Heat Map":
         st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>🗃️ Professional Terminal View</div>", unsafe_allow_html=True)
         
@@ -457,7 +456,6 @@ if not df.empty:
             render_chart_grid(pd.DataFrame([df[df['T'] == search_stock].iloc[0]]), show_pin_option=True, key_prefix="search")
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
-        # Hide Indices if Terminal View is selected in Chart Mode (to save space)
         if watchlist_mode != "Terminal Tables 🗃️":
             st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>📈 Market Indices</div>", unsafe_allow_html=True)
             render_chart_grid(df_indices, show_pin_option=False, key_prefix="idx")
