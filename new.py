@@ -117,7 +117,7 @@ st.markdown("""
     .term-head-brd { background-color: #0d47a1; color: white; text-align: left !important; padding-left: 10px !important; font-size:13px; }
     .term-head-port { background-color: #4a148c; color: white; text-align: left !important; padding-left: 10px !important; font-size:14px; }
     .term-head-swing { background-color: #005a9e; color: white; text-align: left !important; padding-left: 10px !important; font-size:14px; }
-    .term-head-high { background-color: #b71c1c; color: white; text-align: left !important; padding-left: 10px !important; font-size:14px; } /* 🔥 RED FOR HIGH SCORE 🔥 */
+    .term-head-high { background-color: #b71c1c; color: white; text-align: left !important; padding-left: 10px !important; font-size:14px; }
     .term-head-levels { background-color: #004d40; color: white; text-align: left !important; padding-left: 10px !important; font-size:14px; }
     .row-dark { background-color: #161b22; } .row-light { background-color: #0e1117; }
     .text-green { color: #3fb950; font-weight: bold; } .text-red { color: #f85149; font-weight: bold; }
@@ -357,19 +357,31 @@ def render_portfolio_table(df_port, df_stocks, stock_trends):
     html += "</tbody></table>"
     return html
 
+# 🔥 FIXED: DYNAMIC TARGETS & SL FOR BEARISH/BULLISH IN LEVELS TABLE 🔥
 def render_levels_table(df_subset, stock_trends):
     if df_subset.empty: return ""
-    html = f'<table class="term-table"><thead><tr><th colspan="8" class="term-head-levels">🎯 TRADING LEVELS (TARGETS & STOP LOSS)</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:15%;">STOCK</th><th style="width:10%;">TREND</th><th style="width:12%;">LTP</th><th style="width:12%;">PIVOT</th><th style="width:12%; color:#f85149;">STOP LOSS (S1)</th><th style="width:12%; color:#3fb950;">TARGET 1 (R1)</th><th style="width:12%; color:#3fb950;">TARGET 2 (R2)</th><th style="width:15%;">MAJOR SUP (S2)</th></tr></thead><tbody>'
+    html = f'<table class="term-table"><thead><tr><th colspan="8" class="term-head-levels">🎯 TRADING LEVELS (TARGETS & STOP LOSS)</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:15%;">STOCK</th><th style="width:10%;">TREND</th><th style="width:12%;">LTP</th><th style="width:12%;">PIVOT</th><th style="width:12%; color:#f85149;">STOP LOSS</th><th style="width:12%; color:#3fb950;">TARGET 1</th><th style="width:12%; color:#3fb950;">TARGET 2</th><th style="width:15%;">EXTREME TGT/SL</th></tr></thead><tbody>'
     for i, (_, row) in enumerate(df_subset.iterrows()):
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
+        
         trend_state = stock_trends.get(row['Fetch_T'], "Neutral")
+        is_down = trend_state == 'Bearish' or (trend_state == 'Neutral' and row['C'] < 0)
+        
         if trend_state == 'Bullish': trend_html = "🟢 Bullish"
         elif trend_state == 'Bearish': trend_html = "🔴 Bearish"
         else: trend_html = "⚪ Neutral"
-        html += f'<tr class="{bg_class}"><td class="t-symbol">{row["T"]}</td><td style="font-size:10px;">{trend_html}</td><td>{row["P"]:.2f}</td><td style="color:#8b949e;">{row["Pivot"]:.2f}</td><td style="color:#f85149; font-weight:bold;">{row["S1"]:.2f}</td><td style="color:#3fb950; font-weight:bold;">{row["R1"]:.2f}</td><td style="color:#3fb950; font-weight:bold;">{row["R2"]:.2f}</td><td style="color:#8b949e;">{row["S2"]:.2f}</td></tr>'
+            
+        # Dynamic Swap: If Bearish, Targets are below (S1, S2) and Stop Loss is above (R1)
+        if is_down:
+            sl_val, t1_val, t2_val, ext_val = row["R1"], row["S1"], row["S2"], row["R2"]
+        else:
+            sl_val, t1_val, t2_val, ext_val = row["S1"], row["R1"], row["R2"], row["S2"]
+            
+        html += f'<tr class="{bg_class}"><td class="t-symbol">{row["T"]}</td><td style="font-size:10px;">{trend_html}</td><td>{row["P"]:.2f}</td><td style="color:#8b949e;">{row["Pivot"]:.2f}</td><td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#8b949e;">{ext_val:.2f}</td></tr>'
     html += "</tbody></table>"
     return html
 
+# 🔥 FIXED: SWING TRADING RANKED TERMINAL TABLE WITH DYNAMIC SL/TGTS 🔥
 def render_swing_terminal_table(df_subset, stock_trends):
     if df_subset.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No Swing Trading Setups found right now.</div>"
     
@@ -379,31 +391,48 @@ def render_swing_terminal_table(df_subset, stock_trends):
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
         day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
         status = generate_status(row)
+        
         trend_state = stock_trends.get(row['Fetch_T'], "Neutral")
+        is_down = trend_state == 'Bearish' or (trend_state == 'Neutral' and row['C'] < 0)
+        
         if trend_state == 'Bullish': status += " 🟢Trend"
         elif trend_state == 'Bearish': status += " 🔴Trend"
+        
+        if is_down:
+            sl_val, t1_val, t2_val = row["R1"], row["S1"], row["S2"]
+        else:
+            sl_val, t1_val, t2_val = row["S1"], row["R1"], row["R2"]
+            
         rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
-        html += f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol">{row["T"]}</td><td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td><td style="color:#f85149; font-weight:bold;">{row["S1"]:.2f}</td><td style="color:#3fb950; font-weight:bold;">{row["R1"]:.2f}</td><td style="color:#3fb950; font-weight:bold;">{row["R2"]:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
+        html += f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol">{row["T"]}</td><td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td><td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
     html += "</tbody></table>"
     return html
 
-# 🔥 NEW: HIGH SCORE RANKED TERMINAL TABLE (FIRE RED THEME) 🔥
+# 🔥 FIXED: HIGH SCORE RANKED TERMINAL TABLE WITH DYNAMIC SL/TGTS 🔥
 def render_highscore_terminal_table(df_subset, stock_trends):
     if df_subset.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No High Score Stocks found right now.</div>"
     
-    # Sort exactly like Swing (By Score, Volume, and % Change)
     df_sorted = df_subset.sort_values(by=['S', 'VolX', 'C'], ascending=[False, False, False]).reset_index(drop=True)
-    
     html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-high">🔥 HIGH SCORE RADAR (RANKED INTRADAY MOVERS)</th></tr><tr style="background-color: #21262d;"><th style="width:5%;">RANK</th><th style="text-align:left; width:13%;">STOCK</th><th style="width:8%;">LTP</th><th style="width:8%;">DAY%</th><th style="width:8%;">VOL</th><th style="width:16%;">STATUS</th><th style="width:11%; color:#f85149;">🛑 STOP LOSS</th><th style="width:11%; color:#3fb950;">🎯 TARGET 1</th><th style="width:11%; color:#3fb950;">🎯 TARGET 2</th><th style="width:9%;">SCORE</th></tr></thead><tbody>'
     for i, row in df_sorted.iterrows():
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
         day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
         status = generate_status(row)
+        
         trend_state = stock_trends.get(row['Fetch_T'], "Neutral")
+        is_down = trend_state == 'Bearish' or (trend_state == 'Neutral' and row['C'] < 0)
+        
         if trend_state == 'Bullish': status += " 🟢Trend"
         elif trend_state == 'Bearish': status += " 🔴Trend"
+        
+        # Dynamic Swap for Intraday Shorting
+        if is_down:
+            sl_val, t1_val, t2_val = row["R1"], row["S1"], row["S2"]
+        else:
+            sl_val, t1_val, t2_val = row["S1"], row["R1"], row["R2"]
+            
         rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
-        html += f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol">{row["T"]}</td><td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td><td style="color:#f85149; font-weight:bold;">{row["S1"]:.2f}</td><td style="color:#3fb950; font-weight:bold;">{row["R1"]:.2f}</td><td style="color:#3fb950; font-weight:bold;">{row["R2"]:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
+        html += f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol">{row["T"]}</td><td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td><td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
     html += "</tbody></table>"
     return html
 
