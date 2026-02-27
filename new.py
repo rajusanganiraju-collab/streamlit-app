@@ -116,6 +116,8 @@ st.markdown("""
     .term-head-ind { background-color: #9e6a03; color: white; text-align: left !important; padding-left: 10px !important; font-size:13px; }
     .term-head-brd { background-color: #0d47a1; color: white; text-align: left !important; padding-left: 10px !important; font-size:13px; }
     .term-head-port { background-color: #4a148c; color: white; text-align: left !important; padding-left: 10px !important; font-size:14px; }
+    .term-head-swing { background-color: #005a9e; color: white; text-align: left !important; padding-left: 10px !important; font-size:14px; }
+    .term-head-levels { background-color: #004d40; color: white; text-align: left !important; padding-left: 10px !important; font-size:14px; }
     .row-dark { background-color: #161b22; } .row-light { background-color: #0e1117; }
     .text-green { color: #3fb950; font-weight: bold; } .text-red { color: #f85149; font-weight: bold; }
     .t-symbol { text-align: left !important; font-weight: bold; }
@@ -176,11 +178,20 @@ def fetch_all_data():
             ltp = float(df['Close'].iloc[-1])
             open_p = float(df['Open'].iloc[-1])
             prev_c = float(df['Close'].iloc[-2])
+            prev_h = float(df['High'].iloc[-2])
+            prev_l = float(df['Low'].iloc[-2])
             low = float(df['Low'].iloc[-1])
             high = float(df['High'].iloc[-1])
             
             day_chg = ((ltp - open_p) / open_p) * 100
             net_chg = ((ltp - prev_c) / prev_c) * 100
+            
+            # PIVOT POINTS
+            pivot = (prev_h + prev_l + prev_c) / 3
+            r1 = (2 * pivot) - prev_l
+            s1 = (2 * pivot) - prev_h
+            r2 = pivot + (prev_h - prev_l)
+            s2 = pivot - (prev_h - prev_l)
             
             if 'Volume' in df.columns and not df['Volume'].isna().all() and len(df) >= 6:
                 avg_vol_5d = df['Volume'].iloc[-6:-1].mean()
@@ -190,14 +201,12 @@ def fetch_all_data():
                 vol_x = 0.0
                 curr_vol = 0.0
                 
-            # 🔥 RELAXED SWING TRADING LOGIC 🔥
             is_swing = False
             if len(df) >= 50:
                 ema20 = df['Close'].ewm(span=20, adjust=False).mean().iloc[-1]
                 ema50 = df['Close'].ewm(span=50, adjust=False).mean().iloc[-1]
                 ema200 = df['Close'].ewm(span=200, adjust=False).mean().iloc[-1] if len(df) >= 200 else 0
                 
-                # RSI 14
                 delta = df['Close'].diff()
                 gain = delta.clip(lower=0).ewm(alpha=1/14, adjust=False).mean()
                 loss = -delta.clip(upper=0).ewm(alpha=1/14, adjust=False).mean()
@@ -206,11 +215,9 @@ def fetch_all_data():
                 rsi = 100 - (100 / (1 + rs))
                 current_rsi = rsi.fillna(100).iloc[-1]
                 
-                # Volume Breakout (Relaxed to 1.2x average)
                 avg_vol_10d = df['Volume'].iloc[-11:-1].mean() if len(df) >= 11 else 0
                 vol_breakout = curr_vol > (1.2 * avg_vol_10d) if avg_vol_10d > 0 else False
                 
-                # Conditions: Price > 50EMA, 20EMA > 50EMA, RSI > 55, Volume > 1.2x, Green Day
                 if (ltp > ema50) and (ema20 > ema50) and (current_rsi >= 55) and vol_breakout and (net_chg > 0):
                     is_swing = True
 
@@ -236,6 +243,7 @@ def fetch_all_data():
             results.append({
                 "Fetch_T": symbol, "T": disp_name, "P": ltp, "O": open_p, "H": high, "L": low, "Prev_C": prev_c,
                 "Day_C": day_chg, "C": net_chg, "S": score, "VolX": vol_x, "Is_Swing": is_swing,
+                "Pivot": pivot, "R1": r1, "R2": r2, "S1": s1, "S2": s2,
                 "Is_Index": is_index, "Is_Sector": is_sector, "Sector": stock_sector
             })
         except: continue
@@ -345,6 +353,44 @@ def render_portfolio_table(df_port, df_stocks, stock_trends):
     d_sign = "+" if total_day_pnl > 0 else ""
     
     html += f'<tr class="port-total"><td colspan="7" style="text-align:right; padding-right:15px; font-size:12px;">INVESTED: ₹{total_invested:,.0f} &nbsp;|&nbsp; CURRENT: ₹{total_current:,.0f} &nbsp;|&nbsp; OVERALL P&L:</td><td class="{d_color}">{d_sign}₹{total_day_pnl:,.0f}</td><td class="{o_color}">{o_sign}₹{overall_total_pnl:,.0f}</td><td class="{o_color}">{o_sign}{overall_total_pct:.2f}%</td></tr>'
+    html += "</tbody></table>"
+    return html
+
+def render_levels_table(df_subset, stock_trends):
+    if df_subset.empty: return ""
+    html = f'<table class="term-table"><thead><tr><th colspan="8" class="term-head-levels">🎯 TRADING LEVELS (TARGETS & STOP LOSS)</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:15%;">STOCK</th><th style="width:10%;">TREND</th><th style="width:12%;">LTP</th><th style="width:12%;">PIVOT</th><th style="width:12%; color:#f85149;">STOP LOSS (S1)</th><th style="width:12%; color:#3fb950;">TARGET 1 (R1)</th><th style="width:12%; color:#3fb950;">TARGET 2 (R2)</th><th style="width:15%;">MAJOR SUP (S2)</th></tr></thead><tbody>'
+    for i, (_, row) in enumerate(df_subset.iterrows()):
+        bg_class = "row-dark" if i % 2 == 0 else "row-light"
+        trend_state = stock_trends.get(row['Fetch_T'], "Neutral")
+        if trend_state == 'Bullish': trend_html = "🟢 Bullish"
+        elif trend_state == 'Bearish': trend_html = "🔴 Bearish"
+        else: trend_html = "⚪ Neutral"
+        html += f'<tr class="{bg_class}"><td class="t-symbol">{row["T"]}</td><td style="font-size:10px;">{trend_html}</td><td>{row["P"]:.2f}</td><td style="color:#8b949e;">{row["Pivot"]:.2f}</td><td style="color:#f85149; font-weight:bold;">{row["S1"]:.2f}</td><td style="color:#3fb950; font-weight:bold;">{row["R1"]:.2f}</td><td style="color:#3fb950; font-weight:bold;">{row["R2"]:.2f}</td><td style="color:#8b949e;">{row["S2"]:.2f}</td></tr>'
+    html += "</tbody></table>"
+    return html
+
+# 🔥 NEW: SWING TRADING RANKED TERMINAL TABLE 🔥
+def render_swing_terminal_table(df_subset, stock_trends):
+    if df_subset.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No Swing Trading Setups found right now.</div>"
+    
+    # 🏆 SORT BY SCORE, VOLUME, & NET CHANGE TO GET PERFECT RANKING 🏆
+    df_sorted = df_subset.sort_values(by=['S', 'VolX', 'C'], ascending=[False, False, False]).reset_index(drop=True)
+    
+    html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-swing">🌊 SWING TRADING RADAR (RANKED ALGORITHM)</th></tr><tr style="background-color: #21262d;"><th style="width:5%;">RANK</th><th style="text-align:left; width:13%;">STOCK</th><th style="width:8%;">LTP</th><th style="width:8%;">DAY%</th><th style="width:8%;">VOL</th><th style="width:16%;">STATUS</th><th style="width:11%; color:#f85149;">🛑 STOP LOSS</th><th style="width:11%; color:#3fb950;">🎯 TARGET 1</th><th style="width:11%; color:#3fb950;">🎯 TARGET 2</th><th style="width:9%;">SCORE</th></tr></thead><tbody>'
+    
+    for i, row in df_sorted.iterrows():
+        bg_class = "row-dark" if i % 2 == 0 else "row-light"
+        day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
+        status = generate_status(row)
+        
+        trend_state = stock_trends.get(row['Fetch_T'], "Neutral")
+        if trend_state == 'Bullish': status += " 🟢Trend"
+        elif trend_state == 'Bearish': status += " 🔴Trend"
+        
+        # Add Trophy to Rank 1
+        rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
+        
+        html += f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol">{row["T"]}</td><td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td><td style="color:#f85149; font-weight:bold;">{row["S1"]:.2f}</td><td style="color:#3fb950; font-weight:bold;">{row["R1"]:.2f}</td><td style="color:#3fb950; font-weight:bold;">{row["R2"]:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
     html += "</tbody></table>"
     return html
 
@@ -525,6 +571,8 @@ if not df.empty:
         else: df_stocks_display = pd.concat([df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False]), df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[True, True])])
 
     # --- RENDER VIEWS ---
+    
+    # 1. TERMINAL VIEW
     if watchlist_mode == "Terminal Tables 🗃️" and view_mode == "Heat Map":
         st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>🗃️ Professional Terminal View</div>", unsafe_allow_html=True)
         
@@ -539,6 +587,7 @@ if not df.empty:
         st.markdown(render_html_table(df_independent, "🌟 INDEPENDENT MOVERS", "term-head-ind"), unsafe_allow_html=True)
         st.markdown(render_html_table(df_broader, "🌌 BROADER MARKET", "term-head-brd"), unsafe_allow_html=True)
 
+    # 2. PORTFOLIO VIEW
     elif watchlist_mode == "My Portfolio 💼" and view_mode == "Heat Map":
         st.markdown(render_portfolio_table(df_port_saved, df_stocks, stock_trends), unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
@@ -612,6 +661,7 @@ if not df.empty:
                         fetch_all_data.clear()
                         st.rerun()
 
+    # 3. REGULAR HEATMAP VIEW + SWING TRADING (NOW COMBINED)
     elif view_mode == "Heat Map":
         if not df_indices.empty:
             html_idx = '<div class="heatmap-grid">'
@@ -633,13 +683,23 @@ if not df.empty:
             for _, row in df_stocks_display.iterrows():
                 bg = "bull-card" if row['C'] > 0 else ("bear-card" if row['C'] < 0 else "neut-card")
                 
-                # 🔥 ICON LOGIC UPDATED FOR SWING 🔥
                 if watchlist_mode == "Swing Trading 📈": special_icon = "🌊"
                 elif watchlist_mode == "One Sided Moves 🚀": special_icon = "🚀"
                 else: special_icon = f"⭐{int(row['S'])}"
                 
                 html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">{special_icon}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if row["C"]>0 else ""}{row["C"]:.2f}%</div></a>'
             st.markdown(html_stk + '</div>', unsafe_allow_html=True)
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            # 🔥 THE NEW TOGGLE (EXPANDER) FOR TABLES 🔥
+            if watchlist_mode == "Swing Trading 📈":
+                with st.expander("🌊 View Swing Trading Radar (Ranked Table)", expanded=True):
+                    st.markdown(render_swing_terminal_table(df_stocks_display, stock_trends), unsafe_allow_html=True)
+            else:
+                with st.expander("🎯 View Trading Levels (Targets & Stop Loss)", expanded=True):
+                    st.markdown(render_levels_table(df_stocks_display, stock_trends), unsafe_allow_html=True)
+                
         else: st.info(f"No {st.session_state.trend_filter} stocks found.")
             
     else: # CHART VIEW
