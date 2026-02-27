@@ -117,6 +117,7 @@ st.markdown("""
     .term-head-brd { background-color: #0d47a1; color: white; text-align: left !important; padding-left: 10px !important; font-size:13px; }
     .term-head-port { background-color: #4a148c; color: white; text-align: left !important; padding-left: 10px !important; font-size:14px; }
     .term-head-swing { background-color: #005a9e; color: white; text-align: left !important; padding-left: 10px !important; font-size:14px; }
+    .term-head-high { background-color: #b71c1c; color: white; text-align: left !important; padding-left: 10px !important; font-size:14px; } /* 🔥 RED FOR HIGH SCORE 🔥 */
     .term-head-levels { background-color: #004d40; color: white; text-align: left !important; padding-left: 10px !important; font-size:14px; }
     .row-dark { background-color: #161b22; } .row-light { background-color: #0e1117; }
     .text-green { color: #3fb950; font-weight: bold; } .text-red { color: #f85149; font-weight: bold; }
@@ -369,27 +370,39 @@ def render_levels_table(df_subset, stock_trends):
     html += "</tbody></table>"
     return html
 
-# 🔥 NEW: SWING TRADING RANKED TERMINAL TABLE 🔥
 def render_swing_terminal_table(df_subset, stock_trends):
     if df_subset.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No Swing Trading Setups found right now.</div>"
     
-    # 🏆 SORT BY SCORE, VOLUME, & NET CHANGE TO GET PERFECT RANKING 🏆
     df_sorted = df_subset.sort_values(by=['S', 'VolX', 'C'], ascending=[False, False, False]).reset_index(drop=True)
-    
     html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-swing">🌊 SWING TRADING RADAR (RANKED ALGORITHM)</th></tr><tr style="background-color: #21262d;"><th style="width:5%;">RANK</th><th style="text-align:left; width:13%;">STOCK</th><th style="width:8%;">LTP</th><th style="width:8%;">DAY%</th><th style="width:8%;">VOL</th><th style="width:16%;">STATUS</th><th style="width:11%; color:#f85149;">🛑 STOP LOSS</th><th style="width:11%; color:#3fb950;">🎯 TARGET 1</th><th style="width:11%; color:#3fb950;">🎯 TARGET 2</th><th style="width:9%;">SCORE</th></tr></thead><tbody>'
-    
     for i, row in df_sorted.iterrows():
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
         day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
         status = generate_status(row)
-        
         trend_state = stock_trends.get(row['Fetch_T'], "Neutral")
         if trend_state == 'Bullish': status += " 🟢Trend"
         elif trend_state == 'Bearish': status += " 🔴Trend"
-        
-        # Add Trophy to Rank 1
         rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
-        
+        html += f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol">{row["T"]}</td><td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td><td style="color:#f85149; font-weight:bold;">{row["S1"]:.2f}</td><td style="color:#3fb950; font-weight:bold;">{row["R1"]:.2f}</td><td style="color:#3fb950; font-weight:bold;">{row["R2"]:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
+    html += "</tbody></table>"
+    return html
+
+# 🔥 NEW: HIGH SCORE RANKED TERMINAL TABLE (FIRE RED THEME) 🔥
+def render_highscore_terminal_table(df_subset, stock_trends):
+    if df_subset.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No High Score Stocks found right now.</div>"
+    
+    # Sort exactly like Swing (By Score, Volume, and % Change)
+    df_sorted = df_subset.sort_values(by=['S', 'VolX', 'C'], ascending=[False, False, False]).reset_index(drop=True)
+    
+    html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-high">🔥 HIGH SCORE RADAR (RANKED INTRADAY MOVERS)</th></tr><tr style="background-color: #21262d;"><th style="width:5%;">RANK</th><th style="text-align:left; width:13%;">STOCK</th><th style="width:8%;">LTP</th><th style="width:8%;">DAY%</th><th style="width:8%;">VOL</th><th style="width:16%;">STATUS</th><th style="width:11%; color:#f85149;">🛑 STOP LOSS</th><th style="width:11%; color:#3fb950;">🎯 TARGET 1</th><th style="width:11%; color:#3fb950;">🎯 TARGET 2</th><th style="width:9%;">SCORE</th></tr></thead><tbody>'
+    for i, row in df_sorted.iterrows():
+        bg_class = "row-dark" if i % 2 == 0 else "row-light"
+        day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
+        status = generate_status(row)
+        trend_state = stock_trends.get(row['Fetch_T'], "Neutral")
+        if trend_state == 'Bullish': status += " 🟢Trend"
+        elif trend_state == 'Bearish': status += " 🔴Trend"
+        rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
         html += f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol">{row["T"]}</td><td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td><td style="color:#f85149; font-weight:bold;">{row["S1"]:.2f}</td><td style="color:#3fb950; font-weight:bold;">{row["R1"]:.2f}</td><td style="color:#3fb950; font-weight:bold;">{row["R2"]:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
     html += "</tbody></table>"
     return html
@@ -661,7 +674,7 @@ if not df.empty:
                         fetch_all_data.clear()
                         st.rerun()
 
-    # 3. REGULAR HEATMAP VIEW + SWING TRADING (NOW COMBINED)
+    # 3. REGULAR HEATMAP VIEW + NEW RANKED TABLES
     elif view_mode == "Heat Map":
         if not df_indices.empty:
             html_idx = '<div class="heatmap-grid">'
@@ -692,10 +705,15 @@ if not df.empty:
             
             st.markdown("<br>", unsafe_allow_html=True)
             
-            # 🔥 THE NEW TOGGLE (EXPANDER) FOR TABLES 🔥
+            # 🔥 THE NEW TOGGLES FOR HIGH SCORE AND SWING 🔥
             if watchlist_mode == "Swing Trading 📈":
                 with st.expander("🌊 View Swing Trading Radar (Ranked Table)", expanded=True):
                     st.markdown(render_swing_terminal_table(df_stocks_display, stock_trends), unsafe_allow_html=True)
+            
+            elif watchlist_mode == "High Score Stocks 🔥":
+                with st.expander("🔥 View High Score Radar (Ranked Intraday Table)", expanded=True):
+                    st.markdown(render_highscore_terminal_table(df_stocks_display, stock_trends), unsafe_allow_html=True)
+            
             else:
                 with st.expander("🎯 View Trading Levels (Targets & Stop Loss)", expanded=True):
                     st.markdown(render_levels_table(df_stocks_display, stock_trends), unsafe_allow_html=True)
