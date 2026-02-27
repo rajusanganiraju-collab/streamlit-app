@@ -1,6 +1,7 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
+import numpy as np
 import plotly.graph_objects as go
 import os
 from datetime import datetime, time as dt_time
@@ -24,13 +25,12 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- 🔥 THE FIX: PORTFOLIO FILE SETUP WITH STRICT TYPE CASTING 🔥 ---
+# --- PORTFOLIO FILE SETUP ---
 PORTFOLIO_FILE = "my_portfolio.csv"
 def load_portfolio():
     if os.path.exists(PORTFOLIO_FILE):
         df = pd.read_csv(PORTFOLIO_FILE)
         if not df.empty:
-            # Force numeric types to prevent Streamlit column_config errors
             df['Quantity'] = pd.to_numeric(df['Quantity'], errors='coerce').fillna(1).astype(int)
             df['Buy_Price'] = pd.to_numeric(df['Buy_Price'], errors='coerce').fillna(0.0).astype(float)
             df['Symbol'] = df['Symbol'].astype(str).replace('nan', '')
@@ -163,7 +163,9 @@ def fetch_all_data():
     
     all_stocks = set(NIFTY_50 + BROADER_MARKET + port_stocks)
     tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + [f"{t}.NS" for t in all_stocks if t]
-    data = yf.download(tkrs, period="5d", progress=False, group_by='ticker', threads=20)
+    
+    # 🔥 INCREASED PERIOD TO 1 YEAR FOR SWING TRADING (200 EMA & RSI) 🔥
+    data = yf.download(tkrs, period="1y", progress=False, group_by='ticker', threads=20)
     
     results = []
     minutes = get_minutes_passed()
@@ -182,12 +184,40 @@ def fetch_all_data():
             day_chg = ((ltp - open_p) / open_p) * 100
             net_chg = ((ltp - prev_c) / prev_c) * 100
             
-            if 'Volume' in df.columns and not df['Volume'].isna().all():
-                avg_vol = df['Volume'].iloc[:-1].mean()
+            # Intraday Volume calculation (using last 5 days to keep day trading score same)
+            if 'Volume' in df.columns and not df['Volume'].isna().all() and len(df) >= 6:
+                avg_vol_5d = df['Volume'].iloc[-6:-1].mean()
                 curr_vol = float(df['Volume'].iloc[-1])
-                vol_x = round(curr_vol / ((avg_vol/375) * minutes), 1) if avg_vol > 0 else 0.0
-            else: vol_x = 0.0
+                vol_x = round(curr_vol / ((avg_vol_5d/375) * minutes), 1) if avg_vol_5d > 0 else 0.0
+            else: 
+                vol_x = 0.0
+                curr_vol = 0.0
                 
+            # 🔥 PRO SWING TRADING LOGIC CALCULATION 🔥
+            is_swing = False
+            if len(df) >= 50:
+                ema20 = df['Close'].ewm(span=20, adjust=False).mean().iloc[-1]
+                ema50 = df['Close'].ewm(span=50, adjust=False).mean().iloc[-1]
+                ema200 = df['Close'].ewm(span=200, adjust=False).mean().iloc[-1] if len(df) >= 200 else 0
+                
+                # RSI 14 Calculation
+                delta = df['Close'].diff()
+                gain = delta.clip(lower=0).ewm(alpha=1/14, adjust=False).mean()
+                loss = -delta.clip(upper=0).ewm(alpha=1/14, adjust=False).mean()
+                loss = loss.replace(0, np.nan) # Prevent division by zero
+                rs = gain / loss
+                rsi = 100 - (100 / (1 + rs))
+                current_rsi = rsi.fillna(100).iloc[-1]
+                
+                # Volume Breakout (10 Days)
+                avg_vol_10d = df['Volume'].iloc[-11:-1].mean() if len(df) >= 11 else 0
+                vol_breakout = curr_vol > (1.5 * avg_vol_10d) if avg_vol_10d > 0 else False
+                
+                # Swing Conditions: Price > EMAs, Momentum (RSI>60), Volume Breakout, Green Day
+                if (ltp > ema50) and (ltp > ema200 if ema200 > 0 else True) and (ema20 > ema50) and (current_rsi > 60) and vol_breakout and (net_chg > 0):
+                    is_swing = True
+
+            # Intraday Score calculation
             vwap = (high + low + ltp) / 3
             score = 0
             if abs(day_chg) >= 2.0: score += 3 
@@ -209,7 +239,7 @@ def fetch_all_data():
                 
             results.append({
                 "Fetch_T": symbol, "T": disp_name, "P": ltp, "O": open_p, "H": high, "L": low, "Prev_C": prev_c,
-                "Day_C": day_chg, "C": net_chg, "S": score, "VolX": vol_x,
+                "Day_C": day_chg, "C": net_chg, "S": score, "VolX": vol_x, "Is_Swing": is_swing,
                 "Is_Index": is_index, "Is_Sector": is_sector, "Sector": stock_sector
             })
         except: continue
@@ -370,7 +400,8 @@ def render_chart_grid(df_grid, show_pin_option, key_prefix):
 # --- 6. TOP NAVIGATION & SEARCH ---
 c1, c2, c3 = st.columns([0.4, 0.3, 0.3])
 with c1: 
-    watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Nifty 50 Heatmap", "One Sided Moves 🚀", "Terminal Tables 🗃️", "My Portfolio 💼"], label_visibility="collapsed")
+    # 🔥 ADDED SWING TRADING OPTION 🔥
+    watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "One Sided Moves 🚀", "Terminal Tables 🗃️", "My Portfolio 💼"], label_visibility="collapsed")
 with c2: 
     sort_mode = st.selectbox("Sort By", ["Custom Sort", "Heatmap Marks Up ⭐", "Heatmap Marks Down ⬇️", "% Change Up 🟢", "% Change Down 🔴"], label_visibility="collapsed")
 with c3: 
@@ -409,10 +440,9 @@ if not df.empty:
     df_independent = df_nifty[(~df_nifty['Sector'].isin([top_buy_sector, top_sell_sector])) & (df_nifty['S'] >= 6)].sort_values(by='S', ascending=False).head(8)
     df_broader = df_stocks[(df_stocks['T'].isin(BROADER_MARKET)) & (df_stocks['S'] >= 6)].sort_values(by='S', ascending=False).head(8)
 
-    # Load Portfolio
     df_port_saved = load_portfolio()
 
-    # Watchlist Filtering
+    # 🔥 FILTER LOGIC FOR WATCHLISTS 🔥
     if watchlist_mode == "Terminal Tables 🗃️":
         terminal_tickers = pd.concat([df_buy_sector, df_sell_sector, df_independent, df_broader])['Fetch_T'].unique().tolist()
         df_filtered = df_stocks[df_stocks['Fetch_T'].isin(terminal_tickers)]
@@ -423,6 +453,9 @@ if not df.empty:
         df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
     elif watchlist_mode == "One Sided Moves 🚀":
         df_filtered = df_stocks[df_stocks['C'].abs() >= 1.0]
+    elif watchlist_mode == "Swing Trading 📈":
+        # Swing Filter Application
+        df_filtered = df_stocks[df_stocks['Is_Swing'] == True]
     else:
         df_filtered = df_stocks[(df_stocks['S'] >= 7) & (df_stocks['S'] <= 10)]
 
@@ -432,7 +465,7 @@ if not df.empty:
         search_fetch_t = df[df['T'] == search_stock]['Fetch_T'].iloc[0]
         if search_fetch_t not in all_display_tickers: all_display_tickers.append(search_fetch_t)
             
-    with st.spinner("Analyzing VWAP & 10 EMA Trends (Lightning Speed ⚡)..."):
+    with st.spinner("Analyzing Intraday VWAP & 10 EMA Trends..."):
         five_min_data = yf.download(all_display_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=20)
 
     processed_charts = {}
@@ -512,14 +545,10 @@ if not df.empty:
         st.markdown(render_html_table(df_independent, "🌟 INDEPENDENT MOVERS", "term-head-ind"), unsafe_allow_html=True)
         st.markdown(render_html_table(df_broader, "🌌 BROADER MARKET", "term-head-brd"), unsafe_allow_html=True)
 
-    # 🔥 PORTFOLIO VIEW 🔥
     elif watchlist_mode == "My Portfolio 💼" and view_mode == "Heat Map":
-        
-        # 1. SHOW THE PORTFOLIO TABLE FIRST
         st.markdown(render_portfolio_table(df_port_saved, df_stocks, stock_trends), unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # 2. ADD STOCK FORM
         with st.expander("➕ Search & Add Stock to Portfolio", expanded=False):
             with st.form("portfolio_add_form", clear_on_submit=True):
                 c1, c2, c3, c4, c5 = st.columns([2.5, 1.5, 2, 2, 2])
@@ -554,11 +583,9 @@ if not df.empty:
                 else:
                     st.warning("Type a symbol first!")
         
-        # 3. EDIT HOLDINGS FORM
         if not df_port_saved.empty:
             with st.expander("✏️ Edit Existing Holdings (Qty, Price, Date)", expanded=False):
                 st.markdown("<p style='font-size:12px; color:#888;'><i>Modify your Buy Price, Quantity, or Date directly in the table below and click Save.</i></p>", unsafe_allow_html=True)
-                
                 edited_df = st.data_editor(
                     df_port_saved, 
                     use_container_width=True,
@@ -570,13 +597,11 @@ if not df.empty:
                         "Date": st.column_config.TextColumn("Purchase Date")
                     }
                 )
-                
                 if st.button("💾 Save Edited Changes", use_container_width=True):
                     save_portfolio(edited_df)
                     fetch_all_data.clear()
                     st.rerun()
 
-        # 4. REMOVE STOCK FORM
         if not df_port_saved.empty:
             with st.expander("🗑️ Remove Stock from Portfolio", expanded=False):
                 with st.form("portfolio_remove_form"):
@@ -587,7 +612,6 @@ if not df.empty:
                         remove_btn = st.form_submit_button("❌ Remove", use_container_width=True)
                     with rc3:
                         pass
-                    
                     if remove_btn and del_sym != "-- Select --":
                         df_port_saved = df_port_saved[df_port_saved['Symbol'] != del_sym]
                         save_portfolio(df_port_saved)
@@ -614,7 +638,12 @@ if not df.empty:
             html_stk = '<div class="heatmap-grid">'
             for _, row in df_stocks_display.iterrows():
                 bg = "bull-card" if row['C'] > 0 else ("bear-card" if row['C'] < 0 else "neut-card")
-                special_icon = "🚀" if watchlist_mode == "One Sided Moves 🚀" else f"⭐{int(row['S'])}"
+                
+                # 🔥 ICON LOGIC UPDATED FOR SWING 🔥
+                if watchlist_mode == "Swing Trading 📈": special_icon = "🌊"
+                elif watchlist_mode == "One Sided Moves 🚀": special_icon = "🚀"
+                else: special_icon = f"⭐{int(row['S'])}"
+                
                 html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">{special_icon}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if row["C"]>0 else ""}{row["C"]:.2f}%</div></a>'
             st.markdown(html_stk + '</div>', unsafe_allow_html=True)
         else: st.info(f"No {st.session_state.trend_filter} stocks found.")
