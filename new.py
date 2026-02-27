@@ -111,8 +111,8 @@ st.markdown("""
     .term-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-family: monospace; font-size: 11.5px; color: #e6edf3; background-color: #0e1117; table-layout: fixed; }
     .term-table th { padding: 6px 4px; text-align: center; border: 1px solid #30363d; font-weight: bold; overflow: hidden; }
     .term-table td { padding: 6px 4px; text-align: center; border: 1px solid #30363d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .term-table a { color: inherit; text-decoration: none; border-bottom: 1px dashed rgba(255,255,255,0.4); } /* 🔥 NEW LINK STYLE 🔥 */
-    .term-table a:hover { color: #58a6ff !important; text-decoration: none; border-bottom: 1px solid #58a6ff; } /* 🔥 HOVER GLOW 🔥 */
+    .term-table a { color: inherit; text-decoration: none; border-bottom: 1px dashed rgba(255,255,255,0.4); } 
+    .term-table a:hover { color: #58a6ff !important; text-decoration: none; border-bottom: 1px solid #58a6ff; } 
     
     .term-head-buy { background-color: #1e5f29; color: white; text-align: left !important; padding-left: 10px !important; font-size:13px; }
     .term-head-sell { background-color: #b52524; color: white; text-align: left !important; padding-left: 10px !important; font-size:13px; }
@@ -295,7 +295,6 @@ def generate_status(row):
     if row['C'] > 0 and row['Day_C'] > 0 and row['VolX'] > 1: status += "Rec ⇈ "
     return status.strip()
 
-# 🔥 CLICKABLE STOCK NAMES ADDED TO ALL TABLES 🔥
 def render_html_table(df_subset, title, color_class):
     if df_subset.empty: return ""
     html = f'<table class="term-table"><thead><tr><th colspan="7" class="{color_class}">{title}</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:20%;">STOCK</th><th style="width:12%;">PRICE</th><th style="width:12%;">DAY%</th><th style="width:12%;">NET%</th><th style="width:10%;">VOL</th><th style="width:26%;">STATUS</th><th style="width:8%;">SCORE</th></tr></thead><tbody>'
@@ -304,7 +303,6 @@ def render_html_table(df_subset, title, color_class):
         day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
         net_color = "text-green" if row['C'] >= 0 else "text-red"
         status = generate_status(row)
-        # Added <a> tag for TradingView link
         html += f'<tr class="{bg_class}"><td class="t-symbol {net_color}"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td><td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td class="{net_color}">{row["C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
     html += "</tbody></table>"
     return html
@@ -363,7 +361,6 @@ def render_portfolio_table(df_port, df_stocks, stock_trends):
         t_sign = "+" if overall_pnl > 0 else ""
         d_sign = "+" if day_pnl > 0 else ""
         
-        # Added <a> tag for TradingView link
         html += f'<tr class="{bg_class}"><td class="t-symbol {tpnl_color}"><a href="https://in.tradingview.com/chart/?symbol=NSE:{sym}" target="_blank">{sym}</a></td><td>{date_val}</td><td>{int(qty)}</td><td>{buy_p:.2f}</td><td>{ltp:.2f}</td><td style="font-size:10px;">{trend_html}</td><td style="font-size:10px;">{status_html}</td><td class="{dpnl_color}">{d_sign}{day_pnl:,.0f}</td><td class="{tpnl_color}">{t_sign}{overall_pnl:,.0f}</td><td class="{tpnl_color}">{t_sign}{pnl_pct:.2f}%</td></tr>'
     
     overall_total_pnl = total_current - total_invested
@@ -395,7 +392,6 @@ def render_levels_table(df_subset, stock_trends):
         else:
             sl_val, t1_val, t2_val, ext_val = row["S1"], row["R1"], row["R2"], row["S2"]
             
-        # Added <a> tag for TradingView link
         html += f'<tr class="{bg_class}"><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td><td style="font-size:10px;">{trend_html}</td><td>{row["P"]:.2f}</td><td style="color:#8b949e;">{row["Pivot"]:.2f}</td><td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#8b949e;">{ext_val:.2f}</td></tr>'
     html += "</tbody></table>"
     return html
@@ -422,7 +418,6 @@ def render_swing_terminal_table(df_subset, stock_trends):
             sl_val, t1_val, t2_val = row["S1"], row["R1"], row["R2"]
             
         rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
-        # Added <a> tag for TradingView link
         html += f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td><td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td><td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
     html += "</tbody></table>"
     return html
@@ -449,7 +444,6 @@ def render_highscore_terminal_table(df_subset, stock_trends):
             sl_val, t1_val, t2_val = row["S1"], row["R1"], row["R2"]
             
         rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
-        # Added <a> tag for TradingView link
         html += f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td><td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td><td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
     html += "</tbody></table>"
     return html
@@ -585,8 +579,10 @@ if not df.empty:
             
             net_chg = df[df['Fetch_T'] == sym]['C'].iloc[0]
             
-            is_bullish = (net_chg > 0) and (last_price >= day_open) and (last_price > last_vwap) and (last_price > last_ema)
-            is_bearish = (net_chg < 0) and (last_price <= day_open) and (last_price < last_vwap) and (last_price < last_ema)
+            # 🔥 FIXED: RELAXED THE STRICT INTRADAY BULLISH/BEARISH TREND RULES 🔥
+            # Now, if it's green and above VWAP, it's firmly considered Bullish for the trend tag!
+            is_bullish = (net_chg > 0) and (last_price >= last_vwap)
+            is_bearish = (net_chg < 0) and (last_price <= last_vwap)
             
             if is_bullish: stock_trends[sym] = 'Bullish'
             elif is_bearish: stock_trends[sym] = 'Bearish'
