@@ -146,7 +146,6 @@ def get_minutes_passed():
 @st.cache_data(ttl=60)
 def fetch_all_data():
     port_df = load_portfolio()
-    # Pull dynamic portfolio stocks
     port_stocks = [str(sym).upper().strip() for sym in port_df['Symbol'].tolist() if str(sym).strip() != ""]
     
     all_stocks = set(NIFTY_50 + BROADER_MARKET + port_stocks)
@@ -243,11 +242,11 @@ def render_html_table(df_subset, title, color_class):
     html += "</tbody></table>"
     return html
 
-# 🔥 NEW: COLORFUL TERMINAL PORTFOLIO TABLE 🔥
+# 🔥 NEW: PORTFOLIO TABLE WITH DATE OF PURCHASE 🔥
 def render_portfolio_table(df_port, df_stocks, stock_trends):
-    if df_port.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>Portfolio is empty. Add a stock using the search bar above!</div>"
+    if df_port.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>Portfolio is empty. Add a stock using the option below!</div>"
     
-    html = f'<table class="term-table"><thead><tr><th colspan="9" class="term-head-port">💼 LIVE PORTFOLIO TERMINAL</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:13%;">STOCK</th><th style="width:7%;">QTY</th><th style="width:9%;">AVG</th><th style="width:9%;">LTP</th><th style="width:11%;">TREND</th><th style="width:20%;">STATUS</th><th style="width:10%;">DAY P&L</th><th style="width:11%;">TOT P&L</th><th style="width:10%;">P&L %</th></tr></thead><tbody>'
+    html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-port">💼 LIVE PORTFOLIO TERMINAL</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:11%;">STOCK</th><th style="width:9%;">DATE</th><th style="width:6%;">QTY</th><th style="width:8%;">AVG</th><th style="width:8%;">LTP</th><th style="width:10%;">TREND</th><th style="width:18%;">STATUS</th><th style="width:10%;">DAY P&L</th><th style="width:10%;">TOT P&L</th><th style="width:10%;">P&L %</th></tr></thead><tbody>'
     
     total_invested = 0
     total_current = 0
@@ -256,8 +255,13 @@ def render_portfolio_table(df_port, df_stocks, stock_trends):
     for i, (_, row) in enumerate(df_port.iterrows()):
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
         sym = str(row['Symbol']).upper().strip()
-        qty = float(row['Quantity'])
-        buy_p = float(row['Buy_Price'])
+        try: qty = float(row['Quantity'])
+        except: qty = 0
+        try: buy_p = float(row['Buy_Price'])
+        except: buy_p = 0
+        
+        date_val = str(row.get('Date', '-'))
+        if date_val == 'nan' or date_val == 'NaN' or date_val == '': date_val = '-'
         
         live_row = df_stocks[df_stocks['T'] == sym]
         status_html = ""
@@ -293,7 +297,7 @@ def render_portfolio_table(df_port, df_stocks, stock_trends):
         t_sign = "+" if overall_pnl > 0 else ""
         d_sign = "+" if day_pnl > 0 else ""
         
-        html += f'<tr class="{bg_class}"><td class="t-symbol {tpnl_color}">{sym}</td><td>{int(qty)}</td><td>{buy_p:.2f}</td><td>{ltp:.2f}</td><td style="font-size:10px;">{trend_html}</td><td style="font-size:10px;">{status_html}</td><td class="{dpnl_color}">{d_sign}{day_pnl:,.0f}</td><td class="{tpnl_color}">{t_sign}{overall_pnl:,.0f}</td><td class="{tpnl_color}">{t_sign}{pnl_pct:.2f}%</td></tr>'
+        html += f'<tr class="{bg_class}"><td class="t-symbol {tpnl_color}">{sym}</td><td>{date_val}</td><td>{int(qty)}</td><td>{buy_p:.2f}</td><td>{ltp:.2f}</td><td style="font-size:10px;">{trend_html}</td><td style="font-size:10px;">{status_html}</td><td class="{dpnl_color}">{d_sign}{day_pnl:,.0f}</td><td class="{tpnl_color}">{t_sign}{overall_pnl:,.0f}</td><td class="{tpnl_color}">{t_sign}{pnl_pct:.2f}%</td></tr>'
     
     overall_total_pnl = total_current - total_invested
     overall_total_pct = (overall_total_pnl / total_invested * 100) if total_invested > 0 else 0
@@ -302,7 +306,7 @@ def render_portfolio_table(df_port, df_stocks, stock_trends):
     d_color = "text-green" if total_day_pnl >= 0 else "text-red"
     d_sign = "+" if total_day_pnl > 0 else ""
     
-    html += f'<tr class="port-total"><td colspan="6" style="text-align:right; padding-right:15px; font-size:12px;">INVESTED: ₹{total_invested:,.0f} &nbsp;|&nbsp; CURRENT: ₹{total_current:,.0f} &nbsp;|&nbsp; OVERALL P&L:</td><td class="{d_color}">{d_sign}₹{total_day_pnl:,.0f}</td><td class="{o_color}">{o_sign}₹{overall_total_pnl:,.0f}</td><td class="{o_color}">{o_sign}{overall_total_pct:.2f}%</td></tr>'
+    html += f'<tr class="port-total"><td colspan="7" style="text-align:right; padding-right:15px; font-size:12px;">INVESTED: ₹{total_invested:,.0f} &nbsp;|&nbsp; CURRENT: ₹{total_current:,.0f} &nbsp;|&nbsp; OVERALL P&L:</td><td class="{d_color}">{d_sign}₹{total_day_pnl:,.0f}</td><td class="{o_color}">{o_sign}₹{overall_total_pnl:,.0f}</td><td class="{o_color}">{o_sign}{overall_total_pct:.2f}%</td></tr>'
     html += "</tbody></table>"
     return html
 
@@ -482,7 +486,6 @@ if not df.empty:
         else: df_stocks_display = pd.concat([df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False]), df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[True, True])])
 
     # --- RENDER VIEWS ---
-    
     if watchlist_mode == "Terminal Tables 🗃️" and view_mode == "Heat Map":
         st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>🗃️ Professional Terminal View</div>", unsafe_allow_html=True)
         
@@ -497,65 +500,65 @@ if not df.empty:
         st.markdown(render_html_table(df_independent, "🌟 INDEPENDENT MOVERS", "term-head-ind"), unsafe_allow_html=True)
         st.markdown(render_html_table(df_broader, "🌌 BROADER MARKET", "term-head-brd"), unsafe_allow_html=True)
 
-    # 🔥 THE FIX: PROFESSIONAL ONLINE SEARCH & ENTRY FOR PORTFOLIO 🔥
+    # 🔥 PORTFOLIO VIEW: TABLE FIRST, FORMS BELOW 🔥
     elif watchlist_mode == "My Portfolio 💼" and view_mode == "Heat Map":
         
-        # 1. LIVE SEARCH ADD BOX (Wrapped in Form for Stability)
-        st.markdown("<div style='background-color:#161b22; padding:15px; border-radius:8px; border:1px solid #30363d; margin-bottom:15px;'>", unsafe_allow_html=True)
-        st.markdown("<div style='font-size:14px; font-weight:bold; color:#ffd700; margin-bottom:10px;'>➕ Search & Add Stock to Portfolio</div>", unsafe_allow_html=True)
-        
-        with st.form("portfolio_add_form", clear_on_submit=True):
-            c1, c2, c3, c4 = st.columns([3, 2, 2, 3])
-            with c1:
-                new_sym = st.text_input("🔍 NSE Symbol (e.g. itc)", placeholder="Type Symbol...").upper().strip()
-            with c2:
-                new_qty = st.number_input("📦 Quantity", min_value=1, value=10)
-            with c3:
-                new_price = st.number_input("💰 Buy Price (₹)", min_value=0.0, value=100.0)
-            with c4:
-                st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-                submit_btn = st.form_submit_button("➕ Verify & Add", use_container_width=True)
-
-        if submit_btn:
-            if new_sym:
-                with st.spinner(f"Searching NSE for {new_sym}..."):
-                    chk_data = yf.download(f"{new_sym}.NS", period="1d", progress=False)
-                    if chk_data.empty:
-                        st.error(f"❌ '{new_sym}' not found in NSE! Please check the spelling.")
-                    else:
-                        if new_sym in df_port_saved['Symbol'].values:
-                            df_port_saved.loc[df_port_saved['Symbol'] == new_sym, ['Buy_Price', 'Quantity']] = [new_price, new_qty]
-                        else:
-                            new_row = pd.DataFrame({"Symbol": [new_sym], "Buy_Price": [new_price], "Quantity": [new_qty], "Date": [""]})
-                            df_port_saved = pd.concat([df_port_saved, new_row], ignore_index=True)
-                        save_portfolio(df_port_saved)
-                        fetch_all_data.clear() # 🔥 CACHE CLEAR: Forces live data fetch immediately 🔥
-                        st.success(f"✅ {new_sym} Added to Portfolio Successfully!")
-                        st.rerun()
-            else:
-                st.warning("Type a symbol first!")
-        st.markdown("</div>", unsafe_allow_html=True)
-        
-        # 2. REMOVE BOX (Wrapped in Form for Stability)
-        if not df_port_saved.empty:
-            with st.form("portfolio_remove_form"):
-                rc1, rc2, rc3 = st.columns([3, 2, 5])
-                with rc1:
-                    del_sym = st.selectbox("🗑️ Remove Stock", ["-- Select --"] + df_port_saved['Symbol'].tolist())
-                with rc2:
-                    st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-                    remove_btn = st.form_submit_button("❌ Remove", use_container_width=True)
-                with rc3:
-                    pass
-                
-                if remove_btn and del_sym != "-- Select --":
-                    df_port_saved = df_port_saved[df_port_saved['Symbol'] != del_sym]
-                    save_portfolio(df_port_saved)
-                    fetch_all_data.clear() # 🔥 CACHE CLEAR: Refreshes Portfolio 🔥
-                    st.rerun()
-
-        # 3. COLORFUL TERMINAL TABLE RENDER
+        # 1. SHOW THE PORTFOLIO TABLE FIRST
         st.markdown(render_portfolio_table(df_port_saved, df_stocks, stock_trends), unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # 2. ADD STOCK FORM (IN EXPANDER BELOW TABLE)
+        with st.expander("➕ Search & Add Stock to Portfolio", expanded=False):
+            with st.form("portfolio_add_form", clear_on_submit=True):
+                c1, c2, c3, c4, c5 = st.columns([2.5, 1.5, 2, 2, 2])
+                with c1:
+                    new_sym = st.text_input("🔍 NSE Symbol (e.g. itc)", placeholder="Type Symbol...").upper().strip()
+                with c2:
+                    new_qty = st.number_input("📦 Quantity", min_value=1, value=10)
+                with c3:
+                    new_price = st.number_input("💰 Buy Price (₹)", min_value=0.0, value=100.0)
+                with c4:
+                    new_date = st.date_input("📅 Purchase Date")
+                with c5:
+                    st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+                    submit_btn = st.form_submit_button("➕ Verify & Add", use_container_width=True)
+
+            if submit_btn:
+                if new_sym:
+                    with st.spinner(f"Searching NSE for {new_sym}..."):
+                        chk_data = yf.download(f"{new_sym}.NS", period="1d", progress=False)
+                        if chk_data.empty:
+                            st.error(f"❌ '{new_sym}' not found in NSE! Please check the spelling.")
+                        else:
+                            new_date_str = new_date.strftime("%d-%b-%Y") # Format Date nicely
+                            if new_sym in df_port_saved['Symbol'].values:
+                                df_port_saved.loc[df_port_saved['Symbol'] == new_sym, ['Buy_Price', 'Quantity', 'Date']] = [new_price, new_qty, new_date_str]
+                            else:
+                                new_row = pd.DataFrame({"Symbol": [new_sym], "Buy_Price": [new_price], "Quantity": [new_qty], "Date": [new_date_str]})
+                                df_port_saved = pd.concat([df_port_saved, new_row], ignore_index=True)
+                            save_portfolio(df_port_saved)
+                            fetch_all_data.clear() # Cache clear to get live data immediately
+                            st.rerun()
+                else:
+                    st.warning("Type a symbol first!")
+        
+        # 3. REMOVE STOCK FORM (IN EXPANDER BELOW ADD OPTION)
+        if not df_port_saved.empty:
+            with st.expander("🗑️ Remove Stock from Portfolio", expanded=False):
+                with st.form("portfolio_remove_form"):
+                    rc1, rc2, rc3 = st.columns([3, 2, 5])
+                    with rc1:
+                        del_sym = st.selectbox("Select Stock to Remove", ["-- Select --"] + df_port_saved['Symbol'].tolist(), label_visibility="collapsed")
+                    with rc2:
+                        remove_btn = st.form_submit_button("❌ Remove", use_container_width=True)
+                    with rc3:
+                        pass
+                    
+                    if remove_btn and del_sym != "-- Select --":
+                        df_port_saved = df_port_saved[df_port_saved['Symbol'] != del_sym]
+                        save_portfolio(df_port_saved)
+                        fetch_all_data.clear()
+                        st.rerun()
 
     elif view_mode == "Heat Map":
         if not df_indices.empty:
