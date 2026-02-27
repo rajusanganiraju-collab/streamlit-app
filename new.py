@@ -148,7 +148,7 @@ NIFTY_50_SECTORS = {
 }
 
 NIFTY_50 = [stock for sector in NIFTY_50_SECTORS.values() for stock in sector] + ["LARSEN", "BAJFINANCE", "ASIANPAINT", "TITAN", "ADANIENT"]
-BROADER_MARKET = ["HAL", "BDL", "MAZDOCK", "RVNL", "IRFC", "BHEL", "CGPOWER", "SUZLON", "PFC", "RECLTD", "DIXON", "POLYCAB", "KAYNES", "ZOMATO", "DMART", "MANAPPURAM", "MUTHOOTFIN", "KEI"]
+BROADER_MARKET = ["HAL", "BDL", "MAZDOCK", "RVNL", "IRFC", "BHEL", "CGPOWER", "SUZLON", "PFC", "RECLTD", "DIXON", "POLYCAB", "KAYNES", "ZOMATO", "DMART", "MANAPPURAM", "MUTHOOTFIN", "KEI", "APLAPOLLO"]
 
 def get_minutes_passed():
     now = datetime.now()
@@ -163,8 +163,6 @@ def fetch_all_data():
     
     all_stocks = set(NIFTY_50 + BROADER_MARKET + port_stocks)
     tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + [f"{t}.NS" for t in all_stocks if t]
-    
-    # 🔥 INCREASED PERIOD TO 1 YEAR FOR SWING TRADING (200 EMA & RSI) 🔥
     data = yf.download(tkrs, period="1y", progress=False, group_by='ticker', threads=20)
     
     results = []
@@ -184,7 +182,6 @@ def fetch_all_data():
             day_chg = ((ltp - open_p) / open_p) * 100
             net_chg = ((ltp - prev_c) / prev_c) * 100
             
-            # Intraday Volume calculation (using last 5 days to keep day trading score same)
             if 'Volume' in df.columns and not df['Volume'].isna().all() and len(df) >= 6:
                 avg_vol_5d = df['Volume'].iloc[-6:-1].mean()
                 curr_vol = float(df['Volume'].iloc[-1])
@@ -193,31 +190,30 @@ def fetch_all_data():
                 vol_x = 0.0
                 curr_vol = 0.0
                 
-            # 🔥 PRO SWING TRADING LOGIC CALCULATION 🔥
+            # 🔥 RELAXED SWING TRADING LOGIC 🔥
             is_swing = False
             if len(df) >= 50:
                 ema20 = df['Close'].ewm(span=20, adjust=False).mean().iloc[-1]
                 ema50 = df['Close'].ewm(span=50, adjust=False).mean().iloc[-1]
                 ema200 = df['Close'].ewm(span=200, adjust=False).mean().iloc[-1] if len(df) >= 200 else 0
                 
-                # RSI 14 Calculation
+                # RSI 14
                 delta = df['Close'].diff()
                 gain = delta.clip(lower=0).ewm(alpha=1/14, adjust=False).mean()
                 loss = -delta.clip(upper=0).ewm(alpha=1/14, adjust=False).mean()
-                loss = loss.replace(0, np.nan) # Prevent division by zero
+                loss = loss.replace(0, np.nan)
                 rs = gain / loss
                 rsi = 100 - (100 / (1 + rs))
                 current_rsi = rsi.fillna(100).iloc[-1]
                 
-                # Volume Breakout (10 Days)
+                # Volume Breakout (Relaxed to 1.2x average)
                 avg_vol_10d = df['Volume'].iloc[-11:-1].mean() if len(df) >= 11 else 0
-                vol_breakout = curr_vol > (1.5 * avg_vol_10d) if avg_vol_10d > 0 else False
+                vol_breakout = curr_vol > (1.2 * avg_vol_10d) if avg_vol_10d > 0 else False
                 
-                # Swing Conditions: Price > EMAs, Momentum (RSI>60), Volume Breakout, Green Day
-                if (ltp > ema50) and (ltp > ema200 if ema200 > 0 else True) and (ema20 > ema50) and (current_rsi > 60) and vol_breakout and (net_chg > 0):
+                # Conditions: Price > 50EMA, 20EMA > 50EMA, RSI > 55, Volume > 1.2x, Green Day
+                if (ltp > ema50) and (ema20 > ema50) and (current_rsi >= 55) and vol_breakout and (net_chg > 0):
                     is_swing = True
 
-            # Intraday Score calculation
             vwap = (high + low + ltp) / 3
             score = 0
             if abs(day_chg) >= 2.0: score += 3 
@@ -400,7 +396,6 @@ def render_chart_grid(df_grid, show_pin_option, key_prefix):
 # --- 6. TOP NAVIGATION & SEARCH ---
 c1, c2, c3 = st.columns([0.4, 0.3, 0.3])
 with c1: 
-    # 🔥 ADDED SWING TRADING OPTION 🔥
     watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "One Sided Moves 🚀", "Terminal Tables 🗃️", "My Portfolio 💼"], label_visibility="collapsed")
 with c2: 
     sort_mode = st.selectbox("Sort By", ["Custom Sort", "Heatmap Marks Up ⭐", "Heatmap Marks Down ⬇️", "% Change Up 🟢", "% Change Down 🔴"], label_visibility="collapsed")
@@ -442,7 +437,7 @@ if not df.empty:
 
     df_port_saved = load_portfolio()
 
-    # 🔥 FILTER LOGIC FOR WATCHLISTS 🔥
+    # Watchlist Filtering
     if watchlist_mode == "Terminal Tables 🗃️":
         terminal_tickers = pd.concat([df_buy_sector, df_sell_sector, df_independent, df_broader])['Fetch_T'].unique().tolist()
         df_filtered = df_stocks[df_stocks['Fetch_T'].isin(terminal_tickers)]
@@ -454,7 +449,6 @@ if not df.empty:
     elif watchlist_mode == "One Sided Moves 🚀":
         df_filtered = df_stocks[df_stocks['C'].abs() >= 1.0]
     elif watchlist_mode == "Swing Trading 📈":
-        # Swing Filter Application
         df_filtered = df_stocks[df_stocks['Is_Swing'] == True]
     else:
         df_filtered = df_stocks[(df_stocks['S'] >= 7) & (df_stocks['S'] <= 10)]
@@ -465,7 +459,7 @@ if not df.empty:
         search_fetch_t = df[df['T'] == search_stock]['Fetch_T'].iloc[0]
         if search_fetch_t not in all_display_tickers: all_display_tickers.append(search_fetch_t)
             
-    with st.spinner("Analyzing Intraday VWAP & 10 EMA Trends..."):
+    with st.spinner("Analyzing VWAP & 10 EMA Trends..."):
         five_min_data = yf.download(all_display_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=20)
 
     processed_charts = {}
