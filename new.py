@@ -87,9 +87,9 @@ st.markdown("""
     .custom-hr { border: 0; height: 1px; background: #30363d; margin: 15px 0; }
 
     /* 🔥 TERMINAL TABLE STYLES 🔥 */
-    .term-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-family: monospace; font-size: 11px; color: #e6edf3; background-color: #0e1117; }
-    .term-table th { padding: 4px; text-align: center; border: 1px solid #30363d; font-weight: bold; }
-    .term-table td { padding: 4px; text-align: center; border: 1px solid #30363d; }
+    .term-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-family: monospace; font-size: 11.5px; color: #e6edf3; background-color: #0e1117; }
+    .term-table th { padding: 6px 4px; text-align: center; border: 1px solid #30363d; font-weight: bold; }
+    .term-table td { padding: 6px 4px; text-align: center; border: 1px solid #30363d; }
     .term-head-buy { background-color: #1e5f29; color: white; text-align: left !important; padding-left: 10px !important; }
     .term-head-sell { background-color: #b52524; color: white; text-align: left !important; padding-left: 10px !important; }
     .term-head-ind { background-color: #9e6a03; color: white; text-align: left !important; padding-left: 10px !important; }
@@ -109,7 +109,6 @@ SECTOR_INDICES_MAP = {
     "^CNXPHARMA": "NIFTY PHARMA", "^CNXFMCG": "NIFTY FMCG", "^CNXENERGY": "NIFTY ENERGY", "^CNXREALTY": "NIFTY REALTY"
 }
 
-# 🔥 ADDED THE MISSING URL MAPPING HERE 🔥
 TV_SECTOR_URL = {
     "^CNXIT": "NSE:CNXIT", "^CNXAUTO": "NSE:CNXAUTO", "^CNXMETAL": "NSE:CNXMETAL",
     "^CNXPHARMA": "NSE:CNXPHARMA", "^CNXFMCG": "NSE:CNXFMCG", "^CNXENERGY": "NSE:CNXENERGY", "^CNXREALTY": "NSE:CNXREALTY"
@@ -117,7 +116,7 @@ TV_SECTOR_URL = {
 
 NIFTY_50_SECTORS = {
     "PHARMA": ["SUNPHARMA", "CIPLA", "DRREDDY", "DIVISLAB", "APOLLOHOSP"],
-    "IT": ["TCS", "INFY", "HCLTECH", "WIPRO", "TECHM"],
+    "IT": ["TCS", "INFY", "HCLTECH", "WIPRO", "TECHM", "LTIM"],
     "BANK": ["HDFCBANK", "ICICIBANK", "SBIN", "AXISBANK", "KOTAKBANK", "INDUSINDBK"],
     "ENERGY": ["RELIANCE", "ONGC", "NTPC", "POWERGRID", "COALINDIA", "BPCL"],
     "AUTO": ["TATAMOTORS", "M&M", "MARUTI", "BAJAJ-AUTO", "EICHERMOT", "HEROMOTOCO"],
@@ -175,7 +174,6 @@ def fetch_all_data():
             is_sector = symbol in SECTOR_INDICES_MAP
             disp_name = INDICES_MAP.get(symbol, SECTOR_INDICES_MAP.get(symbol, symbol.replace(".NS", "")))
             
-            # Determine Sector for stocks
             stock_sector = "OTHER"
             if not is_index and not is_sector:
                 for sec, stocks in NIFTY_50_SECTORS.items():
@@ -208,7 +206,7 @@ def process_5m_data(df_raw):
         return pd.DataFrame()
     except: return pd.DataFrame()
 
-# --- TERMINAL TABLE GENERATOR ---
+# --- 🔥 THE FIX: TERMINAL TABLE GENERATOR WITH NO NEWLINES 🔥 ---
 def generate_status(row):
     status = ""
     p = row['P']
@@ -222,33 +220,18 @@ def generate_status(row):
 def render_html_table(df_subset, title, color_class):
     if df_subset.empty: return ""
     
-    html = f"""
-    <table class="term-table">
-        <thead>
-            <tr><th colspan="7" class="{color_class}">{title}</th></tr>
-            <tr style="background-color: #21262d;">
-                <th style="text-align:left;">STOCK</th><th>PRICE</th><th>DAY%</th><th>NET%</th><th>VOL</th><th>STATUS</th><th>SCORE</th>
-            </tr>
-        </thead>
-        <tbody>
-    """
+    # Streamlit Markdown parser bug fix: Single line HTML construction
+    html = f'<table class="term-table"><thead><tr><th colspan="7" class="{color_class}">{title}</th></tr><tr style="background-color: #21262d;"><th style="text-align:left;">STOCK</th><th>PRICE</th><th>DAY%</th><th>NET%</th><th>VOL</th><th>STATUS</th><th>SCORE</th></tr></thead><tbody>'
+    
     for i, (_, row) in enumerate(df_subset.iterrows()):
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
         day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
         net_color = "text-green" if row['C'] >= 0 else "text-red"
         status = generate_status(row)
         
-        html += f"""
-        <tr class="{bg_class}">
-            <td class="t-symbol {net_color}">{row['T']}</td>
-            <td>{row['P']:.2f}</td>
-            <td class="{day_color}">{row['Day_C']:.2f}%</td>
-            <td class="{net_color}">{row['C']:.2f}%</td>
-            <td>{row['VolX']:.1f}x</td>
-            <td style="font-size:10px;">{status}</td>
-            <td style="color:#ffd700;">{int(row['S'])}</td>
-        </tr>
-        """
+        # Single line row construction
+        html += f'<tr class="{bg_class}"><td class="t-symbol {net_color}">{row["T"]}</td><td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td class="{net_color}">{row["C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
+        
     html += "</tbody></table>"
     return html
 
@@ -426,7 +409,7 @@ if not df.empty:
 
     # --- RENDER VIEWS ---
     
-    # 🔥 TERMINAL TABLE LOGIC 🔥
+    # 🔥 THE FIX: TERMINAL TABLE LOGIC 🔥
     if watchlist_mode == "Terminal Tables 🗃️" and view_mode == "Heat Map":
         st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>🗃️ Professional Terminal View</div>", unsafe_allow_html=True)
         
