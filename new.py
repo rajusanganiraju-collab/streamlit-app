@@ -616,7 +616,36 @@ if not df.empty:
             one_sided_tag = ""
             trend_bonus = 0
             
+            # 🔥 NEW: PERFECT TIERED ONE-SIDED LOGIC 🔥
+            one_sided_tag = ""
+            trend_bonus = 0
+            
             if len(df_day) >= 12 and last_vwap > 0:
+                # 1. ఉదయం నుండి ట్రెండ్ ఒకే సైడ్ ఉందా లేదా అని చెక్ చేస్తుంది (85% రూల్)
+                if net_chg > 0: # బుల్లిష్ అయితే కింది తోకలు VWAP పైన ఉన్నాయా
+                    trend_candles = (df_day['Low'] >= df_day['VWAP']).sum()
+                else: # బేరిష్ అయితే పై తోకలు VWAP కింద ఉన్నాయా
+                    trend_candles = (df_day['High'] <= df_day['VWAP']).sum()
+                
+                total_candles = len(df_day)
+                
+                # 2. 85% సమయం అది గీతను దాటకుండా ఉంటే.. అప్పుడు "ప్రస్తుత దూరాన్ని (Live Gap)" కొలుస్తుంది!
+                if (trend_candles / total_candles) >= 0.85:
+                    # లైవ్ మార్కెట్ లో ప్రస్తుతం ఎంతుందో కచ్చితంగా లెక్కేస్తుంది
+                    current_gap_pct = abs(last_price - last_vwap) / last_vwap * 100
+                    
+                    if current_gap_pct >= 1.50:
+                        one_sided_tag = "🌊Mega-1.5%"
+                        trend_bonus = 7
+                    elif current_gap_pct >= 1.00:
+                        one_sided_tag = "🌊Super-1.0%"
+                        trend_bonus = 5
+                    elif current_gap_pct >= 0.50:
+                        one_sided_tag = "🌊Trend-0.5%"
+                        trend_bonus = 3
+                    else:
+                        one_sided_tag = "🌊Trend"
+                        trend_bonus = 1
                 # 3 Levels of VWAP Gaps
                 gap_05 = 0.50
                 gap_10 = 1.00
