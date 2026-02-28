@@ -606,6 +606,29 @@ if not df.empty:
         df_filtered = df_filtered[df_filtered['Fetch_T'].apply(lambda x: stock_trends.get(x) == st.session_state.trend_filter)]
 
     # SORTING LOGIC 
-    if sort_mode == "% Change Up 🟢": df_stocks_display = df_filtered.sort_values(by="C", ascending=False)
-    elif sort_mode == "% Change Down 🔴": df_stocks_display = df_filtered.sort_values(by="C", ascending=True)
-    elif sort_mode == "Heatmap Marks Up ⭐": df_stocks_display = pd.concat([df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False]), df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C
+    if sort_mode == "% Change Up 🟢": 
+        df_stocks_display = df_filtered.sort_values(by="C", ascending=False)
+    elif sort_mode == "% Change Down 🔴": 
+        df_stocks_display = df_filtered.sort_values(by="C", ascending=True)
+    elif sort_mode == "Heatmap Marks Up ⭐": 
+        df_stocks_display = pd.concat([
+            df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False]), 
+            df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[False, True])
+        ])
+    elif sort_mode == "Heatmap Marks Down ⬇️": 
+        df_stocks_display = pd.concat([
+            df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[False, True]), 
+            df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False])
+        ])
+    else:
+        if st.session_state.trend_filter == 'Bullish': 
+            df_stocks_display = df_filtered.sort_values(by=["S", "C"], ascending=[False, False])
+        elif st.session_state.trend_filter == 'Bearish': 
+            df_stocks_display = df_filtered.sort_values(by=["S", "C"], ascending=[False, True])
+        elif st.session_state.trend_filter == 'Neutral': 
+            df_stocks_display = df_filtered.sort_values(by=["S", "C"], ascending=[False, False])
+        else: 
+            df_stocks_display = pd.concat([
+                df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False]), 
+                df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[True, True])
+            ])
