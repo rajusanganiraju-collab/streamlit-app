@@ -398,37 +398,65 @@ def render_portfolio_table(df_port, df_stocks, stock_trends):
     html += "</tbody></table>"
     return html
 
-def render_levels_table(df_subset, stock_trends):
-    if df_subset.empty: return ""
-    html = f'<table class="term-table"><thead><tr><th colspan="8" class="term-head-levels">🎯 TRADING LEVELS (TARGETS & STOP LOSS)</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:15%;">STOCK</th><th style="width:10%;">TREND</th><th style="width:12%;">LTP</th><th style="width:12%;">PIVOT</th><th style="width:12%; color:#f85149;">STOP LOSS</th><th style="width:12%; color:#3fb950;">TARGET 1</th><th style="width:12%; color:#3fb950;">TARGET 2</th><th style="width:15%;">EXTREME TGT/SL</th></tr></thead><tbody>'
-    for i, (_, row) in enumerate(df_subset.iterrows()):
+def render_portfolio_swing_advice_table(df_port, df_stocks, stock_trends):
+    if df_port.empty: return ""
+    html = f'<table class="term-table"><thead><tr><th colspan="8" class="term-head-swing">🤖 PORTFOLIO SWING ADVISOR (ACTION & LEVELS)</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:16%;">STOCK</th><th style="width:10%;">AVG PRICE</th><th style="width:10%;">LTP</th><th style="width:10%;">P&L %</th><th style="width:10%;">TREND</th><th style="width:13%; color:#f85149;">🛑 TRAILING SL</th><th style="width:13%; color:#3fb950;">🎯 NEXT TARGET</th><th style="width:18%;">💡 ACTION ADVICE</th></tr></thead><tbody>'
+
+    for i, (_, row) in enumerate(df_port.iterrows()):
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
-        
-        trend_state = stock_trends.get(row['Fetch_T'], "Neutral")
-        is_down = trend_state == 'Bearish' or (trend_state == 'Neutral' and row['C'] < 0)
-        
-        if trend_state == 'Bullish': trend_html = "🟢 Bullish"
-        elif trend_state == 'Bearish': trend_html = "🔴 Bearish"
-        else: trend_html = "⚪ Neutral"
-            
-        atr_val = row.get("ATR", row["P"] * 0.02)
-        if is_down:
-            sl_val = row["P"] + (1.5 * atr_val)
-            t1_val = row["P"] - (1.5 * atr_val)
-            t2_val = row["P"] - (3.0 * atr_val)
-            ext_val = row["P"] - (4.5 * atr_val)
+        sym = str(row['Symbol']).upper().strip()
+        try: buy_p = float(row['Buy_Price'])
+        except: buy_p = 0
+
+        live_row = df_stocks[df_stocks['T'] == sym]
+        if live_row.empty: continue
+        live_data = live_row.iloc[0]
+
+        ltp = float(live_data['P'])
+        pnl_pct = ((ltp - buy_p) / buy_p * 100) if buy_p > 0 else 0
+        pnl_color = "text-green" if pnl_pct >= 0 else "text-red"
+        t_sign = "+" if pnl_pct > 0 else ""
+
+        trend_state = stock_trends.get(live_data['Fetch_T'], "Neutral")
+        is_swing = live_data['Is_Swing']
+        atr_val = live_data.get("ATR", ltp * 0.02)
+
+        # 🔥 Action Advice Logic 🔥
+        advice = ""
+        adv_color = ""
+
+        if trend_state == 'Bullish' and is_swing:
+            advice = "🚀 STRONG HOLD"
+            adv_color = "color:#3fb950; font-weight:bold;"
+        elif trend_state == 'Bullish':
+            advice = "🟢 HOLD"
+            adv_color = "color:#2ea043;"
+        elif trend_state == 'Neutral':
+            advice = "🟡 WATCH"
+            adv_color = "color:#ffd700;"
+        else: # Bearish
+            advice = "🔴 EXIT / SELL"
+            adv_color = "color:#f85149; font-weight:bold;"
+
+        # Targets & SL Logic based on ATR
+        if trend_state == 'Bearish':
+            sl_val = ltp + (1.5 * atr_val)
+            t1_val = ltp - (1.5 * atr_val)
         else:
-            sl_val = row["P"] - (1.5 * atr_val)
-            t1_val = row["P"] + (1.5 * atr_val)
-            t2_val = row["P"] + (3.0 * atr_val)
-            ext_val = row["P"] + (4.5 * atr_val)
-        
-        row_str = f'<tr class="{bg_class}"><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td>'
-        row_str += f'<td style="font-size:10px;">{trend_html}</td><td>{row["P"]:.2f}</td><td style="color:#8b949e;">ATR: {atr_val:.2f}</td>'
-        row_str += f'<td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td>'
-        row_str += f'<td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#8b949e;">{ext_val:.2f}</td></tr>'
+            sl_val = ltp - (1.5 * atr_val)
+            # Capital Protection: If profits are good, SL shifts up
+            if pnl_pct > 5 and sl_val < buy_p: sl_val = buy_p + (ltp * 0.005) 
+            t1_val = ltp + (3.0 * atr_val)
+
+        if trend_state == 'Bullish': trend_html = "🟢 Bull"
+        elif trend_state == 'Bearish': trend_html = "🔴 Bear"
+        else: trend_html = "⚪ Neut"
+
+        row_str = f'<tr class="{bg_class}"><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{sym}" target="_blank">{sym}</a></td>'
+        row_str += f'<td>{buy_p:.2f}</td><td>{ltp:.2f}</td><td class="{pnl_color}">{t_sign}{pnl_pct:.2f}%</td><td style="font-size:10px;">{trend_html}</td>'
+        row_str += f'<td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td><td style="{adv_color}">{advice}</td></tr>'
         html += row_str
-            
+
     html += "</tbody></table>"
     return html
 
@@ -812,7 +840,12 @@ if not df.empty:
         st.markdown(render_html_table(df_independent, "🌟 INDEPENDENT MOVERS", "term-head-ind"), unsafe_allow_html=True)
         st.markdown(render_html_table(df_broader, "🌌 BROADER MARKET", "term-head-brd"), unsafe_allow_html=True)
     elif watchlist_mode == "My Portfolio 💼" and view_mode == "Heat Map":
+        # 1. పాత పోర్ట్‌ఫోలియో టేబుల్
         st.markdown(render_portfolio_table(df_port_saved, df_stocks, stock_trends), unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # 2. 🔥 కొత్తగా యాడ్ చేసిన స్వింగ్ అడ్వైస్ టేబుల్ 🔥
+        st.markdown(render_portfolio_swing_advice_table(df_port_saved, df_stocks, stock_trends), unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
         
         with st.expander("➕ Search & Add Stock to Portfolio", expanded=False):
