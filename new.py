@@ -13,7 +13,7 @@ st.set_page_config(page_title="Market Heatmap", page_icon="📊", layout="wide")
 # --- 2. AUTO RUN (1 MINUTE) ---
 st_autorefresh(interval=60000, key="datarefresh")
 
-# --- 3. STATE MANAGEMENT ---
+# --- 3. STATE MANAGEMENT FOR FILTERING & PINNING ---
 if 'trend_filter' not in st.session_state:
     st.session_state.trend_filter = 'All'
 if 'pinned_stocks' not in st.session_state:
@@ -25,7 +25,7 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- PORTFOLIO SETUP ---
+# --- PORTFOLIO FILE SETUP ---
 PORTFOLIO_FILE = "my_portfolio.csv"
 def load_portfolio():
     if os.path.exists(PORTFOLIO_FILE):
@@ -48,7 +48,7 @@ def load_portfolio():
 def save_portfolio(df_port):
     df_port.to_csv(PORTFOLIO_FILE, index=False)
 
-# --- 4. FULL CSS FOR STYLING (RESTORED ALIGNMENT) ---
+# --- 4. CSS FOR STYLING ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
@@ -73,6 +73,7 @@ st.markdown("""
         flex: 1 1 0px !important; min-width: 0 !important; width: 100% !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button { width: 100% !important; height: 38px !important; padding: 0px !important; }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button p { font-size: clamp(9px, 2.5vw, 13px) !important; white-space: nowrap !important; margin: 0 !important; }
     
     /* FLUID GRID FOR CHARTS */
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { display: grid !important; gap: 12px !important; align-items: start !important; }
@@ -81,12 +82,18 @@ st.markdown("""
     @media screen and (min-width: 1400px) and (max-width: 1699px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(6, 1fr) !important; } }
     @media screen and (min-width: 1100px) and (max-width: 1399px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(5, 1fr) !important; } }
     @media screen and (min-width: 850px) and (max-width: 1099px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(4, 1fr) !important; } }
-    @media screen and (max-width: 849px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(3, 1fr) !important; } }
+    @media screen and (min-width: 651px) and (max-width: 849px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(3, 1fr) !important; } }
+    @media screen and (max-width: 650px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(2, 1fr) !important; gap: 6px !important; } }
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] {
         background-color: #161b22 !important; border: 1px solid #30363d !important; border-radius: 8px !important;
         padding: 8px 5px 5px 5px !important; position: relative !important; width: 100% !important;
     }
-    div[data-testid="stCheckbox"] { position: absolute !important; top: 8px !important; left: 10px !important; z-index: 100 !important; }
+
+    div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] div[data-testid="stCheckbox"] {
+        position: absolute !important; top: 8px !important; left: 10px !important; z-index: 100 !important;
+    }
+    div[data-testid="stCheckbox"] label { padding: 0 !important; min-height: 0 !important; }
+    div.stButton > button { border-radius: 8px !important; border: 1px solid #30363d !important; background-color: #161b22 !important; height: 45px !important; }
     
     /* Heatmap Layout */
     .heatmap-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 8px; padding: 5px 0; }
@@ -96,14 +103,16 @@ st.markdown("""
     .idx-card { background-color: #0d47a1 !important; border: 1px solid #1976d2; } 
     @media screen and (max-width: 1400px) { .heatmap-grid { grid-template-columns: repeat(8, 1fr); } }
     @media screen and (max-width: 1100px) { .heatmap-grid { grid-template-columns: repeat(6, 1fr); } }
+    @media screen and (max-width: 800px) { .heatmap-grid { grid-template-columns: repeat(4, 1fr); } }
+    @media screen and (max-width: 600px) { .heatmap-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; } .stock-card { height: 95px; } .t-name { font-size: 12px; } .t-price { font-size: 16px; } .t-pct { font-size: 11px; } }
     .custom-hr { border: 0; height: 1px; background: #30363d; margin: 15px 0; }
 
-    /* TERMINAL & PORTFOLIO TABLE STYLES */
+    /* 🔥 TERMINAL & PORTFOLIO TABLE STYLES 🔥 */
     .term-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-family: monospace; font-size: 11.5px; color: #e6edf3; background-color: #0e1117; table-layout: fixed; }
     .term-table th { padding: 6px 4px; text-align: center; border: 1px solid #30363d; font-weight: bold; overflow: hidden; }
     .term-table td { padding: 6px 4px; text-align: center; border: 1px solid #30363d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .term-table a { color: inherit; text-decoration: none; border-bottom: 1px dashed rgba(255,255,255,0.4); } 
-    .term-table a:hover { color: #58a6ff !important; border-bottom: 1px solid #58a6ff; } 
+    .term-table a:hover { color: #58a6ff !important; text-decoration: none; border-bottom: 1px solid #58a6ff; } 
     
     .term-head-buy { background-color: #1e5f29; color: white; text-align: left !important; padding-left: 10px !important; font-size:13px; }
     .term-head-sell { background-color: #b52524; color: white; text-align: left !important; padding-left: 10px !important; font-size:13px; }
@@ -201,10 +210,15 @@ def fetch_all_data():
             if len(df) >= 50:
                 ema20 = df['Close'].ewm(span=20, adjust=False).mean().iloc[-1]
                 ema50 = df['Close'].ewm(span=50, adjust=False).mean().iloc[-1]
+                ema200 = df['Close'].ewm(span=200, adjust=False).mean().iloc[-1] if len(df) >= 200 else 0
+                
                 delta = df['Close'].diff()
                 gain = delta.clip(lower=0).ewm(alpha=1/14, adjust=False).mean()
-                loss = -delta.clip(upper=0).ewm(alpha=1/14, adjust=False).mean().replace(0, np.nan)
-                current_rsi = (100 - (100 / (1 + (gain / loss)))).fillna(100).iloc[-1]
+                loss = -delta.clip(upper=0).ewm(alpha=1/14, adjust=False).mean()
+                loss = loss.replace(0, np.nan)
+                rs = gain / loss
+                rsi = 100 - (100 / (1 + rs))
+                current_rsi = rsi.fillna(100).iloc[-1]
                 
                 avg_vol_10d = df['Volume'].iloc[-11:-1].mean() if len(df) >= 11 else 0
                 vol_breakout = curr_vol > (1.2 * avg_vol_10d) if avg_vol_10d > 0 else False
@@ -212,8 +226,8 @@ def fetch_all_data():
                 if (ltp > ema50) and (ema20 > ema50) and (current_rsi >= 55) and vol_breakout and (net_chg > 0):
                     is_swing = True
 
-            # 🔥 ALPHA UPDATE: Removed the basic 2% points (+3) here. Now we only calculate base action.
             score = 0
+            if abs(day_chg) >= 2.0: score += 3 
             if abs(open_p - low) <= (ltp * 0.003) or abs(open_p - high) <= (ltp * 0.003): score += 3 
             if vol_x > 1.0: score += 3 
             if (ltp >= high * 0.998 and day_chg > 0.5) or (ltp <= low * 1.002 and day_chg < -0.5): score += 1
@@ -267,6 +281,7 @@ def generate_status(row):
     if row['VolX'] > 1.2: status += "VOL🟢 "
     if abs(row['O'] - row['L']) < (p * 0.002): status += "O=L🔥 "
     if abs(row['O'] - row['H']) < (p * 0.002): status += "O=H🩸 "
+    if abs(row['C']) >= 2.0: status += "BigMove🚀 " if row['C'] > 0 else "BigMove🩸 "
     
     if 'BounceTag' in row and row['BounceTag']:
         status += f"{row['BounceTag']} "
@@ -288,8 +303,13 @@ def render_html_table(df_subset, title, color_class):
 
 def render_portfolio_table(df_port, df_stocks, stock_trends):
     if df_port.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>Portfolio is empty. Add a stock using the option below!</div>"
+    
     html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-port">💼 LIVE PORTFOLIO TERMINAL</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:11%;">STOCK</th><th style="width:9%;">DATE</th><th style="width:6%;">QTY</th><th style="width:8%;">AVG</th><th style="width:8%;">LTP</th><th style="width:10%;">TREND</th><th style="width:18%;">STATUS</th><th style="width:10%;">DAY P&L</th><th style="width:10%;">TOT P&L</th><th style="width:10%;">P&L %</th></tr></thead><tbody>'
-    total_invested, total_current, total_day_pnl = 0, 0, 0
+    
+    total_invested = 0
+    total_current = 0
+    total_day_pnl = 0
+    
     for i, (_, row) in enumerate(df_port.iterrows()):
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
         sym = str(row['Symbol']).upper().strip()
@@ -297,72 +317,135 @@ def render_portfolio_table(df_port, df_stocks, stock_trends):
         except: qty = 0
         try: buy_p = float(row['Buy_Price'])
         except: buy_p = 0
+        
         date_val = str(row.get('Date', '-'))
-        if date_val in ['nan', 'NaN', '']: date_val = '-'
+        if date_val == 'nan' or date_val == 'NaN' or date_val == '': date_val = '-'
+        
         live_row = df_stocks[df_stocks['T'] == sym]
+        status_html = ""
+        trend_html = "➖"
+        
         if not live_row.empty:
-            ltp, prev_c = float(live_row['P'].iloc[0]), float(live_row['Prev_C'].iloc[0])
+            ltp = float(live_row['P'].iloc[0])
+            prev_c = float(live_row['Prev_C'].iloc[0])
             status_html = generate_status(live_row.iloc[0])
-            trend_state = stock_trends.get(live_row['Fetch_T'].iloc[0], "Neutral")
-            trend_html = "🟢 Bullish" if trend_state == 'Bullish' else ("🔴 Bearish" if trend_state == 'Bearish' else "⚪ Neutral")
-        else: ltp, prev_c, status_html, trend_html = buy_p, buy_p, "Search Error", "➖"
-        invested, current = buy_p * qty, ltp * qty
+            
+            fetch_t = live_row['Fetch_T'].iloc[0]
+            trend_state = stock_trends.get(fetch_t, "Neutral")
+            if trend_state == 'Bullish': trend_html = "🟢 Bullish"
+            elif trend_state == 'Bearish': trend_html = "🔴 Bearish"
+            else: trend_html = "⚪ Neutral"
+        else:
+            ltp = buy_p
+            prev_c = buy_p
+            status_html = "Search Error"
+            
+        invested = buy_p * qty
+        current = ltp * qty
         overall_pnl = current - invested
         pnl_pct = (overall_pnl / invested * 100) if invested > 0 else 0
         day_pnl = (ltp - prev_c) * qty
-        total_invested += invested; total_current += current; total_day_pnl += day_pnl
+        
+        total_invested += invested
+        total_current += current
+        total_day_pnl += day_pnl
+        
         tpnl_color = "text-green" if overall_pnl >= 0 else "text-red"
         dpnl_color = "text-green" if day_pnl >= 0 else "text-red"
         t_sign = "+" if overall_pnl > 0 else ""
         d_sign = "+" if day_pnl > 0 else ""
+        
         html += f'<tr class="{bg_class}"><td class="t-symbol {tpnl_color}"><a href="https://in.tradingview.com/chart/?symbol=NSE:{sym}" target="_blank">{sym}</a></td><td>{date_val}</td><td>{int(qty)}</td><td>{buy_p:.2f}</td><td>{ltp:.2f}</td><td style="font-size:10px;">{trend_html}</td><td style="font-size:10px;">{status_html}</td><td class="{dpnl_color}">{d_sign}{day_pnl:,.0f}</td><td class="{tpnl_color}">{t_sign}{overall_pnl:,.0f}</td><td class="{tpnl_color}">{t_sign}{pnl_pct:.2f}%</td></tr>'
+    
     overall_total_pnl = total_current - total_invested
     overall_total_pct = (overall_total_pnl / total_invested * 100) if total_invested > 0 else 0
-    o_color, o_sign = ("text-green", "+") if overall_total_pnl >= 0 else ("text-red", "")
-    d_color, d_sign = ("text-green", "+") if total_day_pnl >= 0 else ("text-red", "")
-    html += f'<tr class="port-total"><td colspan="7" style="text-align:right; padding-right:15px; font-size:12px;">INVESTED: ₹{total_invested:,.0f} &nbsp;|&nbsp; CURRENT: ₹{total_current:,.0f} &nbsp;|&nbsp; OVERALL P&L:</td><td class="{d_color}">{d_sign}₹{total_day_pnl:,.0f}</td><td class="{o_color}">{o_sign}₹{overall_total_pnl:,.0f}</td><td class="{o_color}">{o_sign}{overall_total_pct:.2f}%</td></tr></tbody></table>'
+    o_color = "text-green" if overall_total_pnl >= 0 else "text-red"
+    o_sign = "+" if overall_total_pnl > 0 else ""
+    d_color = "text-green" if total_day_pnl >= 0 else "text-red"
+    d_sign = "+" if total_day_pnl > 0 else ""
+    
+    html += f'<tr class="port-total"><td colspan="7" style="text-align:right; padding-right:15px; font-size:12px;">INVESTED: ₹{total_invested:,.0f} &nbsp;|&nbsp; CURRENT: ₹{total_current:,.0f} &nbsp;|&nbsp; OVERALL P&L:</td><td class="{d_color}">{d_sign}₹{total_day_pnl:,.0f}</td><td class="{o_color}">{o_sign}₹{overall_total_pnl:,.0f}</td><td class="{o_color}">{o_sign}{overall_total_pct:.2f}%</td></tr>'
+    html += "</tbody></table>"
     return html
 
 def render_levels_table(df_subset, stock_trends):
     if df_subset.empty: return ""
     html = f'<table class="term-table"><thead><tr><th colspan="8" class="term-head-levels">🎯 TRADING LEVELS (TARGETS & STOP LOSS)</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:15%;">STOCK</th><th style="width:10%;">TREND</th><th style="width:12%;">LTP</th><th style="width:12%;">PIVOT</th><th style="width:12%; color:#f85149;">STOP LOSS</th><th style="width:12%; color:#3fb950;">TARGET 1</th><th style="width:12%; color:#3fb950;">TARGET 2</th><th style="width:15%;">EXTREME TGT/SL</th></tr></thead><tbody>'
     for i, (_, row) in enumerate(df_subset.iterrows()):
+        bg_class = "row-dark" if i % 2 == 0 else "row-light"
+        
         trend_state = stock_trends.get(row['Fetch_T'], "Neutral")
         is_down = trend_state == 'Bearish' or (trend_state == 'Neutral' and row['C'] < 0)
-        trend_html = "🟢 Bullish" if trend_state == 'Bullish' else ("🔴 Bearish" if trend_state == 'Bearish' else "⚪ Neutral")
-        sl_val, t1_val, t2_val, ext_val = (row["R1"], row["S1"], row["S2"], row["R2"]) if is_down else (row["S1"], row["R1"], row["R2"], row["S2"])
-        html += f'<tr class="{"row-dark" if i%2==0 else "row-light"}"><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td><td style="font-size:10px;">{trend_html}</td><td>{row["P"]:.2f}</td><td style="color:#8b949e;">{row["Pivot"]:.2f}</td><td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#8b949e;">{ext_val:.2f}</td></tr>'
-    return html + "</tbody></table>"
+        
+        if trend_state == 'Bullish': trend_html = "🟢 Bullish"
+        elif trend_state == 'Bearish': trend_html = "🔴 Bearish"
+        else: trend_html = "⚪ Neutral"
+            
+        if is_down:
+            sl_val, t1_val, t2_val, ext_val = row["R1"], row["S1"], row["S2"], row["R2"]
+        else:
+            sl_val, t1_val, t2_val, ext_val = row["S1"], row["R1"], row["R2"], row["S2"]
+            
+        html += f'<tr class="{bg_class}"><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td><td style="font-size:10px;">{trend_html}</td><td>{row["P"]:.2f}</td><td style="color:#8b949e;">{row["Pivot"]:.2f}</td><td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#8b949e;">{ext_val:.2f}</td></tr>'
+    html += "</tbody></table>"
+    return html
 
 def render_swing_terminal_table(df_subset, stock_trends):
-    if df_subset.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d;'>No Swing Trading Setups found right now.</div>"
+    if df_subset.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No Swing Trading Setups found right now.</div>"
+    
     df_sorted = df_subset.sort_values(by=['S', 'VolX', 'C'], ascending=[False, False, False]).reset_index(drop=True)
     html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-swing">🌊 SWING TRADING RADAR (RANKED ALGORITHM)</th></tr><tr style="background-color: #21262d;"><th style="width:5%;">RANK</th><th style="text-align:left; width:13%;">STOCK</th><th style="width:8%;">LTP</th><th style="width:8%;">DAY%</th><th style="width:8%;">VOL</th><th style="width:16%;">STATUS</th><th style="width:11%; color:#f85149;">🛑 STOP LOSS</th><th style="width:11%; color:#3fb950;">🎯 TARGET 1</th><th style="width:11%; color:#3fb950;">🎯 TARGET 2</th><th style="width:9%;">SCORE</th></tr></thead><tbody>'
     for i, row in df_sorted.iterrows():
+        bg_class = "row-dark" if i % 2 == 0 else "row-light"
+        day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
+        status = generate_status(row)
+        
         trend_state = stock_trends.get(row['Fetch_T'], "Neutral")
         is_down = trend_state == 'Bearish' or (trend_state == 'Neutral' and row['C'] < 0)
-        status = generate_status(row) + (" 🟢Trend" if trend_state=='Bullish' else (" 🔴Trend" if trend_state=='Bearish' else ""))
-        sl_val, t1_val, t2_val = (row["R1"], row["S1"], row["S2"]) if is_down else (row["S1"], row["R1"], row["R2"])
-        dc = "text-green" if row['Day_C'] >= 0 else "text-red"
-        html += f'<tr class="{"row-dark" if i%2==0 else "row-light"}"><td><b>{"🏆 1" if i==0 else i+1}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td><td>{row["P"]:.2f}</td><td class="{dc}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td><td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
-    return html + "</tbody></table>"
+        
+        if trend_state == 'Bullish': status += " 🟢Trend"
+        elif trend_state == 'Bearish': status += " 🔴Trend"
+        
+        if is_down:
+            sl_val, t1_val, t2_val = row["R1"], row["S1"], row["S2"]
+        else:
+            sl_val, t1_val, t2_val = row["S1"], row["R1"], row["R2"]
+            
+        rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
+        html += f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td><td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td><td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
+    html += "</tbody></table>"
+    return html
 
 def render_highscore_terminal_table(df_subset, stock_trends):
-    if df_subset.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d;'>No High Score Stocks found right now.</div>"
+    if df_subset.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No High Score Stocks found right now.</div>"
+    
     df_sorted = df_subset.sort_values(by=['S', 'VolX', 'C'], ascending=[False, False, False]).reset_index(drop=True)
     html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-high">🔥 HIGH SCORE RADAR (RANKED INTRADAY MOVERS)</th></tr><tr style="background-color: #21262d;"><th style="width:5%;">RANK</th><th style="text-align:left; width:13%;">STOCK</th><th style="width:8%;">LTP</th><th style="width:8%;">DAY%</th><th style="width:8%;">VOL</th><th style="width:16%;">STATUS</th><th style="width:11%; color:#f85149;">🛑 STOP LOSS</th><th style="width:11%; color:#3fb950;">🎯 TARGET 1</th><th style="width:11%; color:#3fb950;">🎯 TARGET 2</th><th style="width:9%;">SCORE</th></tr></thead><tbody>'
     for i, row in df_sorted.iterrows():
+        bg_class = "row-dark" if i % 2 == 0 else "row-light"
+        day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
+        status = generate_status(row)
+        
         trend_state = stock_trends.get(row['Fetch_T'], "Neutral")
         is_down = trend_state == 'Bearish' or (trend_state == 'Neutral' and row['C'] < 0)
-        status = generate_status(row) + (" 🟢Trend" if trend_state=='Bullish' else (" 🔴Trend" if trend_state=='Bearish' else ""))
-        sl_val, t1_val, t2_val = (row["R1"], row["S1"], row["S2"]) if is_down else (row["S1"], row["R1"], row["R2"])
-        dc = "text-green" if row['Day_C'] >= 0 else "text-red"
-        html += f'<tr class="{"row-dark" if i%2==0 else "row-light"}"><td><b>{"🏆 1" if i==0 else i+1}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td><td>{row["P"]:.2f}</td><td class="{dc}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td><td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
-    return html + "</tbody></table>"
+        
+        if trend_state == 'Bullish': status += " 🟢Trend"
+        elif trend_state == 'Bearish': status += " 🔴Trend"
+        
+        if is_down:
+            sl_val, t1_val, t2_val = row["R1"], row["S1"], row["S2"]
+        else:
+            sl_val, t1_val, t2_val = row["S1"], row["R1"], row["R2"]
+            
+        rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
+        html += f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td><td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td><td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
+    html += "</tbody></table>"
+    return html
 
 # --- HELPER FUNCTION TO DRAW CHARTS ---
 def render_chart(row, df_chart, show_pin=True, key_suffix=""):
-    display_sym, fetch_sym = row['T'], row['Fetch_T']
+    display_sym = row['T']
+    fetch_sym = row['Fetch_T']
     color_hex = "#da3633" if (display_sym == "INDIA VIX" and row['C'] > 0) or (display_sym != "INDIA VIX" and row['C'] < 0) else "#2ea043"
     sign = "+" if row['C'] > 0 else ""
     tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
@@ -371,7 +454,17 @@ def render_chart(row, df_chart, show_pin=True, key_suffix=""):
         cb_key = f"cb_{fetch_sym}_{key_suffix}" if key_suffix else f"cb_{fetch_sym}"
         st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=cb_key, on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
     
-    st.markdown(f"<div style='text-align:center; font-size:15px; margin-top:2px;'><a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none;'>{display_sym} <span style='color:{color_hex};'>({sign}{row['C']:.2f}%)</span></a></div><div style='text-align:center; font-size:10px; color:#8b949e; margin-bottom:5px;'><span style='color:#FFD700;'>--- VWAP</span> &nbsp;|&nbsp; <span style='color:#00BFFF;'>- - 10 EMA</span></div>", unsafe_allow_html=True)
+    st.markdown(f"""
+        <div style='text-align:center; font-size:15px; margin-top:2px;'>
+            <a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none;'>
+                {display_sym} <span style='color:{color_hex};'>({sign}{row['C']:.2f}%)</span>
+            </a>
+        </div>
+        <div style='text-align:center; font-size:10px; color:#8b949e; margin-bottom:5px;'>
+            <span style='color:#FFD700;'>--- VWAP</span> &nbsp;|&nbsp; <span style='color:#00BFFF;'>- - 10 EMA</span>
+        </div>
+    """, unsafe_allow_html=True)
+    
     try:
         if not df_chart.empty:
             min_val, max_val = df_chart[['Low', 'VWAP', 'EMA_10']].min().min(), df_chart[['High', 'VWAP', 'EMA_10']].max().max()
@@ -393,11 +486,16 @@ def render_chart_grid(df_grid, show_pin_option, key_prefix):
             with st.container():
                 render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=show_pin_option, key_suffix=f"{key_prefix}_{j}")
 
+
 # --- 6. TOP NAVIGATION & SEARCH ---
 c1, c2, c3 = st.columns([0.4, 0.3, 0.3])
-with c1: watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "One Sided Moves 🚀", "Terminal Tables 🗃️", "My Portfolio 💼"], label_visibility="collapsed")
-with c2: sort_mode = st.selectbox("Sort By", ["Custom Sort", "Heatmap Marks Up ⭐", "Heatmap Marks Down ⬇️", "% Change Up 🟢", "% Change Down 🔴"], label_visibility="collapsed")
-with c3: view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
+with c1: 
+    watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "One Sided Moves 🚀", "Terminal Tables 🗃️", "My Portfolio 💼"], label_visibility="collapsed")
+with c2: 
+    sort_mode = st.selectbox("Sort By", ["Custom Sort", "Heatmap Marks Up ⭐", "Heatmap Marks Down ⬇️", "% Change Up 🟢", "% Change Down 🔴"], label_visibility="collapsed")
+with c3: 
+    view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
+
 
 # --- 7. RENDER LOGIC & TREND ANALYSIS ---
 df = fetch_all_data()
@@ -409,14 +507,22 @@ if not df.empty:
     df_indices = df[df['Is_Index']].copy()
     df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3})
     df_indices = df_indices.sort_values("Order")
-    df_sectors = df[df['Is_Sector']].copy().sort_values(by="C", ascending=False)
+    
+    df_sectors = df[df['Is_Sector']].copy()
+    df_sectors = df_sectors.sort_values(by="C", ascending=False)
+    
     df_stocks = df[(~df['Is_Index']) & (~df['Is_Sector'])].copy()
     
     df_nifty = df_stocks[df_stocks['T'].isin(NIFTY_50)].copy()
     sector_perf = df_nifty.groupby('Sector')['C'].mean().sort_values(ascending=False)
     valid_sectors = [s for s in sector_perf.index if s != "OTHER"]
-    top_buy_sector = valid_sectors[0] if valid_sectors else "PHARMA" 
-    top_sell_sector = valid_sectors[-1] if valid_sectors else "IT" 
+    
+    if valid_sectors:
+        top_buy_sector = valid_sectors[0]
+        top_sell_sector = valid_sectors[-1]
+    else:
+        top_buy_sector = "PHARMA" 
+        top_sell_sector = "IT" 
         
     df_buy_sector = df_nifty[df_nifty['Sector'] == top_buy_sector].sort_values(by=['S', 'C'], ascending=[False, False])
     df_sell_sector = df_nifty[df_nifty['Sector'] == top_sell_sector].sort_values(by=['S', 'C'], ascending=[False, True])
@@ -425,32 +531,35 @@ if not df.empty:
 
     df_port_saved = load_portfolio()
 
+    # Watchlist Filtering
     if watchlist_mode == "Terminal Tables 🗃️":
         terminal_tickers = pd.concat([df_buy_sector, df_sell_sector, df_independent, df_broader])['Fetch_T'].unique().tolist()
         df_filtered = df_stocks[df_stocks['Fetch_T'].isin(terminal_tickers)]
     elif watchlist_mode == "My Portfolio 💼":
         port_tickers = [f"{str(sym).upper().strip()}.NS" for sym in df_port_saved['Symbol'].tolist() if str(sym).strip() != ""]
         df_filtered = df_stocks[df_stocks['Fetch_T'].isin(port_tickers)]
-    elif watchlist_mode == "Nifty 50 Heatmap": df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
-    elif watchlist_mode == "One Sided Moves 🚀": df_filtered = df_stocks[df_stocks['C'].abs() >= 1.0]
-    elif watchlist_mode == "Swing Trading 📈": df_filtered = df_stocks[df_stocks['Is_Swing'] == True]
-    else: df_filtered = df_stocks.copy()
+    elif watchlist_mode == "Nifty 50 Heatmap":
+        df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
+    elif watchlist_mode == "One Sided Moves 🚀":
+        df_filtered = df_stocks[df_stocks['C'].abs() >= 1.0]
+    elif watchlist_mode == "Swing Trading 📈":
+        df_filtered = df_stocks[df_stocks['Is_Swing'] == True]
+    else:
+        df_filtered = df_stocks[(df_stocks['S'] >= 7) & (df_stocks['S'] <= 10)]
 
-    all_display_tickers = list(set(df_indices['Fetch_T'].tolist() + df_filtered['Fetch_T'].tolist() + st.session_state.pinned_stocks + ["^NSEI"]))
-    if search_stock != "-- None --": all_display_tickers.append(df[df['T'] == search_stock]['Fetch_T'].iloc[0])
+    all_display_tickers = list(set(df_indices['Fetch_T'].tolist() + df_filtered['Fetch_T'].tolist() + st.session_state.pinned_stocks))
+    
+    if search_stock != "-- None --":
+        search_fetch_t = df[df['T'] == search_stock]['Fetch_T'].iloc[0]
+        if search_fetch_t not in all_display_tickers: all_display_tickers.append(search_fetch_t)
             
-    with st.spinner("Analyzing VWAP, EMA Pullbacks & Nifty Alpha (Sniper Mode)..."):
+    with st.spinner("Analyzing VWAP & EMA Intraday Pullbacks (Sniper Mode)..."):
         five_min_data = yf.download(all_display_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=20)
 
-    processed_charts, stock_trends, bounce_tags, bounce_scores = {}, {}, {}, {}
-    one_sided_tickers = []
-
-    # 🔥 NIFTY DISTANCE CALCULATION 🔥
-    nifty_dist = 0.1 
-    if "^NSEI" in five_min_data.columns.levels[0]:
-        ndf = process_5m_data(five_min_data["^NSEI"])
-        if not ndf.empty:
-            nifty_dist = abs(ndf['Close'].iloc[-1] - ndf['VWAP'].iloc[-1]) / ndf['VWAP'].iloc[-1] * 100 if ndf['VWAP'].iloc[-1] > 0 else 0.1
+    processed_charts = {}
+    stock_trends = {}
+    bounce_tags = {}
+    bounce_scores = {}
 
     for sym in all_display_tickers:
         df_raw = five_min_data[sym] if isinstance(five_min_data.columns, pd.MultiIndex) else five_min_data
@@ -458,61 +567,78 @@ if not df.empty:
         processed_charts[sym] = df_day
         
         if sym in df_filtered['Fetch_T'].tolist() and not df_day.empty:
-            last_price, vwap = df_day['Close'].iloc[-1], df_day['VWAP'].iloc[-1]
-            ema10, ema20, ema50 = df_day['EMA_10'].iloc[-1], df_day['EMA_20'].iloc[-1], df_day['EMA_50'].iloc[-1]
+            last_price = df_day['Close'].iloc[-1]
+            last_vwap = df_day['VWAP'].iloc[-1]
+            last_ema = df_day['EMA_10'].iloc[-1]
+            day_open = df_day['Open'].iloc[0]
+            
             net_chg = df[df['Fetch_T'] == sym]['C'].iloc[0]
-            
             base_score = int(df_filtered[df_filtered['Fetch_T'] == sym]['S'].iloc[0])
-            tag, b_score, alpha_tag = "", 0, ""
             
-            # 🔥 NIFTY-BEATER / ALPHA LOGIC 🔥
-            if len(df_day) >= 50:
-                stock_dist = abs(last_price - vwap) / vwap * 100 if vwap > 0 else 0
-                if stock_dist > (nifty_dist * 3): alpha_tag, b_score = "🚀Alpha-Mover", b_score + 5
-                elif stock_dist > (nifty_dist * 2): alpha_tag, b_score = "💪Nifty-Beater", b_score + 3
+            tag = ""
+            b_score = 0
             
-            temp_score = base_score + b_score 
-            
-            # 🔥 SNIPER BOUNCE LOGIC (Only if temp_score >= 6) 🔥
-            if len(df_day) >= 50 and temp_score >= 6: 
-                if net_chg > 0 and (ema10 >= ema20) and (ema20 >= ema50):
-                    d50, dvw = (last_price - ema50)/ema50*100 if ema50>0 else -1, (last_price - vwap)/vwap*100 if vwap>0 else -1
-                    d20, d10 = (last_price - ema20)/ema20*100 if ema20>0 else -1, (last_price - ema10)/ema10*100 if ema10>0 else -1
-                    if 0<=d50<=0.4: tag, b_score = "🔥50EMA-Bounce", b_score + 5
-                    elif 0<=dvw<=0.4: tag, b_score = "🔥VWAP-Bounce", b_score + 5
-                    elif 0<=d20<=0.4: tag, b_score = "🔥20EMA-Bounce", b_score + 5
-                    elif 0<=d10<=0.3: tag, b_score = "🔥10EMA-Bounce", b_score + 5
-                elif net_chg < 0 and (ema10 <= ema20) and (ema20 <= ema50):
-                    d50, dvw = (ema50 - last_price)/last_price*100 if last_price>0 else -1, (vwap - last_price)/last_price*100 if last_price>0 else -1
-                    d20, d10 = (ema20 - last_price)/last_price*100 if last_price>0 else -1, (ema10 - last_price)/last_price*100 if last_price>0 else -1
-                    if 0<=d50<=0.4: tag, b_score = "🩸50EMA-Reject", b_score + 5
-                    elif 0<=dvw<=0.4: tag, b_score = "🩸VWAP-Reject", b_score + 5
-                    elif 0<=d20<=0.4: tag, b_score = "🩸20EMA-Reject", b_score + 5
-                    elif 0<=d10<=0.3: tag, b_score = "🩸10EMA-Reject", b_score + 5
+            if len(df_day) >= 50 and base_score >= 6: 
+                ema10 = df_day['EMA_10'].iloc[-1]
+                ema20 = df_day['EMA_20'].iloc[-1]
+                ema50 = df_day['EMA_50'].iloc[-1]
+                vwap = df_day['VWAP'].iloc[-1]
+                
+                # 🔥 FALLING KNIFE GUARD: Check if the trend is structurally intact 🔥
+                if net_chg > 0: # Bullish Setup
+                    # Trend should be Up: 10 EMA above 20 EMA, 20 EMA above 50 EMA
+                    trend_intact = (ema10 >= ema20) and (ema20 >= ema50)
+                    
+                    if trend_intact:
+                        # 🔥 SUPPORT CHECK: Price MUST be >= the Line to be a support bounce. 
+                        # We removed absolute `abs()` to ensure it hasn't broken down below the line.
+                        d50 = (last_price - ema50) / ema50 * 100 if ema50 > 0 else -1
+                        dvw = (last_price - vwap) / vwap * 100 if vwap > 0 else -1
+                        d20 = (last_price - ema20) / ema20 * 100 if ema20 > 0 else -1
+                        d10 = (last_price - ema10) / ema10 * 100 if ema10 > 0 else -1
+                        
+                        if 0 <= d50 <= 0.4:
+                            tag, b_score = "🔥50EMA-Bounce", 5
+                        elif 0 <= dvw <= 0.4:
+                            tag, b_score = "🔥VWAP-Bounce", 5
+                        elif 0 <= d20 <= 0.4:
+                            tag, b_score = "🔥20EMA-Bounce", 5
+                        elif 0 <= d10 <= 0.3:
+                            tag, b_score = "🔥10EMA-Bounce", 5
+                            
+                else: # Bearish Setup (Shorting)
+                    # Trend should be Down: 10 EMA below 20 EMA, 20 EMA below 50 EMA
+                    trend_intact = (ema10 <= ema20) and (ema20 <= ema50)
+                    
+                    if trend_intact:
+                        # Price MUST be <= the Line to be a resistance rejection.
+                        d50 = (ema50 - last_price) / last_price * 100 if last_price > 0 else -1
+                        dvw = (vwap - last_price) / last_price * 100 if last_price > 0 else -1
+                        d20 = (ema20 - last_price) / last_price * 100 if last_price > 0 else -1
+                        d10 = (ema10 - last_price) / last_price * 100 if last_price > 0 else -1
+                        
+                        if 0 <= d50 <= 0.4:
+                            tag, b_score = "🩸50EMA-Reject", 5
+                        elif 0 <= dvw <= 0.4:
+                            tag, b_score = "🩸VWAP-Reject", 5
+                        elif 0 <= d20 <= 0.4:
+                            tag, b_score = "🩸20EMA-Reject", 5
+                        elif 0 <= d10 <= 0.3:
+                            tag, b_score = "🩸10EMA-Reject", 5
 
-            bounce_tags[sym] = f"{alpha_tag} {tag}".strip()
+            bounce_tags[sym] = tag
             bounce_scores[sym] = b_score
             
-            is_bullish = (net_chg > 0) and (last_price >= vwap)
-            is_bearish = (net_chg < 0) and (last_price <= vwap)
+            is_bullish = (net_chg > 0) and (last_price >= last_vwap)
+            is_bearish = (net_chg < 0) and (last_price <= last_vwap)
+            
             if is_bullish: stock_trends[sym] = 'Bullish'
             elif is_bearish: stock_trends[sym] = 'Bearish'
             else: stock_trends[sym] = 'Neutral'
-                
-            total_candles = len(df_day)
-            if total_candles >= 3:
-                bull_cond = (df_day['Close'] > df_day['VWAP']) & (df_day['Close'] > df_day['EMA_10'])
-                bear_cond = (df_day['Close'] < df_day['VWAP']) & (df_day['Close'] < df_day['EMA_10'])
-                if (bull_cond.sum() / total_candles) >= 0.70 and stock_trends[sym] == 'Bullish': one_sided_tickers.append(sym)
-                elif (bear_cond.sum() / total_candles) >= 0.70 and stock_trends[sym] == 'Bearish': one_sided_tickers.append(sym)
-
-    if watchlist_mode == "One Sided Moves 🚀": df_filtered = df_filtered[df_filtered['Fetch_T'].isin(one_sided_tickers)]
 
     if not df_filtered.empty:
         df_filtered['BounceTag'] = df_filtered['Fetch_T'].map(bounce_tags).fillna("")
         df_filtered['S'] = df_filtered.apply(lambda row: row['S'] + bounce_scores.get(row['Fetch_T'], 0), axis=1)
-
-    if watchlist_mode == "High Score Stocks 🔥": df_filtered = df_filtered[(df_filtered['S'] >= 7)]
 
     bull_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bullish')
     bear_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bearish')
@@ -543,53 +669,103 @@ if not df.empty:
         else: df_stocks_display = pd.concat([df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False]), df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[True, True])])
 
     # --- RENDER VIEWS ---
+    
+    # 1. TERMINAL VIEW
     if watchlist_mode == "Terminal Tables 🗃️" and view_mode == "Heat Map":
         st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>🗃️ Professional Terminal View</div>", unsafe_allow_html=True)
+        
         if st.session_state.trend_filter != 'All':
             df_buy_sector = df_buy_sector[df_buy_sector['Fetch_T'].isin(df_filtered['Fetch_T'])]
             df_sell_sector = df_sell_sector[df_sell_sector['Fetch_T'].isin(df_filtered['Fetch_T'])]
             df_independent = df_independent[df_independent['Fetch_T'].isin(df_filtered['Fetch_T'])]
             df_broader = df_broader[df_broader['Fetch_T'].isin(df_filtered['Fetch_T'])]
+
         st.markdown(render_html_table(df_buy_sector, f"🚀 BUY LEADER: {top_buy_sector}", "term-head-buy"), unsafe_allow_html=True)
         st.markdown(render_html_table(df_sell_sector, f"🩸 SELL LAGGARD: {top_sell_sector}", "term-head-sell"), unsafe_allow_html=True)
         st.markdown(render_html_table(df_independent, "🌟 INDEPENDENT MOVERS", "term-head-ind"), unsafe_allow_html=True)
         st.markdown(render_html_table(df_broader, "🌌 BROADER MARKET", "term-head-brd"), unsafe_allow_html=True)
 
+    # 2. PORTFOLIO VIEW
     elif watchlist_mode == "My Portfolio 💼" and view_mode == "Heat Map":
         st.markdown(render_portfolio_table(df_port_saved, df_stocks, stock_trends), unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
+        
         with st.expander("➕ Search & Add Stock to Portfolio", expanded=False):
             with st.form("portfolio_add_form", clear_on_submit=True):
                 c1, c2, c3, c4, c5 = st.columns([2.5, 1.5, 2, 2, 2])
-                with c1: new_sym = st.text_input("🔍 NSE Symbol", placeholder="e.g. ITC").upper().strip()
-                with c2: new_qty = st.number_input("📦 Qty", min_value=1, value=10)
-                with c3: new_price = st.number_input("💰 Buy Price", min_value=0.0, value=100.0)
-                with c4: new_date = st.date_input("📅 Date")
+                with c1:
+                    new_sym = st.text_input("🔍 NSE Symbol (e.g. itc)", placeholder="Type Symbol...").upper().strip()
+                with c2:
+                    new_qty = st.number_input("📦 Quantity", min_value=1, value=10)
+                with c3:
+                    new_price = st.number_input("💰 Buy Price (₹)", min_value=0.0, value=100.0)
+                with c4:
+                    new_date = st.date_input("📅 Purchase Date")
                 with c5:
                     st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-                    if st.form_submit_button("➕ Add", use_container_width=True) and new_sym:
+                    submit_btn = st.form_submit_button("➕ Verify & Add", use_container_width=True)
+
+            if submit_btn:
+                if new_sym:
+                    with st.spinner(f"Searching NSE for {new_sym}..."):
                         chk_data = yf.download(f"{new_sym}.NS", period="1d", progress=False)
-                        if chk_data.empty: st.error(f"❌ '{new_sym}' not found!")
+                        if chk_data.empty:
+                            st.error(f"❌ '{new_sym}' not found in NSE! Please check the spelling.")
                         else:
                             new_date_str = new_date.strftime("%d-%b-%Y")
-                            if new_sym in df_port_saved['Symbol'].values: df_port_saved.loc[df_port_saved['Symbol'] == new_sym, ['Buy_Price', 'Quantity', 'Date']] = [new_price, new_qty, new_date_str]
-                            else: df_port_saved = pd.concat([df_port_saved, pd.DataFrame({"Symbol": [new_sym], "Buy_Price": [new_price], "Quantity": [new_qty], "Date": [new_date_str]})], ignore_index=True)
-                            save_portfolio(df_port_saved); fetch_all_data.clear(); st.rerun()
+                            if new_sym in df_port_saved['Symbol'].values:
+                                df_port_saved.loc[df_port_saved['Symbol'] == new_sym, ['Buy_Price', 'Quantity', 'Date']] = [new_price, new_qty, new_date_str]
+                            else:
+                                new_row = pd.DataFrame({"Symbol": [new_sym], "Buy_Price": [new_price], "Quantity": [new_qty], "Date": [new_date_str]})
+                                df_port_saved = pd.concat([df_port_saved, new_row], ignore_index=True)
+                            save_portfolio(df_port_saved)
+                            fetch_all_data.clear()
+                            st.rerun()
+                else:
+                    st.warning("Type a symbol first!")
+        
         if not df_port_saved.empty:
-            with st.expander("✏️ Edit Holdings", expanded=False):
-                edited_df = st.data_editor(df_port_saved, use_container_width=True, hide_index=True)
-                if st.button("💾 Save Changes", use_container_width=True): save_portfolio(edited_df); fetch_all_data.clear(); st.rerun()
-            with st.expander("🗑️ Remove Stock", expanded=False):
-                with st.form("portfolio_remove_form"):
-                    del_sym = st.selectbox("Select Stock", ["-- Select --"] + df_port_saved['Symbol'].tolist())
-                    if st.form_submit_button("❌ Remove") and del_sym != "-- Select --":
-                        save_portfolio(df_port_saved[df_port_saved['Symbol'] != del_sym]); fetch_all_data.clear(); st.rerun()
+            with st.expander("✏️ Edit Existing Holdings (Qty, Price, Date)", expanded=False):
+                st.markdown("<p style='font-size:12px; color:#888;'><i>Modify your Buy Price, Quantity, or Date directly in the table below and click Save.</i></p>", unsafe_allow_html=True)
+                edited_df = st.data_editor(
+                    df_port_saved, 
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "Symbol": st.column_config.TextColumn("Stock Symbol", disabled=True),
+                        "Quantity": st.column_config.NumberColumn("Quantity", min_value=1, step=1),
+                        "Buy_Price": st.column_config.NumberColumn("Buy Average (₹)", min_value=0.0, format="%.2f"),
+                        "Date": st.column_config.TextColumn("Purchase Date")
+                    }
+                )
+                if st.button("💾 Save Edited Changes", use_container_width=True):
+                    save_portfolio(edited_df)
+                    fetch_all_data.clear()
+                    st.rerun()
 
+        if not df_port_saved.empty:
+            with st.expander("🗑️ Remove Stock from Portfolio", expanded=False):
+                with st.form("portfolio_remove_form"):
+                    rc1, rc2, rc3 = st.columns([3, 2, 5])
+                    with rc1:
+                        del_sym = st.selectbox("Select Stock to Remove", ["-- Select --"] + df_port_saved['Symbol'].tolist(), label_visibility="collapsed")
+                    with rc2:
+                        remove_btn = st.form_submit_button("❌ Remove", use_container_width=True)
+                    with rc3:
+                        pass
+                    if remove_btn and del_sym != "-- Select --":
+                        df_port_saved = df_port_saved[df_port_saved['Symbol'] != del_sym]
+                        save_portfolio(df_port_saved)
+                        fetch_all_data.clear()
+                        st.rerun()
+
+    # 3. REGULAR HEATMAP VIEW + NEW RANKED TABLES
     elif view_mode == "Heat Map":
         if not df_indices.empty:
             html_idx = '<div class="heatmap-grid">'
             for _, row in df_indices.iterrows():
-                bg = "bear-card" if (row['T'] == "INDIA VIX" and row['C'] > 0) or (row['T'] != "INDIA VIX" and row['C'] < 0) else "bull-card"
+                bg = "bear-card" if (row['T'] == "INDIA VIX" and row['C'] > 0) else ("bull-card" if row['C'] > 0 else "neut-card")
+                if row['T'] != "INDIA VIX" and row['C'] < 0: bg = "bear-card"
                 html_idx += f'<a href="https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(row["Fetch_T"])}" target="_blank" class="stock-card {bg}"><div class="t-score">IDX</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if row["C"]>0 else ""}{row["C"]:.2f}%</div></a>'
             st.markdown(html_idx + '</div><hr class="custom-hr">', unsafe_allow_html=True)
         
@@ -604,24 +780,39 @@ if not df.empty:
             html_stk = '<div class="heatmap-grid">'
             for _, row in df_stocks_display.iterrows():
                 bg = "bull-card" if row['C'] > 0 else ("bear-card" if row['C'] < 0 else "neut-card")
-                special_icon = "🌊" if watchlist_mode == "Swing Trading 📈" else ("🚀" if watchlist_mode == "One Sided Moves 🚀" else f"⭐{int(row['S'])}")
+                
+                if watchlist_mode == "Swing Trading 📈": special_icon = "🌊"
+                elif watchlist_mode == "One Sided Moves 🚀": special_icon = "🚀"
+                else: special_icon = f"⭐{int(row['S'])}"
+                
                 html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">{special_icon}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if row["C"]>0 else ""}{row["C"]:.2f}%</div></a>'
-            st.markdown(html_stk + '</div><br>', unsafe_allow_html=True)
+            st.markdown(html_stk + '</div>', unsafe_allow_html=True)
             
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            # 🔥 THE NEW TOGGLES FOR HIGH SCORE AND SWING 🔥
             if watchlist_mode == "Swing Trading 📈":
-                with st.expander("🌊 View Swing Trading Radar (Ranked Table)", expanded=True): st.markdown(render_swing_terminal_table(df_stocks_display, stock_trends), unsafe_allow_html=True)
+                with st.expander("🌊 View Swing Trading Radar (Ranked Table)", expanded=True):
+                    st.markdown(render_swing_terminal_table(df_stocks_display, stock_trends), unsafe_allow_html=True)
+            
             elif watchlist_mode == "High Score Stocks 🔥":
-                with st.expander("🔥 View High Score Radar (Ranked Intraday Table)", expanded=True): st.markdown(render_highscore_terminal_table(df_stocks_display, stock_trends), unsafe_allow_html=True)
+                with st.expander("🔥 View High Score Radar (Ranked Intraday Table)", expanded=True):
+                    st.markdown(render_highscore_terminal_table(df_stocks_display, stock_trends), unsafe_allow_html=True)
+            
             else:
-                with st.expander("🎯 View Trading Levels (Targets & Stop Loss)", expanded=True): st.markdown(render_levels_table(df_stocks_display, stock_trends), unsafe_allow_html=True)
+                with st.expander("🎯 View Trading Levels (Targets & Stop Loss)", expanded=True):
+                    st.markdown(render_levels_table(df_stocks_display, stock_trends), unsafe_allow_html=True)
+                
         else: st.info(f"No {st.session_state.trend_filter} stocks found.")
             
     else: # CHART VIEW
         st.markdown("<br>", unsafe_allow_html=True)
+        
         if search_stock != "-- None --":
             st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:5px; color:#ffd700;'>🔍 Searched Chart: {search_stock}</div>", unsafe_allow_html=True)
             render_chart_grid(pd.DataFrame([df[df['T'] == search_stock].iloc[0]]), show_pin_option=True, key_prefix="search")
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
+        
         if watchlist_mode not in ["Terminal Tables 🗃️", "My Portfolio 💼"]:
             st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>📈 Market Indices</div>", unsafe_allow_html=True)
             render_chart_grid(df_indices, show_pin_option=False, key_prefix="idx")
@@ -634,6 +825,7 @@ if not df.empty:
             st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#ffd700;'>📌 Pinned Priority Charts</div>", unsafe_allow_html=True)
             render_chart_grid(pinned_df, show_pin_option=True, key_prefix="pin")
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
+        
         if not unpinned_df.empty:
             st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>{watchlist_mode} ({st.session_state.trend_filter})</div>", unsafe_allow_html=True)
             render_chart_grid(unpinned_df, show_pin_option=True, key_prefix="main")
