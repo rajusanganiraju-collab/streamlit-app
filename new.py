@@ -61,6 +61,18 @@ def load_portfolio():
 
 def save_portfolio(df_port):
     df_port.to_csv(PORTFOLIO_FILE, index=False)
+    # --- CLOSED TRADES (P&L) SETUP ---
+CLOSED_TRADES_FILE = "closed_trades.csv"
+def load_closed_trades():
+    if os.path.exists(CLOSED_TRADES_FILE):
+        try:
+            df = pd.read_csv(CLOSED_TRADES_FILE)
+            if not df.empty: return df
+        except: pass
+    return pd.DataFrame(columns=["Sell_Date", "Symbol", "Quantity", "Buy_Price", "Sell_Price", "PnL_Rs", "PnL_Pct"])
+
+def save_closed_trades(df_closed):
+    df_closed.to_csv(CLOSED_TRADES_FILE, index=False)
 
 # --- 4. CSS FOR STYLING ---
 st.markdown("""
@@ -652,7 +664,32 @@ def render_chart_grid(df_grid, show_pin_option, key_prefix):
             with st.container():
                 render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=show_pin_option, key_suffix=f"{key_prefix}_{j}")
 
-
+def render_closed_trades_table(df_closed):
+    if df_closed.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No closed trades yet. Sell a stock to book P&L!</div>"
+    
+    html = f'<table class="term-table"><thead><tr><th colspan="7" style="background-color:#4a148c; color:white; text-align:left; padding-left:10px;">📜 CLOSED TRADES (TRADE BOOK & P&L)</th></tr><tr style="background-color: #21262d;"><th style="width:15%; text-align:left;">SELL DATE</th><th style="width:15%; text-align:left;">STOCK</th><th style="width:10%;">QTY</th><th style="width:15%;">BUY AVG</th><th style="width:15%;">SELL AVG</th><th style="width:15%;">REALIZED P&L (₹)</th><th style="width:15%;">P&L %</th></tr></thead><tbody>'
+    
+    total_realized_pnl = 0
+    for i, (_, row) in enumerate(df_closed.iterrows()):
+        bg_class = "row-dark" if i % 2 == 0 else "row-light"
+        sym = row['Symbol']
+        qty = int(row['Quantity'])
+        buy_p = float(row['Buy_Price'])
+        sell_p = float(row['Sell_Price'])
+        pnl_rs = float(row['PnL_Rs'])
+        pnl_pct = float(row['PnL_Pct'])
+        
+        total_realized_pnl += pnl_rs
+        p_color = "text-green" if pnl_rs >= 0 else "text-red"
+        p_sign = "+" if pnl_rs > 0 else ""
+        
+        html += f'<tr class="{bg_class}"><td style="text-align:left;">{row["Sell_Date"]}</td><td class="t-symbol {p_color}" style="text-align:left;">{sym}</td><td>{qty}</td><td>{buy_p:.2f}</td><td>{sell_p:.2f}</td><td class="{p_color}">{p_sign}{pnl_rs:,.2f}</td><td class="{p_color}">{p_sign}{pnl_pct:.2f}%</td></tr>'
+        
+    tot_color = "text-green" if total_realized_pnl >= 0 else "text-red"
+    tot_sign = "+" if total_realized_pnl > 0 else ""
+    html += f'<tr class="port-total"><td colspan="5" style="text-align:right; padding-right:15px; font-size:13px;">NET REALIZED P&L:</td><td colspan="2" class="{tot_color}" style="font-size:14px; text-align:center;">{tot_sign}₹{total_realized_pnl:,.2f}</td></tr>'
+    html += "</tbody></table>"
+    return html
 # --- 6. TOP NAVIGATION & SEARCH ---
 c1, c2, c3 = st.columns([0.4, 0.3, 0.3])
 with c1: 
@@ -996,15 +1033,49 @@ if not df.empty:
                 )
                 if st.button("💾 Save Edited Changes", use_container_width=True): save_portfolio(edited_df); fetch_all_data.clear(); st.rerun()
 
-            with st.expander("🗑️ Remove Stock from Portfolio", expanded=False):
-                with st.form("portfolio_remove_form"):
-                    rc1, rc2, rc3 = st.columns([3, 2, 5])
-                    with rc1: del_sym = st.selectbox("Select Stock to Remove", ["-- Select --"] + df_port_saved['Symbol'].tolist(), label_visibility="collapsed")
-                    with rc2: remove_btn = st.form_submit_button("❌ Remove", use_container_width=True)
-                    with rc3: pass
-                    if remove_btn and del_sym != "-- Select --":
-                        df_port_saved = df_port_saved[df_port_saved['Symbol'] != del_sym]
-                        save_portfolio(df_port_saved); fetch_all_data.clear(); st.rerun()
+           # 🔥 కొత్తది: పాత Remove ప్లేస్ లో "Sell Stock" ఫామ్ 🔥
+            with st.expander("💸 Sell Stock & Book Profit/Loss", expanded=False):
+                with st.form("portfolio_sell_form"):
+                    rc1, rc2, rc3, rc4 = st.columns([2, 1, 2, 2])
+                    with rc1: sell_sym = st.selectbox("Select Stock to Sell", ["-- Select --"] + df_port_saved['Symbol'].tolist())
+                    with rc2: sell_qty = st.number_input("Qty to Sell", min_value=1, value=1)
+                    with rc3: sell_price = st.number_input("Exit Price (₹)", min_value=0.0, value=0.0)
+                    with rc4: 
+                        st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+                        sell_btn = st.form_submit_button("💸 Confirm Sell", use_container_width=True)
+                    
+                    if sell_btn and sell_sym != "-- Select --" and sell_price > 0:
+                        # 1. పోర్ట్‌ఫోలియో లోంచి స్టాక్ ని తగ్గించడం లేదా తీసేయడం
+                        port_row = df_port_saved[df_port_saved['Symbol'] == sell_sym].iloc[0]
+                        buy_price = float(port_row['Buy_Price'])
+                        current_qty = int(port_row['Quantity'])
+                        
+                        sell_qty = min(sell_qty, current_qty) # ఉన్నవాటికంటే ఎక్కువ అమ్మలేము కదా!
+                        
+                        # 2. లాభనష్టాలు లెక్కించడం
+                        pnl_rs = (sell_price - buy_price) * sell_qty
+                        pnl_pct = ((sell_price - buy_price) / buy_price) * 100
+                        sell_date_str = datetime.now().strftime("%d-%b-%Y")
+                        
+                        # 3. Trade Book లోకి సేవ్ చేయడం
+                        df_closed = load_closed_trades()
+                        new_closed_row = pd.DataFrame({"Sell_Date": [sell_date_str], "Symbol": [sell_sym], "Quantity": [sell_qty], "Buy_Price": [buy_price], "Sell_Price": [sell_price], "PnL_Rs": [pnl_rs], "PnL_Pct": [pnl_pct]})
+                        df_closed = pd.concat([df_closed, new_closed_row], ignore_index=True)
+                        save_closed_trades(df_closed)
+                        
+                        # 4. మెయిన్ పోర్ట్‌ఫోలియో అప్‌డేట్ చేయడం
+                        if sell_qty == current_qty:
+                            df_port_saved = df_port_saved[df_port_saved['Symbol'] != sell_sym] # మొత్తం అమ్మేస్తే లిస్ట్ లోంచి తీసేయ్
+                        else:
+                            df_port_saved.loc[df_port_saved['Symbol'] == sell_sym, 'Quantity'] = current_qty - sell_qty # సగం అమ్మితే క్వాంటిటీ తగ్గించు
+                        
+                        save_portfolio(df_port_saved)
+                        st.rerun()
+
+            # 🔥 కొత్తది: Trade Book చూడటానికి ఫీచర్ 🔥
+            with st.expander("📜 View Trade Book (Closed P&L Ledger)", expanded=False):
+                df_closed_view = load_closed_trades()
+                st.markdown(render_closed_trades_table(df_closed_view), unsafe_allow_html=True) 
     elif view_mode == "Heat Map":
         if not df_indices.empty:
             html_idx = '<div class="heatmap-grid">'
