@@ -409,7 +409,68 @@ def render_portfolio_swing_advice_table(df_port, df_stocks, stock_trends):
 
     html += "</tbody></table>"
     return html
-
+def render_portfolio_table(df_port, df_stocks, stock_trends):
+    if df_port.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>Portfolio is empty. Add a stock using the option below!</div>"
+    
+    html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-port">💼 LIVE PORTFOLIO TERMINAL</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:11%;">STOCK</th><th style="width:9%;">DATE</th><th style="width:6%;">QTY</th><th style="width:8%;">AVG</th><th style="width:8%;">LTP</th><th style="width:10%;">TREND</th><th style="width:18%;">STATUS</th><th style="width:10%;">DAY P&L</th><th style="width:10%;">TOT P&L</th><th style="width:10%;">P&L %</th></tr></thead><tbody>'
+    
+    total_invested, total_current, total_day_pnl = 0, 0, 0
+    
+    for i, (_, row) in enumerate(df_port.iterrows()):
+        bg_class = "row-dark" if i % 2 == 0 else "row-light"
+        sym = str(row['Symbol']).upper().strip()
+        try: qty = float(row['Quantity'])
+        except: qty = 0
+        try: buy_p = float(row['Buy_Price'])
+        except: buy_p = 0
+        
+        date_val = str(row.get('Date', '-'))
+        if date_val == 'nan' or date_val == 'NaN' or date_val == '': date_val = '-'
+        
+        live_row = df_stocks[df_stocks['T'] == sym]
+        status_html, trend_html = "", "➖"
+        
+        if not live_row.empty:
+            ltp = float(live_row['P'].iloc[0])
+            prev_c = float(live_row['Prev_C'].iloc[0])
+            status_html = generate_status(live_row.iloc[0])
+            
+            fetch_t = live_row['Fetch_T'].iloc[0]
+            trend_state = stock_trends.get(fetch_t, "Neutral")
+            if trend_state == 'Bullish': trend_html = "🟢 Bullish"
+            elif trend_state == 'Bearish': trend_html = "🔴 Bearish"
+            else: trend_html = "⚪ Neutral"
+        else:
+            ltp, prev_c = buy_p, buy_p
+            status_html = "Search Error"
+            
+        invested = buy_p * qty
+        current = ltp * qty
+        overall_pnl = current - invested
+        pnl_pct = (overall_pnl / invested * 100) if invested > 0 else 0
+        day_pnl = (ltp - prev_c) * qty
+        
+        total_invested += invested
+        total_current += current
+        total_day_pnl += day_pnl
+        
+        tpnl_color = "text-green" if overall_pnl >= 0 else "text-red"
+        dpnl_color = "text-green" if day_pnl >= 0 else "text-red"
+        t_sign = "+" if overall_pnl > 0 else ""
+        d_sign = "+" if day_pnl > 0 else ""
+        
+        html += f'<tr class="{bg_class}"><td class="t-symbol {tpnl_color}"><a href="https://in.tradingview.com/chart/?symbol=NSE:{sym}" target="_blank">{sym}</a></td><td>{date_val}</td><td>{int(qty)}</td><td>{buy_p:.2f}</td><td>{ltp:.2f}</td><td style="font-size:10px;">{trend_html}</td><td style="font-size:10px;">{status_html}</td><td class="{dpnl_color}">{d_sign}{day_pnl:,.0f}</td><td class="{tpnl_color}">{t_sign}{overall_pnl:,.0f}</td><td class="{tpnl_color}">{t_sign}{pnl_pct:.2f}%</td></tr>'
+    
+    overall_total_pnl = total_current - total_invested
+    overall_total_pct = (overall_total_pnl / total_invested * 100) if total_invested > 0 else 0
+    o_color = "text-green" if overall_total_pnl >= 0 else "text-red"
+    o_sign = "+" if overall_total_pnl > 0 else ""
+    d_color = "text-green" if total_day_pnl >= 0 else "text-red"
+    d_sign = "+" if total_day_pnl > 0 else ""
+    
+    html += f'<tr class="port-total"><td colspan="7" style="text-align:right; padding-right:15px; font-size:12px;">INVESTED: ₹{total_invested:,.0f} &nbsp;|&nbsp; CURRENT: ₹{total_current:,.0f} &nbsp;|&nbsp; OVERALL P&L:</td><td class="{d_color}">{d_sign}₹{total_day_pnl:,.0f}</td><td class="{o_color}">{o_sign}₹{overall_total_pnl:,.0f}</td><td class="{o_color}">{o_sign}{overall_total_pct:.2f}%</td></tr>'
+    html += "</tbody></table>"
+    return html
 def render_portfolio_swing_advice_table(df_port, df_stocks, stock_trends):
     if df_port.empty: return ""
     html = f'<table class="term-table"><thead><tr><th colspan="8" class="term-head-swing">🤖 PORTFOLIO SWING ADVISOR (ACTION & LEVELS)</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:16%;">STOCK</th><th style="width:10%;">AVG PRICE</th><th style="width:10%;">LTP</th><th style="width:10%;">P&L %</th><th style="width:10%;">TREND</th><th style="width:13%; color:#f85149;">🛑 TRAILING SL</th><th style="width:13%; color:#3fb950;">🎯 NEXT TARGET</th><th style="width:18%;">💡 ACTION ADVICE</th></tr></thead><tbody>'
