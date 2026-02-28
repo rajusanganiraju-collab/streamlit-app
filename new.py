@@ -174,7 +174,7 @@ def fetch_all_data():
     results = []
     minutes = get_minutes_passed()
 
-    # 🔥 ADDED: Nifty Distance Calculation for the Alpha Rule 🔥
+    # 🔥 NIFTY DISTANCE FOR ALPHA RULE 🔥
     nifty_dist = 0.1
     if "^NSEI" in data.columns.levels[0]:
         try:
@@ -241,7 +241,7 @@ def fetch_all_data():
 
             score = 0
             
-            # 🔥 NEW 'ALPHA' RULE INSTEAD OF OLD 2% RULE 🔥
+            # 🔥 PURE ALPHA LOGIC 🔥
             stock_dist = abs(ltp - vwap) / vwap * 100 if vwap > 0 else 0
             if stock_dist > (nifty_dist * 3):
                 score += 5
@@ -278,9 +278,8 @@ def process_5m_data(df_raw):
         df_s = df_raw.dropna(subset=['Close']).copy()
         if df_s.empty: return pd.DataFrame()
         
+        # Kept EMA 10 only for chart plotting, removed other EMAs as bounce logic is gone
         df_s['EMA_10'] = df_s['Close'].ewm(span=10, adjust=False).mean()
-        df_s['EMA_20'] = df_s['Close'].ewm(span=20, adjust=False).mean()
-        df_s['EMA_50'] = df_s['Close'].ewm(span=50, adjust=False).mean()
         
         df_s.index = pd.to_datetime(df_s.index)
         df_day = df_s[df_s.index.date == df_s.index.date.max()].copy()
@@ -301,10 +300,10 @@ def generate_status(row):
     if row['VolX'] > 1.2: status += "VOL🟢 "
     if abs(row['O'] - row['L']) < (p * 0.002): status += "O=L🔥 "
     if abs(row['O'] - row['H']) < (p * 0.002): status += "O=H🩸 "
-    if abs(row['C']) >= 2.0: status += "BigMove🚀 " if row['C'] > 0 else "BigMove🩸 "
     
-    if 'BounceTag' in row and row['BounceTag']:
-        status += f"{row['BounceTag']} "
+    # Using the same column name to inject Alpha Tags
+    if 'AlphaTag' in row and row['AlphaTag']:
+        status += f"{row['AlphaTag']} "
     
     if row['C'] > 0 and row['Day_C'] > 0 and row['VolX'] > 1: status += "Rec ⇈ "
     return status.strip()
@@ -573,13 +572,12 @@ if not df.empty:
         search_fetch_t = df[df['T'] == search_stock]['Fetch_T'].iloc[0]
         if search_fetch_t not in all_display_tickers: all_display_tickers.append(search_fetch_t)
             
-    with st.spinner("Analyzing VWAP & EMA Intraday Pullbacks (Sniper Mode)..."):
+    with st.spinner("Analyzing VWAP & Pure Price Action (Alpha Mode)..."):
         five_min_data = yf.download(all_display_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=20)
 
     processed_charts = {}
     stock_trends = {}
-    bounce_tags = {}
-    bounce_scores = {}
+    alpha_tags = {}
 
     # 🔥 NIFTY 5M DISTANCE FOR TAGS 🔥
     nifty_dist_5m = 0.1
@@ -599,72 +597,16 @@ if not df.empty:
         if sym in df_filtered['Fetch_T'].tolist() and not df_day.empty:
             last_price = df_day['Close'].iloc[-1]
             last_vwap = df_day['VWAP'].iloc[-1]
-            last_ema = df_day['EMA_10'].iloc[-1]
-            day_open = df_day['Open'].iloc[0]
-            
             net_chg = df[df['Fetch_T'] == sym]['C'].iloc[0]
-            base_score = int(df_filtered[df_filtered['Fetch_T'] == sym]['S'].iloc[0])
             
-            tag = ""
-            b_score = 0
-            
-            # 🔥 ALPHA TAGS 🔥
+            # 🔥 PURE ALPHA TAGS ONLY (No Bounce logic) 🔥
             alpha_tag = ""
             if len(df_day) >= 50:
                 stock_dist_5m = abs(last_price - last_vwap) / last_vwap * 100 if last_vwap > 0 else 0
                 if stock_dist_5m > (nifty_dist_5m * 3): alpha_tag = "🚀Alpha-Mover"
                 elif stock_dist_5m > (nifty_dist_5m * 2): alpha_tag = "💪Nifty-Beater"
             
-            if len(df_day) >= 50 and base_score >= 6: 
-                ema10 = df_day['EMA_10'].iloc[-1]
-                ema20 = df_day['EMA_20'].iloc[-1]
-                ema50 = df_day['EMA_50'].iloc[-1]
-                vwap = df_day['VWAP'].iloc[-1]
-                
-                # 🔥 FALLING KNIFE GUARD: Check if the trend is structurally intact 🔥
-                if net_chg > 0: # Bullish Setup
-                    # Trend should be Up: 10 EMA above 20 EMA, 20 EMA above 50 EMA
-                    trend_intact = (ema10 >= ema20) and (ema20 >= ema50)
-                    
-                    if trend_intact:
-                        # 🔥 SUPPORT CHECK: Price MUST be >= the Line to be a support bounce. 
-                        # We removed absolute `abs()` to ensure it hasn't broken down below the line.
-                        d50 = (last_price - ema50) / ema50 * 100 if ema50 > 0 else -1
-                        dvw = (last_price - vwap) / vwap * 100 if vwap > 0 else -1
-                        d20 = (last_price - ema20) / ema20 * 100 if ema20 > 0 else -1
-                        d10 = (last_price - ema10) / ema10 * 100 if ema10 > 0 else -1
-                        
-                        if 0 <= d50 <= 0.4:
-                            tag, b_score = "🔥50EMA-Bounce", 5
-                        elif 0 <= dvw <= 0.4:
-                            tag, b_score = "🔥VWAP-Bounce", 5
-                        elif 0 <= d20 <= 0.4:
-                            tag, b_score = "🔥20EMA-Bounce", 5
-                        elif 0 <= d10 <= 0.3:
-                            tag, b_score = "🔥10EMA-Bounce", 5
-                            
-                else: # Bearish Setup (Shorting)
-                    # Trend should be Down: 10 EMA below 20 EMA, 20 EMA below 50 EMA
-                    trend_intact = (ema10 <= ema20) and (ema20 <= ema50)
-                    
-                    if trend_intact:
-                        # Price MUST be <= the Line to be a resistance rejection.
-                        d50 = (ema50 - last_price) / last_price * 100 if last_price > 0 else -1
-                        dvw = (vwap - last_price) / last_price * 100 if last_price > 0 else -1
-                        d20 = (ema20 - last_price) / last_price * 100 if last_price > 0 else -1
-                        d10 = (ema10 - last_price) / last_price * 100 if last_price > 0 else -1
-                        
-                        if 0 <= d50 <= 0.4:
-                            tag, b_score = "🩸50EMA-Reject", 5
-                        elif 0 <= dvw <= 0.4:
-                            tag, b_score = "🩸VWAP-Reject", 5
-                        elif 0 <= d20 <= 0.4:
-                            tag, b_score = "🩸20EMA-Reject", 5
-                        elif 0 <= d10 <= 0.3:
-                            tag, b_score = "🩸10EMA-Reject", 5
-
-            bounce_tags[sym] = f"{alpha_tag} {tag}".strip()
-            bounce_scores[sym] = b_score
+            alpha_tags[sym] = alpha_tag
             
             is_bullish = (net_chg > 0) and (last_price >= last_vwap)
             is_bearish = (net_chg < 0) and (last_price <= last_vwap)
@@ -674,8 +616,8 @@ if not df.empty:
             else: stock_trends[sym] = 'Neutral'
 
     if not df_filtered.empty:
-        df_filtered['BounceTag'] = df_filtered['Fetch_T'].map(bounce_tags).fillna("")
-        df_filtered['S'] = df_filtered.apply(lambda row: row['S'] + bounce_scores.get(row['Fetch_T'], 0), axis=1)
+        df_filtered['AlphaTag'] = df_filtered['Fetch_T'].map(alpha_tags).fillna("")
+        # Score is already finalized in fetch_all_data, no need to add any bounce scores!
 
     bull_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bullish')
     bear_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bearish')
