@@ -728,10 +728,14 @@ if not df.empty:
 
     if not df_filtered.empty:
         df_filtered['AlphaTag'] = df_filtered['Fetch_T'].map(alpha_tags).fillna("")
-        # 🔥 కొత్తగా Trend_Score అనే సపరేట్ కాలమ్ యాడ్ చేస్తున్నాం 🔥
+        
+        # 🔥 కొత్తగా Trend_Score ని సపరేట్ చేస్తున్నాం 🔥
         df_filtered['Trend_Score'] = df_filtered['Fetch_T'].map(trend_scores).fillna(0)
-        # రెగ్యులర్ స్కోర్ కోసం రెండూ కలుపుతున్నాం
         df_filtered['S'] = df_filtered['S'] + df_filtered['Trend_Score']
+        
+        # 🔥 PURE ONE SIDED FILTER: 85% రూల్ పాస్ అవ్వకపోతే ఈ టాబ్ లో నుండి తీసేయ్! 🔥
+        if watchlist_mode == "One Sided Moves 🚀":
+            df_filtered = df_filtered[df_filtered['Trend_Score'] > 0]
 
     bull_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bullish')
     bear_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bearish')
@@ -778,7 +782,7 @@ if not df.empty:
         else: 
             df_stocks_display = pd.concat([
                 df_filtered[df_filtered['C'] >= 0].sort_values(by=[sort_col, "C"], ascending=[False, False]), 
-                df_filtered[df_filtered['C'] < 0].sort_values(by=[sort_col, "C"], ascending=[False, True]) # 🔥 పాత బగ్ ఫిక్స్ చేశాం ఇక్కడ!
+                df_filtered[df_filtered['C'] < 0].sort_values(by=[sort_col, "C"], ascending=[False, True])
             ])
     # --- RENDER VIEWS ---
    # 1. TERMINAL VIEW
