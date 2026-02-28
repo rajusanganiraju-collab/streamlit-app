@@ -734,8 +734,22 @@ if not df.empty:
             ])
 
     # --- RENDER VIEWS ---
+   # 1. TERMINAL VIEW
     if watchlist_mode == "Terminal Tables 🗃️" and view_mode == "Heat Map":
         st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>🗃️ Professional Terminal View</div>", unsafe_allow_html=True)
+        
+        # 🔥 అప్డేట్: టెర్మినల్ టేబుల్స్ కి కూడా ఈ కొత్త ట్యాగ్స్ మరియు బోనస్ పాయింట్స్ యాడ్ చేస్తున్నాం 🔥
+        for df_temp in [df_buy_sector, df_sell_sector, df_independent, df_broader]:
+            if not df_temp.empty:
+                df_temp['AlphaTag'] = df_temp['Fetch_T'].map(alpha_tags).fillna("")
+                df_temp['S'] = df_temp['S'] + df_temp['Fetch_T'].map(trend_scores).fillna(0)
+        
+        # కొత్త పాయింట్లు కలిశాయి కాబట్టి, మళ్ళీ ఆ స్కోర్ ఆధారంగా టేబుల్ ని ర్యాంకింగ్ చేస్తున్నాం
+        df_buy_sector = df_buy_sector.sort_values(by=['S', 'C'], ascending=[False, False])
+        df_sell_sector = df_sell_sector.sort_values(by=['S', 'C'], ascending=[False, True])
+        df_independent = df_independent.sort_values(by=['S', 'C'], ascending=[False, False])
+        df_broader = df_broader.sort_values(by=['S', 'C'], ascending=[False, False])
+
         if st.session_state.trend_filter != 'All':
             df_buy_sector = df_buy_sector[df_buy_sector['Fetch_T'].isin(df_filtered['Fetch_T'])]
             df_sell_sector = df_sell_sector[df_sell_sector['Fetch_T'].isin(df_filtered['Fetch_T'])]
@@ -746,7 +760,6 @@ if not df.empty:
         st.markdown(render_html_table(df_sell_sector, f"🩸 SELL LAGGARD: {top_sell_sector}", "term-head-sell"), unsafe_allow_html=True)
         st.markdown(render_html_table(df_independent, "🌟 INDEPENDENT MOVERS", "term-head-ind"), unsafe_allow_html=True)
         st.markdown(render_html_table(df_broader, "🌌 BROADER MARKET", "term-head-brd"), unsafe_allow_html=True)
-
     elif watchlist_mode == "My Portfolio 💼" and view_mode == "Heat Map":
         st.markdown(render_portfolio_table(df_port_saved, df_stocks, stock_trends), unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
