@@ -253,9 +253,7 @@ def fetch_all_data():
 
             score = 0
             
-            score = 0
-            
-            # 🔥 PURE ALPHA LOGIC WITH SAFETY FLOOR 🔥
+                    # 🔥 PURE ALPHA LOGIC WITH SAFETY FLOOR 🔥
             stock_dist = abs(ltp - vwap) / vwap * 100 if vwap > 0 else 0
             
             # నిఫ్టీ జీరో దగ్గర ఉన్నా సరే, కనీసం 0.25% ఫ్లోర్ లాజిక్
