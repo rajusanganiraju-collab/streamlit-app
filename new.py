@@ -253,11 +253,17 @@ def fetch_all_data():
 
             score = 0
             
-            # 🔥 PURE ALPHA LOGIC 🔥
+            score = 0
+            
+            # 🔥 PURE ALPHA LOGIC WITH SAFETY FLOOR 🔥
             stock_dist = abs(ltp - vwap) / vwap * 100 if vwap > 0 else 0
-            if stock_dist > (nifty_dist * 3):
+            
+            # నిఫ్టీ జీరో దగ్గర ఉన్నా సరే, కనీసం 0.25% ఫ్లోర్ లాజిక్
+            effective_nifty = max(nifty_dist, 0.25) 
+            
+            if stock_dist > (effective_nifty * 3):
                 score += 5
-            elif stock_dist > (nifty_dist * 2):
+            elif stock_dist > (effective_nifty * 2):
                 score += 3
             
             if abs(open_p - low) <= (ltp * 0.003) or abs(open_p - high) <= (ltp * 0.003): score += 3 
