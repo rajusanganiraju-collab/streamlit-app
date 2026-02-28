@@ -728,8 +728,10 @@ if not df.empty:
 
     if not df_filtered.empty:
         df_filtered['AlphaTag'] = df_filtered['Fetch_T'].map(alpha_tags).fillna("")
-        # Add the Tiered Trend Bonus to the Total Score
-        df_filtered['S'] = df_filtered['S'] + df_filtered['Fetch_T'].map(trend_scores).fillna(0)
+        # 🔥 కొత్తగా Trend_Score అనే సపరేట్ కాలమ్ యాడ్ చేస్తున్నాం 🔥
+        df_filtered['Trend_Score'] = df_filtered['Fetch_T'].map(trend_scores).fillna(0)
+        # రెగ్యులర్ స్కోర్ కోసం రెండూ కలుపుతున్నాం
+        df_filtered['S'] = df_filtered['S'] + df_filtered['Trend_Score']
 
     bull_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bullish')
     bear_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bearish')
@@ -749,33 +751,35 @@ if not df.empty:
         df_filtered = df_filtered[df_filtered['Fetch_T'].apply(lambda x: stock_trends.get(x) == st.session_state.trend_filter)]
 
     # SORTING LOGIC 
+    # 🔥 PURE ONE SIDED LOGIC OVERRIDE 🔥
+    sort_col = "Trend_Score" if watchlist_mode == "One Sided Moves 🚀" else "S"
+    
     if sort_mode == "% Change Up 🟢": 
         df_stocks_display = df_filtered.sort_values(by="C", ascending=False)
     elif sort_mode == "% Change Down 🔴": 
         df_stocks_display = df_filtered.sort_values(by="C", ascending=True)
     elif sort_mode == "Heatmap Marks Up ⭐": 
         df_stocks_display = pd.concat([
-            df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False]), 
-            df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[False, True])
+            df_filtered[df_filtered['C'] >= 0].sort_values(by=[sort_col, "C"], ascending=[False, False]), 
+            df_filtered[df_filtered['C'] < 0].sort_values(by=[sort_col, "C"], ascending=[False, True])
         ])
     elif sort_mode == "Heatmap Marks Down ⬇️": 
         df_stocks_display = pd.concat([
-            df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[False, True]), 
-            df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False])
+            df_filtered[df_filtered['C'] < 0].sort_values(by=[sort_col, "C"], ascending=[False, True]), 
+            df_filtered[df_filtered['C'] >= 0].sort_values(by=[sort_col, "C"], ascending=[False, False])
         ])
     else:
         if st.session_state.trend_filter == 'Bullish': 
-            df_stocks_display = df_filtered.sort_values(by=["S", "C"], ascending=[False, False])
+            df_stocks_display = df_filtered.sort_values(by=[sort_col, "C"], ascending=[False, False])
         elif st.session_state.trend_filter == 'Bearish': 
-            df_stocks_display = df_filtered.sort_values(by=["S", "C"], ascending=[False, True])
+            df_stocks_display = df_filtered.sort_values(by=[sort_col, "C"], ascending=[False, True])
         elif st.session_state.trend_filter == 'Neutral': 
-            df_stocks_display = df_filtered.sort_values(by=["S", "C"], ascending=[False, False])
+            df_stocks_display = df_filtered.sort_values(by=[sort_col, "C"], ascending=[False, False])
         else: 
             df_stocks_display = pd.concat([
-                df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False]), 
-                df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[True, True])
+                df_filtered[df_filtered['C'] >= 0].sort_values(by=[sort_col, "C"], ascending=[False, False]), 
+                df_filtered[df_filtered['C'] < 0].sort_values(by=[sort_col, "C"], ascending=[False, True]) # 🔥 పాత బగ్ ఫిక్స్ చేశాం ఇక్కడ!
             ])
-
     # --- RENDER VIEWS ---
    # 1. TERMINAL VIEW
     if watchlist_mode == "Terminal Tables 🗃️" and view_mode == "Heat Map":
