@@ -174,6 +174,19 @@ def fetch_all_data():
     results = []
     minutes = get_minutes_passed()
 
+    # 🔥 ADDED: Nifty Distance Calculation for the Alpha Rule 🔥
+    nifty_dist = 0.1
+    if "^NSEI" in data.columns.levels[0]:
+        try:
+            n_df = data["^NSEI"].dropna(subset=['Close'])
+            if not n_df.empty:
+                n_ltp = float(n_df['Close'].iloc[-1])
+                n_vwap = (float(n_df['High'].iloc[-1]) + float(n_df['Low'].iloc[-1]) + n_ltp) / 3
+                if n_vwap > 0:
+                    nifty_dist = abs(n_ltp - n_vwap) / n_vwap * 100
+        except:
+            pass
+
     for symbol in data.columns.levels[0]:
         try:
             df = data[symbol].dropna(subset=['Close'])
@@ -227,7 +240,14 @@ def fetch_all_data():
                     is_swing = True
 
             score = 0
-            if abs(day_chg) >= 2.0: score += 3 
+            
+            # 🔥 NEW 'ALPHA' RULE INSTEAD OF OLD 2% RULE 🔥
+            stock_dist = abs(ltp - vwap) / vwap * 100 if vwap > 0 else 0
+            if stock_dist > (nifty_dist * 3):
+                score += 5
+            elif stock_dist > (nifty_dist * 2):
+                score += 3
+            
             if abs(open_p - low) <= (ltp * 0.003) or abs(open_p - high) <= (ltp * 0.003): score += 3 
             if vol_x > 1.0: score += 3 
             if (ltp >= high * 0.998 and day_chg > 0.5) or (ltp <= low * 1.002 and day_chg < -0.5): score += 1
@@ -561,6 +581,16 @@ if not df.empty:
     bounce_tags = {}
     bounce_scores = {}
 
+    # 🔥 NIFTY 5M DISTANCE FOR TAGS 🔥
+    nifty_dist_5m = 0.1
+    if "^NSEI" in five_min_data.columns.levels[0]:
+        n_raw = five_min_data["^NSEI"] if isinstance(five_min_data.columns, pd.MultiIndex) else five_min_data
+        n_day = process_5m_data(n_raw)
+        if not n_day.empty:
+            n_ltp = n_day['Close'].iloc[-1]
+            n_vwap = n_day['VWAP'].iloc[-1]
+            if n_vwap > 0: nifty_dist_5m = abs(n_ltp - n_vwap) / n_vwap * 100
+
     for sym in all_display_tickers:
         df_raw = five_min_data[sym] if isinstance(five_min_data.columns, pd.MultiIndex) else five_min_data
         df_day = process_5m_data(df_raw)
@@ -577,6 +607,13 @@ if not df.empty:
             
             tag = ""
             b_score = 0
+            
+            # 🔥 ALPHA TAGS 🔥
+            alpha_tag = ""
+            if len(df_day) >= 50:
+                stock_dist_5m = abs(last_price - last_vwap) / last_vwap * 100 if last_vwap > 0 else 0
+                if stock_dist_5m > (nifty_dist_5m * 3): alpha_tag = "🚀Alpha-Mover"
+                elif stock_dist_5m > (nifty_dist_5m * 2): alpha_tag = "💪Nifty-Beater"
             
             if len(df_day) >= 50 and base_score >= 6: 
                 ema10 = df_day['EMA_10'].iloc[-1]
@@ -626,7 +663,7 @@ if not df.empty:
                         elif 0 <= d10 <= 0.3:
                             tag, b_score = "🩸10EMA-Reject", 5
 
-            bounce_tags[sym] = tag
+            bounce_tags[sym] = f"{alpha_tag} {tag}".strip()
             bounce_scores[sym] = b_score
             
             is_bullish = (net_chg > 0) and (last_price >= last_vwap)
