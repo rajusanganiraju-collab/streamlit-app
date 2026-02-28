@@ -212,12 +212,13 @@ def fetch_all_data():
             day_chg = ((ltp - open_p) / open_p) * 100
             net_chg = ((ltp - prev_c) / prev_c) * 100
             
-            pivot = (prev_h + prev_l + prev_c) / 3
-            r1 = (2 * pivot) - prev_l
-            s1 = (2 * pivot) - prev_h
-            r2 = pivot + (prev_h - prev_l)
-            s2 = pivot - (prev_h - prev_l)
-            
+            # --- 🔥 INSTITUTIONAL ATR LOGIC (Average True Range) 🔥 ---
+            high_low = df['High'] - df['Low']
+            high_prev_close = (df['High'] - df['Close'].shift(1)).abs()
+            low_prev_close = (df['Low'] - df['Close'].shift(1)).abs()
+            tr = pd.concat([high_low, high_prev_close, low_prev_close], axis=1).max(axis=1)
+            atr = tr.ewm(span=14, adjust=False).mean().iloc[-1]
+
             if 'Volume' in df.columns and not df['Volume'].isna().all() and len(df) >= 6:
                 avg_vol_5d = df['Volume'].iloc[-6:-1].mean()
                 curr_vol = float(df['Volume'].iloc[-1])
@@ -228,11 +229,16 @@ def fetch_all_data():
                 
             vwap = (high + low + ltp) / 3
             
+            # --- 🌊 IMPROVED SWING LOGIC WITH WEEKLY EMA ---
             is_swing = False
-            if len(df) >= 50:
-                ema20 = df['Close'].ewm(span=20, adjust=False).mean().iloc[-1]
-                ema50 = df['Close'].ewm(span=50, adjust=False).mean().iloc[-1]
+            if len(df) >= 100:
+                ema50_d = df['Close'].ewm(span=50, adjust=False).mean().iloc[-1]
                 
+                # Weekly EMA
+                df_w = df['Close'].resample('W').last()
+                ema20_w = df_w.ewm(span=20, adjust=False).mean().iloc[-1]
+                
+                # RSI
                 delta = df['Close'].diff()
                 gain = delta.clip(lower=0).ewm(alpha=1/14, adjust=False).mean()
                 loss = -delta.clip(upper=0).ewm(alpha=1/14, adjust=False).mean()
@@ -241,10 +247,7 @@ def fetch_all_data():
                 rsi = 100 - (100 / (1 + rs))
                 current_rsi = rsi.fillna(100).iloc[-1]
                 
-                avg_vol_10d = df['Volume'].iloc[-11:-1].mean() if len(df) >= 11 else 0
-                vol_breakout = curr_vol > (1.2 * avg_vol_10d) if avg_vol_10d > 0 else False
-                
-                if (ltp > ema50) and (ema20 > ema50) and (current_rsi >= 55) and vol_breakout and (net_chg > 0):
+                if (ltp > ema50_d) and (ltp > ema20_w) and (current_rsi >= 55) and (net_chg > 0):
                     is_swing = True
 
             score = 0
@@ -276,7 +279,7 @@ def fetch_all_data():
             results.append({
                 "Fetch_T": symbol, "T": disp_name, "P": ltp, "O": open_p, "H": high, "L": low, "Prev_C": prev_c,
                 "Day_C": day_chg, "C": net_chg, "S": score, "VolX": vol_x, "Is_Swing": is_swing,
-                "Pivot": pivot, "R1": r1, "R2": r2, "S1": s1, "S2": s2,
+                "ATR": atr,
                 "Is_Index": is_index, "Is_Sector": is_sector, "Sector": stock_sector
             })
         except: continue
@@ -403,12 +406,24 @@ def render_levels_table(df_subset, stock_trends):
         elif trend_state == 'Bearish': trend_html = "🔴 Bearish"
         else: trend_html = "⚪ Neutral"
             
+        atr_val = row.get("ATR", row["P"] * 0.02)
         if is_down:
-            sl_val, t1_val, t2_val, ext_val = row["R1"], row["S1"], row["S2"], row["R2"]
+            sl_val = row["P"] + (1.5 * atr_val)
+            t1_val = row["P"] - (1.5 * atr_val)
+            t2_val = row["P"] - (3.0 * atr_val)
+            ext_val = row["P"] - (4.5 * atr_val)
         else:
-            sl_val, t1_val, t2_val, ext_val = row["S1"], row["R1"], row["R2"], row["S2"]
+            sl_val = row["P"] - (1.5 * atr_val)
+            t1_val = row["P"] + (1.5 * atr_val)
+            t2_val = row["P"] + (3.0 * atr_val)
+            ext_val = row["P"] + (4.5 * atr_val)
+        
+        row_str = f'<tr class="{bg_class}"><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td>'
+        row_str += f'<td style="font-size:10px;">{trend_html}</td><td>{row["P"]:.2f}</td><td style="color:#8b949e;">ATR: {atr_val:.2f}</td>'
+        row_str += f'<td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td>'
+        row_str += f'<td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#8b949e;">{ext_val:.2f}</td></tr>'
+        html += row_str
             
-        html += f'<tr class="{bg_class}"><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td><td style="font-size:10px;">{trend_html}</td><td>{row["P"]:.2f}</td><td style="color:#8b949e;">{row["Pivot"]:.2f}</td><td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#8b949e;">{ext_val:.2f}</td></tr>'
     html += "</tbody></table>"
     return html
 
@@ -428,13 +443,24 @@ def render_swing_terminal_table(df_subset, stock_trends):
         if trend_state == 'Bullish': status += " 🟢Trend"
         elif trend_state == 'Bearish': status += " 🔴Trend"
         
+        # 🔥 PURE INSTITUTIONAL RISK-REWARD LOGIC 🔥
+        atr_val = row.get("ATR", row["P"] * 0.02)
         if is_down:
-            sl_val, t1_val, t2_val = row["R1"], row["S1"], row["S2"]
+            sl_val = row["P"] + (1.5 * atr_val)
+            t1_val = row["P"] - (1.5 * atr_val)
+            t2_val = row["P"] - (3.0 * atr_val)
         else:
-            sl_val, t1_val, t2_val = row["S1"], row["R1"], row["R2"]
+            sl_val = row["P"] - (1.5 * atr_val)
+            t1_val = row["P"] + (1.5 * atr_val)
+            t2_val = row["P"] + (3.0 * atr_val)
             
         rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
-        html += f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td><td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td><td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
+        row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td>'
+        row_str += f'<td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td>'
+        row_str += f'<td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td>'
+        row_str += f'<td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
+        html += row_str 
+        
     html += "</tbody></table>"
     return html
 
@@ -454,13 +480,23 @@ def render_highscore_terminal_table(df_subset, stock_trends):
         if trend_state == 'Bullish': status += " 🟢Trend"
         elif trend_state == 'Bearish': status += " 🔴Trend"
         
+        # 🔥 PURE INSTITUTIONAL RISK-REWARD LOGIC 🔥
+        atr_val = row.get("ATR", row["P"] * 0.02)
         if is_down:
-            sl_val, t1_val, t2_val = row["R1"], row["S1"], row["S2"]
+            sl_val = row["P"] + (1.5 * atr_val)
+            t1_val = row["P"] - (1.5 * atr_val)
+            t2_val = row["P"] - (3.0 * atr_val)
         else:
-            sl_val, t1_val, t2_val = row["S1"], row["R1"], row["R2"]
+            sl_val = row["P"] - (1.5 * atr_val)
+            t1_val = row["P"] + (1.5 * atr_val)
+            t2_val = row["P"] + (3.0 * atr_val)
             
         rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
-        html += f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td><td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td><td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
+        row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td>'
+        row_str += f'<td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td>'
+        row_str += f'<td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td>'
+        row_str += f'<td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
+        html += row_str
     html += "</tbody></table>"
     return html
 
