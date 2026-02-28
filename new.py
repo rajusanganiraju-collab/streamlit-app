@@ -28,22 +28,34 @@ def toggle_pin(symbol):
 # --- PORTFOLIO FILE SETUP ---
 PORTFOLIO_FILE = "my_portfolio.csv"
 def load_portfolio():
+    # 🔥 మీ కైట్ పోర్ట్‌ఫోలియో డేటా ఇక్కడ శాశ్వతంగా ఫిక్స్ చేశాను 🔥
+    default_data = [
+        {"Symbol": "APLAPOLLO", "Buy_Price": 2262.20, "Quantity": 1, "Date": "-"},
+        {"Symbol": "CGPOWER", "Buy_Price": 667.00, "Quantity": 10, "Date": "-"},
+        {"Symbol": "HDFCBANK", "Buy_Price": 949.27, "Quantity": 4, "Date": "-"},
+        {"Symbol": "ITC", "Buy_Price": 310.35, "Quantity": 20, "Date": "-"},
+        {"Symbol": "KALYANKJIL", "Buy_Price": 437.18, "Quantity": 11, "Date": "-"},
+        {"Symbol": "KPRMILL", "Buy_Price": 979.00, "Quantity": 1, "Date": "-"},
+        {"Symbol": "VBL", "Buy_Price": 438.30, "Quantity": 5, "Date": "-"},
+        {"Symbol": "ZYDUSLIFE", "Buy_Price": 905.70, "Quantity": 2, "Date": "-"}
+    ]
+    default_df = pd.DataFrame(default_data)
+
     if os.path.exists(PORTFOLIO_FILE):
-        df = pd.read_csv(PORTFOLIO_FILE)
-        if not df.empty:
-            df['Quantity'] = pd.to_numeric(df['Quantity'], errors='coerce').fillna(1).astype(int)
-            df['Buy_Price'] = pd.to_numeric(df['Buy_Price'], errors='coerce').fillna(0.0).astype(float)
-            df['Symbol'] = df['Symbol'].astype(str).replace('nan', '')
-            df['Date'] = df['Date'].astype(str).replace('nan', '')
-        else:
-            df['Quantity'] = pd.Series(dtype=int)
-            df['Buy_Price'] = pd.Series(dtype=float)
-        return df
-    else:
-        df = pd.DataFrame(columns=["Symbol", "Buy_Price", "Quantity", "Date"])
-        df['Quantity'] = df['Quantity'].astype(int)
-        df['Buy_Price'] = df['Buy_Price'].astype(float)
-        return df
+        try:
+            df = pd.read_csv(PORTFOLIO_FILE)
+            if not df.empty:
+                df['Quantity'] = pd.to_numeric(df['Quantity'], errors='coerce').fillna(1).astype(int)
+                df['Buy_Price'] = pd.to_numeric(df['Buy_Price'], errors='coerce').fillna(0.0).astype(float)
+                df['Symbol'] = df['Symbol'].astype(str).replace('nan', '')
+                df['Date'] = df['Date'].astype(str).replace('nan', '')
+                return df
+        except:
+            pass
+            
+    # సర్వర్ ఫైల్ డిలీట్ చేస్తే, వెంటనే ఈ డిఫాల్ట్ లిస్ట్ ని లోడ్ చేస్తుంది
+    default_df.to_csv(PORTFOLIO_FILE, index=False)
+    return default_df
 
 def save_portfolio(df_port):
     df_port.to_csv(PORTFOLIO_FILE, index=False)
@@ -637,15 +649,32 @@ if not df.empty:
         df_filtered = df_filtered[df_filtered['Fetch_T'].apply(lambda x: stock_trends.get(x) == st.session_state.trend_filter)]
 
     # SORTING LOGIC 
-    if sort_mode == "% Change Up 🟢": df_stocks_display = df_filtered.sort_values(by="C", ascending=False)
-    elif sort_mode == "% Change Down 🔴": df_stocks_display = df_filtered.sort_values(by="C", ascending=True)
-    elif sort_mode == "Heatmap Marks Up ⭐": df_stocks_display = pd.concat([df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False]), df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[False, True])])
-    elif sort_mode == "Heatmap Marks Down ⬇️": df_stocks_display = pd.concat([df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[False, True]), df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False])])
+    if sort_mode == "% Change Up 🟢": 
+        df_stocks_display = df_filtered.sort_values(by="C", ascending=False)
+    elif sort_mode == "% Change Down 🔴": 
+        df_stocks_display = df_filtered.sort_values(by="C", ascending=True)
+    elif sort_mode == "Heatmap Marks Up ⭐": 
+        df_stocks_display = pd.concat([
+            df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False]), 
+            df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[False, True])
+        ])
+    elif sort_mode == "Heatmap Marks Down ⬇️": 
+        df_stocks_display = pd.concat([
+            df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[False, True]), 
+            df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False])
+        ])
     else:
-        if st.session_state.trend_filter == 'Bullish': df_stocks_display = df_filtered.sort_values(by=["S", "C"], ascending=[False, False])
-        elif st.session_state.trend_filter == 'Bearish': df_stocks_display = df_filtered.sort_values(by=["S", "C"], ascending=[False, True])
-        elif st.session_state.trend_filter == 'Neutral': df_stocks_display = df_filtered.sort_values(by=["S", "C"], ascending=[False, False])
-        else: df_stocks_display = pd.concat([df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False]), df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[True, True])])
+        if st.session_state.trend_filter == 'Bullish': 
+            df_stocks_display = df_filtered.sort_values(by=["S", "C"], ascending=[False, False])
+        elif st.session_state.trend_filter == 'Bearish': 
+            df_stocks_display = df_filtered.sort_values(by=["S", "C"], ascending=[False, True])
+        elif st.session_state.trend_filter == 'Neutral': 
+            df_stocks_display = df_filtered.sort_values(by=["S", "C"], ascending=[False, False])
+        else: 
+            df_stocks_display = pd.concat([
+                df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False]), 
+                df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[True, True])
+            ])
 
     # --- RENDER VIEWS ---
     
