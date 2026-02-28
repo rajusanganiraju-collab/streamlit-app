@@ -25,25 +25,38 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- PORTFOLIO FILE SETUP ---
+# --- PORTFOLIO FILE SETUP (HARDCODED FOR CLOUD SAFETY) ---
 PORTFOLIO_FILE = "my_portfolio.csv"
+
 def load_portfolio():
+    # 🔥 PERMANENT HARDCODED PORTFOLIO (Zerodha Data) 🔥
+    default_data = [
+        {"Symbol": "APLAPOLLO", "Buy_Price": 2262.20, "Quantity": 1, "Date": "-"},
+        {"Symbol": "CGPOWER", "Buy_Price": 667.00, "Quantity": 10, "Date": "-"},
+        {"Symbol": "HDFCBANK", "Buy_Price": 949.27, "Quantity": 4, "Date": "-"},
+        {"Symbol": "ITC", "Buy_Price": 310.35, "Quantity": 20, "Date": "-"},
+        {"Symbol": "KALYANKJIL", "Buy_Price": 437.18, "Quantity": 11, "Date": "-"},
+        {"Symbol": "KPRMILL", "Buy_Price": 979.00, "Quantity": 1, "Date": "-"},
+        {"Symbol": "VBL", "Buy_Price": 438.30, "Quantity": 5, "Date": "-"},
+        {"Symbol": "ZYDUSLIFE", "Buy_Price": 905.70, "Quantity": 2, "Date": "-"}
+    ]
+    default_df = pd.DataFrame(default_data)
+
     if os.path.exists(PORTFOLIO_FILE):
-        df = pd.read_csv(PORTFOLIO_FILE)
-        if not df.empty:
-            df['Quantity'] = pd.to_numeric(df['Quantity'], errors='coerce').fillna(1).astype(int)
-            df['Buy_Price'] = pd.to_numeric(df['Buy_Price'], errors='coerce').fillna(0.0).astype(float)
-            df['Symbol'] = df['Symbol'].astype(str).replace('nan', '')
-            df['Date'] = df['Date'].astype(str).replace('nan', '')
-        else:
-            df['Quantity'] = pd.Series(dtype=int)
-            df['Buy_Price'] = pd.Series(dtype=float)
-        return df
-    else:
-        df = pd.DataFrame(columns=["Symbol", "Buy_Price", "Quantity", "Date"])
-        df['Quantity'] = df['Quantity'].astype(int)
-        df['Buy_Price'] = df['Buy_Price'].astype(float)
-        return df
+        try:
+            df = pd.read_csv(PORTFOLIO_FILE)
+            if not df.empty:
+                df['Quantity'] = pd.to_numeric(df['Quantity'], errors='coerce').fillna(1).astype(int)
+                df['Buy_Price'] = pd.to_numeric(df['Buy_Price'], errors='coerce').fillna(0.0).astype(float)
+                df['Symbol'] = df['Symbol'].astype(str).replace('nan', '')
+                df['Date'] = df['Date'].astype(str).replace('nan', '')
+                return df
+        except:
+            pass
+            
+    # If file doesn't exist (Server Reset), restore from Hardcoded list
+    default_df.to_csv(PORTFOLIO_FILE, index=False)
+    return default_df
 
 def save_portfolio(df_port):
     df_port.to_csv(PORTFOLIO_FILE, index=False)
@@ -73,7 +86,6 @@ st.markdown("""
         flex: 1 1 0px !important; min-width: 0 !important; width: 100% !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button { width: 100% !important; height: 38px !important; padding: 0px !important; }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) div.stButton > button p { font-size: clamp(9px, 2.5vw, 13px) !important; white-space: nowrap !important; margin: 0 !important; }
     
     /* FLUID GRID FOR CHARTS */
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { display: grid !important; gap: 12px !important; align-items: start !important; }
@@ -88,12 +100,7 @@ st.markdown("""
         background-color: #161b22 !important; border: 1px solid #30363d !important; border-radius: 8px !important;
         padding: 8px 5px 5px 5px !important; position: relative !important; width: 100% !important;
     }
-
-    div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] div[data-testid="stCheckbox"] {
-        position: absolute !important; top: 8px !important; left: 10px !important; z-index: 100 !important;
-    }
-    div[data-testid="stCheckbox"] label { padding: 0 !important; min-height: 0 !important; }
-    div.stButton > button { border-radius: 8px !important; border: 1px solid #30363d !important; background-color: #161b22 !important; height: 45px !important; }
+    div[data-testid="stCheckbox"] { position: absolute !important; top: 8px !important; left: 10px !important; z-index: 100 !important; }
     
     /* Heatmap Layout */
     .heatmap-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 8px; padding: 5px 0; }
@@ -107,7 +114,7 @@ st.markdown("""
     @media screen and (max-width: 600px) { .heatmap-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; } .stock-card { height: 95px; } .t-name { font-size: 12px; } .t-price { font-size: 16px; } .t-pct { font-size: 11px; } }
     .custom-hr { border: 0; height: 1px; background: #30363d; margin: 15px 0; }
 
-    /* 🔥 TERMINAL & PORTFOLIO TABLE STYLES 🔥 */
+    /* TERMINAL & PORTFOLIO TABLE STYLES */
     .term-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-family: monospace; font-size: 11.5px; color: #e6edf3; background-color: #0e1117; table-layout: fixed; }
     .term-table th { padding: 6px 4px; text-align: center; border: 1px solid #30363d; font-weight: bold; overflow: hidden; }
     .term-table td { padding: 6px 4px; text-align: center; border: 1px solid #30363d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -184,8 +191,7 @@ def fetch_all_data():
                 n_vwap = (float(n_df['High'].iloc[-1]) + float(n_df['Low'].iloc[-1]) + n_ltp) / 3
                 if n_vwap > 0:
                     nifty_dist = abs(n_ltp - n_vwap) / n_vwap * 100
-        except:
-            pass
+        except: pass
 
     for symbol in data.columns.levels[0]:
         try:
@@ -223,15 +229,12 @@ def fetch_all_data():
             if len(df) >= 50:
                 ema20 = df['Close'].ewm(span=20, adjust=False).mean().iloc[-1]
                 ema50 = df['Close'].ewm(span=50, adjust=False).mean().iloc[-1]
-                ema200 = df['Close'].ewm(span=200, adjust=False).mean().iloc[-1] if len(df) >= 200 else 0
                 
                 delta = df['Close'].diff()
                 gain = delta.clip(lower=0).ewm(alpha=1/14, adjust=False).mean()
-                loss = -delta.clip(upper=0).ewm(alpha=1/14, adjust=False).mean()
-                loss = loss.replace(0, np.nan)
+                loss = -delta.clip(upper=0).ewm(alpha=1/14, adjust=False).mean().replace(0, np.nan)
                 rs = gain / loss
-                rsi = 100 - (100 / (1 + rs))
-                current_rsi = rsi.fillna(100).iloc[-1]
+                current_rsi = (100 - (100 / (1 + rs))).fillna(100).iloc[-1]
                 
                 avg_vol_10d = df['Volume'].iloc[-11:-1].mean() if len(df) >= 11 else 0
                 vol_breakout = curr_vol > (1.2 * avg_vol_10d) if avg_vol_10d > 0 else False
@@ -243,10 +246,8 @@ def fetch_all_data():
             
             # 🔥 PURE ALPHA LOGIC 🔥
             stock_dist = abs(ltp - vwap) / vwap * 100 if vwap > 0 else 0
-            if stock_dist > (nifty_dist * 3):
-                score += 5
-            elif stock_dist > (nifty_dist * 2):
-                score += 3
+            if stock_dist > (nifty_dist * 3): score += 5
+            elif stock_dist > (nifty_dist * 2): score += 3
             
             if abs(open_p - low) <= (ltp * 0.003) or abs(open_p - high) <= (ltp * 0.003): score += 3 
             if vol_x > 1.0: score += 3 
@@ -278,9 +279,7 @@ def process_5m_data(df_raw):
         df_s = df_raw.dropna(subset=['Close']).copy()
         if df_s.empty: return pd.DataFrame()
         
-        # Kept EMA 10 only for chart plotting, removed other EMAs as bounce logic is gone
         df_s['EMA_10'] = df_s['Close'].ewm(span=10, adjust=False).mean()
-        
         df_s.index = pd.to_datetime(df_s.index)
         df_day = df_s[df_s.index.date == df_s.index.date.max()].copy()
         
@@ -300,11 +299,7 @@ def generate_status(row):
     if row['VolX'] > 1.2: status += "VOL🟢 "
     if abs(row['O'] - row['L']) < (p * 0.002): status += "O=L🔥 "
     if abs(row['O'] - row['H']) < (p * 0.002): status += "O=H🩸 "
-    
-    # Using the same column name to inject Alpha Tags
-    if 'AlphaTag' in row and row['AlphaTag']:
-        status += f"{row['AlphaTag']} "
-    
+    if 'AlphaTag' in row and row['AlphaTag']: status += f"{row['AlphaTag']} "
     if row['C'] > 0 and row['Day_C'] > 0 and row['VolX'] > 1: status += "Rec ⇈ "
     return status.strip()
 
@@ -325,9 +320,7 @@ def render_portfolio_table(df_port, df_stocks, stock_trends):
     
     html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-port">💼 LIVE PORTFOLIO TERMINAL</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:11%;">STOCK</th><th style="width:9%;">DATE</th><th style="width:6%;">QTY</th><th style="width:8%;">AVG</th><th style="width:8%;">LTP</th><th style="width:10%;">TREND</th><th style="width:18%;">STATUS</th><th style="width:10%;">DAY P&L</th><th style="width:10%;">TOT P&L</th><th style="width:10%;">P&L %</th></tr></thead><tbody>'
     
-    total_invested = 0
-    total_current = 0
-    total_day_pnl = 0
+    total_invested, total_current, total_day_pnl = 0, 0, 0
     
     for i, (_, row) in enumerate(df_port.iterrows()):
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
@@ -341,22 +334,19 @@ def render_portfolio_table(df_port, df_stocks, stock_trends):
         if date_val == 'nan' or date_val == 'NaN' or date_val == '': date_val = '-'
         
         live_row = df_stocks[df_stocks['T'] == sym]
-        status_html = ""
-        trend_html = "➖"
+        status_html, trend_html = "", "➖"
         
         if not live_row.empty:
             ltp = float(live_row['P'].iloc[0])
             prev_c = float(live_row['Prev_C'].iloc[0])
             status_html = generate_status(live_row.iloc[0])
-            
             fetch_t = live_row['Fetch_T'].iloc[0]
             trend_state = stock_trends.get(fetch_t, "Neutral")
             if trend_state == 'Bullish': trend_html = "🟢 Bullish"
             elif trend_state == 'Bearish': trend_html = "🔴 Bearish"
             else: trend_html = "⚪ Neutral"
         else:
-            ltp = buy_p
-            prev_c = buy_p
+            ltp, prev_c = buy_p, buy_p
             status_html = "Search Error"
             
         invested = buy_p * qty
@@ -392,7 +382,6 @@ def render_levels_table(df_subset, stock_trends):
     html = f'<table class="term-table"><thead><tr><th colspan="8" class="term-head-levels">🎯 TRADING LEVELS (TARGETS & STOP LOSS)</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:15%;">STOCK</th><th style="width:10%;">TREND</th><th style="width:12%;">LTP</th><th style="width:12%;">PIVOT</th><th style="width:12%; color:#f85149;">STOP LOSS</th><th style="width:12%; color:#3fb950;">TARGET 1</th><th style="width:12%; color:#3fb950;">TARGET 2</th><th style="width:15%;">EXTREME TGT/SL</th></tr></thead><tbody>'
     for i, (_, row) in enumerate(df_subset.iterrows()):
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
-        
         trend_state = stock_trends.get(row['Fetch_T'], "Neutral")
         is_down = trend_state == 'Bearish' or (trend_state == 'Neutral' and row['C'] < 0)
         
@@ -400,10 +389,8 @@ def render_levels_table(df_subset, stock_trends):
         elif trend_state == 'Bearish': trend_html = "🔴 Bearish"
         else: trend_html = "⚪ Neutral"
             
-        if is_down:
-            sl_val, t1_val, t2_val, ext_val = row["R1"], row["S1"], row["S2"], row["R2"]
-        else:
-            sl_val, t1_val, t2_val, ext_val = row["S1"], row["R1"], row["R2"], row["S2"]
+        if is_down: sl_val, t1_val, t2_val, ext_val = row["R1"], row["S1"], row["S2"], row["R2"]
+        else: sl_val, t1_val, t2_val, ext_val = row["S1"], row["R1"], row["R2"], row["S2"]
             
         html += f'<tr class="{bg_class}"><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td><td style="font-size:10px;">{trend_html}</td><td>{row["P"]:.2f}</td><td style="color:#8b949e;">{row["Pivot"]:.2f}</td><td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#8b949e;">{ext_val:.2f}</td></tr>'
     html += "</tbody></table>"
@@ -418,17 +405,14 @@ def render_swing_terminal_table(df_subset, stock_trends):
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
         day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
         status = generate_status(row)
-        
         trend_state = stock_trends.get(row['Fetch_T'], "Neutral")
         is_down = trend_state == 'Bearish' or (trend_state == 'Neutral' and row['C'] < 0)
         
         if trend_state == 'Bullish': status += " 🟢Trend"
         elif trend_state == 'Bearish': status += " 🔴Trend"
         
-        if is_down:
-            sl_val, t1_val, t2_val = row["R1"], row["S1"], row["S2"]
-        else:
-            sl_val, t1_val, t2_val = row["S1"], row["R1"], row["R2"]
+        if is_down: sl_val, t1_val, t2_val = row["R1"], row["S1"], row["S2"]
+        else: sl_val, t1_val, t2_val = row["S1"], row["R1"], row["R2"]
             
         rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
         html += f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td><td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td><td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
@@ -444,17 +428,14 @@ def render_highscore_terminal_table(df_subset, stock_trends):
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
         day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
         status = generate_status(row)
-        
         trend_state = stock_trends.get(row['Fetch_T'], "Neutral")
         is_down = trend_state == 'Bearish' or (trend_state == 'Neutral' and row['C'] < 0)
         
         if trend_state == 'Bullish': status += " 🟢Trend"
         elif trend_state == 'Bearish': status += " 🔴Trend"
         
-        if is_down:
-            sl_val, t1_val, t2_val = row["R1"], row["S1"], row["S2"]
-        else:
-            sl_val, t1_val, t2_val = row["S1"], row["R1"], row["R2"]
+        if is_down: sl_val, t1_val, t2_val = row["R1"], row["S1"], row["S2"]
+        else: sl_val, t1_val, t2_val = row["S1"], row["R1"], row["R2"]
             
         rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
         html += f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td><td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td><td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
@@ -536,12 +517,8 @@ if not df.empty:
     sector_perf = df_nifty.groupby('Sector')['C'].mean().sort_values(ascending=False)
     valid_sectors = [s for s in sector_perf.index if s != "OTHER"]
     
-    if valid_sectors:
-        top_buy_sector = valid_sectors[0]
-        top_sell_sector = valid_sectors[-1]
-    else:
-        top_buy_sector = "PHARMA" 
-        top_sell_sector = "IT" 
+    if valid_sectors: top_buy_sector, top_sell_sector = valid_sectors[0], valid_sectors[-1]
+    else: top_buy_sector, top_sell_sector = "PHARMA", "IT" 
         
     df_buy_sector = df_nifty[df_nifty['Sector'] == top_buy_sector].sort_values(by=['S', 'C'], ascending=[False, False])
     df_sell_sector = df_nifty[df_nifty['Sector'] == top_sell_sector].sort_values(by=['S', 'C'], ascending=[False, True])
@@ -550,21 +527,16 @@ if not df.empty:
 
     df_port_saved = load_portfolio()
 
-    # Watchlist Filtering
     if watchlist_mode == "Terminal Tables 🗃️":
         terminal_tickers = pd.concat([df_buy_sector, df_sell_sector, df_independent, df_broader])['Fetch_T'].unique().tolist()
         df_filtered = df_stocks[df_stocks['Fetch_T'].isin(terminal_tickers)]
     elif watchlist_mode == "My Portfolio 💼":
         port_tickers = [f"{str(sym).upper().strip()}.NS" for sym in df_port_saved['Symbol'].tolist() if str(sym).strip() != ""]
         df_filtered = df_stocks[df_stocks['Fetch_T'].isin(port_tickers)]
-    elif watchlist_mode == "Nifty 50 Heatmap":
-        df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
-    elif watchlist_mode == "One Sided Moves 🚀":
-        df_filtered = df_stocks[df_stocks['C'].abs() >= 1.0]
-    elif watchlist_mode == "Swing Trading 📈":
-        df_filtered = df_stocks[df_stocks['Is_Swing'] == True]
-    else:
-        df_filtered = df_stocks[(df_stocks['S'] >= 7) & (df_stocks['S'] <= 10)]
+    elif watchlist_mode == "Nifty 50 Heatmap": df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
+    elif watchlist_mode == "One Sided Moves 🚀": df_filtered = df_stocks[df_stocks['C'].abs() >= 1.0]
+    elif watchlist_mode == "Swing Trading 📈": df_filtered = df_stocks[df_stocks['Is_Swing'] == True]
+    else: df_filtered = df_stocks[(df_stocks['S'] >= 7) & (df_stocks['S'] <= 10)]
 
     all_display_tickers = list(set(df_indices['Fetch_T'].tolist() + df_filtered['Fetch_T'].tolist() + st.session_state.pinned_stocks))
     
@@ -579,7 +551,6 @@ if not df.empty:
     stock_trends = {}
     alpha_tags = {}
 
-    # 🔥 NIFTY 5M DISTANCE FOR TAGS 🔥
     nifty_dist_5m = 0.1
     if "^NSEI" in five_min_data.columns.levels[0]:
         n_raw = five_min_data["^NSEI"] if isinstance(five_min_data.columns, pd.MultiIndex) else five_min_data
@@ -599,7 +570,6 @@ if not df.empty:
             last_vwap = df_day['VWAP'].iloc[-1]
             net_chg = df[df['Fetch_T'] == sym]['C'].iloc[0]
             
-            # 🔥 PURE ALPHA TAGS ONLY (No Bounce logic) 🔥
             alpha_tag = ""
             if len(df_day) >= 50:
                 stock_dist_5m = abs(last_price - last_vwap) / last_vwap * 100 if last_vwap > 0 else 0
@@ -617,7 +587,6 @@ if not df.empty:
 
     if not df_filtered.empty:
         df_filtered['AlphaTag'] = df_filtered['Fetch_T'].map(alpha_tags).fillna("")
-        # Score is already finalized in fetch_all_data, no need to add any bounce scores!
 
     bull_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bullish')
     bear_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bearish')
@@ -639,174 +608,4 @@ if not df.empty:
     # SORTING LOGIC 
     if sort_mode == "% Change Up 🟢": df_stocks_display = df_filtered.sort_values(by="C", ascending=False)
     elif sort_mode == "% Change Down 🔴": df_stocks_display = df_filtered.sort_values(by="C", ascending=True)
-    elif sort_mode == "Heatmap Marks Up ⭐": df_stocks_display = pd.concat([df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False]), df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[False, True])])
-    elif sort_mode == "Heatmap Marks Down ⬇️": df_stocks_display = pd.concat([df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[False, True]), df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False])])
-    else:
-        if st.session_state.trend_filter == 'Bullish': df_stocks_display = df_filtered.sort_values(by=["S", "C"], ascending=[False, False])
-        elif st.session_state.trend_filter == 'Bearish': df_stocks_display = df_filtered.sort_values(by=["S", "C"], ascending=[False, True])
-        elif st.session_state.trend_filter == 'Neutral': df_stocks_display = df_filtered.sort_values(by=["S", "C"], ascending=[False, False])
-        else: df_stocks_display = pd.concat([df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False]), df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C"], ascending=[True, True])])
-
-    # --- RENDER VIEWS ---
-    
-    # 1. TERMINAL VIEW
-    if watchlist_mode == "Terminal Tables 🗃️" and view_mode == "Heat Map":
-        st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>🗃️ Professional Terminal View</div>", unsafe_allow_html=True)
-        
-        if st.session_state.trend_filter != 'All':
-            df_buy_sector = df_buy_sector[df_buy_sector['Fetch_T'].isin(df_filtered['Fetch_T'])]
-            df_sell_sector = df_sell_sector[df_sell_sector['Fetch_T'].isin(df_filtered['Fetch_T'])]
-            df_independent = df_independent[df_independent['Fetch_T'].isin(df_filtered['Fetch_T'])]
-            df_broader = df_broader[df_broader['Fetch_T'].isin(df_filtered['Fetch_T'])]
-
-        st.markdown(render_html_table(df_buy_sector, f"🚀 BUY LEADER: {top_buy_sector}", "term-head-buy"), unsafe_allow_html=True)
-        st.markdown(render_html_table(df_sell_sector, f"🩸 SELL LAGGARD: {top_sell_sector}", "term-head-sell"), unsafe_allow_html=True)
-        st.markdown(render_html_table(df_independent, "🌟 INDEPENDENT MOVERS", "term-head-ind"), unsafe_allow_html=True)
-        st.markdown(render_html_table(df_broader, "🌌 BROADER MARKET", "term-head-brd"), unsafe_allow_html=True)
-
-    # 2. PORTFOLIO VIEW
-    elif watchlist_mode == "My Portfolio 💼" and view_mode == "Heat Map":
-        st.markdown(render_portfolio_table(df_port_saved, df_stocks, stock_trends), unsafe_allow_html=True)
-        st.markdown("<br>", unsafe_allow_html=True)
-        
-        with st.expander("➕ Search & Add Stock to Portfolio", expanded=False):
-            with st.form("portfolio_add_form", clear_on_submit=True):
-                c1, c2, c3, c4, c5 = st.columns([2.5, 1.5, 2, 2, 2])
-                with c1:
-                    new_sym = st.text_input("🔍 NSE Symbol (e.g. itc)", placeholder="Type Symbol...").upper().strip()
-                with c2:
-                    new_qty = st.number_input("📦 Quantity", min_value=1, value=10)
-                with c3:
-                    new_price = st.number_input("💰 Buy Price (₹)", min_value=0.0, value=100.0)
-                with c4:
-                    new_date = st.date_input("📅 Purchase Date")
-                with c5:
-                    st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-                    submit_btn = st.form_submit_button("➕ Verify & Add", use_container_width=True)
-
-            if submit_btn:
-                if new_sym:
-                    with st.spinner(f"Searching NSE for {new_sym}..."):
-                        chk_data = yf.download(f"{new_sym}.NS", period="1d", progress=False)
-                        if chk_data.empty:
-                            st.error(f"❌ '{new_sym}' not found in NSE! Please check the spelling.")
-                        else:
-                            new_date_str = new_date.strftime("%d-%b-%Y")
-                            if new_sym in df_port_saved['Symbol'].values:
-                                df_port_saved.loc[df_port_saved['Symbol'] == new_sym, ['Buy_Price', 'Quantity', 'Date']] = [new_price, new_qty, new_date_str]
-                            else:
-                                new_row = pd.DataFrame({"Symbol": [new_sym], "Buy_Price": [new_price], "Quantity": [new_qty], "Date": [new_date_str]})
-                                df_port_saved = pd.concat([df_port_saved, new_row], ignore_index=True)
-                            save_portfolio(df_port_saved)
-                            fetch_all_data.clear()
-                            st.rerun()
-                else:
-                    st.warning("Type a symbol first!")
-        
-        if not df_port_saved.empty:
-            with st.expander("✏️ Edit Existing Holdings (Qty, Price, Date)", expanded=False):
-                st.markdown("<p style='font-size:12px; color:#888;'><i>Modify your Buy Price, Quantity, or Date directly in the table below and click Save.</i></p>", unsafe_allow_html=True)
-                edited_df = st.data_editor(
-                    df_port_saved, 
-                    use_container_width=True,
-                    hide_index=True,
-                    column_config={
-                        "Symbol": st.column_config.TextColumn("Stock Symbol", disabled=True),
-                        "Quantity": st.column_config.NumberColumn("Quantity", min_value=1, step=1),
-                        "Buy_Price": st.column_config.NumberColumn("Buy Average (₹)", min_value=0.0, format="%.2f"),
-                        "Date": st.column_config.TextColumn("Purchase Date")
-                    }
-                )
-                if st.button("💾 Save Edited Changes", use_container_width=True):
-                    save_portfolio(edited_df)
-                    fetch_all_data.clear()
-                    st.rerun()
-
-        if not df_port_saved.empty:
-            with st.expander("🗑️ Remove Stock from Portfolio", expanded=False):
-                with st.form("portfolio_remove_form"):
-                    rc1, rc2, rc3 = st.columns([3, 2, 5])
-                    with rc1:
-                        del_sym = st.selectbox("Select Stock to Remove", ["-- Select --"] + df_port_saved['Symbol'].tolist(), label_visibility="collapsed")
-                    with rc2:
-                        remove_btn = st.form_submit_button("❌ Remove", use_container_width=True)
-                    with rc3:
-                        pass
-                    if remove_btn and del_sym != "-- Select --":
-                        df_port_saved = df_port_saved[df_port_saved['Symbol'] != del_sym]
-                        save_portfolio(df_port_saved)
-                        fetch_all_data.clear()
-                        st.rerun()
-
-    # 3. REGULAR HEATMAP VIEW + NEW RANKED TABLES
-    elif view_mode == "Heat Map":
-        if not df_indices.empty:
-            html_idx = '<div class="heatmap-grid">'
-            for _, row in df_indices.iterrows():
-                bg = "bear-card" if (row['T'] == "INDIA VIX" and row['C'] > 0) else ("bull-card" if row['C'] > 0 else "neut-card")
-                if row['T'] != "INDIA VIX" and row['C'] < 0: bg = "bear-card"
-                html_idx += f'<a href="https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(row["Fetch_T"])}" target="_blank" class="stock-card {bg}"><div class="t-score">IDX</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if row["C"]>0 else ""}{row["C"]:.2f}%</div></a>'
-            st.markdown(html_idx + '</div><hr class="custom-hr">', unsafe_allow_html=True)
-        
-        if not df_sectors.empty:
-            html_sec = '<div class="heatmap-grid">'
-            for _, row in df_sectors.iterrows():
-                bg = "bull-card" if row['C'] > 0 else ("bear-card" if row['C'] < 0 else "neut-card")
-                html_sec += f'<a href="https://in.tradingview.com/chart/?symbol={TV_SECTOR_URL.get(row["Fetch_T"], "")}" target="_blank" class="stock-card {bg}"><div class="t-score" style="color:#00BFFF;">SEC</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if row["C"]>0 else ""}{row["C"]:.2f}%</div></a>'
-            st.markdown(html_sec + '</div><hr class="custom-hr">', unsafe_allow_html=True)
-
-        if not df_stocks_display.empty:
-            html_stk = '<div class="heatmap-grid">'
-            for _, row in df_stocks_display.iterrows():
-                bg = "bull-card" if row['C'] > 0 else ("bear-card" if row['C'] < 0 else "neut-card")
-                
-                if watchlist_mode == "Swing Trading 📈": special_icon = "🌊"
-                elif watchlist_mode == "One Sided Moves 🚀": special_icon = "🚀"
-                else: special_icon = f"⭐{int(row['S'])}"
-                
-                html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">{special_icon}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if row["C"]>0 else ""}{row["C"]:.2f}%</div></a>'
-            st.markdown(html_stk + '</div>', unsafe_allow_html=True)
-            
-            st.markdown("<br>", unsafe_allow_html=True)
-            
-            # 🔥 THE NEW TOGGLES FOR HIGH SCORE AND SWING 🔥
-            if watchlist_mode == "Swing Trading 📈":
-                with st.expander("🌊 View Swing Trading Radar (Ranked Table)", expanded=True):
-                    st.markdown(render_swing_terminal_table(df_stocks_display, stock_trends), unsafe_allow_html=True)
-            
-            elif watchlist_mode == "High Score Stocks 🔥":
-                with st.expander("🔥 View High Score Radar (Ranked Intraday Table)", expanded=True):
-                    st.markdown(render_highscore_terminal_table(df_stocks_display, stock_trends), unsafe_allow_html=True)
-            
-            else:
-                with st.expander("🎯 View Trading Levels (Targets & Stop Loss)", expanded=True):
-                    st.markdown(render_levels_table(df_stocks_display, stock_trends), unsafe_allow_html=True)
-                
-        else: st.info(f"No {st.session_state.trend_filter} stocks found.")
-            
-    else: # CHART VIEW
-        st.markdown("<br>", unsafe_allow_html=True)
-        
-        if search_stock != "-- None --":
-            st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:5px; color:#ffd700;'>🔍 Searched Chart: {search_stock}</div>", unsafe_allow_html=True)
-            render_chart_grid(pd.DataFrame([df[df['T'] == search_stock].iloc[0]]), show_pin_option=True, key_prefix="search")
-            st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
-        
-        if watchlist_mode not in ["Terminal Tables 🗃️", "My Portfolio 💼"]:
-            st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>📈 Market Indices</div>", unsafe_allow_html=True)
-            render_chart_grid(df_indices, show_pin_option=False, key_prefix="idx")
-            st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
-        
-        pinned_df = df[df['Fetch_T'].isin(st.session_state.pinned_stocks)].copy()
-        unpinned_df = df_stocks_display[~df_stocks_display['Fetch_T'].isin(pinned_df['Fetch_T'].tolist())]
-        
-        if not pinned_df.empty:
-            st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#ffd700;'>📌 Pinned Priority Charts</div>", unsafe_allow_html=True)
-            render_chart_grid(pinned_df, show_pin_option=True, key_prefix="pin")
-            st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
-        
-        if not unpinned_df.empty:
-            st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>{watchlist_mode} ({st.session_state.trend_filter})</div>", unsafe_allow_html=True)
-            render_chart_grid(unpinned_df, show_pin_option=True, key_prefix="main")
-
-else: st.info("Loading Market Data...")
+    elif sort_mode == "Heatmap Marks Up ⭐": df_stocks_display = pd.concat([df_filtered[df_filtered['C'] >= 0].sort_values(by=["S", "C"], ascending=[False, False]), df_filtered[df_filtered['C'] < 0].sort_values(by=["S", "C
