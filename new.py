@@ -308,14 +308,19 @@ def process_5m_data(df_raw):
 def generate_status(row):
     status = ""
     p = row['P']
-    if row['VolX'] > 1.2: status += "VOL🟢 "
-    if abs(row['O'] - row['L']) < (p * 0.002): status += "O=L🔥 "
-    if abs(row['O'] - row['H']) < (p * 0.002): status += "O=H🩸 "
     
+    # 1. అత్యంత ముఖ్యమైన ట్యాగ్స్ ముందు రావాలి 
     if 'AlphaTag' in row and row['AlphaTag']:
         status += f"{row['AlphaTag']} "
+        
+    # 2. ప్రైస్ యాక్షన్ 
+    if abs(row['O'] - row['L']) < (p * 0.002): status += "O=L🔥 "
+    if abs(row['O'] - row['H']) < (p * 0.002): status += "O=H🩸 "
+    if row['C'] > 0 and row['Day_C'] > 0 and row['VolX'] > 1.5: status += "Rec⇈ "
     
-    if row['C'] > 0 and row['Day_C'] > 0 and row['VolX'] > 1: status += "Rec ⇈ "
+    # 3. వాల్యూమ్ కాలమ్ ఆల్రెడీ ఉంది కాబట్టి, దీన్ని లాస్ట్ లో పెడుతున్నాం 
+    if row['VolX'] > 1.5: status += "VOL🟢 "
+    
     return status.strip()
 
 def render_html_table(df_subset, title, color_class):
@@ -455,8 +460,9 @@ def render_swing_terminal_table(df_subset, stock_trends):
             t2_val = row["P"] + (3.0 * atr_val)
             
         rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
-        row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td>'
-        row_str += f'<td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td>'
+       row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td>'
+        # 🔥 ఇక్కడ cursor:pointer మరియు title ని యాడ్ చేసాం 🔥
+        row_str += f'<td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px; cursor:help;" title="{status}">{status}</td>'
         row_str += f'<td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td>'
         row_str += f'<td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
         html += row_str 
@@ -492,8 +498,9 @@ def render_highscore_terminal_table(df_subset, stock_trends):
             t2_val = row["P"] + (3.0 * atr_val)
             
         rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
-        row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td>'
-        row_str += f'<td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td>'
+       row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td>'
+        # 🔥 ఇక్కడ cursor:pointer మరియు title ని యాడ్ చేసాం 🔥
+        row_str += f'<td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px; cursor:help;" title="{status}">{status}</td>'
         row_str += f'<td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td>'
         row_str += f'<td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
         html += row_str
