@@ -28,16 +28,16 @@ def toggle_pin(symbol):
 # --- PORTFOLIO FILE SETUP ---
 PORTFOLIO_FILE = "my_portfolio.csv"
 def load_portfolio():
-    # 🔥 మీ కైట్ పోర్ట్‌ఫోలియో డేటా ఇక్కడ శాశ్వతంగా ఫిక్స్ చేశాను 🔥
+    # 🔥 కొత్తగా SL, T1, T2 కాలమ్స్ కూడా యాడ్ చేశాం 🔥
     default_data = [
-        {"Symbol": "APLAPOLLO", "Buy_Price": 2262.20, "Quantity": 1, "Date": "-"},
-        {"Symbol": "CGPOWER", "Buy_Price": 667.00, "Quantity": 10, "Date": "-"},
-        {"Symbol": "HDFCBANK", "Buy_Price": 949.27, "Quantity": 4, "Date": "-"},
-        {"Symbol": "ITC", "Buy_Price": 310.35, "Quantity": 20, "Date": "-"},
-        {"Symbol": "KALYANKJIL", "Buy_Price": 437.18, "Quantity": 11, "Date": "-"},
-        {"Symbol": "KPRMILL", "Buy_Price": 979.00, "Quantity": 1, "Date": "-"},
-        {"Symbol": "VBL", "Buy_Price": 438.30, "Quantity": 5, "Date": "-"},
-        {"Symbol": "ZYDUSLIFE", "Buy_Price": 905.70, "Quantity": 2, "Date": "-"}
+        {"Symbol": "APLAPOLLO", "Buy_Price": 2262.20, "Quantity": 1, "Date": "-", "SL": 2200.0, "T1": 2350.0, "T2": 2400.0},
+        {"Symbol": "CGPOWER", "Buy_Price": 667.00, "Quantity": 10, "Date": "-", "SL": 630.0, "T1": 700.0, "T2": 730.0},
+        {"Symbol": "HDFCBANK", "Buy_Price": 949.27, "Quantity": 4, "Date": "-", "SL": 900.0, "T1": 1000.0, "T2": 1050.0},
+        {"Symbol": "ITC", "Buy_Price": 310.35, "Quantity": 20, "Date": "-", "SL": 290.0, "T1": 330.0, "T2": 350.0},
+        {"Symbol": "KALYANKJIL", "Buy_Price": 437.18, "Quantity": 11, "Date": "-", "SL": 400.0, "T1": 480.0, "T2": 520.0},
+        {"Symbol": "KPRMILL", "Buy_Price": 979.00, "Quantity": 1, "Date": "-", "SL": 930.0, "T1": 1050.0, "T2": 1100.0},
+        {"Symbol": "VBL", "Buy_Price": 438.30, "Quantity": 5, "Date": "-", "SL": 410.0, "T1": 470.0, "T2": 500.0},
+        {"Symbol": "ZYDUSLIFE", "Buy_Price": 905.70, "Quantity": 2, "Date": "-", "SL": 850.0, "T1": 980.0, "T2": 1050.0}
     ]
     default_df = pd.DataFrame(default_data)
 
@@ -49,6 +49,9 @@ def load_portfolio():
                 df['Buy_Price'] = pd.to_numeric(df['Buy_Price'], errors='coerce').fillna(0.0).astype(float)
                 df['Symbol'] = df['Symbol'].astype(str).replace('nan', '')
                 df['Date'] = df['Date'].astype(str).replace('nan', '')
+                df['SL'] = pd.to_numeric(df.get('SL', 0.0), errors='coerce').fillna(0.0).astype(float)
+                df['T1'] = pd.to_numeric(df.get('T1', 0.0), errors='coerce').fillna(0.0).astype(float)
+                df['T2'] = pd.to_numeric(df.get('T2', 0.0), errors='coerce').fillna(0.0).astype(float)
                 return df
         except:
             pass
@@ -335,66 +338,75 @@ def render_html_table(df_subset, title, color_class):
     html += "</tbody></table>"
     return html
 
-def render_portfolio_table(df_port, df_stocks, stock_trends):
-    if df_port.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>Portfolio is empty. Add a stock using the option below!</div>"
-    
-    html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-port">💼 LIVE PORTFOLIO TERMINAL</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:11%;">STOCK</th><th style="width:9%;">DATE</th><th style="width:6%;">QTY</th><th style="width:8%;">AVG</th><th style="width:8%;">LTP</th><th style="width:10%;">TREND</th><th style="width:18%;">STATUS</th><th style="width:10%;">DAY P&L</th><th style="width:10%;">TOT P&L</th><th style="width:10%;">P&L %</th></tr></thead><tbody>'
-    
-    total_invested, total_current, total_day_pnl = 0, 0, 0
-    
+def render_portfolio_swing_advice_table(df_port, df_stocks, stock_trends):
+    if df_port.empty: return ""
+    html = f'<table class="term-table"><thead><tr><th colspan="8" class="term-head-swing">🤖 PORTFOLIO SWING ADVISOR (ACTION & LEVELS)</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:16%;">STOCK</th><th style="width:10%;">AVG PRICE</th><th style="width:10%;">LTP</th><th style="width:10%;">P&L %</th><th style="width:10%;">TREND</th><th style="width:13%; color:#f85149;">🛑 TRAILING SL</th><th style="width:13%; color:#3fb950;">🎯 NEXT TARGET</th><th style="width:18%;">💡 ACTION ADVICE</th></tr></thead><tbody>'
+
     for i, (_, row) in enumerate(df_port.iterrows()):
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
         sym = str(row['Symbol']).upper().strip()
-        try: qty = float(row['Quantity'])
-        except: qty = 0
         try: buy_p = float(row['Buy_Price'])
         except: buy_p = 0
-        
-        date_val = str(row.get('Date', '-'))
-        if date_val == 'nan' or date_val == 'NaN' or date_val == '': date_val = '-'
-        
+
         live_row = df_stocks[df_stocks['T'] == sym]
-        status_html, trend_html = "", "➖"
-        
-        if not live_row.empty:
-            ltp = float(live_row['P'].iloc[0])
-            prev_c = float(live_row['Prev_C'].iloc[0])
-            status_html = generate_status(live_row.iloc[0])
-            
-            fetch_t = live_row['Fetch_T'].iloc[0]
-            trend_state = stock_trends.get(fetch_t, "Neutral")
-            if trend_state == 'Bullish': trend_html = "🟢 Bullish"
-            elif trend_state == 'Bearish': trend_html = "🔴 Bearish"
-            else: trend_html = "⚪ Neutral"
+        if live_row.empty: continue
+        live_data = live_row.iloc[0]
+
+        ltp = float(live_data['P'])
+        pnl_pct = ((ltp - buy_p) / buy_p * 100) if buy_p > 0 else 0
+        pnl_color = "text-green" if pnl_pct >= 0 else "text-red"
+        t_sign = "+" if pnl_pct > 0 else ""
+
+        trend_state = stock_trends.get(live_data['Fetch_T'], "Neutral")
+        is_swing = live_data['Is_Swing']
+        atr_val = live_data.get("ATR", ltp * 0.02)
+
+        # Action Advice Logic
+        advice = ""
+        adv_color = ""
+
+        if trend_state == 'Bullish' and is_swing:
+            advice = "🚀 STRONG HOLD"
+            adv_color = "color:#3fb950; font-weight:bold;"
+        elif trend_state == 'Bullish':
+            advice = "🟢 HOLD"
+            adv_color = "color:#2ea043;"
+        elif trend_state == 'Neutral':
+            advice = "🟡 WATCH"
+            adv_color = "color:#ffd700;"
+        else: 
+            advice = "🔴 EXIT / SELL"
+            adv_color = "color:#f85149; font-weight:bold;"
+
+        # STATIC Targets & SL Logic
+        csv_sl = float(row.get('SL', 0.0))
+        csv_t1 = float(row.get('T1', 0.0))
+        csv_t2 = float(row.get('T2', 0.0))
+
+        if csv_sl == 0.0 or csv_t1 == 0.0:
+            if trend_state == 'Bearish':
+                sl_val = ltp + (1.5 * atr_val)
+                t1_val = ltp - (1.5 * atr_val)
+            else:
+                sl_val = ltp - (1.5 * atr_val)
+                t1_val = ltp + (3.0 * atr_val)
+            display_tgt = f"{t1_val:.2f}"
         else:
-            ltp, prev_c = buy_p, buy_p
-            status_html = "Search Error"
-            
-        invested = buy_p * qty
-        current = ltp * qty
-        overall_pnl = current - invested
-        pnl_pct = (overall_pnl / invested * 100) if invested > 0 else 0
-        day_pnl = (ltp - prev_c) * qty
-        
-        total_invested += invested
-        total_current += current
-        total_day_pnl += day_pnl
-        
-        tpnl_color = "text-green" if overall_pnl >= 0 else "text-red"
-        dpnl_color = "text-green" if day_pnl >= 0 else "text-red"
-        t_sign = "+" if overall_pnl > 0 else ""
-        d_sign = "+" if day_pnl > 0 else ""
-        
-        html += f'<tr class="{bg_class}"><td class="t-symbol {tpnl_color}"><a href="https://in.tradingview.com/chart/?symbol=NSE:{sym}" target="_blank">{sym}</a></td><td>{date_val}</td><td>{int(qty)}</td><td>{buy_p:.2f}</td><td>{ltp:.2f}</td><td style="font-size:10px;">{trend_html}</td><td style="font-size:10px;">{status_html}</td><td class="{dpnl_color}">{d_sign}{day_pnl:,.0f}</td><td class="{tpnl_color}">{t_sign}{overall_pnl:,.0f}</td><td class="{tpnl_color}">{t_sign}{pnl_pct:.2f}%</td></tr>'
-    
-    overall_total_pnl = total_current - total_invested
-    overall_total_pct = (overall_total_pnl / total_invested * 100) if total_invested > 0 else 0
-    o_color = "text-green" if overall_total_pnl >= 0 else "text-red"
-    o_sign = "+" if overall_total_pnl > 0 else ""
-    d_color = "text-green" if total_day_pnl >= 0 else "text-red"
-    d_sign = "+" if total_day_pnl > 0 else ""
-    
-    html += f'<tr class="port-total"><td colspan="7" style="text-align:right; padding-right:15px; font-size:12px;">INVESTED: ₹{total_invested:,.0f} &nbsp;|&nbsp; CURRENT: ₹{total_current:,.0f} &nbsp;|&nbsp; OVERALL P&L:</td><td class="{d_color}">{d_sign}₹{total_day_pnl:,.0f}</td><td class="{o_color}">{o_sign}₹{overall_total_pnl:,.0f}</td><td class="{o_color}">{o_sign}{overall_total_pct:.2f}%</td></tr>'
+            sl_val = csv_sl
+            if ltp >= csv_t1 and csv_t2 > 0:
+                display_tgt = f"{csv_t2:.2f} (T2)"
+            else:
+                display_tgt = f"{csv_t1:.2f} (T1)"
+
+        if trend_state == 'Bullish': trend_html = "🟢 Bull"
+        elif trend_state == 'Bearish': trend_html = "🔴 Bear"
+        else: trend_html = "⚪ Neut"
+
+        row_str = f'<tr class="{bg_class}"><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{sym}" target="_blank">{sym}</a></td>'
+        row_str += f'<td>{buy_p:.2f}</td><td>{ltp:.2f}</td><td class="{pnl_color}">{t_sign}{pnl_pct:.2f}%</td><td style="font-size:10px;">{trend_html}</td>'
+        row_str += f'<td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{display_tgt}</td><td style="{adv_color}">{advice}</td></tr>'
+        html += row_str
+
     html += "</tbody></table>"
     return html
 
@@ -840,22 +852,54 @@ if not df.empty:
         st.markdown(render_html_table(df_independent, "🌟 INDEPENDENT MOVERS", "term-head-ind"), unsafe_allow_html=True)
         st.markdown(render_html_table(df_broader, "🌌 BROADER MARKET", "term-head-brd"), unsafe_allow_html=True)
     elif watchlist_mode == "My Portfolio 💼" and view_mode == "Heat Map":
-        # 1. పాత పోర్ట్‌ఫోలియో టేబుల్
+        
+        # 1. LIVE PRICE ALERTS (వీటిని దాచకూడదు, ఎందుకంటే ఎలర్ట్ వస్తే వెంటనే కనిపించాలి)
+        alerts_html = ""
+        for _, row in df_port_saved.iterrows():
+            sym = str(row['Symbol']).upper().strip()
+            live_row = df_stocks[df_stocks['T'] == sym]
+            if live_row.empty: continue
+            
+            ltp = float(live_row.iloc[0]['P'])
+            csv_sl = float(row.get('SL', 0.0))
+            csv_t1 = float(row.get('T1', 0.0))
+            csv_t2 = float(row.get('T2', 0.0))
+
+            if csv_sl > 0 and ltp <= csv_sl:
+                st.toast(f"🚨 ALERT: {sym} hit STOP LOSS ({csv_sl})! LTP: {ltp}", icon="🔴")
+                alerts_html += f"<div style='background-color:#b52524; color:white; padding:10px; border-radius:5px; margin-bottom:10px; border-left: 5px solid #ff4d4d;'><b>🚨 STOP LOSS HIT:</b> {sym} is trading at {ltp} (Your SL: {csv_sl}). Please review your position and exit!</div>"
+            elif csv_t2 > 0 and ltp >= csv_t2:
+                st.toast(f"🚀 TARGET 2 HIT: {sym} reached {csv_t2}! LTP: {ltp}", icon="🚀")
+                alerts_html += f"<div style='background-color:#1e5f29; color:white; padding:10px; border-radius:5px; margin-bottom:10px; border-left: 5px solid #3fb950;'><b>🚀 TARGET 2 HIT:</b> {sym} is trading at {ltp} (Your T2: {csv_t2}). Enjoy your profits!</div>"
+            elif csv_t1 > 0 and ltp >= csv_t1:
+                st.toast(f"🎯 TARGET 1 HIT: {sym} reached {csv_t1}! LTP: {ltp}", icon="🎯")
+                alerts_html += f"<div style='background-color:#005a9e; color:white; padding:10px; border-radius:5px; margin-bottom:10px; border-left: 5px solid #58a6ff;'><b>🎯 TARGET 1 HIT:</b> {sym} is trading at {ltp} (Your T1: {csv_t1}). Consider booking partial profits!</div>"
+
+        if alerts_html:
+            st.markdown(alerts_html, unsafe_allow_html=True)
+            
+        # 2. పాత పోర్ట్‌ఫోలియో టేబుల్ (ఇది ఎప్పుడూ పైనే కనిపిస్తుంది)
         st.markdown(render_portfolio_table(df_port_saved, df_stocks, stock_trends), unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # 2. 🔥 కొత్తగా యాడ్ చేసిన స్వింగ్ అడ్వైస్ టేబుల్ 🔥
-        st.markdown(render_portfolio_swing_advice_table(df_port_saved, df_stocks, stock_trends), unsafe_allow_html=True)
-        st.markdown("<br>", unsafe_allow_html=True)
+        # 3. 🔥 అడ్వైజర్ టేబుల్ ని క్లిక్ చేస్తేనే ఓపెన్ అయ్యేలా దాచేశాం (Expander) 🔥
+        with st.expander("🤖 View Portfolio Swing Advisor (Action & Levels)", expanded=False):
+            st.markdown(render_portfolio_swing_advice_table(df_port_saved, df_stocks, stock_trends), unsafe_allow_html=True)
         
+        # 4. మిగిలిన ఎడిట్/యాడ్ ఫామ్స్
         with st.expander("➕ Search & Add Stock to Portfolio", expanded=False):
             with st.form("portfolio_add_form", clear_on_submit=True):
-                c1, c2, c3, c4, c5 = st.columns([2.5, 1.5, 2, 2, 2])
-                with c1: new_sym = st.text_input("🔍 NSE Symbol (e.g. itc)", placeholder="Type Symbol...").upper().strip()
+                c1, c2, c3, c4 = st.columns(4)
+                with c1: new_sym = st.text_input("🔍 NSE Symbol", placeholder="e.g. ITC").upper().strip()
                 with c2: new_qty = st.number_input("📦 Quantity", min_value=1, value=10)
                 with c3: new_price = st.number_input("💰 Buy Price (₹)", min_value=0.0, value=100.0)
                 with c4: new_date = st.date_input("📅 Purchase Date")
-                with c5:
+                
+                c5, c6, c7, c8 = st.columns(4)
+                with c5: new_sl = st.number_input("🛑 Fixed SL", min_value=0.0, value=0.0)
+                with c6: new_t1 = st.number_input("🎯 Target 1", min_value=0.0, value=0.0)
+                with c7: new_t2 = st.number_input("🎯 Target 2", min_value=0.0, value=0.0)
+                with c8:
                     st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
                     submit_btn = st.form_submit_button("➕ Verify & Add", use_container_width=True)
 
@@ -863,26 +907,30 @@ if not df.empty:
                 if new_sym:
                     with st.spinner(f"Searching NSE for {new_sym}..."):
                         chk_data = yf.download(f"{new_sym}.NS", period="1d", progress=False)
-                        if chk_data.empty: st.error(f"❌ '{new_sym}' not found in NSE! Please check the spelling.")
+                        if chk_data.empty: st.error(f"❌ '{new_sym}' not found in NSE!")
                         else:
                             new_date_str = new_date.strftime("%d-%b-%Y")
-                            if new_sym in df_port_saved['Symbol'].values: df_port_saved.loc[df_port_saved['Symbol'] == new_sym, ['Buy_Price', 'Quantity', 'Date']] = [new_price, new_qty, new_date_str]
+                            if new_sym in df_port_saved['Symbol'].values: 
+                                df_port_saved.loc[df_port_saved['Symbol'] == new_sym, ['Buy_Price', 'Quantity', 'Date', 'SL', 'T1', 'T2']] = [new_price, new_qty, new_date_str, new_sl, new_t1, new_t2]
                             else:
-                                new_row = pd.DataFrame({"Symbol": [new_sym], "Buy_Price": [new_price], "Quantity": [new_qty], "Date": [new_date_str]})
+                                new_row = pd.DataFrame({"Symbol": [new_sym], "Buy_Price": [new_price], "Quantity": [new_qty], "Date": [new_date_str], "SL": [new_sl], "T1": [new_t1], "T2": [new_t2]})
                                 df_port_saved = pd.concat([df_port_saved, new_row], ignore_index=True)
                             save_portfolio(df_port_saved); fetch_all_data.clear(); st.rerun()
                 else: st.warning("Type a symbol first!")
         
         if not df_port_saved.empty:
-            with st.expander("✏️ Edit Existing Holdings (Qty, Price, Date)", expanded=False):
-                st.markdown("<p style='font-size:12px; color:#888;'><i>Modify your Buy Price, Quantity, or Date directly in the table below and click Save.</i></p>", unsafe_allow_html=True)
+            with st.expander("✏️ Edit Existing Holdings (Targets, Qty, Price)", expanded=False):
+                st.markdown("<p style='font-size:12px; color:#888;'><i>Modify your SL, Targets, or Buy Price directly in the table below and click Save.</i></p>", unsafe_allow_html=True)
                 edited_df = st.data_editor(
                     df_port_saved, use_container_width=True, hide_index=True,
                     column_config={
                         "Symbol": st.column_config.TextColumn("Stock Symbol", disabled=True),
                         "Quantity": st.column_config.NumberColumn("Quantity", min_value=1, step=1),
                         "Buy_Price": st.column_config.NumberColumn("Buy Average (₹)", min_value=0.0, format="%.2f"),
-                        "Date": st.column_config.TextColumn("Purchase Date")
+                        "SL": st.column_config.NumberColumn("Fixed SL", min_value=0.0, format="%.2f"),
+                        "T1": st.column_config.NumberColumn("Fixed T1", min_value=0.0, format="%.2f"),
+                        "T2": st.column_config.NumberColumn("Fixed T2", min_value=0.0, format="%.2f"),
+                        "Date": st.column_config.TextColumn("Date")
                     }
                 )
                 if st.button("💾 Save Edited Changes", use_container_width=True): save_portfolio(edited_df); fetch_all_data.clear(); st.rerun()
@@ -896,7 +944,6 @@ if not df.empty:
                     if remove_btn and del_sym != "-- Select --":
                         df_port_saved = df_port_saved[df_port_saved['Symbol'] != del_sym]
                         save_portfolio(df_port_saved); fetch_all_data.clear(); st.rerun()
-
     elif view_mode == "Heat Map":
         if not df_indices.empty:
             html_idx = '<div class="heatmap-grid">'
