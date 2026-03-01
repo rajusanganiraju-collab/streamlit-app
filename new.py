@@ -871,7 +871,12 @@ if not df.empty:
             if n_vwap > 0: nifty_dist_5m = abs(n_ltp - n_vwap) / n_vwap * 100
 
     for sym in all_display_tickers:
-        df_raw = five_min_data[sym] if isinstance(five_min_data.columns, pd.MultiIndex) else five_min_data
+        # 🔥 KeyError Fix: Yahoo Finance లో ఏదైనా స్టాక్ డేటా మిస్ అయితే యాప్ క్రాష్ అవ్వకుండా సేఫ్టీ నెట్ 🔥
+        try:
+            df_raw = five_min_data[sym] if isinstance(five_min_data.columns, pd.MultiIndex) else five_min_data
+        except KeyError:
+            df_raw = pd.DataFrame() # డేటా లేకపోతే ఖాళీ బాక్స్ క్రియేట్ చేస్తుంది, క్రాష్ అవ్వదు
+            
         df_day = process_5m_data(df_raw)
         processed_charts[sym] = df_day
         
