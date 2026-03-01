@@ -553,7 +553,7 @@ def render_portfolio_swing_advice_table(df_port, df_stocks, stock_trends):
 def render_swing_terminal_table(df_subset, stock_trends):
     if df_subset.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No Swing Trading Setups found right now.</div>"
     
-    df_sorted = df_subset.sort_values(by=['S', 'VolX', 'C'], ascending=[False, False, False]).reset_index(drop=True)
+    df_sorted = df_subset.reset_index(drop=True)
     html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-swing">🌊 SWING TRADING RADAR (RANKED ALGORITHM)</th></tr><tr style="background-color: #21262d;"><th style="width:5%;">RANK</th><th style="text-align:left; width:13%;">STOCK</th><th style="width:8%;">LTP</th><th style="width:8%;">DAY%</th><th style="width:8%;">VOL</th><th style="width:16%;">STATUS</th><th style="width:11%; color:#f85149;">🛑 STOP LOSS</th><th style="width:11%; color:#3fb950;">🎯 TARGET 1</th><th style="width:11%; color:#3fb950;">🎯 TARGET 2</th><th style="width:9%;">SCORE</th></tr></thead><tbody>'
     for i, row in df_sorted.iterrows():
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
@@ -591,7 +591,7 @@ def render_swing_terminal_table(df_subset, stock_trends):
 def render_highscore_terminal_table(df_subset, stock_trends):
     if df_subset.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No High Score Stocks found right now.</div>"
     
-    df_sorted = df_subset.sort_values(by=['S', 'VolX', 'C'], ascending=[False, False, False]).reset_index(drop=True)
+    df_sorted = df_subset.reset_index(drop=True)
     html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-high">🔥 HIGH SCORE RADAR (RANKED INTRADAY MOVERS)</th></tr><tr style="background-color: #21262d;"><th style="width:5%;">RANK</th><th style="text-align:left; width:13%;">STOCK</th><th style="width:8%;">LTP</th><th style="width:8%;">DAY%</th><th style="width:8%;">VOL</th><th style="width:16%;">STATUS</th><th style="width:11%; color:#f85149;">🛑 STOP LOSS</th><th style="width:11%; color:#3fb950;">🎯 TARGET 1</th><th style="width:11%; color:#3fb950;">🎯 TARGET 2</th><th style="width:9%;">SCORE</th></tr></thead><tbody>'
     for i, row in df_sorted.iterrows():
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
@@ -627,7 +627,7 @@ def render_highscore_terminal_table(df_subset, stock_trends):
 def render_levels_table(df_subset, stock_trends):
     if df_subset.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No Stocks found right now.</div>"
     
-    df_sorted = df_subset.sort_values(by=['S', 'VolX', 'C'], ascending=[False, False, False]).reset_index(drop=True)
+    df_sorted = df_subset.reset_index(drop=True)
     html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-levels">🎯 INTRADAY TRADING LEVELS (SUPPORT & RESISTANCE)</th></tr><tr style="background-color: #21262d;"><th style="width:5%;">RANK</th><th style="text-align:left; width:13%;">STOCK</th><th style="width:8%;">LTP</th><th style="width:8%;">DAY%</th><th style="width:8%;">VOL</th><th style="width:16%;">STATUS</th><th style="width:11%; color:#f85149;">🛑 STOP LOSS</th><th style="width:11%; color:#3fb950;">🎯 TARGET 1</th><th style="width:11%; color:#3fb950;">🎯 TARGET 2</th><th style="width:9%;">SCORE</th></tr></thead><tbody>'
     for i, row in df_sorted.iterrows():
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
@@ -987,26 +987,20 @@ if not df.empty:
         df_stocks_display = df_filtered.sort_values(by="C", ascending=True)
     elif sort_mode == "Heatmap Marks Up ⭐": 
         df_stocks_display = pd.concat([
-            df_filtered[df_filtered['C'] >= 0].sort_values(by=[sort_col, "C"], ascending=[False, False]), 
-            df_filtered[df_filtered['C'] < 0].sort_values(by=[sort_col, "C"], ascending=[False, True])
+            df_filtered[df_filtered['C'] >= 0].sort_values(by=[sort_col, 'VolX', 'C'], ascending=[False, False, False]), 
+            df_filtered[df_filtered['C'] < 0].sort_values(by=[sort_col, 'VolX', 'C'], ascending=[False, False, True])
         ])
     elif sort_mode == "Heatmap Marks Down ⬇️": 
         df_stocks_display = pd.concat([
-            df_filtered[df_filtered['C'] < 0].sort_values(by=[sort_col, "C"], ascending=[False, True]), 
-            df_filtered[df_filtered['C'] >= 0].sort_values(by=[sort_col, "C"], ascending=[False, False])
+            df_filtered[df_filtered['C'] < 0].sort_values(by=[sort_col, 'VolX', 'C'], ascending=[False, False, True]), 
+            df_filtered[df_filtered['C'] >= 0].sort_values(by=[sort_col, 'VolX', 'C'], ascending=[False, False, False])
         ])
     else:
-        if st.session_state.trend_filter == 'Bullish': 
-            df_stocks_display = df_filtered.sort_values(by=[sort_col, "C"], ascending=[False, False])
-        elif st.session_state.trend_filter == 'Bearish': 
-            df_stocks_display = df_filtered.sort_values(by=[sort_col, "C"], ascending=[False, True])
-        elif st.session_state.trend_filter == 'Neutral': 
-            df_stocks_display = df_filtered.sort_values(by=[sort_col, "C"], ascending=[False, False])
-        else: 
-            df_stocks_display = pd.concat([
-                df_filtered[df_filtered['C'] >= 0].sort_values(by=[sort_col, "C"], ascending=[False, False]), 
-                df_filtered[df_filtered['C'] < 0].sort_values(by=[sort_col, "C"], ascending=[False, True])
-            ])
+        # Custom Sort (PURE SCORE BASED)
+        if st.session_state.trend_filter == 'Bearish':
+            df_stocks_display = df_filtered.sort_values(by=[sort_col, 'VolX', 'C'], ascending=[False, False, True])
+        else:
+            df_stocks_display = df_filtered.sort_values(by=[sort_col, 'VolX', 'C'], ascending=[False, False, False])
     # --- RENDER VIEWS ---
    # 1. TERMINAL VIEW
     if watchlist_mode == "Terminal Tables 🗃️" and view_mode == "Heat Map":
