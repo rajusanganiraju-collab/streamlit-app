@@ -741,7 +741,6 @@ with c3:
 
 # --- 7. RENDER LOGIC & TREND ANALYSIS ---
 df = fetch_all_data()
-
     if not df.empty:
         all_names = sorted(df[~df['Is_Sector']]['T'].tolist())
         
