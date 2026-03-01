@@ -742,20 +742,32 @@ with c3:
 # --- 7. RENDER LOGIC & TREND ANALYSIS ---
 df = fetch_all_data()
 
-if not df.empty:
+ if not df.empty:
     all_names = sorted(df[~df['Is_Sector']]['T'].tolist())
     
-# 🔥 సెర్చ్ బాక్స్ మరియు టోగుల్ బటన్ పక్కపక్కన వచ్చేలా కాలమ్స్ 🔥
-    c_search, c_tog = st.columns([0.7, 0.3])
+    # 🔥 సెర్చ్ బాక్స్, కొత్త ఫిల్టర్, మరియు టోగుల్ బటన్ కోసం 3 కాలమ్స్ 🔥
+    c_search, c_type, c_tog = st.columns([0.4, 0.3, 0.3])
+    
     with c_search:
         search_stock = st.selectbox("🔍 Search & View Chart", ["-- None --"] + all_names)
+    
+    move_type_filter = "All Moves" # డిఫాల్ట్
+    
+    with c_type:
+        # 🚀 One Sided Moves కోసం ఫిల్టర్ ఆప్షన్స్ 
+        if watchlist_mode == "One Sided Moves 🚀":
+            move_type_filter = st.selectbox("🎯 Strategy Filter", ["All Moves", "🌊 One Sided Only", "🎯 Reversals Only", "🏹 Rubber Band Stretch"], index=0)
+        
+        # 📈 Swing Trading కోసం ఫిల్టర్ ఆప్షన్స్
+        elif watchlist_mode == "Swing Trading 📈":
+            move_type_filter = st.selectbox("📈 Strategy Filter", ["All Swing Stocks", "🧲 Pullback to Value"], index=0)
+            
     with c_tog:
-        # 🔥 ఇక్కడ High Score ట్యాబ్ ని కూడా యాడ్ చేశాం 🔥
         if watchlist_mode in ["One Sided Moves 🚀", "High Score Stocks 🔥"]:
             st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
             st.session_state.use_ema_ribbon = st.toggle("🎯 Strict EMA Filter", value=st.session_state.use_ema_ribbon)
             
-    df_indices = df[df['Is_Index']].copy()    
+    df_indices = df[df['Is_Index']].copy()
     df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3})
     df_indices = df_indices.sort_values("Order")
     
@@ -962,9 +974,45 @@ if not df.empty:
         df_filtered['Trend_Score'] = df_filtered['Fetch_T'].map(trend_scores).fillna(0)
         df_filtered['S'] = df_filtered['S'] + df_filtered['Trend_Score']
         
-        # 🔥 PURE ONE SIDED FILTER: 85% రూల్ పాస్ అవ్వకపోతే ఈ టాబ్ లో నుండి తీసేయ్! 🔥
+        # ---------------------------------------------------------
+        # 🚀 1. ONE SIDED MOVES & RUBBER BAND FILTER LOGIC (PRO)
+        # ---------------------------------------------------------
         if watchlist_mode == "One Sided Moves 🚀":
+            # ముందుగా 85% రూల్ పాస్ అవ్వనివి (నాన్-ట్రెండింగ్) తీసేస్తాం
             df_filtered = df_filtered[df_filtered['Trend_Score'] > 0]
+            
+            if move_type_filter == "🌊 One Sided Only":
+                df_filtered = df_filtered[~df_filtered['AlphaTag'].str.contains("Reversal", na=False)]
+            elif move_type_filter == "🎯 Reversals Only":
+                df_filtered = df_filtered[df_filtered['AlphaTag'].str.contains("Reversal", na=False)]
+            elif move_type_filter == "🏹 Rubber Band Stretch":
+                # 🔥 PRO LOGIC: Extreme stretch (1.5%+) + Climax Volume (VolX >= 1.5)
+                df_filtered = df_filtered[
+                    df_filtered['AlphaTag'].str.contains("Reversal", na=False) & 
+                    (df_filtered['Day_C'].abs() >= 1.5) & 
+                    (df_filtered['VolX'] >= 1.5)
+                ]
+        
+        # ---------------------------------------------------------
+        # 📈 2. SWING TRADING & PULLBACK TO VALUE FILTER LOGIC (PRO)
+        # ---------------------------------------------------------
+        elif watchlist_mode == "Swing Trading 📈":
+            if move_type_filter == "🧲 Pullback to Value":
+                # 🔥 PRO LOGIC: 
+                # 1. Stricter Hammer/Pinbar (Tail is at least 2x the top body)
+                # 2. Institutional Volume is active (VolX >= 1.2)
+                # 3. Core Swing Trend is intact (Is_Swing == True)
+                
+                tail_length = df_filtered['O'] - df_filtered['L']
+                top_body = df_filtered['H'] - df_filtered['P']
+                
+                pullback_cond = (
+                    (df_filtered['P'] > df_filtered['O']) & 
+                    (tail_length > (2 * top_body)) & 
+                    (df_filtered['VolX'] >= 1.2) &
+                    (df_filtered['Is_Swing'] == True)
+                )
+                df_filtered = df_filtered[pullback_cond]
 
     bull_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bullish')
     bear_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bearish')
