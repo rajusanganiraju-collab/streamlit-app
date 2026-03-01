@@ -745,17 +745,25 @@ df = fetch_all_data()
 if not df.empty:
     all_names = sorted(df[~df['Is_Sector']]['T'].tolist())
     
-# 🔥 సెర్చ్ బాక్స్ మరియు టోగుల్ బటన్ పక్కపక్కన వచ్చేలా కాలమ్స్ 🔥
-    c_search, c_tog = st.columns([0.7, 0.3])
+    # 🔥 సెర్చ్ బాక్స్, కొత్త ఫిల్టర్, మరియు టోగుల్ బటన్ కోసం 3 కాలమ్స్ 🔥
+    c_search, c_type, c_tog = st.columns([0.4, 0.3, 0.3])
+    
     with c_search:
         search_stock = st.selectbox("🔍 Search & View Chart", ["-- None --"] + all_names)
+    
+    move_type_filter = "All Moves" # డిఫాల్ట్ గా అన్నీ కనిపిస్తాయి
+    
+    with c_type:
+        if watchlist_mode == "One Sided Moves 🚀":
+            # 🔥 index=0 పెట్టడం వల్ల యాప్ ఓపెన్ చేయగానే డిఫాల్ట్ గా "All Moves" ఉంటుంది 🔥
+            move_type_filter = st.selectbox("🎯 Move Type", ["All Moves", "🌊 One Sided Only", "🎯 Reversals Only"], index=0)
+            
     with c_tog:
-        # 🔥 ఇక్కడ High Score ట్యాబ్ ని కూడా యాడ్ చేశాం 🔥
         if watchlist_mode in ["One Sided Moves 🚀", "High Score Stocks 🔥"]:
             st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
             st.session_state.use_ema_ribbon = st.toggle("🎯 Strict EMA Filter", value=st.session_state.use_ema_ribbon)
             
-    df_indices = df[df['Is_Index']].copy()    
+    df_indices = df[df['Is_Index']].copy()      
     df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3})
     df_indices = df_indices.sort_values("Order")
     
@@ -962,7 +970,7 @@ if not df.empty:
         df_filtered['Trend_Score'] = df_filtered['Fetch_T'].map(trend_scores).fillna(0)
         df_filtered['S'] = df_filtered['S'] + df_filtered['Trend_Score']
         
-        # 🔥 PURE ONE SIDED FILTER: 85% రూల్ పాస్ అవ్వకపోతే ఈ టాబ్ లో నుండి తీసేయ్! 🔥
+        # 🔥 PURE ONE SIDED FILTER: 85% రూల్ పాస్ అవ్వనివి ఈ టాబ్ లో నుండి తీసేయ్! 🔥
         if watchlist_mode == "One Sided Moves 🚀":
             df_filtered = df_filtered[df_filtered['Trend_Score'] > 0]
 
