@@ -970,9 +970,16 @@ if not df.empty:
         df_filtered['Trend_Score'] = df_filtered['Fetch_T'].map(trend_scores).fillna(0)
         df_filtered['S'] = df_filtered['S'] + df_filtered['Trend_Score']
         
-        # 🔥 PURE ONE SIDED FILTER: 85% రూల్ పాస్ అవ్వనివి ఈ టాబ్ లో నుండి తీసేయ్! 🔥
+        # 🔥 PURE ONE SIDED & REVERSAL FILTER 🔥
         if watchlist_mode == "One Sided Moves 🚀":
+            # ముందుగా 85% రూల్ పాస్ అవ్వనివి (నాన్-ట్రెండింగ్) తీసేస్తాం
             df_filtered = df_filtered[df_filtered['Trend_Score'] > 0]
+            
+            # 🔥 ఇక్కడ స్పేసింగ్ చూడండి (ఇవి watchlist_mode లోపల ఉండాలి) 🔥
+            if move_type_filter == "🌊 One Sided Only":
+                df_filtered = df_filtered[~df_filtered['AlphaTag'].str.contains("Reversal", na=False)]
+            elif move_type_filter == "🎯 Reversals Only":
+                df_filtered = df_filtered[df_filtered['AlphaTag'].str.contains("Reversal", na=False)]
 
         # --- BUTTONS ---
     with st.container():
