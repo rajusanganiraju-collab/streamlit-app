@@ -970,18 +970,9 @@ df = fetch_all_data()
         df_filtered['Trend_Score'] = df_filtered['Fetch_T'].map(trend_scores).fillna(0)
         df_filtered['S'] = df_filtered['S'] + df_filtered['Trend_Score']
         
-        # 🔥 PURE ONE SIDED & REVERSAL FILTER 🔥
+        # 🔥 PURE ONE SIDED FILTER: 85% రూల్ పాస్ అవ్వనివి ఈ టాబ్ లో నుండి తీసేయ్! 🔥
         if watchlist_mode == "One Sided Moves 🚀":
-            # ముందుగా 85% రూల్ పాస్ అవ్వనివి (నాన్-ట్రెండింగ్) తీసేస్తాం
             df_filtered = df_filtered[df_filtered['Trend_Score'] > 0]
-            
-            # యూజర్ సెలెక్ట్ చేసిన ఆప్షన్ ని బట్టి స్టాక్స్ ని ఫిల్టర్ చేస్తాం
-            if move_type_filter == "🌊 One Sided Only":
-                # రివర్సల్స్ కానివి మాత్రమే చూపిస్తుంది
-                df_filtered = df_filtered[~df_filtered['AlphaTag'].str.contains("Reversal", na=False)]
-            elif move_type_filter == "🎯 Reversals Only":
-                # కేవలం రివర్సల్స్ మాత్రమే చూపిస్తుంది
-                df_filtered = df_filtered[df_filtered['AlphaTag'].str.contains("Reversal", na=False)]
 
     bull_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bullish')
     bear_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bearish')
