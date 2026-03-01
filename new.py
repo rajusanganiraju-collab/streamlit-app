@@ -742,42 +742,47 @@ with c3:
 # --- 7. RENDER LOGIC & TREND ANALYSIS ---
 df = fetch_all_data()
 
-if not df.empty:
-    all_names = sorted(df[~df['Is_Sector']]['T'].tolist())
-    
-    # 🔥 సెర్చ్ బాక్స్, కొత్త ఫిల్టర్, మరియు టోగుల్ బటన్ కోసం 3 కాలమ్స్ 🔥
-    c_search, c_type, c_tog = st.columns([0.4, 0.3, 0.3])
-    
-    with c_search:
-        search_stock = st.selectbox("🔍 Search & View Chart", ["-- None --"] + all_names)
-    
-    move_type_filter = "All Moves" # డిఫాల్ట్
-    
-    with c_type:
-        # 🚀 One Sided Moves కోసం ఫిల్టర్ ఆప్షన్స్ 
-        if watchlist_mode == "One Sided Moves 🚀":
-            move_type_filter = st.selectbox("🎯 Strategy Filter", [
-                "All Moves", 
-                "🌊 One Sided Only", 
-                "🎯 Reversals Only", 
-                "🏹 Rubber Band Stretch",
-                "🏄‍♂️ Momentum Ignition"
-            ], index=0)
+    if not df.empty:
+        all_names = sorted(df[~df['Is_Sector']]['T'].tolist())
         
-        # 📈 Swing Trading కోసం ఫిల్టర్ ఆప్షన్స్
-        elif watchlist_mode == "Swing Trading 📈":
-            move_type_filter = st.selectbox("📈 Strategy Filter", ["All Swing Stocks", "🧲 Pullback to Value"], index=0)
+        # 🔥 సెర్చ్ బాక్స్, కొత్త ఫిల్టర్, మరియు టోగుల్ బటన్ కోసం 3 కాలమ్స్ 🔥
+        c_search, c_type, c_tog = st.columns([0.4, 0.3, 0.3])
+        
+        with c_search:
+            search_stock = st.selectbox("🔍 Search & View Chart", ["-- None --"] + all_names)
+        
+        move_type_filter = "All Moves" # డిఫాల్ట్
+        
+        with c_type:
+            # 🚀 One Sided Moves కోసం ఫిల్టర్ ఆప్షన్స్ 
+            if watchlist_mode == "One Sided Moves 🚀":
+                move_type_filter = st.selectbox("🎯 Strategy Filter", [
+                    "All Moves", 
+                    "🌊 One Sided Only", 
+                    "🎯 Reversals Only", 
+                    "🏹 Rubber Band Stretch",
+                    "🏄‍♂️ Momentum Ignition"
+                ], index=0)
             
-    with c_tog:
-        if watchlist_mode in ["One Sided Moves 🚀", "High Score Stocks 🔥"]:
-            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-            st.session_state.use_ema_ribbon = st.toggle("🎯 Strict EMA Filter", value=st.session_state.use_ema_ribbon)
+            # 📈 Swing Trading కోసం ఫిల్టర్ ఆప్షన్స్
+            elif watchlist_mode == "Swing Trading 📈":
+                move_type_filter = st.selectbox("📈 Strategy Filter", ["All Swing Stocks", "🧲 Pullback to Value"], index=0)
+                
         with c_tog:
-          
-    df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3})
-    df_indices = df_indices.sort_values("Order")
-    
-    df_sectors = df[df['Is_Sector']].copy()
+            if watchlist_mode in ["One Sided Moves 🚀", "High Score Stocks 🔥"]:
+                st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+                st.session_state.use_ema_ribbon = st.toggle("🎯 Strict EMA Filter", value=st.session_state.use_ema_ribbon)
+                
+        # 🔥 ఇక్కడి నుండి స్పేసింగ్ జాగ్రత్త (అన్నీ ఒకే లైన్ లో ఉన్నాయి చూడండి) 🔥
+        df_indices = df[df['Is_Index']].copy()
+        df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3})
+        df_indices = df_indices.sort_values('Order')
+        
+        df_sectors = df[df['Is_Sector']].copy()
+        if "Day_C" in df_sectors.columns:
+            df_sectors = df_sectors.sort_values(by="Day_C", ascending=False)
+        else:
+            df_sectors = df_sectors.sort_values(by="C", ascending=False)
     df_sectors = df_sectors.sort_values(by="C", ascending=False)
     
     df_stocks = df[(~df['Is_Index']) & (~df['Is_Sector'])].copy()
