@@ -974,11 +974,7 @@ if not df.empty:
         if watchlist_mode == "One Sided Moves 🚀":
             df_filtered = df_filtered[df_filtered['Trend_Score'] > 0]
 
-    bull_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bullish')
-    bear_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bearish')
-    neut_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Neutral')
-
-    # --- BUTTONS ---
+        # --- BUTTONS ---
     with st.container():
         st.markdown("<div class='filter-marker'></div>", unsafe_allow_html=True)
         if st.button(f"📊 All ({len(df_filtered)})"): st.session_state.trend_filter = 'All'
