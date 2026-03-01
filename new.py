@@ -306,7 +306,8 @@ def process_5m_data(df_raw):
         if df_s.empty: return pd.DataFrame()
         
         df_s['EMA_10'] = df_s['Close'].ewm(span=10, adjust=False).mean()
-        
+        df_s['EMA_20'] = df_s['Close'].ewm(span=20, adjust=False).mean()
+        df_s['EMA_50'] = df_s['Close'].ewm(span=50, adjust=False).mean()
         df_s.index = pd.to_datetime(df_s.index)
         df_day = df_s[df_s.index.date == df_s.index.date.max()].copy()
         
@@ -854,8 +855,39 @@ if not df.empty:
                     one_sided_tag = "🌊Trend-0.5%"
                     trend_bonus = 3
             
-            alpha_tags[sym] = f"{alpha_tag} {one_sided_tag}".strip()
-            trend_scores[sym] = trend_bonus
+            # --- 🔥 REVERSAL LOGIC (కేవలం "One Sided Moves" ట్యాబ్ కి మాత్రమే) 🔥 ---
+            trap_tag = ""
+            trap_bonus = 0
+            
+            # Watchlist "One Sided Moves" అయితేనే ఈ రివర్సల్ ని చెక్ చేస్తుంది
+            if watchlist_mode == "One Sided Moves 🚀" and len(df_day) >= 6 and last_vwap > 0:
+                curr_open = float(df_day['Open'].iloc[-1])
+                ema10 = float(df_day['EMA_10'].iloc[-1])
+                ema20 = float(df_day['EMA_20'].iloc[-1])
+                ema50 = float(df_day['EMA_50'].iloc[-1])
+                
+                day_open = df[df['Fetch_T'] == sym]['O'].iloc[0]
+                day_high = df[df['Fetch_T'] == sym]['H'].iloc[0]
+                day_low = df[df['Fetch_T'] == sym]['L'].iloc[0]
+
+                morning_spike = (day_high - day_open) / day_open * 100 if day_open > 0 else 0
+                morning_drop = (day_open - day_low) / day_open * 100 if day_open > 0 else 0
+
+                # 1. Reversal Sell (ట్రెండ్ కి +7 ఇస్తున్నాం కాబట్టి దీనికి +6 ఇస్తున్నాం)
+                if morning_spike >= 1.0 and last_price < last_vwap:
+                    if (ema50 > ema20 > ema10 > last_price) and (last_price < curr_open):
+                        trap_tag = "🎯 Reversal Sell (EMA) 🩸"
+                        trap_bonus = 6 
+
+                # 2. Reversal Buy
+                elif morning_drop >= 1.0 and last_price > last_vwap:
+                    if (last_price > ema10 > ema20 > ema50) and (last_price > curr_open):
+                        trap_tag = "🎯 Reversal Buy (EMA) 🚀"
+                        trap_bonus = 6
+
+            # ఫైనల్ గా అన్ని ట్యాగ్స్ మరియు స్కోర్ ని కలుపుతున్నాం
+            alpha_tags[sym] = f"{alpha_tag} {one_sided_tag} {trap_tag}".strip()
+            trend_scores[sym] = trend_bonus + trap_bonus   
             
             is_bullish = (net_chg > 0) and (last_price >= last_vwap)
             is_bearish = (net_chg < 0) and (last_price <= last_vwap)
