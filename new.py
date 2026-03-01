@@ -745,16 +745,17 @@ df = fetch_all_data()
 if not df.empty:
     all_names = sorted(df[~df['Is_Sector']]['T'].tolist())
     
-    # 🔥 సెర్చ్ బాక్స్ మరియు టోగుల్ బటన్ పక్కపక్కన వచ్చేలా కాలమ్స్ 🔥
+# 🔥 సెర్చ్ బాక్స్ మరియు టోగుల్ బటన్ పక్కపక్కన వచ్చేలా కాలమ్స్ 🔥
     c_search, c_tog = st.columns([0.7, 0.3])
     with c_search:
         search_stock = st.selectbox("🔍 Search & View Chart", ["-- None --"] + all_names)
     with c_tog:
-        if watchlist_mode == "One Sided Moves 🚀":
+        # 🔥 ఇక్కడ High Score ట్యాబ్ ని కూడా యాడ్ చేశాం 🔥
+        if watchlist_mode in ["One Sided Moves 🚀", "High Score Stocks 🔥"]:
             st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
             st.session_state.use_ema_ribbon = st.toggle("🎯 Strict EMA Filter", value=st.session_state.use_ema_ribbon)
             
-    df_indices = df[df['Is_Index']].copy()
+    df_indices = df[df['Is_Index']].copy()    
     df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3})
     df_indices = df_indices.sort_values("Order")
     
@@ -901,9 +902,14 @@ if not df.empty:
                     one_sided_tag = "🌊Trend-0.5%"
                     trend_bonus = 3
             
-           # --- 🔥 REVERSAL LOGIC (కేవలం "One Sided Moves" ట్యాబ్ కి మాత్రమే) 🔥 ---
+           # --- 🔥 REVERSAL LOGIC 🔥 ---
             trap_tag = ""
             trap_bonus = 0
+            
+            # 🔥 "One Sided Moves" లేదా "High Score Stocks" అయితేనే ఈ రివర్సల్ ని చెక్ చేస్తుంది 🔥
+            if watchlist_mode in ["One Sided Moves 🚀", "High Score Stocks 🔥"] and len(df_day) >= 6 and last_vwap > 0:
+                curr_open = float(df_day['Open'].iloc[-1])
+                ema10 = float(df_day['EMA_10'].iloc[-1])
             
             # Watchlist "One Sided Moves" అయితేనే ఈ రివర్సల్ ని చెక్ చేస్తుంది
             if watchlist_mode == "One Sided Moves 🚀" and len(df_day) >= 6 and last_vwap > 0:
