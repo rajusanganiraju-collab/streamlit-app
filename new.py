@@ -742,7 +742,7 @@ with c3:
 # --- 7. RENDER LOGIC & TREND ANALYSIS ---
 df = fetch_all_data()
 
-if not df.empty:
+   if not df.empty:
     all_names = sorted(df[~df['Is_Sector']]['T'].tolist())
     
     # 🔥 సెర్చ్ బాక్స్, కొత్త ఫిల్టర్, మరియు టోగుల్ బటన్ కోసం 3 కాలమ్స్ 🔥
@@ -761,9 +761,9 @@ if not df.empty:
     with c_tog:
         if watchlist_mode in ["One Sided Moves 🚀", "High Score Stocks 🔥"]:
             st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-            st.session_state.use_ema_ribbon = st.toggle("🎯 Strict EMA Filter", value=st.session_state.use_ema_ribbon)
+      if not df_filtered.empty:      st.session_state.use_ema_ribbon = st.toggle("🎯 Strict EMA Filter", value=st.session_state.use_ema_ribbon)
             
-    df_indices = df[df['Is_Index']].copy()      
+    df_indices = df[df['Is_Index']].copy()
     df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3})
     df_indices = df_indices.sort_values("Order")
     
@@ -975,13 +975,19 @@ if not df.empty:
             # ముందుగా 85% రూల్ పాస్ అవ్వనివి (నాన్-ట్రెండింగ్) తీసేస్తాం
             df_filtered = df_filtered[df_filtered['Trend_Score'] > 0]
             
-            # 🔥 ఇక్కడ స్పేసింగ్ చూడండి (ఇవి watchlist_mode లోపల ఉండాలి) 🔥
+            # యూజర్ సెలెక్ట్ చేసిన ఆప్షన్ ని బట్టి స్టాక్స్ ని ఫిల్టర్ చేస్తాం
             if move_type_filter == "🌊 One Sided Only":
+                # రివర్సల్స్ కానివి మాత్రమే చూపిస్తుంది
                 df_filtered = df_filtered[~df_filtered['AlphaTag'].str.contains("Reversal", na=False)]
             elif move_type_filter == "🎯 Reversals Only":
+                # కేవలం రివర్సల్స్ మాత్రమే చూపిస్తుంది
                 df_filtered = df_filtered[df_filtered['AlphaTag'].str.contains("Reversal", na=False)]
 
-        # --- BUTTONS ---
+    bull_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bullish')
+    bear_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bearish')
+    neut_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Neutral')
+
+    # --- BUTTONS ---
     with st.container():
         st.markdown("<div class='filter-marker'></div>", unsafe_allow_html=True)
         if st.button(f"📊 All ({len(df_filtered)})"): st.session_state.trend_filter = 'All'
