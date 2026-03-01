@@ -19,6 +19,10 @@ if 'trend_filter' not in st.session_state:
 if 'pinned_stocks' not in st.session_state:
     st.session_state.pinned_stocks = []
 
+# 🔥 డిఫాల్ట్ గా టోగుల్ బటన్ OFF (False) లో ఉండేలా సెట్ చేసాం 🔥
+if 'use_ema_ribbon' not in st.session_state:
+    st.session_state.use_ema_ribbon = False
+
 def toggle_pin(symbol):
     if symbol in st.session_state.pinned_stocks:
         st.session_state.pinned_stocks.remove(symbol)
@@ -740,8 +744,16 @@ df = fetch_all_data()
 
 if not df.empty:
     all_names = sorted(df[~df['Is_Sector']]['T'].tolist())
-    search_stock = st.selectbox("🔍 Search & View Chart", ["-- None --"] + all_names)
     
+    # 🔥 సెర్చ్ బాక్స్ మరియు టోగుల్ బటన్ పక్కపక్కన వచ్చేలా కాలమ్స్ 🔥
+    c_search, c_tog = st.columns([0.7, 0.3])
+    with c_search:
+        search_stock = st.selectbox("🔍 Search & View Chart", ["-- None --"] + all_names)
+    with c_tog:
+        if watchlist_mode == "One Sided Moves 🚀":
+            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+            st.session_state.use_ema_ribbon = st.toggle("🎯 Strict EMA Filter", value=st.session_state.use_ema_ribbon)
+            
     df_indices = df[df['Is_Index']].copy()
     df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3})
     df_indices = df_indices.sort_values("Order")
@@ -889,7 +901,7 @@ if not df.empty:
                     one_sided_tag = "🌊Trend-0.5%"
                     trend_bonus = 3
             
-            # --- 🔥 REVERSAL LOGIC (కేవలం "One Sided Moves" ట్యాబ్ కి మాత్రమే) 🔥 ---
+           # --- 🔥 REVERSAL LOGIC (కేవలం "One Sided Moves" ట్యాబ్ కి మాత్రమే) 🔥 ---
             trap_tag = ""
             trap_bonus = 0
             
@@ -907,16 +919,23 @@ if not df.empty:
                 morning_spike = (day_high - day_open) / day_open * 100 if day_open > 0 else 0
                 morning_drop = (day_open - day_low) / day_open * 100 if day_open > 0 else 0
 
-                # 1. Reversal Sell (ట్రెండ్ కి +7 ఇస్తున్నాం కాబట్టి దీనికి +6 ఇస్తున్నాం)
+                # 🔥 EMA కండిషన్స్ ని సపరేట్ వేరియబుల్స్ లోకి తీసుకున్నాం 🔥
+                ema_sell_match = (ema50 > ema20 > ema10 > last_price)
+                ema_buy_match = (last_price > ema10 > ema20 > ema50)
+
+                # 1. Reversal Sell
                 if morning_spike >= 1.0 and last_price < last_vwap:
-                    if (ema50 > ema20 > ema10 > last_price) and (last_price < curr_open):
-                        trap_tag = "🎯 Reversal Sell (EMA) 🩸"
+                    # బటన్ ఆఫ్ ఉంటే EMA ని పట్టించుకోదు, ఆన్ ఉంటే స్ట్రిక్ట్ గా చూస్తుంది
+                    if (last_price < curr_open) and (not st.session_state.use_ema_ribbon or ema_sell_match):
+                        tag_extra = "(EMA)" if ema_sell_match else "(No EMA)"
+                        trap_tag = f"🎯 Reversal Sell {tag_extra} 🩸"
                         trap_bonus = 6 
 
                 # 2. Reversal Buy
                 elif morning_drop >= 1.0 and last_price > last_vwap:
-                    if (last_price > ema10 > ema20 > ema50) and (last_price > curr_open):
-                        trap_tag = "🎯 Reversal Buy (EMA) 🚀"
+                    if (last_price > curr_open) and (not st.session_state.use_ema_ribbon or ema_buy_match):
+                        tag_extra = "(EMA)" if ema_buy_match else "(No EMA)"
+                        trap_tag = f"🎯 Reversal Buy {tag_extra} 🚀"
                         trap_bonus = 6
 
             # ఫైనల్ గా అన్ని ట్యాగ్స్ మరియు స్కోర్ ని కలుపుతున్నాం
