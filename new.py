@@ -1162,9 +1162,16 @@ if not df.empty:
             html_stk = '<div class="heatmap-grid">'
             for _, row in df_stocks_display.iterrows():
                 bg = "bull-card" if row['C'] > 0 else ("bear-card" if row['C'] < 0 else "neut-card")
-                if watchlist_mode == "Swing Trading 📈": special_icon = "🌊"
-                elif watchlist_mode == "One Sided Moves 🚀": special_icon = "🚀"
-                else: special_icon = f"⭐{int(row['S'])}"
+                if watchlist_mode == "Swing Trading 📈": 
+                    special_icon = "🌊"
+                elif watchlist_mode == "One Sided Moves 🚀": 
+                    tag_text = str(row.get('AlphaTag', ''))
+                    if 'Reversal' in tag_text:
+                        special_icon = "🎯"
+                    else:
+                        special_icon = "🌊"
+                else: 
+                    special_icon = f"⭐{int(row['S'])}"
                 html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">{special_icon}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if row["C"]>0 else ""}{row["C"]:.2f}%</div></a>'
             st.markdown(html_stk + '</div><br>', unsafe_allow_html=True)
             
