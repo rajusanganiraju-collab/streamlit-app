@@ -773,9 +773,7 @@ if not df.empty:
             st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
             st.session_state.use_ema_ribbon = st.toggle("🎯 Strict EMA Filter", value=st.session_state.use_ema_ribbon)
         with c_tog:
-            if watchlist_mode in ["One Sided Moves 🚀", "High Score Stocks 🔥"]:
-                st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-                st.session_state.use_ema_ribbon = st.toggle("🎯 Strict EMA Filter", value=st.session_state.use_ema_ribbon)
+          
     df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3})
     df_indices = df_indices.sort_values("Order")
     
