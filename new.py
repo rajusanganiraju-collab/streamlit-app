@@ -742,32 +742,36 @@ with c3:
 # --- 7. RENDER LOGIC & TREND ANALYSIS ---
 df = fetch_all_data()
 
-if not df.empty:
-    all_names = sorted(df[~df['Is_Sector']]['T'].tolist())
-    
-    # 🔥 సెర్చ్ బాక్స్, కొత్త ఫిల్టర్, మరియు టోగుల్ బటన్ కోసం 3 కాలమ్స్ 🔥
-    c_search, c_type, c_tog = st.columns([0.4, 0.3, 0.3])
-    
-    with c_search:
-        search_stock = st.selectbox("🔍 Search & View Chart", ["-- None --"] + all_names)
-    
-    move_type_filter = "All Moves" # డిఫాల్ట్
-    
-    with c_type:
-        # 🚀 One Sided Moves కోసం ఫిల్టర్ ఆప్షన్స్ 
-        if watchlist_mode == "One Sided Moves 🚀":
-            move_type_filter = st.selectbox("🎯 Strategy Filter", ["All Moves", "🌊 One Sided Only", "🎯 Reversals Only", "🏹 Rubber Band Stretch"], index=0)
+    if not df.empty:
+        all_names = sorted(df[~df['Is_Sector']]['T'].tolist())
         
-        # 📈 Swing Trading కోసం ఫిల్టర్ ఆప్షన్స్
-        elif watchlist_mode == "Swing Trading 📈":
-            move_type_filter = st.selectbox("📈 Strategy Filter", ["All Swing Stocks", "🧲 Pullback to Value"], index=0)
+        # 🔥 సెర్చ్ బాక్స్, కొత్త ఫిల్టర్, మరియు టోగుల్ బటన్ కోసం 3 కాలమ్స్ 🔥
+        c_search, c_type, c_tog = st.columns([0.4, 0.3, 0.3])
+        
+        with c_search:
+            search_stock = st.selectbox("🔍 Search & View Chart", ["-- None --"] + all_names)
+        
+        move_type_filter = "All Moves" # డిఫాల్ట్
+        
+        with c_type:
+            # 🚀 One Sided Moves కోసం ఫిల్టర్ ఆప్షన్స్ 
+            if watchlist_mode == "One Sided Moves 🚀":
+                move_type_filter = st.selectbox("🎯 Strategy Filter", [
+                    "All Moves", 
+                    "🌊 One Sided Only", 
+                    "🎯 Reversals Only", 
+                    "🏹 Rubber Band Stretch",
+                    "🏄‍♂️ Momentum Ignition"
+                ], index=0)
             
-    with c_tog:
-        if watchlist_mode in ["One Sided Moves 🚀", "High Score Stocks 🔥"]:
-            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-            st.session_state.use_ema_ribbon = st.toggle("🎯 Strict EMA Filter", value=st.session_state.use_ema_ribbon)
-            
-    df_indices = df[df['Is_Index']].copy()
+            # 📈 Swing Trading కోసం ఫిల్టర్ ఆప్షన్స్
+            elif watchlist_mode == "Swing Trading 📈":
+                move_type_filter = st.selectbox("📈 Strategy Filter", ["All Swing Stocks", "🧲 Pullback to Value"], index=0)
+                
+        with c_tog:
+            if watchlist_mode in ["One Sided Moves 🚀", "High Score Stocks 🔥"]:
+                st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+                st.session_state.use_ema_ribbon = st.toggle("🎯 Strict EMA Filter", value=st.session_state.use_ema_ribbon)
     df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3})
     df_indices = df_indices.sort_values("Order")
     
@@ -975,10 +979,10 @@ if not df.empty:
         df_filtered['S'] = df_filtered['S'] + df_filtered['Trend_Score']
         
         # ---------------------------------------------------------
-        # 🚀 1. ONE SIDED MOVES & RUBBER BAND FILTER LOGIC (PRO)
+        # 🚀 1. ONE SIDED MOVES & PRO STRATEGIES FILTER LOGIC
         # ---------------------------------------------------------
         if watchlist_mode == "One Sided Moves 🚀":
-            # ముందుగా 85% రూల్ పాస్ అవ్వనివి (నాన్-ట్రెండింగ్) తీసేస్తాం
+            # ముందుగా 85% రూల్ పాస్ అవ్వనివి తీసేస్తాం
             df_filtered = df_filtered[df_filtered['Trend_Score'] > 0]
             
             if move_type_filter == "🌊 One Sided Only":
@@ -986,23 +990,35 @@ if not df.empty:
             elif move_type_filter == "🎯 Reversals Only":
                 df_filtered = df_filtered[df_filtered['AlphaTag'].str.contains("Reversal", na=False)]
             elif move_type_filter == "🏹 Rubber Band Stretch":
-                # 🔥 PRO LOGIC: Extreme stretch (1.5%+) + Climax Volume (VolX >= 1.5)
+                # PRO LOGIC: Extreme stretch (1.5%+) + Climax Volume
                 df_filtered = df_filtered[
                     df_filtered['AlphaTag'].str.contains("Reversal", na=False) & 
                     (df_filtered['Day_C'].abs() >= 1.5) & 
                     (df_filtered['VolX'] >= 1.5)
                 ]
+            elif move_type_filter == "🏄‍♂️ Momentum Ignition":
+                # 🔥 PRO LOGIC: Momentum Trend Rider (High Win-Rate)
+                ignition_cond = (
+                    (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) &
+                    (df_filtered['P'] > df_filtered['O']) &
+                    (df_filtered['Day_C'] >= 1.0) &
+                    (df_filtered['VolX'] >= 1.5) &
+                    ((df_filtered['H'] - df_filtered['P']) <= (df_filtered['H'] - df_filtered['L']) * 0.25)
+                )
+                df_filtered = df_filtered[ignition_cond].copy()
+                
+                # 🔥 OVERRIDE: Strict Momentum Levels (0.5% Risk | 0.5% to 0.8% Reward) 🔥
+                if not df_filtered.empty:
+                    df_filtered['T1'] = round(df_filtered['P'] * 1.005, 2)
+                    df_filtered['T2'] = round(df_filtered['P'] * 1.008, 2)
+                    df_filtered['SL'] = round(df_filtered['P'] * 0.995, 2)
         
         # ---------------------------------------------------------
         # 📈 2. SWING TRADING & PULLBACK TO VALUE FILTER LOGIC (PRO)
         # ---------------------------------------------------------
         elif watchlist_mode == "Swing Trading 📈":
             if move_type_filter == "🧲 Pullback to Value":
-                # 🔥 PRO LOGIC: 
-                # 1. Stricter Hammer/Pinbar (Tail is at least 2x the top body)
-                # 2. Institutional Volume is active (VolX >= 1.2)
-                # 3. Core Swing Trend is intact (Is_Swing == True)
-                
+                # 🔥 PRO LOGIC: Strict Pinbar + Volume + Swing Trend
                 tail_length = df_filtered['O'] - df_filtered['L']
                 top_body = df_filtered['H'] - df_filtered['P']
                 
