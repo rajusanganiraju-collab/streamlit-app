@@ -827,7 +827,7 @@ if not df.empty:
     df_buy_sector = df_nifty[df_nifty['Sector'] == top_buy_sector].sort_values(by=['S', 'C'], ascending=[False, False])
     df_sell_sector = df_nifty[df_nifty['Sector'] == top_sell_sector].sort_values(by=['S', 'C'], ascending=[False, True])
     df_independent = df_nifty[(~df_nifty['Sector'].isin([top_buy_sector, top_sell_sector])) & (df_nifty['S'] >= 5)].sort_values(by='S', ascending=False).head(8)
-    df_broader = df_stocks[(df_stocks['T'].isin(BROADER_MARKET)) & (df_stocks['S'] >= 5)].sort_values(by='S', ascending=False).head(8)
+    df_broader = df_stocks[(df_stocks['T'].isin(FNO_STOCKS)) & (~df_stocks['T'].isin(NIFTY_50)) & (df_stocks['S'] >= 5)].sort_values(by='S', ascending=False).head(8)
 
     df_port_saved = load_portfolio()
 
