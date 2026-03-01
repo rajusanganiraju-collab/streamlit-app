@@ -742,7 +742,7 @@ with c3:
 # --- 7. RENDER LOGIC & TREND ANALYSIS ---
 df = fetch_all_data()
 
- if not df.empty:
+if not df.empty:
     all_names = sorted(df[~df['Is_Sector']]['T'].tolist())
     
     # 🔥 సెర్చ్ బాక్స్, కొత్త ఫిల్టర్, మరియు టోగుల్ బటన్ కోసం 3 కాలమ్స్ 🔥
