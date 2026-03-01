@@ -620,7 +620,41 @@ def render_highscore_terminal_table(df_subset, stock_trends):
         html += row_str
     html += "</tbody></table>"
     return html
-
+def render_levels_table(df_subset, stock_trends):
+    if df_subset.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No Stocks found right now.</div>"
+    
+    df_sorted = df_subset.sort_values(by=['S', 'VolX', 'C'], ascending=[False, False, False]).reset_index(drop=True)
+    html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-levels">🎯 INTRADAY TRADING LEVELS (SUPPORT & RESISTANCE)</th></tr><tr style="background-color: #21262d;"><th style="width:5%;">RANK</th><th style="text-align:left; width:13%;">STOCK</th><th style="width:8%;">LTP</th><th style="width:8%;">DAY%</th><th style="width:8%;">VOL</th><th style="width:16%;">STATUS</th><th style="width:11%; color:#f85149;">🛑 STOP LOSS</th><th style="width:11%; color:#3fb950;">🎯 TARGET 1</th><th style="width:11%; color:#3fb950;">🎯 TARGET 2</th><th style="width:9%;">SCORE</th></tr></thead><tbody>'
+    for i, row in df_sorted.iterrows():
+        bg_class = "row-dark" if i % 2 == 0 else "row-light"
+        day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
+        status = generate_status(row)
+        
+        trend_state = stock_trends.get(row['Fetch_T'], "Neutral")
+        is_down = trend_state == 'Bearish' or (trend_state == 'Neutral' and row['C'] < 0)
+        
+        if trend_state == 'Bullish': status += " 🟢Trend"
+        elif trend_state == 'Bearish': status += " 🔴Trend"
+        
+        # PURE INSTITUTIONAL RISK-REWARD LOGIC
+        atr_val = row.get("ATR", row["P"] * 0.02)
+        if is_down:
+            sl_val = row["P"] + (1.5 * atr_val)
+            t1_val = row["P"] - (1.5 * atr_val)
+            t2_val = row["P"] - (3.0 * atr_val)
+        else:
+            sl_val = row["P"] - (1.5 * atr_val)
+            t1_val = row["P"] + (1.5 * atr_val)
+            t2_val = row["P"] + (3.0 * atr_val)
+            
+        rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
+        row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td>'
+        row_str += f'<td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px; cursor:help;" title="{status}">{status}</td>'
+        row_str += f'<td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td>'
+        row_str += f'<td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
+        html += row_str
+    html += "</tbody></table>"
+    return html
 # --- HELPER FUNCTION TO DRAW CHARTS ---
 def render_chart(row, df_chart, show_pin=True, key_suffix=""):
     display_sym = row['T']
