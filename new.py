@@ -985,7 +985,7 @@ if not df.empty:
 
     # SORTING LOGIC 
     # 🔥 PURE ONE SIDED LOGIC OVERRIDE 🔥
-    sort_col = "S"
+    sort_col = "Trend_Score" if watchlist_mode == "One Sided Moves 🚀" else "S"
     
     if sort_mode == "% Change Up 🟢": 
         df_stocks_display = df_filtered.sort_values(by="C", ascending=False)
