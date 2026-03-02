@@ -24,23 +24,23 @@ try:
 except Exception as e:
     st.error(f"గూగుల్ షీట్ కనెక్ట్ అవ్వలేదు బాస్! Error: {e}")
 # డేటా లోడ్ & సేవ్ ఫంక్షన్స్
-    def load_portfolio():
-        records = port_ws.get_all_records()
-        return pd.DataFrame(records) if records else pd.DataFrame(columns=["Buy Date", "Stock Name", "Buy Price", "Quantity"])
+def load_portfolio():
+    records = port_ws.get_all_records()
+    return pd.DataFrame(records) if records else pd.DataFrame(columns=["Buy Date", "Stock Name", "Buy Price", "Quantity"])
 
-    def load_tradebook():
-        records = trade_ws.get_all_records()
-        return pd.DataFrame(records) if records else pd.DataFrame(columns=["Sell Date", "Stock Name", "Buy Price", "Sell Price", "Quantity", "Profit/Loss"])
+def load_tradebook():
+    records = trade_ws.get_all_records()
+    return pd.DataFrame(records) if records else pd.DataFrame(columns=["Sell Date", "Stock Name", "Buy Price", "Sell Price", "Quantity", "Profit/Loss"])
 
-    def save_portfolio(df):
-        port_ws.clear()
-        df = df.fillna("")
-        port_ws.update([df.columns.values.tolist()] + df.values.tolist())
+def save_portfolio(df):
+    port_ws.clear()
+    df = df.fillna("")
+    port_ws.update([df.columns.values.tolist()] + df.values.tolist())
 
-    def save_tradebook(df):
-        trade_ws.clear()
-        df = df.fillna("")
-        trade_ws.update([df.columns.values.tolist()] + df.values.tolist())
+def save_tradebook(df):
+    trade_ws.clear()
+    df = df.fillna("")
+    trade_ws.update([df.columns.values.tolist()] + df.values.tolist())
     
 import numpy as np
 import plotly.graph_objects as go
