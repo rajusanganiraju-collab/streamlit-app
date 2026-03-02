@@ -279,7 +279,7 @@ def get_minutes_passed():
 @st.cache_data(ttl=60)
 def fetch_all_data():
     port_df = load_portfolio()
-    port_stocks = [str(sym).upper().strip() for sym in port_df['Symbol'].tolist() if str(sym).strip() != ""]
+    port_stocks = [str(sym).upper().strip() for sym in port_df['Stock Name'].tolist() if str(sym).strip() != ""]
     
     all_stocks = set(NIFTY_50 + FNO_STOCKS + port_stocks)
     tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + [f"{t}.NS" for t in all_stocks if t]
