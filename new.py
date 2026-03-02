@@ -901,54 +901,74 @@ if not df.empty:
         # ---------------------------------------------------------
         if watchlist_mode == "One Sided Moves 🚀":
             
-            # 🔥 1. Nifty VWAP గ్యాప్ 🔥
+            # 🔥 1. Nifty VWAP గ్యాప్ (మరీ టూమచ్ కాకుండా 0.75% కి లిమిట్ చేశాం) 🔥
             nifty_dist = 0.25 
             nifty_row = df_indices[df_indices['T'] == 'NIFTY']
             if not nifty_row.empty:
                 n_h, n_l, n_p = float(nifty_row['H'].iloc[0]), float(nifty_row['L'].iloc[0]), float(nifty_row['P'].iloc[0])
                 n_vwap = (n_h + n_l + n_p) / 3
+                # నిఫ్టీ భారీగా పడినా సరే, మాక్స్ వాల్యూ 0.75% గా తీసుకుంటుంది (లేదంటే స్టాక్స్ రావు)
                 nifty_dist = min(max(abs(n_p - n_vwap) / n_vwap * 100, 0.25), 0.75)
             
             # 🔥 2. Stock VWAP గ్యాప్ 🔥
             s_vwap = (df_filtered['H'] + df_filtered['L'] + df_filtered['P']) / 3
             stock_vwap_dist = (df_filtered['P'] - s_vwap).abs() / s_vwap * 100
             
-            # 🔥 3. అన్ని కండిషన్స్ ని ముందుగానే క్యాలిక్యులేట్ చేయడం 🔥
-            open_drive_bull = (df_filtered['O'] - df_filtered['L'] <= df_filtered['P'] * 0.003) & (df_filtered['Day_C'] > 0)
-            open_drive_bear = (df_filtered['H'] - df_filtered['O'] <= df_filtered['P'] * 0.003) & (df_filtered['Day_C'] < 0)
-            
-            cond_oneside = (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['VolX'] >= 1.5) & (df_filtered['Day_C'].abs() >= 1.5) & (stock_vwap_dist >= (nifty_dist * 1.5)) & (df_filtered['Trend_Score'] >= 3) & (open_drive_bull | open_drive_bear)
-            cond_vwap_rev = (df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['VolX'] >= 1.5) & (df_filtered['Day_C'].abs() >= 1.5) & (stock_vwap_dist >= (nifty_dist * 1.5))
-            cond_rev_only = (df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['VolX'] >= 1.2) & (df_filtered['Day_C'].abs() >= 1.0)
-            cond_rubber = (df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['Day_C'].abs() >= 2.5) & (df_filtered['VolX'] >= 2.0)
-            cond_momentum = (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] >= 2.0) & (df_filtered['VolX'] >= 2.0) & ((df_filtered['H'] - df_filtered['P']) <= (df_filtered['H'] - df_filtered['L']) * 0.15)
-            
-            # 🔥 4. ఏ స్టాక్ కి ఏ స్ట్రాటజీ సెట్ అయిందో ఆ ఐకాన్స్ (ఎన్ని ఉంటే అన్ని) కలుపుతూ వెళ్లడం 🔥
-            df_filtered['Strategy_Icon'] = ""
-            df_filtered.loc[cond_oneside, 'Strategy_Icon'] += "🌊"
-            df_filtered.loc[cond_vwap_rev, 'Strategy_Icon'] += "🔄"
-            df_filtered.loc[cond_rev_only, 'Strategy_Icon'] += "🎯"
-            df_filtered.loc[cond_rubber, 'Strategy_Icon'] += "🏹"
-            df_filtered.loc[cond_momentum, 'Strategy_Icon'] += "🏄‍♂️"
-            
-            # 🔥 5. యూజర్ ఏ ఫిల్టర్ సెలెక్ట్ చేశారో ఆ స్టాక్స్ ని మాత్రమే ఉంచడం 🔥
-            if move_type_filter == "All Moves":
-                # ఖాళీగా లేనివి అన్నీ ఇక్కడికి వస్తాయి (ఏ ఒక్క స్ట్రాటజీ పాస్ అయినా వస్తుంది)
-                df_filtered = df_filtered[df_filtered['Strategy_Icon'] != ""]
-            elif move_type_filter == "🌊 One Sided Only":
-                df_filtered = df_filtered[cond_oneside]
+            if move_type_filter == "🌊 One Sided Only":
+                # 🔥 STRICT ONE SIDED 🔥
+                open_drive_bull = (df_filtered['O'] - df_filtered['L'] <= df_filtered['P'] * 0.003) & (df_filtered['Day_C'] > 0)
+                open_drive_bear = (df_filtered['H'] - df_filtered['O'] <= df_filtered['P'] * 0.003) & (df_filtered['Day_C'] < 0)
+                
+                strict_cond = (
+                    (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & 
+                    (df_filtered['VolX'] >= 1.5) &                                  # వాల్యూమ్ 1.5x ఉండాలి
+                    (df_filtered['Day_C'].abs() >= 1.5) &                           # 1.5% మూవ్ అవ్వాలి
+                    (stock_vwap_dist >= (nifty_dist * 1.5)) &                       # Nifty గ్యాప్ కి 1.5x ఉండాలి
+                    (df_filtered['Trend_Score'] >= 3) &                             # ఉదయం నుండి ట్రెండ్ లో ఉండాలి
+                    (open_drive_bull | open_drive_bear)                             
+                )
+                df_filtered = df_filtered[strict_cond]
+                
             elif move_type_filter == "🔄 VWAP Reversal":
-                df_filtered = df_filtered[cond_vwap_rev]
+                # 🔥 VWAP REVERSAL 🔥 
+                rev_cond = (
+                    (df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & 
+                    (df_filtered['VolX'] >= 1.5) &                                 # 1.5x వాల్యూమ్ 
+                    (df_filtered['Day_C'].abs() >= 1.5) &                          # 1.5% మూవ్
+                    (stock_vwap_dist >= (nifty_dist * 1.5))                        # గ్యాప్ ఉండాలి
+                )
+                df_filtered = df_filtered[rev_cond]
+                
             elif move_type_filter == "🎯 Reversals Only":
-                df_filtered = df_filtered[cond_rev_only]
+                # 🔥 47 స్టాక్స్ రాకుండా దీన్ని టైట్ చేశాం 🔥
+                df_filtered = df_filtered[
+                    (df_filtered['AlphaTag'].str.contains("Reversal", na=False)) &
+                    (df_filtered['VolX'] >= 1.2) &                                 # వాల్యూమ్ 1.2x దాటాలి
+                    (df_filtered['Day_C'].abs() >= 1.0)                            # 1% పైన మూవ్ ఉండాలి
+                ]
+                
             elif move_type_filter == "🏹 Rubber Band Stretch":
-                df_filtered = df_filtered[cond_rubber]
+                # 🔥 EXTREME REVERSAL 🔥
+                df_filtered = df_filtered[
+                    (df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & 
+                    (df_filtered['Day_C'].abs() >= 2.5) & 
+                    (df_filtered['VolX'] >= 2.0)
+                ]
+                
             elif move_type_filter == "🏄‍♂️ Momentum Ignition":
-                df_filtered = df_filtered[cond_momentum].copy()
+                # 🔥 MOMENTUM RIDER 🔥
+                ignition_cond = (
+                    (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) &
+                    (df_filtered['P'] > df_filtered['O']) &
+                    (df_filtered['Day_C'] >= 2.0) & 
+                    (df_filtered['VolX'] >= 2.0) & 
+                    ((df_filtered['H'] - df_filtered['P']) <= (df_filtered['H'] - df_filtered['L']) * 0.15) 
+                )
+                df_filtered = df_filtered[ignition_cond].copy()
                 if not df_filtered.empty:
                     df_filtered['T1'] = round(df_filtered['P'] * 1.008, 2)
                     df_filtered['T2'] = round(df_filtered['P'] * 1.015, 2)
-                    df_filtered['SL'] = round(df_filtered['P'] * 0.992, 2)
+                    df_filtered['SL'] = round(df_filtered['P'] * 0.992, 2)      
         
         elif watchlist_mode == "Swing Trading 📈":
             if move_type_filter == "🧲 Pullback to Value":
@@ -1141,30 +1161,36 @@ if not df.empty:
             with st.expander("📜 View Trade Book (Closed P&L Ledger)", expanded=False):
                 df_closed_view = load_closed_trades()
                 st.markdown(render_closed_trades_table(df_closed_view), unsafe_allow_html=True) 
-    if not df_stocks_display.empty:
+    elif view_mode == "Heat Map":
+        if not df_indices.empty:
+            html_idx = '<div class="heatmap-grid">'
+            for _, row in df_indices.iterrows():
+                bg = "bear-card" if (row['T'] == "INDIA VIX" and row['C'] > 0) else ("bull-card" if row['C'] > 0 else "neut-card")
+                if row['T'] != "INDIA VIX" and row['C'] < 0: bg = "bear-card"
+                html_idx += f'<a href="https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(row["Fetch_T"])}" target="_blank" class="stock-card {bg}"><div class="t-score">IDX</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if row["C"]>0 else ""}{row["C"]:.2f}%</div></a>'
+            st.markdown(html_idx + '</div><hr class="custom-hr">', unsafe_allow_html=True)
+        
+        if not df_sectors.empty:
+            html_sec = '<div class="heatmap-grid">'
+            for _, row in df_sectors.iterrows():
+                bg = "bull-card" if row['C'] > 0 else ("bear-card" if row['C'] < 0 else "neut-card")
+                html_sec += f'<a href="https://in.tradingview.com/chart/?symbol={TV_SECTOR_URL.get(row["Fetch_T"], "")}" target="_blank" class="stock-card {bg}"><div class="t-score" style="color:#00BFFF;">SEC</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if row["C"]>0 else ""}{row["C"]:.2f}%</div></a>'
+            st.markdown(html_sec + '</div><hr class="custom-hr">', unsafe_allow_html=True)
+
+        if not df_stocks_display.empty:
             html_stk = '<div class="heatmap-grid">'
             for _, row in df_stocks_display.iterrows():
                 bg = "bull-card" if row['C'] > 0 else ("bear-card" if row['C'] < 0 else "neut-card")
-                
-                # 🔥 ఐకాన్స్ ని డిసైడ్ చేయడం (సైజు పాతది లాగే ఉంటుంది) 🔥
                 if watchlist_mode == "Swing Trading 📈": 
                     special_icon = "🌊"
                 elif watchlist_mode == "One Sided Moves 🚀": 
-                    special_icon = row.get('Strategy_Icon', '🚀')
-                    if special_icon == "": special_icon = "🚀"
+                    tag_text = str(row.get('AlphaTag', ''))
+                    if 'Reversal' in tag_text: special_icon = "🎯"
+                    else: special_icon = "🌊"
                 else: 
                     special_icon = f"⭐{int(row['S'])}"
-                    
                 html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">{special_icon}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if row["C"]>0 else ""}{row["C"]:.2f}%</div></a>'
             st.markdown(html_stk + '</div><br>', unsafe_allow_html=True)
-            
-            if watchlist_mode == "Swing Trading 📈":
-                with st.expander("🌊 View Swing Trading Radar (Ranked Table)", expanded=True): st.markdown(render_swing_terminal_table(df_stocks_display, stock_trends), unsafe_allow_html=True)
-            elif watchlist_mode == "High Score Stocks 🔥":
-                with st.expander("🔥 View High Score Radar (Ranked Intraday Table)", expanded=True): st.markdown(render_highscore_terminal_table(df_stocks_display, stock_trends), unsafe_allow_html=True)
-            else:
-                with st.expander("🎯 View Trading Levels (Targets & Stop Loss)", expanded=True): st.markdown(render_levels_table(df_stocks_display, stock_trends), unsafe_allow_html=True)
-        else: st.info(f"No {st.session_state.trend_filter} stocks found.")
             
             if watchlist_mode == "Swing Trading 📈":
                 with st.expander("🌊 View Swing Trading Radar (Ranked Table)", expanded=True): st.markdown(render_swing_terminal_table(df_stocks_display, stock_trends), unsafe_allow_html=True)
