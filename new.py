@@ -1132,14 +1132,16 @@ if not df.empty:
             html_stk = '<div class="heatmap-grid">'
             for _, row in df_stocks_display.iterrows():
                 bg = "bull-card" if row['C'] > 0 else ("bear-card" if row['C'] < 0 else "neut-card")
+                
+                # 🔥 ఐకాన్స్ ని డిసైడ్ చేయడం (సైజు పాతది లాగే ఉంటుంది) 🔥
                 if watchlist_mode == "Swing Trading 📈": 
                     special_icon = "🌊"
                 elif watchlist_mode == "One Sided Moves 🚀": 
-                    tag_text = str(row.get('AlphaTag', ''))
-                    if 'Reversal' in tag_text: special_icon = "🎯"
-                    else: special_icon = "🌊"
+                    special_icon = row.get('Strategy_Icon', '🚀')
+                    if special_icon == "": special_icon = "🚀"
                 else: 
                     special_icon = f"⭐{int(row['S'])}"
+                    
                 html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">{special_icon}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if row["C"]>0 else ""}{row["C"]:.2f}%</div></a>'
             st.markdown(html_stk + '</div><br>', unsafe_allow_html=True)
             
@@ -1149,7 +1151,8 @@ if not df.empty:
                 with st.expander("🔥 View High Score Radar (Ranked Intraday Table)", expanded=True): st.markdown(render_highscore_terminal_table(df_stocks_display, stock_trends), unsafe_allow_html=True)
             else:
                 with st.expander("🎯 View Trading Levels (Targets & Stop Loss)", expanded=True): st.markdown(render_levels_table(df_stocks_display, stock_trends), unsafe_allow_html=True)
-        else: st.info(f"No {st.session_state.trend_filter} stocks found.")
+        else: 
+            st.info(f"No {st.session_state.trend_filter} stocks found.")
             
     else: # CHART VIEW
         st.markdown("<br>", unsafe_allow_html=True)
