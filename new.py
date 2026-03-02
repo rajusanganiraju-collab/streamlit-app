@@ -1,6 +1,28 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
+import gspread
+from google.oauth2.service_account import Credentials
+import json
+from datetime import datetime
+
+# గూగుల్ షీట్స్ కనెక్షన్ (ఇది టాప్ లోనే ఉండాలి)
+@st.cache_resource
+def init_connection():
+    creds_json = st.secrets["gcp_service_account"]
+    creds_dict = json.loads(creds_json)
+    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+    creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+    return gspread.authorize(creds)
+
+client = init_connection()
+
+try:
+    db_sheet = client.open("Trading_DB")
+    port_ws = db_sheet.worksheet("Portfolio")
+    trade_ws = db_sheet.worksheet("TradeBook")
+except Exception as e:
+    st.error(f"గూగుల్ షీట్ కనెక్ట్ అవ్వలేదు బాస్! Error: {e}")
 import numpy as np
 import plotly.graph_objects as go
 import os
@@ -29,54 +51,97 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- PORTFOLIO FILE SETUP ---
-PORTFOLIO_FILE = "my_portfolio.csv"
-def load_portfolio():
-    # 🔥 కొత్తగా SL, T1, T2 కాలమ్స్ కూడా యాడ్ చేశాం 🔥
-    default_data = [
-        {"Symbol": "APLAPOLLO", "Buy_Price": 2262.20, "Quantity": 1, "Date": "-", "SL": 2200.0, "T1": 2350.0, "T2": 2400.0},
-        {"Symbol": "CGPOWER", "Buy_Price": 667.00, "Quantity": 10, "Date": "-", "SL": 630.0, "T1": 700.0, "T2": 730.0},
-        {"Symbol": "HDFCBANK", "Buy_Price": 949.27, "Quantity": 4, "Date": "-", "SL": 900.0, "T1": 1000.0, "T2": 1050.0},
-        {"Symbol": "ITC", "Buy_Price": 310.35, "Quantity": 20, "Date": "-", "SL": 290.0, "T1": 330.0, "T2": 350.0},
-        {"Symbol": "KALYANKJIL", "Buy_Price": 437.18, "Quantity": 11, "Date": "-", "SL": 400.0, "T1": 480.0, "T2": 520.0},
-        {"Symbol": "KPRMILL", "Buy_Price": 979.00, "Quantity": 1, "Date": "-", "SL": 930.0, "T1": 1050.0, "T2": 1100.0},
-        {"Symbol": "VBL", "Buy_Price": 438.30, "Quantity": 5, "Date": "-", "SL": 410.0, "T1": 470.0, "T2": 500.0},
-        {"Symbol": "ZYDUSLIFE", "Buy_Price": 905.70, "Quantity": 2, "Date": "-", "SL": 850.0, "T1": 980.0, "T2": 1050.0}
-    ]
-    default_df = pd.DataFrame(default_data)
+# డేటా లోడ్ & సేవ్ ఫంక్షన్స్
+    def load_portfolio():
+        records = port_ws.get_all_records()
+        return pd.DataFrame(records) if records else pd.DataFrame(columns=["Buy Date", "Stock Name", "Buy Price", "Quantity"])
 
-    if os.path.exists(PORTFOLIO_FILE):
-        try:
-            df = pd.read_csv(PORTFOLIO_FILE)
-            if not df.empty:
-                df['Quantity'] = pd.to_numeric(df['Quantity'], errors='coerce').fillna(1).astype(int)
-                df['Buy_Price'] = pd.to_numeric(df['Buy_Price'], errors='coerce').fillna(0.0).astype(float)
-                df['Symbol'] = df['Symbol'].astype(str).replace('nan', '')
-                df['Date'] = df['Date'].astype(str).replace('nan', '')
-                df['SL'] = pd.to_numeric(df.get('SL', 0.0), errors='coerce').fillna(0.0).astype(float)
-                df['T1'] = pd.to_numeric(df.get('T1', 0.0), errors='coerce').fillna(0.0).astype(float)
-                df['T2'] = pd.to_numeric(df.get('T2', 0.0), errors='coerce').fillna(0.0).astype(float)
-                return df
-        except:
-            pass
+    def load_tradebook():
+        records = trade_ws.get_all_records()
+        return pd.DataFrame(records) if records else pd.DataFrame(columns=["Sell Date", "Stock Name", "Buy Price", "Sell Price", "Quantity", "Profit/Loss"])
+
+    def save_portfolio(df):
+        port_ws.clear()
+        df = df.fillna("")
+        port_ws.update([df.columns.values.tolist()] + df.values.tolist())
+
+    def save_tradebook(df):
+        trade_ws.clear()
+        df = df.fillna("")
+        trade_ws.update([df.columns.values.tolist()] + df.values.tolist())
+
+    df_portfolio = load_portfolio()
+    df_tradebook = load_tradebook()
+
+    st.header("💼 Smart Portfolio & Auto Trade Book (Cloud Saved)")
+
+    # 1. PORTFOLIO SECTION 
+    st.subheader("1. My Portfolio (Current Holdings)")
+    st.dataframe(df_portfolio, use_container_width=True)
+
+    st.write("🛒 **కొత్త స్టాక్ కొన్నారా? (Add to Portfolio)**")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        b_stock = st.text_input("Stock Name (ఉదా: ITC)").upper()
+    with c2:
+        b_price = st.number_input("Buy Price:", min_value=0.0, format="%.2f")
+    with c3:
+        b_qty = st.number_input("Quantity:", min_value=1, step=1)
+
+    if st.button("Add to Portfolio"):
+        if b_stock:
+            today = datetime.now().strftime("%Y-%m-%d")
+            new_row = pd.DataFrame([{"Buy Date": today, "Stock Name": b_stock, "Buy Price": float(b_price), "Quantity": int(b_qty)}])
+            df_portfolio = pd.concat([df_portfolio, new_row], ignore_index=True)
+            save_portfolio(df_portfolio) 
+            st.success(f"{b_stock} గూగుల్ షీట్ లోకి సేవ్ అయిపోయింది!")
+            st.rerun()
+
+    st.divider()
+
+    # 2. SMART SELL SECTION 
+    st.subheader("2. Smart Sell (Auto Move to Trade Book)")
+
+    if not df_portfolio.empty:
+        stock_list = df_portfolio["Stock Name"].unique()
+        s_stock = st.selectbox("అమ్మాలనుకుంటున్న స్టాక్ ని సెలెక్ట్ చేయండి:", stock_list)
+        
+        stock_data = df_portfolio[df_portfolio["Stock Name"] == s_stock].iloc[0]
+        buy_price = float(stock_data["Buy Price"])
+        max_qty = int(stock_data["Quantity"])
+        
+        st.info(f"మీరు {s_stock} ని ₹{buy_price} కి కొన్నారు. మీ దగ్గర {max_qty} షేర్లు ఉన్నాయి.")
+
+        sc1, sc2 = st.columns(2)
+        with sc1:
+            s_price = st.number_input("ఏ రేటుకి అమ్మారు? (Sell Price):", min_value=0.0, format="%.2f")
+        with sc2:
+            s_qty = st.number_input("ఎన్ని షేర్లు అమ్మారు? (Quantity):", min_value=1, max_value=max_qty, step=1)
+
+        if st.button("Execute Sell"):
+            pnl = (s_price - buy_price) * s_qty
+            today = datetime.now().strftime("%Y-%m-%d")
+            new_trade = pd.DataFrame([{"Sell Date": today, "Stock Name": s_stock, "Buy Price": buy_price, 
+                                       "Sell Price": float(s_price), "Quantity": int(s_qty), "Profit/Loss": float(pnl)}])
+            df_tradebook = pd.concat([df_tradebook, new_trade], ignore_index=True)
+            save_tradebook(df_tradebook)
+
+            idx = df_portfolio[df_portfolio["Stock Name"] == s_stock].index[0]
+            df_portfolio.at[idx, "Quantity"] -= s_qty
+            if df_portfolio.at[idx, "Quantity"] == 0:
+                df_portfolio = df_portfolio.drop(idx)
+            save_portfolio(df_portfolio)
             
-    default_df.to_csv(PORTFOLIO_FILE, index=False)
-    return default_df
+            st.success(f"ట్రేడ్ కంప్లీట్! ₹{pnl:.2f} లాభం/నష్టం క్లౌడ్ లో సేవ్ అయింది.")
+            st.rerun()
+    else:
+        st.info("ప్రస్తుతం మీ పోర్ట్‌ఫోలియో ఖాళీగా ఉంది.")
 
-def save_portfolio(df_port):
-    df_port.to_csv(PORTFOLIO_FILE, index=False)
-    # --- CLOSED TRADES (P&L) SETUP ---
-CLOSED_TRADES_FILE = "closed_trades.csv"
-def load_closed_trades():
-    if os.path.exists(CLOSED_TRADES_FILE):
-        try:
-            df = pd.read_csv(CLOSED_TRADES_FILE)
-            if not df.empty: return df
-        except: pass
-    return pd.DataFrame(columns=["Sell_Date", "Symbol", "Quantity", "Buy_Price", "Sell_Price", "PnL_Rs", "PnL_Pct"])
+    st.divider()
 
-def save_closed_trades(df_closed):
-    df_closed.to_csv(CLOSED_TRADES_FILE, index=False)
+    # 3. TRADE BOOK (History)
+    st.subheader("3. My Trade Book (History)")
+    st.dataframe(df_tradebook, use_container_width=True)
 
 # --- 4. CSS FOR STYLING ---
 st.markdown("""
