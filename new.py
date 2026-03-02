@@ -699,7 +699,7 @@ if not df.empty:
             move_type_filter = st.selectbox("🎯 Strategy Filter", [
                 "All Moves", 
                 "🌊 One Sided Only", 
-                "🔄 VWAP Reversal",   # 🔥 ఇదిగో మీరు అడిగిన కొత్త ఫిల్టర్
+                "🔄 VWAP Reversal",   
                 "🎯 Reversals Only", 
                 "🏹 Rubber Band Stretch",
                 "🏄‍♂️ Momentum Ignition"
@@ -754,7 +754,8 @@ if not df.empty:
     elif watchlist_mode == "Swing Trading 📈":
         df_filtered = df_stocks[df_stocks['Is_Swing'] == True]
     else:
-        df_filtered = df_stocks[(df_stocks['S'] >= 5)]
+        # 🔥 High Score Stocks కి స్కోర్ >= 11 మరియు Vol >= 1.5 కండిషన్ పెట్టాం 🔥
+        df_filtered = df_stocks[(df_stocks['S'] >= 11) & (df_stocks['VolX'] >= 1.5)]
 
     all_display_tickers = list(set(df_indices['Fetch_T'].tolist() + df_filtered['Fetch_T'].tolist() + st.session_state.pinned_stocks))
     
@@ -896,79 +897,60 @@ if not df.empty:
         df_filtered['AlphaTag'] = df_filtered['Fetch_T'].map(alpha_tags).fillna("")
         df_filtered['Trend_Score'] = df_filtered['Fetch_T'].map(trend_scores).fillna(0)
         df_filtered['S'] = df_filtered['S'] + df_filtered['Trend_Score']
-  # ---------------------------------------------------------
+        
+        # ---------------------------------------------------------
         # 🚀 1. ONE SIDED MOVES & PRO STRATEGIES FILTER LOGIC
         # ---------------------------------------------------------
         if watchlist_mode == "One Sided Moves 🚀":
             
-            # 🔥 1. Nifty VWAP గ్యాప్ (మరీ టూమచ్ కాకుండా 0.75% కి లిమిట్ చేశాం) 🔥
+            # 🔥 1. Nifty VWAP గ్యాప్ 🔥
             nifty_dist = 0.25 
             nifty_row = df_indices[df_indices['T'] == 'NIFTY']
             if not nifty_row.empty:
                 n_h, n_l, n_p = float(nifty_row['H'].iloc[0]), float(nifty_row['L'].iloc[0]), float(nifty_row['P'].iloc[0])
                 n_vwap = (n_h + n_l + n_p) / 3
-                # నిఫ్టీ భారీగా పడినా సరే, మాక్స్ వాల్యూ 0.75% గా తీసుకుంటుంది (లేదంటే స్టాక్స్ రావు)
                 nifty_dist = min(max(abs(n_p - n_vwap) / n_vwap * 100, 0.25), 0.75)
             
             # 🔥 2. Stock VWAP గ్యాప్ 🔥
             s_vwap = (df_filtered['H'] + df_filtered['L'] + df_filtered['P']) / 3
             stock_vwap_dist = (df_filtered['P'] - s_vwap).abs() / s_vwap * 100
             
-            if move_type_filter == "🌊 One Sided Only":
-                # 🔥 STRICT ONE SIDED 🔥
-                open_drive_bull = (df_filtered['O'] - df_filtered['L'] <= df_filtered['P'] * 0.003) & (df_filtered['Day_C'] > 0)
-                open_drive_bear = (df_filtered['H'] - df_filtered['O'] <= df_filtered['P'] * 0.003) & (df_filtered['Day_C'] < 0)
-                
-                strict_cond = (
-                    (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & 
-                    (df_filtered['VolX'] >= 1.5) &                                  # వాల్యూమ్ 1.5x ఉండాలి
-                    (df_filtered['Day_C'].abs() >= 1.5) &                           # 1.5% మూవ్ అవ్వాలి
-                    (stock_vwap_dist >= (nifty_dist * 1.5)) &                       # Nifty గ్యాప్ కి 1.5x ఉండాలి
-                    (df_filtered['Trend_Score'] >= 3) &                             # ఉదయం నుండి ట్రెండ్ లో ఉండాలి
-                    (open_drive_bull | open_drive_bear)                             
-                )
-                df_filtered = df_filtered[strict_cond]
-                
+            # 🔥 3. అన్ని కండిషన్స్ ని ముందుగానే క్యాలిక్యులేట్ చేయడం 🔥
+            open_drive_bull = (df_filtered['O'] - df_filtered['L'] <= df_filtered['P'] * 0.003) & (df_filtered['Day_C'] > 0)
+            open_drive_bear = (df_filtered['H'] - df_filtered['O'] <= df_filtered['P'] * 0.003) & (df_filtered['Day_C'] < 0)
+            
+            cond_oneside = (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['VolX'] >= 1.5) & (df_filtered['Day_C'].abs() >= 1.5) & (stock_vwap_dist >= (nifty_dist * 1.5)) & (df_filtered['Trend_Score'] >= 3) & (open_drive_bull | open_drive_bear)
+            cond_vwap_rev = (df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['VolX'] >= 1.5) & (df_filtered['Day_C'].abs() >= 1.5) & (stock_vwap_dist >= (nifty_dist * 1.5))
+            cond_rev_only = (df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['VolX'] >= 1.2) & (df_filtered['Day_C'].abs() >= 1.0)
+            cond_rubber = (df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['Day_C'].abs() >= 2.5) & (df_filtered['VolX'] >= 2.0)
+            cond_momentum = (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] >= 2.0) & (df_filtered['VolX'] >= 2.0) & ((df_filtered['H'] - df_filtered['P']) <= (df_filtered['H'] - df_filtered['L']) * 0.15)
+            
+            # 🔥 4. ఏ స్టాక్ కి ఏ స్ట్రాటజీ సెట్ అయిందో ఆ ఐకాన్స్ (ఎన్ని ఉంటే అన్ని) కలుపుతూ వెళ్లడం 🔥
+            df_filtered['Strategy_Icon'] = ""
+            df_filtered.loc[cond_oneside, 'Strategy_Icon'] += "🌊"
+            df_filtered.loc[cond_vwap_rev, 'Strategy_Icon'] += "🔄"
+            df_filtered.loc[cond_rev_only, 'Strategy_Icon'] += "🎯"
+            df_filtered.loc[cond_rubber, 'Strategy_Icon'] += "🏹"
+            df_filtered.loc[cond_momentum, 'Strategy_Icon'] += "🏄‍♂️"
+            
+            # 🔥 5. యూజర్ ఏ ఫిల్టర్ సెలెక్ట్ చేశారో ఆ స్టాక్స్ ని మాత్రమే ఉంచడం 🔥
+            if move_type_filter == "All Moves":
+                # ఖాళీగా లేనివి అన్నీ ఇక్కడికి వస్తాయి
+                df_filtered = df_filtered[df_filtered['Strategy_Icon'] != ""]
+            elif move_type_filter == "🌊 One Sided Only":
+                df_filtered = df_filtered[cond_oneside]
             elif move_type_filter == "🔄 VWAP Reversal":
-                # 🔥 VWAP REVERSAL 🔥 
-                rev_cond = (
-                    (df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & 
-                    (df_filtered['VolX'] >= 1.5) &                                 # 1.5x వాల్యూమ్ 
-                    (df_filtered['Day_C'].abs() >= 1.5) &                          # 1.5% మూవ్
-                    (stock_vwap_dist >= (nifty_dist * 1.5))                        # గ్యాప్ ఉండాలి
-                )
-                df_filtered = df_filtered[rev_cond]
-                
+                df_filtered = df_filtered[cond_vwap_rev]
             elif move_type_filter == "🎯 Reversals Only":
-                # 🔥 47 స్టాక్స్ రాకుండా దీన్ని టైట్ చేశాం 🔥
-                df_filtered = df_filtered[
-                    (df_filtered['AlphaTag'].str.contains("Reversal", na=False)) &
-                    (df_filtered['VolX'] >= 1.2) &                                 # వాల్యూమ్ 1.2x దాటాలి
-                    (df_filtered['Day_C'].abs() >= 1.0)                            # 1% పైన మూవ్ ఉండాలి
-                ]
-                
+                df_filtered = df_filtered[cond_rev_only]
             elif move_type_filter == "🏹 Rubber Band Stretch":
-                # 🔥 EXTREME REVERSAL 🔥
-                df_filtered = df_filtered[
-                    (df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & 
-                    (df_filtered['Day_C'].abs() >= 2.5) & 
-                    (df_filtered['VolX'] >= 2.0)
-                ]
-                
+                df_filtered = df_filtered[cond_rubber]
             elif move_type_filter == "🏄‍♂️ Momentum Ignition":
-                # 🔥 MOMENTUM RIDER 🔥
-                ignition_cond = (
-                    (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) &
-                    (df_filtered['P'] > df_filtered['O']) &
-                    (df_filtered['Day_C'] >= 2.0) & 
-                    (df_filtered['VolX'] >= 2.0) & 
-                    ((df_filtered['H'] - df_filtered['P']) <= (df_filtered['H'] - df_filtered['L']) * 0.15) 
-                )
-                df_filtered = df_filtered[ignition_cond].copy()
+                df_filtered = df_filtered[cond_momentum].copy()
                 if not df_filtered.empty:
                     df_filtered['T1'] = round(df_filtered['P'] * 1.008, 2)
                     df_filtered['T2'] = round(df_filtered['P'] * 1.015, 2)
-                    df_filtered['SL'] = round(df_filtered['P'] * 0.992, 2)      
+                    df_filtered['SL'] = round(df_filtered['P'] * 0.992, 2)       
         
         elif watchlist_mode == "Swing Trading 📈":
             if move_type_filter == "🧲 Pullback to Value":
@@ -1181,14 +1163,16 @@ if not df.empty:
             html_stk = '<div class="heatmap-grid">'
             for _, row in df_stocks_display.iterrows():
                 bg = "bull-card" if row['C'] > 0 else ("bear-card" if row['C'] < 0 else "neut-card")
+                
+                # 🔥 ఐకాన్స్ ని డిసైడ్ చేయడం (స్ట్రాటజీ బట్టి మారుతాయి) 🔥
                 if watchlist_mode == "Swing Trading 📈": 
                     special_icon = "🌊"
                 elif watchlist_mode == "One Sided Moves 🚀": 
-                    tag_text = str(row.get('AlphaTag', ''))
-                    if 'Reversal' in tag_text: special_icon = "🎯"
-                    else: special_icon = "🌊"
+                    special_icon = row.get('Strategy_Icon', '🚀')
+                    if special_icon == "": special_icon = "🚀"
                 else: 
                     special_icon = f"⭐{int(row['S'])}"
+                    
                 html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">{special_icon}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if row["C"]>0 else ""}{row["C"]:.2f}%</div></a>'
             st.markdown(html_stk + '</div><br>', unsafe_allow_html=True)
             
