@@ -409,11 +409,37 @@ def get_news_tag(fetch_sym):
     try:
         tkr = yf.Ticker(fetch_sym)
         news_data = tkr.news
+        
+        # న్యూస్ దొరక్కపోతే డైరెక్ట్ గా స్టాక్ ఫైనాన్స్ పేజ్ కి పంపించే డిఫాల్ట్ లింక్
+        default_link = f"https://finance.yahoo.com/quote/{fetch_sym}"
+        
         if news_data and len(news_data) > 0:
             title = news_data[0].get('title', '')
-            link = news_data[0].get('link', '#')
+            link = news_data[0].get('link', default_link)
+            
+            if not link or link == '#': 
+                link = default_link
+                
             t_low = title.lower()
-            tags = ""
+            tags = "📰"
+            
+            if any(w in t_low for w in ['result', 'q1', 'q2', 'q3', 'q4', 'earning', 'profit', 'revenue']): tags = "📊"
+            elif any(w in t_low for w in ['rbi', 'repo', 'inflation', 'rate']): tags = "🏦"
+            elif any(w in t_low for w in ['dividend', 'bonus', 'split']): tags = "💰"
+            elif any(w in t_low for w in ['fda', 'usfda', 'us']): tags = "🇺🇸"
+            elif any(w in t_low for w in ['order', 'deal', 'win', 'contract', 'pact']): tags = "📝"
+            elif any(w in t_low for w in ['budget', 'tax', 'govt', 'policy', 'tariff']): tags = "🏛️"
+            elif any(w in t_low for w in ['plunge', 'crash', 'scam', 'fraud', 'sebi', 'probe', 'slump']): tags = "🚨"
+            elif any(w in t_low for w in ['surge', 'jump', 'soar', 'buyback', 'rally', 'high']): tags = "🚀"
+            
+            short_title = (title[:22] + "..") if len(title) > 22 else title
+            return f"<a href='{link}' target='_blank' style='color:#58a6ff; text-decoration:none;' title='{title}'>{tags} {short_title}</a>"
+        
+        # న్యూస్ లేకపోతే డీఫాల్ట్ గా ఈ బటన్ వస్తుంది
+        return f"<a href='{default_link}' target='_blank' style='color:#8b949e; text-decoration:none;'>🔍 Check News</a>"
+    except:
+        default_link = f"https://finance.yahoo.com/quote/{fetch_sym}"
+        return f"<a href='{default_link}' target='_blank' style='color:#8b949e; text-decoration:none;'>🔍 Check News</a>"
             
             if any(w in t_low for w in ['result', 'q1', 'q2', 'q3', 'q4', 'earning', 'profit', 'revenue']): tags += "📊 "
             elif any(w in t_low for w in ['rbi', 'repo', 'inflation']): tags += "🏦 "
@@ -713,16 +739,25 @@ def render_chart(row, df_chart, show_pin=True, key_suffix=""):
     
     try:
         if not df_chart.empty:
-            min_val, max_val = df_chart[['Low', 'VWAP', 'EMA_10']].min().min(), df_chart[['High', 'VWAP', 'EMA_10']].max().max()
+            # 🔥 Chart Error Fix: కేవలం High, Low మాత్రమే తీసుకుని ప్లాట్ గీసేలా సేఫ్ లాజిక్ రాశాం 🔥
+            min_val = df_chart['Low'].min()
+            max_val = df_chart['High'].max()
             y_padding = (max_val - min_val) * 0.1 if (max_val - min_val) != 0 else min_val * 0.005 
+            
             fig = go.Figure()
             fig.add_trace(go.Candlestick(x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], increasing_line_color='#2ea043', decreasing_line_color='#da3633'))
-            fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot')))
-            fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash')))
+            
+            if 'VWAP' in df_chart.columns:
+                fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot')))
+            if 'EMA_10' in df_chart.columns:
+                fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash')))
+                
             fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=150, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(visible=False, fixedrange=True), yaxis=dict(visible=False, range=[min_val - y_padding, max_val + y_padding], fixedrange=True), hovermode=False, showlegend=False, dragmode=False)
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True})
-        else: st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Data not available</div>", unsafe_allow_html=True)
-    except: st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart error</div>", unsafe_allow_html=True)
+        else: 
+            st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Data not available</div>", unsafe_allow_html=True)
+    except: 
+        st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart error</div>", unsafe_allow_html=True)
 
 def render_chart_grid(df_grid, show_pin_option, key_prefix):
     if df_grid.empty: return
