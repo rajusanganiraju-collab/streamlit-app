@@ -295,21 +295,21 @@ def fetch_all_data():
             df_w = df.resample('W').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).dropna()
             
             if len(df_w) >= 75: 
-                df_w['EMA_20'] = df_w['Close'].ewm(span=20, adjust=False).mean()
+                # 🔥 మళ్ళీ 10 EMA కి మార్చాం 🔥
+                df_w['EMA_10'] = df_w['Close'].ewm(span=10, adjust=False).mean()
                 df_w['EMA_50'] = df_w['Close'].ewm(span=50, adjust=False).mean()
                 
-                # 1. 20 EMA, 50 EMA పైన కనీసం 4 వారాలు (1 నెల) ఉంటే చాలు 
-                df_w['Trend_Up'] = np.where(df_w['EMA_20'] > df_w['EMA_50'], 1, 0)
+                # 1. 10 EMA, 50 EMA పైన కనీసం 4 వారాలు (1 నెల) ఉంటే చాలు 
+                df_w['Trend_Up'] = np.where(df_w['EMA_10'] > df_w['EMA_50'], 1, 0)
                 continuous_4w = df_w['Trend_Up'].rolling(window=4).min().iloc[-1] == 1
                 
-                # 🔥 ADX BUG FIX (ఇండెక్స్ మిస్ మ్యాచ్ అవ్వకుండా సాల్వ్ చేశాం) 🔥
+                # ADX Calculation
                 w_tr = pd.concat([df_w['High'] - df_w['Low'], (df_w['High'] - df_w['Close'].shift(1)).abs(), (df_w['Low'] - df_w['Close'].shift(1)).abs()], axis=1).max(axis=1)
                 w_atr14 = w_tr.ewm(alpha=1/14, adjust=False).mean()
                 
                 w_plus_dm = df_w['High'].diff()
                 w_minus_dm = df_w['Low'].shift(1) - df_w['Low']
                 
-                # ఇక్కడే పాత కోడ్ లో ఎర్రర్ ఉండేది, ఇప్పుడు పక్కాగా .where() వాడి ఫిక్స్ చేశాం
                 w_plus_dm = w_plus_dm.where((w_plus_dm > w_minus_dm) & (w_plus_dm > 0), 0.0)
                 w_minus_dm = w_minus_dm.where((w_minus_dm > w_plus_dm) & (w_minus_dm > 0), 0.0)
                 
@@ -319,16 +319,19 @@ def fetch_all_data():
                 w_dx = (w_plus_di - w_minus_di).abs() / (w_plus_di + w_minus_di) * 100
                 w_adx = w_dx.ewm(alpha=1/14, adjust=False).mean().iloc[-1]
                 
-                latest_w_ema20 = df_w['EMA_20'].iloc[-1]
+                latest_w_ema10 = df_w['EMA_10'].iloc[-1]
                 
-                # 2. 🔥 RECENT PULLBACK LOGIC 🔥
-                recent_low = df['Low'].iloc[-5:].min() # లాస్ట్ 5 రోజుల్లో ఎప్పుడైనా సరే 
+                # 2. 🔥 PULLBACK & EARLY CATCH LOGIC 🔥
+                # లాస్ట్ 2 వారాల్లో (current week & previous week) 10 EMA ని టచ్ చేసిందా?
+                recent_w_low = df_w['Low'].iloc[-2:].min()
                 
-                touch_ema = recent_low <= (latest_w_ema20 * 1.05) # 5% బఫర్ లోపలికి వచ్చి
-                bounce = ltp > latest_w_ema20 # 20 EMA పైన కరెంట్ ప్రైస్ ఉంటే చాలు
+                touch_ema = recent_w_low <= (latest_w_ema10 * 1.02) # 2% బఫర్ లోపలికి వచ్చి (టచ్)
+                bounce = ltp > latest_w_ema10 # 10 EMA పైన కరెంట్ ప్రైస్ ఉండాలి
                 
-                # ADX ఎర్రర్ సాల్వ్ అయింది కాబట్టి ఇక్కడ పక్కాగా కాలిక్యులేట్ అవుతుంది
-                if continuous_4w and touch_ema and bounce and (w_adx >= 15):
+                # 🔥 EARLY CATCH 🔥 : ప్రైస్ ఆల్రెడీ పైకి ఎగిరిపోకుండా.. 10 EMA కి 4% రేంజ్ లోపలే ఉండాలి! (గ్లెన్‌మార్క్ లాంటివి ఇక్కడ ఫిల్టర్ అయిపోతాయి)
+                catch_early = ltp <= (latest_w_ema10 * 1.04)
+                
+                if continuous_4w and touch_ema and bounce and catch_early and (w_adx >= 15):
                     is_w_pullback = True
 
             # 2. Old Swing Logic fallback
@@ -752,7 +755,6 @@ if not df.empty:
                 "💥 Narrow CPR Breakout"
             ], index=0)
         elif watchlist_mode == "Swing Trading 📈":
-            # 🔥 NEW: Swing filters updated 🔥
             move_type_filter = st.selectbox("📈 Strategy Filter", ["All Swing Stocks", "🚀 Pro Breakout Strategy", "🌟 Weekly 10EMA Pro"], index=0)
             
     with c_tog:
@@ -1018,8 +1020,8 @@ if not df.empty:
                 df_filtered = df_filtered[breakout_cond]
                 
             elif move_type_filter == "🌟 Weekly 10EMA Pro":
-                # 🔥 డైలీ వాల్యూమ్ కనీసం యావరేజ్ (1.0x) ఉంటే చాలు అని రిలాక్స్ చేశాం 🔥
-                df_filtered = df_filtered[(df_filtered['Is_W_Pullback'] == True) & (df_filtered['VolX'] >= 1.0)]
+                # 🔥 WEEKLY 10EMA PULLBACK (Early Catch Logic) 🔥
+                df_filtered = df_filtered[df_filtered['Is_W_Pullback'] == True]
 
     bull_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bullish')
     bear_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bearish')
