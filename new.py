@@ -5,7 +5,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 import json
 import numpy as np
-import plotly.graph_objects as g
+import plotly.graph_objects as go
 import os
 from datetime import datetime, time as dt_time
 from streamlit_autorefresh import st_autorefresh
@@ -295,7 +295,7 @@ def fetch_all_data():
             df_w = df.resample('W').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).dropna()
             
             if len(df_w) >= 75: 
-                # 🔥 మళ్ళీ 10 EMA కి మార్చాం 🔥
+                # 🔥 10 EMA కి మార్చాం 🔥
                 df_w['EMA_10'] = df_w['Close'].ewm(span=10, adjust=False).mean()
                 df_w['EMA_50'] = df_w['Close'].ewm(span=50, adjust=False).mean()
                 
@@ -330,7 +330,7 @@ def fetch_all_data():
                 
                 bounce = ltp > latest_w_ema10 # 10 EMA పైన కరెంట్ ప్రైస్ ఉండాలి
                 
-                # 🔥 EARLY CATCH (Max 2% Entry) 🔥 : మీరు చెప్పినట్లే స్వింగ్ ట్రేడ్ టార్గెట్ కోసం 2% లోపలే పట్టుకోవాలి!
+                # 🔥 EARLY CATCH (Max 2% Entry) 🔥 : స్వింగ్ ట్రేడ్ టార్గెట్ కోసం 2% లోపలే పట్టుకోవాలి!
                 catch_early = ltp <= (latest_w_ema10 * 1.02)
                 
                 if continuous_4w and touch_ema and bounce and catch_early and (w_adx >= 15):
@@ -421,21 +421,6 @@ def process_5m_data(df_raw):
             df_day = df_day.bfill().ffill()
             return df_day
             
-        return pd.DataFrame()
-    except: return pd.DataFrame()
-        
-        df_s['EMA_10'] = df_s['Close'].ewm(span=10, adjust=False).mean()
-        df_s['EMA_20'] = df_s['Close'].ewm(span=20, adjust=False).mean()
-        df_s['EMA_50'] = df_s['Close'].ewm(span=50, adjust=False).mean()
-        df_s.index = pd.to_datetime(df_s.index)
-        df_day = df_s[df_s.index.date == df_s.index.date.max()].copy()
-        
-        if not df_day.empty:
-            df_day['Typical_Price'] = (df_day['High'] + df_day['Low'] + df_day['Close']) / 3
-            if 'Volume' in df_day.columns and df_day['Volume'].fillna(0).sum() > 0:
-                df_day['VWAP'] = (df_day['Typical_Price'] * df_day['Volume']).cumsum() / df_day['Volume'].cumsum()
-            else: df_day['VWAP'] = df_day['Typical_Price'].expanding().mean()
-            return df_day
         return pd.DataFrame()
     except: return pd.DataFrame()
 
@@ -1042,22 +1027,19 @@ if not df.empty:
         # ---------------------------------------------------------
         elif watchlist_mode == "Swing Trading 📈":
             if move_type_filter == "🚀 Pro Breakout Strategy":
-                # 🔥 NEW BREAKOUT LOGIC (Not Pullback)
-                # Strong bullish close (near day high), volume support, and part of swing trend
                 top_body = df_filtered['H'] - df_filtered['P']
                 total_range = df_filtered['H'] - df_filtered['L']
                 
                 breakout_cond = (
-                    (df_filtered['P'] > df_filtered['O']) &           # Green candle
-                    (top_body <= (total_range * 0.25)) &              # Closes in top 25% of the range
-                    (df_filtered['VolX'] >= 1.5) &                    # High volume blast
-                    (df_filtered['Day_C'] >= 2.0) &                   # Minimum 2% move
-                    (df_filtered['Is_Swing'] == True)                 # Passes overall trend test
+                    (df_filtered['P'] > df_filtered['O']) &           
+                    (top_body <= (total_range * 0.25)) &              
+                    (df_filtered['VolX'] >= 1.5) &                    
+                    (df_filtered['Day_C'] >= 2.0) &                   
+                    (df_filtered['Is_Swing'] == True)                 
                 )
                 df_filtered = df_filtered[breakout_cond]
                 
             elif move_type_filter == "🌟 Weekly 10EMA Pro":
-                # 🔥 WEEKLY 10EMA PULLBACK (Early Catch Logic) 🔥
                 df_filtered = df_filtered[df_filtered['Is_W_Pullback'] == True]
 
     bull_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bullish')
