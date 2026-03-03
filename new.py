@@ -386,7 +386,8 @@ def fetch_all_data():
 
 def process_5m_data(df_raw):
     try:
-        df_s = df_raw.dropna(subset=['Close']).copy()
+        # 🔥 Holiday Fix: డమ్మీ డేటాని తీసేసి, పక్కాగా ట్రేడింగ్ జరిగిన పాత రోజు డేటాని తీసుకుంటుంది 🔥
+        df_s = df_raw.dropna(subset=['Open', 'High', 'Low', 'Close']).copy()
         if df_s.empty: return pd.DataFrame()
         
         df_s['EMA_10'] = df_s['Close'].ewm(span=10, adjust=False).mean()
