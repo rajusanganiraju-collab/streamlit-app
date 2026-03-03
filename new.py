@@ -405,8 +405,6 @@ def process_5m_data(df_raw):
 
 # --- 🔥 NEW: FETCH & TAG LATEST NEWS 🔥 ---
 @st.cache_data(ttl=1800)
-# --- 🔥 NEW: FETCH & TAG LATEST NEWS 🔥 ---
-@st.cache_data(ttl=1800)
 def get_news_tag(fetch_sym):
     try:
         tkr = yf.Ticker(fetch_sym)
