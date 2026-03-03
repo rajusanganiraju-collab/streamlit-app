@@ -262,6 +262,18 @@ def fetch_all_data():
             day_chg = ((ltp - open_p) / open_p) * 100
             net_chg = ((ltp - prev_c) / prev_c) * 100
             
+            # --- 🔥 NARROW CPR LOGIC (NEW) 🔥 ---
+            # Pivot (PP) = (High + Low + Close) / 3 [నిన్నటివి]
+            p_pivot = (prev_h + prev_l + prev_c) / 3
+            # Bottom Central (BC) = (High + Low) / 2 [నిన్నటివి]
+            p_bc = (prev_h + prev_l) / 2
+            # Top Central (TC) = (Pivot - BC) + Pivot
+            p_tc = (p_pivot - p_bc) + p_pivot
+            
+            # CPR గ్యాప్ ని పర్సంటేజ్ లో లెక్కించడం
+            cpr_width_pct = abs(p_tc - p_bc) / p_pivot * 100
+            is_narrow_cpr = bool(cpr_width_pct <= 0.30) # 0.30% లోపు ఉంటే దాన్ని న్యాలో CPR అంటారు
+            
             # --- 🔥 INSTITUTIONAL ATR LOGIC (Average True Range) 🔥 ---
             high_low = df['High'] - df['Low']
             high_prev_close = (df['High'] - df['Close'].shift(1)).abs()
@@ -325,7 +337,7 @@ def fetch_all_data():
             results.append({
                 "Fetch_T": symbol, "T": disp_name, "P": ltp, "O": open_p, "H": high, "L": low, "Prev_C": prev_c,
                 "Day_C": day_chg, "C": net_chg, "S": score, "VolX": vol_x, "Is_Swing": is_swing,
-                "ATR": atr,
+                "ATR": atr, "Narrow_CPR": is_narrow_cpr, # 🔥 NEW FIELD ADDED 🔥
                 "Is_Index": is_index, "Is_Sector": is_sector, "Sector": stock_sector
             })
         except: continue
@@ -460,7 +472,6 @@ def render_portfolio_swing_advice_table(df_port, df_stocks, stock_trends):
         is_swing = live_data['Is_Swing']
         atr_val = live_data.get("ATR", ltp * 0.02)
 
-        # 🔥 Action Advice Logic 🔥
         advice = ""
         adv_color = ""
 
@@ -477,7 +488,6 @@ def render_portfolio_swing_advice_table(df_port, df_stocks, stock_trends):
             advice = "🔴 EXIT / SELL"
             adv_color = "color:#f85149; font-weight:bold;"
 
-        # Targets & SL Logic based on ATR
         if trend_state == 'Bearish':
             sl_val = ltp + (1.5 * atr_val)
             t1_val = ltp - (1.5 * atr_val)
@@ -702,7 +712,8 @@ if not df.empty:
                 "🔄 VWAP Reversal",   
                 "🎯 Reversals Only", 
                 "🏹 Rubber Band Stretch",
-                "🏄‍♂️ Momentum Ignition"
+                "🏄‍♂️ Momentum Ignition",
+                "💥 Narrow CPR Breakout"  # 🔥 NEW STRATEGY ADDED HERE 🔥
             ], index=0)
         elif watchlist_mode == "Swing Trading 📈":
             move_type_filter = st.selectbox("📈 Strategy Filter", ["All Swing Stocks", "🧲 Pullback to Value"], index=0)
@@ -915,7 +926,7 @@ if not df.empty:
             s_vwap = (df_filtered['H'] + df_filtered['L'] + df_filtered['P']) / 3
             stock_vwap_dist = (df_filtered['P'] - s_vwap).abs() / s_vwap * 100
             
-            # 🔥 3. అన్ని కండిషన్స్ ని ముందుగానే క్యాలిక్యులేట్ చేయడం 🔥
+            # 🔥 3. కండిషన్స్ ముందుగానే క్యాలిక్యులేట్ చేయడం 🔥
             open_drive_bull = (df_filtered['O'] - df_filtered['L'] <= df_filtered['P'] * 0.003) & (df_filtered['Day_C'] > 0)
             open_drive_bear = (df_filtered['H'] - df_filtered['O'] <= df_filtered['P'] * 0.003) & (df_filtered['Day_C'] < 0)
             
@@ -924,18 +935,21 @@ if not df.empty:
             cond_rev_only = (df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['VolX'] >= 1.2) & (df_filtered['Day_C'].abs() >= 1.0)
             cond_rubber = (df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['Day_C'].abs() >= 2.5) & (df_filtered['VolX'] >= 2.0)
             cond_momentum = (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] >= 2.0) & (df_filtered['VolX'] >= 2.0) & ((df_filtered['H'] - df_filtered['P']) <= (df_filtered['H'] - df_filtered['L']) * 0.15)
+            # 🔥 NARROW CPR CONDITION: CPR < 0.30% ఉండాలి, రివర్సల్ అవ్వకూడదు, వాల్యూమ్ 1.5x మరియు బ్రేకవుట్ 1.0% ఉండాలి 🔥
+            cond_cpr = (df_filtered['Narrow_CPR'] == True) & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['VolX'] >= 1.5) & (df_filtered['Day_C'].abs() >= 1.0)
             
-            # 🔥 4. ఏ స్టాక్ కి ఏ స్ట్రాటజీ సెట్ అయిందో ఆ ఐకాన్స్ (ఎన్ని ఉంటే అన్ని) కలుపుతూ వెళ్లడం 🔥
+            # 🔥 4. ఏ స్టాక్ కి ఏ స్ట్రాటజీ సెట్ అయిందో ఆ ఐకాన్స్ ని కలపడం (Multi-Emoji Logic) 🔥
             df_filtered['Strategy_Icon'] = ""
             df_filtered.loc[cond_oneside, 'Strategy_Icon'] += "🌊"
             df_filtered.loc[cond_vwap_rev, 'Strategy_Icon'] += "🔄"
             df_filtered.loc[cond_rev_only, 'Strategy_Icon'] += "🎯"
             df_filtered.loc[cond_rubber, 'Strategy_Icon'] += "🏹"
             df_filtered.loc[cond_momentum, 'Strategy_Icon'] += "🏄‍♂️"
+            df_filtered.loc[cond_cpr, 'Strategy_Icon'] += "💥"
             
-            # 🔥 5. యూజర్ ఏ ఫిల్టర్ సెలెక్ట్ చేశారో ఆ స్టాక్స్ ని మాత్రమే ఉంచడం 🔥
+            # 🔥 5. యూజర్ ఏ ఫిల్టర్ సెలెక్ట్ చేశారో ఆ స్టాక్స్ ని ఉంచడం 🔥
             if move_type_filter == "All Moves":
-                # ఖాళీగా లేనివి అన్నీ ఇక్కడికి వస్తాయి
+                # ఏ స్ట్రాటజీ లో సెలెక్ట్ అయినా అవన్నీ ఇక్కడికి వస్తాయి (130 చెత్త స్టాక్స్ రావు)
                 df_filtered = df_filtered[df_filtered['Strategy_Icon'] != ""]
             elif move_type_filter == "🌊 One Sided Only":
                 df_filtered = df_filtered[cond_oneside]
@@ -950,7 +964,9 @@ if not df.empty:
                 if not df_filtered.empty:
                     df_filtered['T1'] = round(df_filtered['P'] * 1.008, 2)
                     df_filtered['T2'] = round(df_filtered['P'] * 1.015, 2)
-                    df_filtered['SL'] = round(df_filtered['P'] * 0.992, 2)       
+                    df_filtered['SL'] = round(df_filtered['P'] * 0.992, 2)
+            elif move_type_filter == "💥 Narrow CPR Breakout":
+                df_filtered = df_filtered[cond_cpr]
         
         elif watchlist_mode == "Swing Trading 📈":
             if move_type_filter == "🧲 Pullback to Value":
@@ -1164,7 +1180,7 @@ if not df.empty:
             for _, row in df_stocks_display.iterrows():
                 bg = "bull-card" if row['C'] > 0 else ("bear-card" if row['C'] < 0 else "neut-card")
                 
-                # 🔥 ఐకాన్స్ ని డిసైడ్ చేయడం (స్ట్రాటజీ బట్టి మారుతాయి) 🔥
+                # 🔥 ఐకాన్స్ ని డిసైడ్ చేయడం (సైజు పాతది లాగే ఉంటుంది) 🔥
                 if watchlist_mode == "Swing Trading 📈": 
                     special_icon = "🌊"
                 elif watchlist_mode == "One Sided Moves 🚀": 
