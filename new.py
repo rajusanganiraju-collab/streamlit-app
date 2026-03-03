@@ -434,13 +434,8 @@ def get_news_tag(fetch_sym):
             
             short_title = (title[:22] + "..") if len(title) > 22 else title
             return f"<a href='{link}' target='_blank' style='color:#58a6ff; text-decoration:none;' title='{title}'>{tags} {short_title}</a>"
-        
-        # న్యూస్ లేకపోతే డీఫాల్ట్ గా ఈ బటన్ వస్తుంది
-        return f"<a href='{default_link}' target='_blank' style='color:#8b949e; text-decoration:none;'>🔍 Check News</a>"
-    except:
-        default_link = f"https://finance.yahoo.com/quote/{fetch_sym}"
-        return f"<a href='{default_link}' target='_blank' style='color:#8b949e; text-decoration:none;'>🔍 Check News</a>"
-        
+       
+            
         # న్యూస్ లేకపోతే డీఫాల్ట్ గా ఈ బటన్ వస్తుంది
         return f"<a href='{default_link}' target='_blank' style='color:#8b949e; text-decoration:none;'>🔍 Check News</a>"
     except:
