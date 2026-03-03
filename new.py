@@ -298,10 +298,11 @@ def fetch_all_data():
                 df_w['EMA_20'] = df_w['Close'].ewm(span=20, adjust=False).mean()
                 df_w['EMA_50'] = df_w['Close'].ewm(span=50, adjust=False).mean()
                 
-                # 1. వరుసగా 10 వారాలు 20EMA, 50EMA పైన ఉంటే చాలు 
+                # 1. 20 EMA, 50 EMA పైన కనీసం 4 వారాలు (1 నెల) ఉంటే చాలు 
                 df_w['Trend_Up'] = np.where(df_w['EMA_20'] > df_w['EMA_50'], 1, 0)
-                continuous_10w = df_w['Trend_Up'].rolling(window=10).min().iloc[-1] == 1
+                continuous_4w = df_w['Trend_Up'].rolling(window=4).min().iloc[-1] == 1
                 
+                # ADX Calculation (Trend Strength)
                 w_tr = pd.concat([df_w['High'] - df_w['Low'], (df_w['High'] - df_w['Close'].shift(1)).abs(), (df_w['Low'] - df_w['Close'].shift(1)).abs()], axis=1).max(axis=1)
                 w_atr14 = w_tr.ewm(alpha=1/14, adjust=False).mean()
                 w_plus_dm = df_w['High'].diff()
@@ -313,15 +314,16 @@ def fetch_all_data():
                 w_dx = (w_plus_di - w_minus_di).abs() / (w_plus_di + w_minus_di) * 100
                 w_adx = w_dx.ewm(alpha=1/14, adjust=False).mean().iloc[-1]
                 
-                # 🔥 Live/Yesterday Data Logic (మీరు చెప్పినట్లే మార్చాం) 🔥
                 latest_w_ema20 = df_w['EMA_20'].iloc[-1]
                 
-                # 2. మార్కెట్ ఓపెన్ ఉంటే ఈరోజు Low/LTP, హాలిడే అయితే నిన్నటి Low/LTP తీసుకుంటుంది.
-                touch_ema = low <= (latest_w_ema20 * 1.03) # 3% బఫర్ ఇచ్చాం (20 EMA కి దగ్గరగా వస్తే చాలు)
-                bounce = ltp > latest_w_ema20 # కరెంట్ ప్రైస్ (LTP) 20 EMA పైన ఉండాలి
-                adx_rule = w_adx >= 15 # ట్రెండ్ స్ట్రెంత్ 15 పైన ఉండాలి
+                # 2. 🔥 RECENT PULLBACK LOGIC 🔥
+                # ఈరోజు ఒక్కటే కాకుండా, లాస్ట్ 5 రోజుల్లో (1 వారం) ఎప్పుడైనా 20 EMA ని టచ్ చేసిందా అని చూస్తున్నాం
+                recent_low = df['Low'].iloc[-5:].min() 
                 
-                if continuous_10w and touch_ema and bounce and adx_rule:
+                touch_ema = recent_low <= (latest_w_ema20 * 1.05) # 5% బఫర్ (దగ్గరగా వచ్చినా పట్టుకుంటుంది)
+                bounce = ltp > latest_w_ema20 # కరెంట్ ప్రైస్ (LTP) బౌన్స్ అయ్యి 20 EMA పైన ఉండాలి
+                
+                if continuous_4w and touch_ema and bounce and (w_adx >= 15):
                     is_w_pullback = True
 
             # 2. Old Swing Logic fallback
