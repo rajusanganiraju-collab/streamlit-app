@@ -366,7 +366,7 @@ def fetch_all_data():
                 "Fetch_T": symbol, "T": disp_name, "P": ltp, "O": open_p, "H": high, "L": low, "Prev_C": prev_c,
                 "Prev_H": prev_h, "Prev_L": prev_l, "W_EMA10": latest_w_ema10, "W_EMA50": latest_w_ema50, "D_EMA50": ema50_d,
                 "Day_C": day_chg, "C": net_chg, "S": score, "VolX": vol_x, "Is_Swing": is_swing,
-                "Is_W_Pullback": is_w_pullback, "VWAP": vwap, # 🔥 VWAP ఇక్కడ యాడ్ చేసాం 🔥
+                "Is_W_Pullback": is_w_pullback, "VWAP": vwap,
                 "ATR": atr, "Narrow_CPR": is_narrow_cpr,
                 "Is_Index": is_index, "Is_Sector": is_sector, "Sector": stock_sector
             })
@@ -408,7 +408,6 @@ def process_5m_data(df_raw):
         return pd.DataFrame()
     except: return pd.DataFrame()
 
-# --- 🔥 NEW: FETCH & TAG LATEST NEWS 🔥 ---
 @st.cache_data(ttl=1800)
 def get_news_tag(fetch_sym):
     try:
@@ -444,7 +443,6 @@ def get_news_tag(fetch_sym):
         default_link = f"https://finance.yahoo.com/quote/{fetch_sym}"
         return f"<a href='{default_link}' target='_blank' style='color:#8b949e; text-decoration:none;'>🔍 Check News</a>"
 
-# --- TABLES HTML GENERATORS ---
 def generate_status(row):
     status = ""
     p = row['P']
@@ -611,14 +609,11 @@ def render_swing_terminal_table(df_subset, stock_trends):
         elif trend_state == 'Bearish': status += " 🔴Trend"
         
         atr_val = row.get("ATR", row["P"] * 0.02)
-        if is_down:
-            sl_val = row["P"] + (1.5 * atr_val)
-            t1_val = row["P"] - (1.5 * atr_val)
-            t2_val = row["P"] - (3.0 * atr_val)
-        else:
-            sl_val = row["P"] - (1.5 * atr_val)
-            t1_val = row["P"] + (1.5 * atr_val)
-            t2_val = row["P"] + (3.0 * atr_val)
+        
+        # Override SL and Targets if the strategy logic already provided them
+        sl_val = row.get('SL', row["P"] + (1.5 * atr_val) if is_down else row["P"] - (1.5 * atr_val))
+        t1_val = row.get('T1', row["P"] - (1.5 * atr_val) if is_down else row["P"] + (1.5 * atr_val))
+        t2_val = row.get('T2', row["P"] - (3.0 * atr_val) if is_down else row["P"] + (3.0 * atr_val))
             
         rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
         row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td>'
@@ -638,28 +633,27 @@ def render_highscore_terminal_table(df_subset, stock_trends):
     for i, row in df_sorted.iterrows():
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
         day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
-        status = generate_status(row)
+        
+        # Use strategy specific icon if available
+        custom_status = row.get('Strategy_Icon', generate_status(row))
+        if custom_status == "": custom_status = generate_status(row)
+        
         news_html = get_news_tag(row['Fetch_T'])
         
         trend_state = stock_trends.get(row['Fetch_T'], "Neutral")
         is_down = trend_state == 'Bearish' or (trend_state == 'Neutral' and row['C'] < 0)
         
-        if trend_state == 'Bullish': status += " 🟢Trend"
-        elif trend_state == 'Bearish': status += " 🔴Trend"
+        if trend_state == 'Bullish': custom_status += " 🟢Trend"
+        elif trend_state == 'Bearish': custom_status += " 🔴Trend"
         
         atr_val = row.get("ATR", row["P"] * 0.02)
-        if is_down:
-            sl_val = row["P"] + (1.5 * atr_val)
-            t1_val = row["P"] - (1.5 * atr_val)
-            t2_val = row["P"] - (3.0 * atr_val)
-        else:
-            sl_val = row["P"] - (1.5 * atr_val)
-            t1_val = row["P"] + (1.5 * atr_val)
-            t2_val = row["P"] + (3.0 * atr_val)
+        sl_val = row.get('SL', row["P"] + (1.5 * atr_val) if is_down else row["P"] - (1.5 * atr_val))
+        t1_val = row.get('T1', row["P"] - (1.5 * atr_val) if is_down else row["P"] + (1.5 * atr_val))
+        t2_val = row.get('T2', row["P"] - (3.0 * atr_val) if is_down else row["P"] + (3.0 * atr_val))
             
         rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
         row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td>'
-        row_str += f'<td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px; cursor:help;" title="{status}">{status}</td>'
+        row_str += f'<td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px; cursor:help;" title="{custom_status}">{custom_status}</td>'
         row_str += f'<td style="font-size:10px; text-align:left;">{news_html}</td><td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td>'
         row_str += f'<td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
         html += row_str
@@ -674,28 +668,26 @@ def render_levels_table(df_subset, stock_trends):
     for i, row in df_sorted.iterrows():
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
         day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
-        status = generate_status(row)
+        
+        custom_status = row.get('Strategy_Icon', generate_status(row))
+        if custom_status == "": custom_status = generate_status(row)
+        
         news_html = get_news_tag(row['Fetch_T'])
         
         trend_state = stock_trends.get(row['Fetch_T'], "Neutral")
         is_down = trend_state == 'Bearish' or (trend_state == 'Neutral' and row['C'] < 0)
         
-        if trend_state == 'Bullish': status += " 🟢Trend"
-        elif trend_state == 'Bearish': status += " 🔴Trend"
+        if trend_state == 'Bullish': custom_status += " 🟢Trend"
+        elif trend_state == 'Bearish': custom_status += " 🔴Trend"
         
         atr_val = row.get("ATR", row["P"] * 0.02)
-        if is_down:
-            sl_val = row["P"] + (1.5 * atr_val)
-            t1_val = row["P"] - (1.5 * atr_val)
-            t2_val = row["P"] - (3.0 * atr_val)
-        else:
-            sl_val = row["P"] - (1.5 * atr_val)
-            t1_val = row["P"] + (1.5 * atr_val)
-            t2_val = row["P"] + (3.0 * atr_val)
+        sl_val = row.get('SL', row["P"] + (1.5 * atr_val) if is_down else row["P"] - (1.5 * atr_val))
+        t1_val = row.get('T1', row["P"] - (1.5 * atr_val) if is_down else row["P"] + (1.5 * atr_val))
+        t2_val = row.get('T2', row["P"] - (3.0 * atr_val) if is_down else row["P"] + (3.0 * atr_val))
             
         rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
         row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td>'
-        row_str += f'<td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px; cursor:help;" title="{status}">{status}</td>'
+        row_str += f'<td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px; cursor:help;" title="{custom_status}">{custom_status}</td>'
         row_str += f'<td style="font-size:10px; text-align:left;">{news_html}</td><td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td>'
         row_str += f'<td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
         html += row_str
@@ -858,7 +850,7 @@ if not df.empty:
     elif watchlist_mode == "Nifty 50 Heatmap":
         df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
     elif watchlist_mode == "One Sided Moves 🚀":
-        df_filtered = df_stocks[df_stocks['C'].abs() >= 1.0]
+        df_filtered = df_stocks[df_stocks['C'].abs() >= 1.0].copy()
     elif watchlist_mode == "Swing Trading 📈":
         df_filtered = df_stocks[(df_stocks['Is_Swing'] == True) | (df_stocks['Is_W_Pullback'] == True)]
     else:
@@ -931,29 +923,6 @@ if not df.empty:
                     else:
                         one_sided_tag = "🌊Trend"
                         trend_bonus = 1
-
-                gap_05 = 0.50
-                gap_10 = 1.00
-                gap_15 = 1.50
-                
-                if net_chg > 0:
-                    clean_05 = (df_day['Low'] > (df_day['VWAP'] * (1 + gap_05 / 100))).sum()
-                    clean_10 = (df_day['Low'] > (df_day['VWAP'] * (1 + gap_10 / 100))).sum()
-                    clean_15 = (df_day['Low'] > (df_day['VWAP'] * (1 + gap_15 / 100))).sum()
-                else:
-                    clean_05 = (df_day['High'] < (df_day['VWAP'] * (1 - gap_05 / 100))).sum()
-                    clean_10 = (df_day['High'] < (df_day['VWAP'] * (1 - gap_10 / 100))).sum()
-                    clean_15 = (df_day['High'] < (df_day['VWAP'] * (1 - gap_15 / 100))).sum()
-                
-                if (clean_15 / total_candles) >= 0.85:
-                    one_sided_tag = "🌊Mega-1.5%"
-                    trend_bonus = 7
-                elif (clean_10 / total_candles) >= 0.85:
-                    one_sided_tag = "🌊Super-1.0%"
-                    trend_bonus = 5
-                elif (clean_05 / total_candles) >= 0.85:
-                    one_sided_tag = "🌊Trend-0.5%"
-                    trend_bonus = 3
             
             trap_tag = ""
             trap_bonus = 0
@@ -1001,8 +970,28 @@ if not df.empty:
         df_filtered['Trend_Score'] = df_filtered['Fetch_T'].map(trend_scores).fillna(0)
         df_filtered['S'] = df_filtered['S'] + df_filtered['Trend_Score']
         
+        # ---------------------------------------------------------
+        # 🚀 ONE SIDED MOVES & PRO STRATEGIES FILTER LOGIC (NEW UNIVERSAL BASE)
+        # ---------------------------------------------------------
         if watchlist_mode == "One Sided Moves 🚀":
             
+            # 🔥 UNIVERSAL BASE CONDITIONS FOR MTF & VWAP 🔥
+            base_buy = (
+                (df_filtered['P'] > df_filtered['W_EMA10']) & 
+                (df_filtered['P'] > df_filtered['W_EMA50']) & 
+                (df_filtered['P'] > df_filtered['VWAP']) & 
+                (df_filtered['P'] > df_filtered['Prev_C']) & 
+                (df_filtered['VolX'] >= 0.8)
+            )
+            
+            base_sell = (
+                (df_filtered['P'] < df_filtered['W_EMA10']) & 
+                (df_filtered['P'] < df_filtered['W_EMA50']) & 
+                (df_filtered['P'] < df_filtered['VWAP']) & 
+                (df_filtered['P'] < df_filtered['Prev_C']) & 
+                (df_filtered['VolX'] >= 0.8)
+            )
+
             nifty_dist = 0.25 
             nifty_row = df_indices[df_indices['T'] == 'NIFTY']
             if not nifty_row.empty:
@@ -1013,77 +1002,66 @@ if not df.empty:
             s_vwap = (df_filtered['H'] + df_filtered['L'] + df_filtered['P']) / 3
             stock_vwap_dist = (df_filtered['P'] - s_vwap).abs() / s_vwap * 100
             
-            open_drive_bull = (df_filtered['O'] - df_filtered['L'] <= df_filtered['P'] * 0.003) & (df_filtered['Day_C'] > 0)
-            open_drive_bear = (df_filtered['H'] - df_filtered['O'] <= df_filtered['P'] * 0.003) & (df_filtered['Day_C'] < 0)
-            
-            cond_oneside = (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['VolX'] >= 1.5) & (df_filtered['Day_C'].abs() >= 1.5) & (stock_vwap_dist >= (nifty_dist * 1.5)) & (df_filtered['Trend_Score'] >= 3) & (open_drive_bull | open_drive_bear)
-            cond_vwap_rev = (df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['VolX'] >= 1.5) & (df_filtered['Day_C'].abs() >= 1.5) & (stock_vwap_dist >= (nifty_dist * 1.5))
-            cond_rev_only = (df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['VolX'] >= 1.2) & (df_filtered['Day_C'].abs() >= 1.0)
-            cond_rubber = (df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['Day_C'].abs() >= 2.5) & (df_filtered['VolX'] >= 2.0)
-            cond_momentum = (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] >= 2.0) & (df_filtered['VolX'] >= 2.0) & ((df_filtered['H'] - df_filtered['P']) <= (df_filtered['H'] - df_filtered['L']) * 0.15)
-            cond_cpr = (df_filtered['Narrow_CPR'] == True) & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['VolX'] >= 1.5) & (df_filtered['Day_C'].abs() >= 1.0)
-            
-            df_filtered['Strategy_Icon'] = ""
-            df_filtered.loc[cond_oneside, 'Strategy_Icon'] += "🌊"
-            df_filtered.loc[cond_vwap_rev, 'Strategy_Icon'] += "🔄"
-            df_filtered.loc[cond_rev_only, 'Strategy_Icon'] += "🎯"
-            df_filtered.loc[cond_rubber, 'Strategy_Icon'] += "🏹"
-            df_filtered.loc[cond_momentum, 'Strategy_Icon'] += "🏄‍♂️"
-            df_filtered.loc[cond_cpr, 'Strategy_Icon'] += "💥"
-            
-            if move_type_filter == "All Moves":
-                df_filtered = df_filtered[df_filtered['Strategy_Icon'] != ""]
-            
-            # 🔥 NEW: INTRADAY PRO BREAKOUT TOP 5 LOGIC (USER CUSTOM RULES) 🔥
-            elif move_type_filter == "⚡ Intraday Pro Breakout (Top 5)":
-                
-                # BUY Conditions: 
-                # 1. Weekly 10 & 50 EMA పైన 
-                # 2. VWAP పైన 
-                # 3. నిన్నటి Close (Prev_C) పైన 
-                # 4. Volume > 0.8x
-                cond_buy = (
-                    (df_filtered['P'] > df_filtered['W_EMA10']) & 
-                    (df_filtered['P'] > df_filtered['W_EMA50']) & 
-                    (df_filtered['P'] > df_filtered['VWAP']) & 
-                    (df_filtered['P'] > df_filtered['Prev_C']) & 
-                    (df_filtered['VolX'] > 0.8)
-                )
-                
-                # SELL Conditions (Reverse):
-                cond_sell = (
-                    (df_filtered['P'] < df_filtered['W_EMA10']) & 
-                    (df_filtered['P'] < df_filtered['W_EMA50']) & 
-                    (df_filtered['P'] < df_filtered['VWAP']) & 
-                    (df_filtered['P'] < df_filtered['Prev_C']) & 
-                    (df_filtered['VolX'] > 0.8)
-                )
-                
-                # Top 5 సపరేట్ గా తీసి కలపడం (Scoring: Volume & % Change)
-                top_buy = df_filtered[cond_buy].sort_values(by=['VolX', 'Day_C'], ascending=[False, False]).head(5).copy()
-                if not top_buy.empty: top_buy['Strategy_Icon'] = "⚡ BUY"
-                
-                top_sell = df_filtered[cond_sell].sort_values(by=['VolX', 'Day_C'], ascending=[False, True]).head(5).copy()
-                if not top_sell.empty: top_sell['Strategy_Icon'] = "⚡ SELL"
-                
-                df_filtered = pd.concat([top_buy, top_sell])
+            cond_buy = pd.Series(False, index=df_filtered.index)
+            cond_sell = pd.Series(False, index=df_filtered.index)
+            icon_str = "🚀"
 
+            if move_type_filter == "⚡ Intraday Pro Breakout (Top 5)":
+                cond_buy = base_buy & (df_filtered['P'] > df_filtered['O']) & ((df_filtered['H'] - df_filtered['P']) <= (df_filtered['H'] - df_filtered['L']) * 0.30)
+                cond_sell = base_sell & (df_filtered['P'] < df_filtered['O']) & ((df_filtered['P'] - df_filtered['L']) <= (df_filtered['H'] - df_filtered['L']) * 0.30)
+                icon_str = "⚡"
+                
             elif move_type_filter == "🌊 One Sided Only":
-                df_filtered = df_filtered[cond_oneside]
+                open_drive_bull = (df_filtered['O'] - df_filtered['L'] <= df_filtered['P'] * 0.003)
+                open_drive_bear = (df_filtered['H'] - df_filtered['O'] <= df_filtered['P'] * 0.003)
+                cond_buy = base_buy & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['Day_C'] >= 1.5) & (stock_vwap_dist >= (nifty_dist * 1.5)) & (df_filtered['Trend_Score'] >= 3) & open_drive_bull
+                cond_sell = base_sell & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['Day_C'] <= -1.5) & (stock_vwap_dist >= (nifty_dist * 1.5)) & (df_filtered['Trend_Score'] >= 3) & open_drive_bear
+                icon_str = "🌊"
+                
             elif move_type_filter == "🔄 VWAP Reversal":
-                df_filtered = df_filtered[cond_vwap_rev]
+                cond_buy = base_buy & (df_filtered['AlphaTag'].str.contains("Reversal Buy", na=False)) & (df_filtered['Day_C'] >= 1.5) & (stock_vwap_dist >= (nifty_dist * 1.5))
+                cond_sell = base_sell & (df_filtered['AlphaTag'].str.contains("Reversal Sell", na=False)) & (df_filtered['Day_C'] <= -1.5) & (stock_vwap_dist >= (nifty_dist * 1.5))
+                icon_str = "🔄"
+                
             elif move_type_filter == "🎯 Reversals Only":
-                df_filtered = df_filtered[cond_rev_only]
+                cond_buy = base_buy & (df_filtered['AlphaTag'].str.contains("Reversal Buy", na=False)) & (df_filtered['Day_C'] >= 1.0)
+                cond_sell = base_sell & (df_filtered['AlphaTag'].str.contains("Reversal Sell", na=False)) & (df_filtered['Day_C'] <= -1.0)
+                icon_str = "🎯"
+
             elif move_type_filter == "🏹 Rubber Band Stretch":
-                df_filtered = df_filtered[cond_rubber]
+                cond_buy = base_buy & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['Day_C'] >= 2.5)
+                cond_sell = base_sell & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['Day_C'] <= -2.5)
+                icon_str = "🏹"
+
             elif move_type_filter == "🏄‍♂️ Momentum Ignition":
-                df_filtered = df_filtered[cond_momentum].copy()
-                if not df_filtered.empty:
-                    df_filtered['T1'] = round(df_filtered['P'] * 1.008, 2)
-                    df_filtered['T2'] = round(df_filtered['P'] * 1.015, 2)
-                    df_filtered['SL'] = round(df_filtered['P'] * 0.992, 2)
+                cond_buy = base_buy & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] >= 2.0) & ((df_filtered['H'] - df_filtered['P']) <= (df_filtered['H'] - df_filtered['L']) * 0.15)
+                cond_sell = base_sell & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['P'] < df_filtered['O']) & (df_filtered['Day_C'] <= -2.0) & ((df_filtered['P'] - df_filtered['L']) <= (df_filtered['H'] - df_filtered['L']) * 0.15)
+                icon_str = "🏄‍♂️"
+
             elif move_type_filter == "💥 Narrow CPR Breakout":
-                df_filtered = df_filtered[cond_cpr]
+                cond_buy = base_buy & (df_filtered['Narrow_CPR'] == True) & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['Day_C'] >= 1.0)
+                cond_sell = base_sell & (df_filtered['Narrow_CPR'] == True) & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['Day_C'] <= -1.0)
+                icon_str = "💥"
+                
+            elif move_type_filter == "All Moves":
+                cond_buy = base_buy & (df_filtered['Day_C'] >= 1.0)
+                cond_sell = base_sell & (df_filtered['Day_C'] <= -1.0)
+                icon_str = "🚀"
+
+            # 🔥 TOP 5 BUY & TOP 5 SELL FOR EVERY STRATEGY 🔥
+            top_buy = df_filtered[cond_buy].sort_values(by=['VolX', 'Day_C'], ascending=[False, False]).head(5).copy()
+            if not top_buy.empty: top_buy['Strategy_Icon'] = f"{icon_str} BUY"
+            
+            top_sell = df_filtered[cond_sell].sort_values(by=['VolX', 'Day_C'], ascending=[False, True]).head(5).copy()
+            if not top_sell.empty: top_sell['Strategy_Icon'] = f"{icon_str} SELL"
+            
+            df_filtered = pd.concat([top_buy, top_sell])
+            
+            # 🔥 Auto Calculate Targets and SL for Terminal Display 🔥
+            if not df_filtered.empty:
+                df_filtered['T1'] = np.where(df_filtered['Strategy_Icon'].str.contains('BUY'), round(df_filtered['P'] * 1.008, 2), round(df_filtered['P'] * 0.992, 2))
+                df_filtered['T2'] = np.where(df_filtered['Strategy_Icon'].str.contains('BUY'), round(df_filtered['P'] * 1.015, 2), round(df_filtered['P'] * 0.985, 2))
+                df_filtered['SL'] = np.where(df_filtered['Strategy_Icon'].str.contains('BUY'), round(df_filtered['P'] * 0.992, 2), round(df_filtered['P'] * 1.008, 2))
         
         elif watchlist_mode == "Swing Trading 📈":
             if move_type_filter == "🚀 Pro Breakout Strategy":
@@ -1301,20 +1279,23 @@ if not df.empty:
             for _, row in df_stocks_display.iterrows():
                 bg = "bull-card" if row['C'] > 0 else ("bear-card" if row['C'] < 0 else "neut-card")
                 
+                # 🔥 NEW ICONS FOR TOP 5 BUYS & SELLS 🔥
+                special_icon = f"⭐{int(row['S'])}"
                 if watchlist_mode == "Swing Trading 📈": 
                     special_icon = "🌟" if row.get('Is_W_Pullback', False) else "🚀"
                 elif watchlist_mode == "One Sided Moves 🚀": 
-                    special_icon = row.get('Strategy_Icon', '🚀')
-                    if special_icon == "": special_icon = "🚀"
-                else: 
-                    special_icon = f"⭐{int(row['S'])}"
+                    strat_name = str(row.get('Strategy_Icon', '🚀'))
+                    if 'BUY' in strat_name: special_icon = "🟢 BUY"
+                    elif 'SELL' in strat_name: special_icon = "🔴 SELL"
+                    elif strat_name != "": special_icon = strat_name
+                    else: special_icon = "🚀"
                     
                 html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">{special_icon}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if row["C"]>0 else ""}{row["C"]:.2f}%</div></a>'
             st.markdown(html_stk + '</div><br>', unsafe_allow_html=True)
             
             if watchlist_mode == "Swing Trading 📈":
                 with st.expander("🌊 View Swing Trading Radar (Ranked Table)", expanded=True): st.markdown(render_swing_terminal_table(df_stocks_display, stock_trends), unsafe_allow_html=True)
-            elif watchlist_mode == "High Score Stocks 🔥":
+            elif watchlist_mode == "High Score Stocks 🔥" or watchlist_mode == "One Sided Moves 🚀":
                 with st.expander("🔥 View High Score Radar (Ranked Intraday Table)", expanded=True): st.markdown(render_highscore_terminal_table(df_stocks_display, stock_trends), unsafe_allow_html=True)
             else:
                 with st.expander("🎯 View Trading Levels (Targets & Stop Loss)", expanded=True): st.markdown(render_levels_table(df_stocks_display, stock_trends), unsafe_allow_html=True)
