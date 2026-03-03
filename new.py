@@ -38,7 +38,6 @@ def load_portfolio():
         records = port_ws.get_all_records()
         df = pd.DataFrame(records) if records else pd.DataFrame(columns=['Symbol', 'Buy_Price', 'Quantity', 'Date', 'SL', 'T1', 'T2'])
         
-        # ఆటోమేటిక్ గా పాత పేర్లను కొత్త అడ్వాన్స్‌డ్ పేర్లుగా మార్చే లాజిక్
         if not df.empty and 'Stock Name' in df.columns:
             df.rename(columns={'Stock Name': 'Symbol', 'Buy Price': 'Buy_Price', 'Buy Date': 'Date'}, inplace=True)
             for col in ['SL', 'T1', 'T2']:
@@ -53,7 +52,6 @@ def load_closed_trades():
         records = trade_ws.get_all_records()
         df = pd.DataFrame(records) if records else pd.DataFrame(columns=['Sell_Date', 'Symbol', 'Quantity', 'Buy_Price', 'Sell_Price', 'PnL_Rs', 'PnL_Pct'])
         
-        # ఆటోమేటిక్ గా పాత పేర్లను కొత్త అడ్వాన్స్‌డ్ పేర్లుగా మార్చే లాజిక్
         if not df.empty and 'Stock Name' in df.columns:
             df.rename(columns={'Stock Name': 'Symbol', 'Buy Price': 'Buy_Price', 'Sell Price': 'Sell_Price', 'Sell Date': 'Sell_Date', 'Profit/Loss': 'PnL_Rs'}, inplace=True)
             if 'PnL_Pct' not in df.columns: df['PnL_Pct'] = 0.0
@@ -229,7 +227,9 @@ def fetch_all_data():
     
     all_stocks = set(NIFTY_50 + FNO_STOCKS + port_stocks)
     tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + [f"{t}.NS" for t in all_stocks if t]
-    data = yf.download(tkrs, period="1y", progress=False, group_by='ticker', threads=5)
+    
+    # 🔥 Changed period to 2y for Weekly EMA calculations 🔥
+    data = yf.download(tkrs, period="2y", progress=False, group_by='ticker', threads=5)
     
     results = []
     minutes = get_minutes_passed()
@@ -263,16 +263,11 @@ def fetch_all_data():
             net_chg = ((ltp - prev_c) / prev_c) * 100
             
             # --- 🔥 NARROW CPR LOGIC (NEW) 🔥 ---
-            # Pivot (PP) = (High + Low + Close) / 3 [నిన్నటివి]
             p_pivot = (prev_h + prev_l + prev_c) / 3
-            # Bottom Central (BC) = (High + Low) / 2 [నిన్నటివి]
             p_bc = (prev_h + prev_l) / 2
-            # Top Central (TC) = (Pivot - BC) + Pivot
             p_tc = (p_pivot - p_bc) + p_pivot
-            
-            # CPR గ్యాప్ ని పర్సంటేజ్ లో లెక్కించడం
             cpr_width_pct = abs(p_tc - p_bc) / p_pivot * 100
-            is_narrow_cpr = bool(cpr_width_pct <= 0.30) # 0.30% లోపు ఉంటే దాన్ని న్యాలో CPR అంటారు
+            is_narrow_cpr = bool(cpr_width_pct <= 0.30) 
             
             # --- 🔥 INSTITUTIONAL ATR LOGIC (Average True Range) 🔥 ---
             high_low = df['High'] - df['Low']
@@ -291,14 +286,47 @@ def fetch_all_data():
                 
             vwap = (high + low + ltp) / 3
             
-            # --- 🌊 IMPROVED SWING LOGIC WITH WEEKLY EMA ---
+            # -------------------------------------------------------------
+            # 🔥 NEW: ADVANCED SWING LOGIC (WEEKLY 10EMA PRO & BREAKOUT) 🔥
+            # -------------------------------------------------------------
             is_swing = False
+            is_w_pullback = False
+            
+            df_w = df.resample('W').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).dropna()
+            
+            if len(df_w) >= 75: 
+                df_w['EMA_10'] = df_w['Close'].ewm(span=10, adjust=False).mean()
+                df_w['EMA_50'] = df_w['Close'].ewm(span=50, adjust=False).mean()
+                
+                # 1. Weekly 10EMA Pro Logic
+                df_w['Trend_Up'] = np.where(df_w['EMA_10'] > df_w['EMA_50'], 1, 0)
+                continuous_20w = df_w['Trend_Up'].rolling(window=20).min().iloc[-1] == 1
+                
+                w_tr = pd.concat([df_w['High'] - df_w['Low'], (df_w['High'] - df_w['Close'].shift(1)).abs(), (df_w['Low'] - df_w['Close'].shift(1)).abs()], axis=1).max(axis=1)
+                w_atr14 = w_tr.ewm(alpha=1/14, adjust=False).mean()
+                w_plus_dm = df_w['High'].diff()
+                w_minus_dm = df_w['Low'].shift(1) - df_w['Low']
+                w_plus_dm = np.where((w_plus_dm > w_minus_dm) & (w_plus_dm > 0), w_plus_dm, 0.0)
+                w_minus_dm = np.where((w_minus_dm > w_plus_dm) & (w_minus_dm > 0), w_minus_dm, 0.0)
+                w_plus_di = 100 * (pd.Series(w_plus_dm).ewm(alpha=1/14, adjust=False).mean() / w_atr14)
+                w_minus_di = 100 * (pd.Series(w_minus_dm).ewm(alpha=1/14, adjust=False).mean() / w_atr14)
+                w_dx = (w_plus_di - w_minus_di).abs() / (w_plus_di + w_minus_di) * 100
+                w_adx = w_dx.ewm(alpha=1/14, adjust=False).mean().iloc[-1]
+                
+                curr_w = df_w.iloc[-1]
+                
+                touch_ema = curr_w['Low'] <= (curr_w['EMA_10'] * 1.015) 
+                bounce = (curr_w['Close'] > curr_w['EMA_10']) and (curr_w['Close'] > curr_w['Open'])
+                w_vol_rule = curr_w['Volume'] > df_w['Volume'].iloc[-5:-1].mean() 
+                adx_rule = w_adx >= 20 
+                
+                if continuous_20w and touch_ema and bounce and w_vol_rule and adx_rule:
+                    is_w_pullback = True
+
+            # 2. Old Swing Logic fallback
             if len(df) >= 100:
                 ema50_d = df['Close'].ewm(span=50, adjust=False).mean().iloc[-1]
-                
-                df_w = df['Close'].resample('W').last()
-                ema20_w = df_w.ewm(span=20, adjust=False).mean().iloc[-1]
-                
+                ema20_w = df_w['Close'].ewm(span=20, adjust=False).mean().iloc[-1] if not df_w.empty else 0
                 delta = df['Close'].diff()
                 gain = delta.clip(lower=0).ewm(alpha=1/14, adjust=False).mean()
                 loss = -delta.clip(upper=0).ewm(alpha=1/14, adjust=False).mean()
@@ -311,7 +339,6 @@ def fetch_all_data():
                     is_swing = True
 
             score = 0
-            
             stock_dist = abs(ltp - vwap) / vwap * 100 if vwap > 0 else 0
             effective_nifty = max(nifty_dist, 0.25) 
             
@@ -337,7 +364,8 @@ def fetch_all_data():
             results.append({
                 "Fetch_T": symbol, "T": disp_name, "P": ltp, "O": open_p, "H": high, "L": low, "Prev_C": prev_c,
                 "Day_C": day_chg, "C": net_chg, "S": score, "VolX": vol_x, "Is_Swing": is_swing,
-                "ATR": atr, "Narrow_CPR": is_narrow_cpr, # 🔥 NEW FIELD ADDED 🔥
+                "Is_W_Pullback": is_w_pullback, 
+                "ATR": atr, "Narrow_CPR": is_narrow_cpr,
                 "Is_Index": is_index, "Is_Sector": is_sector, "Sector": stock_sector
             })
         except: continue
@@ -713,10 +741,11 @@ if not df.empty:
                 "🎯 Reversals Only", 
                 "🏹 Rubber Band Stretch",
                 "🏄‍♂️ Momentum Ignition",
-                "💥 Narrow CPR Breakout"  # 🔥 NEW STRATEGY ADDED HERE 🔥
+                "💥 Narrow CPR Breakout"
             ], index=0)
         elif watchlist_mode == "Swing Trading 📈":
-            move_type_filter = st.selectbox("📈 Strategy Filter", ["All Swing Stocks", "🧲 Pullback to Value"], index=0)
+            # 🔥 NEW: Swing filters updated 🔥
+            move_type_filter = st.selectbox("📈 Strategy Filter", ["All Swing Stocks", "🚀 Pro Breakout Strategy", "🌟 Weekly 10EMA Pro"], index=0)
             
     with c_tog:
         if watchlist_mode in ["One Sided Moves 🚀", "High Score Stocks 🔥"]:
@@ -763,9 +792,9 @@ if not df.empty:
     elif watchlist_mode == "One Sided Moves 🚀":
         df_filtered = df_stocks[df_stocks['C'].abs() >= 1.0]
     elif watchlist_mode == "Swing Trading 📈":
-        df_filtered = df_stocks[df_stocks['Is_Swing'] == True]
+        # Swing mode shows both breakout and pullback stocks initially
+        df_filtered = df_stocks[(df_stocks['Is_Swing'] == True) | (df_stocks['Is_W_Pullback'] == True)]
     else:
-        # 🔥 High Score Stocks కి స్కోర్ >= 11 మరియు Vol >= 1.5 కండిషన్ పెట్టాం 🔥
         df_filtered = df_stocks[(df_stocks['S'] >= 11) & (df_stocks['VolX'] >= 1.5)]
 
     all_display_tickers = list(set(df_indices['Fetch_T'].tolist() + df_filtered['Fetch_T'].tolist() + st.session_state.pinned_stocks))
@@ -914,7 +943,6 @@ if not df.empty:
         # ---------------------------------------------------------
         if watchlist_mode == "One Sided Moves 🚀":
             
-            # 🔥 1. Nifty VWAP గ్యాప్ 🔥
             nifty_dist = 0.25 
             nifty_row = df_indices[df_indices['T'] == 'NIFTY']
             if not nifty_row.empty:
@@ -922,11 +950,9 @@ if not df.empty:
                 n_vwap = (n_h + n_l + n_p) / 3
                 nifty_dist = min(max(abs(n_p - n_vwap) / n_vwap * 100, 0.25), 0.75)
             
-            # 🔥 2. Stock VWAP గ్యాప్ 🔥
             s_vwap = (df_filtered['H'] + df_filtered['L'] + df_filtered['P']) / 3
             stock_vwap_dist = (df_filtered['P'] - s_vwap).abs() / s_vwap * 100
             
-            # 🔥 3. కండిషన్స్ ముందుగానే క్యాలిక్యులేట్ చేయడం 🔥
             open_drive_bull = (df_filtered['O'] - df_filtered['L'] <= df_filtered['P'] * 0.003) & (df_filtered['Day_C'] > 0)
             open_drive_bear = (df_filtered['H'] - df_filtered['O'] <= df_filtered['P'] * 0.003) & (df_filtered['Day_C'] < 0)
             
@@ -935,10 +961,8 @@ if not df.empty:
             cond_rev_only = (df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['VolX'] >= 1.2) & (df_filtered['Day_C'].abs() >= 1.0)
             cond_rubber = (df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['Day_C'].abs() >= 2.5) & (df_filtered['VolX'] >= 2.0)
             cond_momentum = (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] >= 2.0) & (df_filtered['VolX'] >= 2.0) & ((df_filtered['H'] - df_filtered['P']) <= (df_filtered['H'] - df_filtered['L']) * 0.15)
-            # 🔥 NARROW CPR CONDITION: CPR < 0.30% ఉండాలి, రివర్సల్ అవ్వకూడదు, వాల్యూమ్ 1.5x మరియు బ్రేకవుట్ 1.0% ఉండాలి 🔥
             cond_cpr = (df_filtered['Narrow_CPR'] == True) & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['VolX'] >= 1.5) & (df_filtered['Day_C'].abs() >= 1.0)
             
-            # 🔥 4. ఏ స్టాక్ కి ఏ స్ట్రాటజీ సెట్ అయిందో ఆ ఐకాన్స్ ని కలపడం (Multi-Emoji Logic) 🔥
             df_filtered['Strategy_Icon'] = ""
             df_filtered.loc[cond_oneside, 'Strategy_Icon'] += "🌊"
             df_filtered.loc[cond_vwap_rev, 'Strategy_Icon'] += "🔄"
@@ -947,9 +971,7 @@ if not df.empty:
             df_filtered.loc[cond_momentum, 'Strategy_Icon'] += "🏄‍♂️"
             df_filtered.loc[cond_cpr, 'Strategy_Icon'] += "💥"
             
-            # 🔥 5. యూజర్ ఏ ఫిల్టర్ సెలెక్ట్ చేశారో ఆ స్టాక్స్ ని ఉంచడం 🔥
             if move_type_filter == "All Moves":
-                # ఏ స్ట్రాటజీ లో సెలెక్ట్ అయినా అవన్నీ ఇక్కడికి వస్తాయి (130 చెత్త స్టాక్స్ రావు)
                 df_filtered = df_filtered[df_filtered['Strategy_Icon'] != ""]
             elif move_type_filter == "🌊 One Sided Only":
                 df_filtered = df_filtered[cond_oneside]
@@ -968,18 +990,29 @@ if not df.empty:
             elif move_type_filter == "💥 Narrow CPR Breakout":
                 df_filtered = df_filtered[cond_cpr]
         
+        # ---------------------------------------------------------
+        # 📈 2. SWING TRADING & POSITION ALGORITHMS
+        # ---------------------------------------------------------
         elif watchlist_mode == "Swing Trading 📈":
-            if move_type_filter == "🧲 Pullback to Value":
-                tail_length = df_filtered['O'] - df_filtered['L']
+            if move_type_filter == "🚀 Pro Breakout Strategy":
+                # 🔥 NEW BREAKOUT LOGIC (Not Pullback)
+                # Strong bullish close (near day high), volume support, and part of swing trend
                 top_body = df_filtered['H'] - df_filtered['P']
+                total_range = df_filtered['H'] - df_filtered['L']
                 
-                pullback_cond = (
-                    (df_filtered['P'] > df_filtered['O']) & 
-                    (tail_length > (2 * top_body)) & 
-                    (df_filtered['VolX'] >= 1.2) &
-                    (df_filtered['Is_Swing'] == True)
+                breakout_cond = (
+                    (df_filtered['P'] > df_filtered['O']) &           # Green candle
+                    (top_body <= (total_range * 0.25)) &              # Closes in top 25% of the range
+                    (df_filtered['VolX'] >= 1.5) &                    # High volume blast
+                    (df_filtered['Day_C'] >= 2.0) &                   # Minimum 2% move
+                    (df_filtered['Is_Swing'] == True)                 # Passes overall trend test
                 )
-                df_filtered = df_filtered[pullback_cond]
+                df_filtered = df_filtered[breakout_cond]
+                
+            elif move_type_filter == "🌟 Weekly 10EMA Pro":
+                # 🔥 WEEKLY LOGIC (ADX, Vol, 50EMA, 10EMA Pullback)
+                # Daily volume condition >= 1.5 added here as final confirmation
+                df_filtered = df_filtered[(df_filtered['Is_W_Pullback'] == True) & (df_filtered['VolX'] >= 1.5)]
 
     bull_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bullish')
     bear_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bearish')
@@ -1180,9 +1213,10 @@ if not df.empty:
             for _, row in df_stocks_display.iterrows():
                 bg = "bull-card" if row['C'] > 0 else ("bear-card" if row['C'] < 0 else "neut-card")
                 
-                # 🔥 ఐకాన్స్ ని డిసైడ్ చేయడం (సైజు పాతది లాగే ఉంటుంది) 🔥
+                # 🔥 ఐకాన్స్ లాజిక్ 🔥
                 if watchlist_mode == "Swing Trading 📈": 
-                    special_icon = "🌊"
+                    # "🌟" for Weekly Pro, "🚀" for Breakout
+                    special_icon = "🌟" if row.get('Is_W_Pullback', False) else "🚀"
                 elif watchlist_mode == "One Sided Moves 🚀": 
                     special_icon = row.get('Strategy_Icon', '🚀')
                     if special_icon == "": special_icon = "🚀"
