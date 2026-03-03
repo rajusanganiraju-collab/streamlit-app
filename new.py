@@ -228,7 +228,6 @@ def fetch_all_data():
     all_stocks = set(NIFTY_50 + FNO_STOCKS + port_stocks)
     tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + [f"{t}.NS" for t in all_stocks if t]
     
-    # 🔥 Thread Error Fix: threads=False చేసాం సర్వర్ క్రాష్ అవ్వకుండా 🔥
     data = yf.download(tkrs, period="2y", progress=False, group_by='ticker', threads=False)
     
     results = []
@@ -262,7 +261,6 @@ def fetch_all_data():
             day_chg = ((ltp - open_p) / open_p) * 100
             net_chg = ((ltp - prev_c) / prev_c) * 100
             
-            # --- 🔥 NARROW CPR LOGIC 🔥 ---
             p_pivot = (prev_h + prev_l + prev_c) / 3
             p_bc = (prev_h + prev_l) / 2
             p_tc = (p_pivot - p_bc) + p_pivot
@@ -288,11 +286,18 @@ def fetch_all_data():
             is_swing = False
             is_w_pullback = False
             
+            latest_w_ema10 = 0
+            latest_w_ema50 = 0
+            
             df_w = df.resample('W').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).dropna()
             
             if len(df_w) >= 75: 
                 df_w['EMA_10'] = df_w['Close'].ewm(span=10, adjust=False).mean()
                 df_w['EMA_50'] = df_w['Close'].ewm(span=50, adjust=False).mean()
+                
+                # Fetching Weekly EMAs for Intraday Pro Breakout Strategy
+                latest_w_ema10 = df_w['EMA_10'].iloc[-1]
+                latest_w_ema50 = df_w['EMA_50'].iloc[-1]
                 
                 df_w['Trend_Up'] = np.where(df_w['EMA_10'] > df_w['EMA_50'], 1, 0)
                 continuous_4w = df_w['Trend_Up'].rolling(window=4).min().iloc[-1] == 1
@@ -312,10 +317,7 @@ def fetch_all_data():
                 w_dx = (w_plus_di - w_minus_di).abs() / (w_plus_di + w_minus_di) * 100
                 w_adx = w_dx.ewm(alpha=1/14, adjust=False).mean().iloc[-1]
                 
-                latest_w_ema10 = df_w['EMA_10'].iloc[-1]
-                
                 recent_w_low = df_w['Low'].iloc[-2:].min()
-                # 🔥 Strict 0.2% touch and 2% bounce buffer 🔥
                 touch_ema = recent_w_low <= (latest_w_ema10 * 1.002) 
                 bounce = ltp > latest_w_ema10 
                 catch_early = ltp <= (latest_w_ema10 * 1.02)
@@ -325,7 +327,7 @@ def fetch_all_data():
 
             if len(df) >= 100:
                 ema50_d = df['Close'].ewm(span=50, adjust=False).mean().iloc[-1]
-                ema20_w = df_w['Close'].ewm(span=20, adjust=False).mean().iloc[-1] if not df_w.empty else 0
+                ema20_w = latest_w_ema10 if latest_w_ema10 > 0 else 0
                 delta = df['Close'].diff()
                 gain = delta.clip(lower=0).ewm(alpha=1/14, adjust=False).mean()
                 loss = -delta.clip(upper=0).ewm(alpha=1/14, adjust=False).mean()
@@ -362,6 +364,7 @@ def fetch_all_data():
                 
             results.append({
                 "Fetch_T": symbol, "T": disp_name, "P": ltp, "O": open_p, "H": high, "L": low, "Prev_C": prev_c,
+                "Prev_H": prev_h, "Prev_L": prev_l, "W_EMA10": latest_w_ema10, "W_EMA50": latest_w_ema50,
                 "Day_C": day_chg, "C": net_chg, "S": score, "VolX": vol_x, "Is_Swing": is_swing,
                 "Is_W_Pullback": is_w_pullback, 
                 "ATR": atr, "Narrow_CPR": is_narrow_cpr,
@@ -372,7 +375,6 @@ def fetch_all_data():
 
 def process_5m_data(df_raw):
     try:
-        # 🔥 Holiday & NaN Fixes 🔥
         df_s = df_raw.dropna(subset=['Open', 'High', 'Low', 'Close']).copy()
         if df_s.empty: return pd.DataFrame()
         
@@ -724,7 +726,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix=""):
     
     try:
         if not df_chart.empty:
-            # 🔥 Chart Error Fix 🔥
             min_val = df_chart['Low'].min()
             max_val = df_chart['High'].max()
             y_padding = (max_val - min_val) * 0.1 if (max_val - min_val) != 0 else min_val * 0.005 
@@ -801,8 +802,10 @@ if not df.empty:
     move_type_filter = "All Moves"
     with c_type:
         if watchlist_mode == "One Sided Moves 🚀":
+            # 🔥 NEW: INTRADAY PRO BREAKOUT TOP 5 యాడ్ చేసాం 🔥
             move_type_filter = st.selectbox("🎯 Strategy Filter", [
                 "All Moves", 
+                "⚡ Intraday Pro Breakout (Top 5)",
                 "🌊 One Sided Only", 
                 "🔄 VWAP Reversal",   
                 "🎯 Reversals Only", 
@@ -1031,6 +1034,41 @@ if not df.empty:
             
             if move_type_filter == "All Moves":
                 df_filtered = df_filtered[df_filtered['Strategy_Icon'] != ""]
+            
+            # 🔥 NEW: INTRADAY PRO BREAKOUT TOP 5 LOGIC (MULTI-TIMEFRAME ANALYSIS) 🔥
+            elif move_type_filter == "⚡ Intraday Pro Breakout (Top 5)":
+                
+                # BUY Conditions: నిన్నటి High బ్రేక్, Weekly 10 & 50 EMA పైన, 1.5x Volume, స్ట్రాంగ్ గ్రీన్ క్యాండిల్
+                cond_buy = (
+                    (df_filtered['P'] > df_filtered['Prev_H']) & 
+                    (df_filtered['P'] > df_filtered['W_EMA10']) & 
+                    (df_filtered['P'] > df_filtered['W_EMA50']) & 
+                    (df_filtered['VolX'] >= 1.5) & 
+                    (df_filtered['Day_C'] >= 1.5) & 
+                    (df_filtered['P'] > df_filtered['O']) & 
+                    ((df_filtered['H'] - df_filtered['P']) <= (df_filtered['H'] - df_filtered['L']) * 0.25)
+                )
+                
+                # SELL Conditions: నిన్నటి Low బ్రేక్, Weekly 10 & 50 EMA కింద, 1.5x Volume, స్ట్రాంగ్ రెడ్ క్యాండిల్
+                cond_sell = (
+                    (df_filtered['P'] < df_filtered['Prev_L']) & 
+                    (df_filtered['P'] < df_filtered['W_EMA10']) & 
+                    (df_filtered['P'] < df_filtered['W_EMA50']) & 
+                    (df_filtered['VolX'] >= 1.5) & 
+                    (df_filtered['Day_C'] <= -1.5) & 
+                    (df_filtered['P'] < df_filtered['O']) & 
+                    ((df_filtered['P'] - df_filtered['L']) <= (df_filtered['H'] - df_filtered['L']) * 0.25)
+                )
+                
+                # Top 5 సపరేట్ గా తీసి కలపడం
+                top_buy = df_filtered[cond_buy].sort_values(by=['VolX', 'Day_C'], ascending=[False, False]).head(5).copy()
+                if not top_buy.empty: top_buy['Strategy_Icon'] = "⚡ BUY"
+                
+                top_sell = df_filtered[cond_sell].sort_values(by=['VolX', 'Day_C'], ascending=[False, True]).head(5).copy()
+                if not top_sell.empty: top_sell['Strategy_Icon'] = "⚡ SELL"
+                
+                df_filtered = pd.concat([top_buy, top_sell])
+
             elif move_type_filter == "🌊 One Sided Only":
                 df_filtered = df_filtered[cond_oneside]
             elif move_type_filter == "🔄 VWAP Reversal":
