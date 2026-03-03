@@ -321,15 +321,17 @@ def fetch_all_data():
                 
                 latest_w_ema10 = df_w['EMA_10'].iloc[-1]
                 
-                # 2. 🔥 PULLBACK & EARLY CATCH LOGIC 🔥
+                # 2. 🔥 STRICT PULLBACK & EARLY CATCH LOGIC (Risk-Reward Optimized) 🔥
                 # లాస్ట్ 2 వారాల్లో (current week & previous week) 10 EMA ని టచ్ చేసిందా?
                 recent_w_low = df_w['Low'].iloc[-2:].min()
                 
-                touch_ema = recent_w_low <= (latest_w_ema10 * 1.02) # 2% బఫర్ లోపలికి వచ్చి (టచ్)
+                # గీతని పక్కాగా టచ్ అవ్వాలి (0.2% margin for precise touch)
+                touch_ema = recent_w_low <= (latest_w_ema10 * 1.002) 
+                
                 bounce = ltp > latest_w_ema10 # 10 EMA పైన కరెంట్ ప్రైస్ ఉండాలి
                 
-                # 🔥 EARLY CATCH 🔥 : ప్రైస్ ఆల్రెడీ పైకి ఎగిరిపోకుండా.. 10 EMA కి 4% రేంజ్ లోపలే ఉండాలి! (గ్లెన్‌మార్క్ లాంటివి ఇక్కడ ఫిల్టర్ అయిపోతాయి)
-                catch_early = ltp <= (latest_w_ema10 * 1.04)
+                # 🔥 EARLY CATCH (Max 2% Entry) 🔥 : మీరు చెప్పినట్లే స్వింగ్ ట్రేడ్ టార్గెట్ కోసం 2% లోపలే పట్టుకోవాలి!
+                catch_early = ltp <= (latest_w_ema10 * 1.02)
                 
                 if continuous_4w and touch_ema and bounce and catch_early and (w_adx >= 15):
                     is_w_pullback = True
