@@ -295,12 +295,11 @@ def fetch_all_data():
             df_w = df.resample('W').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).dropna()
             
             if len(df_w) >= 75: 
-                df_w['EMA_10'] = df_w['Close'].ewm(span=10, adjust=False).mean()
+                df_w['EMA_20'] = df_w['Close'].ewm(span=20, adjust=False).mean()
                 df_w['EMA_50'] = df_w['Close'].ewm(span=50, adjust=False).mean()
                 
-                # 1. Weekly 10EMA Pro Logic
-                # 1. వరుసగా 10 వారాలు 10EMA, 50EMA పైన ఉంటే చాలు (20 నుండి 10 కి తగ్గించాం)
-                df_w['Trend_Up'] = np.where(df_w['EMA_10'] > df_w['EMA_50'], 1, 0)
+                # 1. వరుసగా 10 వారాలు 20EMA, 50EMA పైన ఉంటే చాలు 
+                df_w['Trend_Up'] = np.where(df_w['EMA_20'] > df_w['EMA_50'], 1, 0)
                 continuous_10w = df_w['Trend_Up'].rolling(window=10).min().iloc[-1] == 1
                 
                 w_tr = pd.concat([df_w['High'] - df_w['Low'], (df_w['High'] - df_w['Close'].shift(1)).abs(), (df_w['Low'] - df_w['Close'].shift(1)).abs()], axis=1).max(axis=1)
@@ -314,14 +313,14 @@ def fetch_all_data():
                 w_dx = (w_plus_di - w_minus_di).abs() / (w_plus_di + w_minus_di) * 100
                 w_adx = w_dx.ewm(alpha=1/14, adjust=False).mean().iloc[-1]
                 
-                curr_w = df_w.iloc[-1]
+                # 🔥 Live/Yesterday Data Logic (మీరు చెప్పినట్లే మార్చాం) 🔥
+                latest_w_ema20 = df_w['EMA_20'].iloc[-1]
                 
-                # 2. 10 EMA టచ్ అవ్వాలి & బౌన్స్ అవ్వాలి (బఫర్ 2.0% కి పెంచాం)
-                touch_ema = curr_w['Low'] <= (curr_w['EMA_10'] * 1.02) 
-                bounce = (curr_w['Close'] > curr_w['EMA_10']) # క్లోజింగ్ 10EMA పైన ఉంటే చాలు
-                adx_rule = w_adx >= 15 # ADX 15 పైన ఉంటే చాలు
+                # 2. మార్కెట్ ఓపెన్ ఉంటే ఈరోజు Low/LTP, హాలిడే అయితే నిన్నటి Low/LTP తీసుకుంటుంది.
+                touch_ema = low <= (latest_w_ema20 * 1.03) # 3% బఫర్ ఇచ్చాం (20 EMA కి దగ్గరగా వస్తే చాలు)
+                bounce = ltp > latest_w_ema20 # కరెంట్ ప్రైస్ (LTP) 20 EMA పైన ఉండాలి
+                adx_rule = w_adx >= 15 # ట్రెండ్ స్ట్రెంత్ 15 పైన ఉండాలి
                 
-                # వారం మధ్యలో వీక్లీ వాల్యూమ్ క్యాలిక్యులేట్ చేయడం తప్పు కాబట్టి దాన్ని తీసేసాం.
                 if continuous_10w and touch_ema and bounce and adx_rule:
                     is_w_pullback = True
 
