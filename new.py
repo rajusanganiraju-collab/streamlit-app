@@ -5,7 +5,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 import json
 import numpy as np
-import plotly.graph_objects as go
+import plotly.graph_objects as g
 import os
 from datetime import datetime, time as dt_time
 from streamlit_autorefresh import st_autorefresh
@@ -302,27 +302,32 @@ def fetch_all_data():
                 df_w['Trend_Up'] = np.where(df_w['EMA_20'] > df_w['EMA_50'], 1, 0)
                 continuous_4w = df_w['Trend_Up'].rolling(window=4).min().iloc[-1] == 1
                 
-                # ADX Calculation (Trend Strength)
+                # 🔥 ADX BUG FIX (ఇండెక్స్ మిస్ మ్యాచ్ అవ్వకుండా సాల్వ్ చేశాం) 🔥
                 w_tr = pd.concat([df_w['High'] - df_w['Low'], (df_w['High'] - df_w['Close'].shift(1)).abs(), (df_w['Low'] - df_w['Close'].shift(1)).abs()], axis=1).max(axis=1)
                 w_atr14 = w_tr.ewm(alpha=1/14, adjust=False).mean()
+                
                 w_plus_dm = df_w['High'].diff()
                 w_minus_dm = df_w['Low'].shift(1) - df_w['Low']
-                w_plus_dm = np.where((w_plus_dm > w_minus_dm) & (w_plus_dm > 0), w_plus_dm, 0.0)
-                w_minus_dm = np.where((w_minus_dm > w_plus_dm) & (w_minus_dm > 0), w_minus_dm, 0.0)
-                w_plus_di = 100 * (pd.Series(w_plus_dm).ewm(alpha=1/14, adjust=False).mean() / w_atr14)
-                w_minus_di = 100 * (pd.Series(w_minus_dm).ewm(alpha=1/14, adjust=False).mean() / w_atr14)
+                
+                # ఇక్కడే పాత కోడ్ లో ఎర్రర్ ఉండేది, ఇప్పుడు పక్కాగా .where() వాడి ఫిక్స్ చేశాం
+                w_plus_dm = w_plus_dm.where((w_plus_dm > w_minus_dm) & (w_plus_dm > 0), 0.0)
+                w_minus_dm = w_minus_dm.where((w_minus_dm > w_plus_dm) & (w_minus_dm > 0), 0.0)
+                
+                w_plus_di = 100 * (w_plus_dm.ewm(alpha=1/14, adjust=False).mean() / w_atr14)
+                w_minus_di = 100 * (w_minus_dm.ewm(alpha=1/14, adjust=False).mean() / w_atr14)
+                
                 w_dx = (w_plus_di - w_minus_di).abs() / (w_plus_di + w_minus_di) * 100
                 w_adx = w_dx.ewm(alpha=1/14, adjust=False).mean().iloc[-1]
                 
                 latest_w_ema20 = df_w['EMA_20'].iloc[-1]
                 
                 # 2. 🔥 RECENT PULLBACK LOGIC 🔥
-                # ఈరోజు ఒక్కటే కాకుండా, లాస్ట్ 5 రోజుల్లో (1 వారం) ఎప్పుడైనా 20 EMA ని టచ్ చేసిందా అని చూస్తున్నాం
-                recent_low = df['Low'].iloc[-5:].min() 
+                recent_low = df['Low'].iloc[-5:].min() # లాస్ట్ 5 రోజుల్లో ఎప్పుడైనా సరే 
                 
-                touch_ema = recent_low <= (latest_w_ema20 * 1.05) # 5% బఫర్ (దగ్గరగా వచ్చినా పట్టుకుంటుంది)
-                bounce = ltp > latest_w_ema20 # కరెంట్ ప్రైస్ (LTP) బౌన్స్ అయ్యి 20 EMA పైన ఉండాలి
+                touch_ema = recent_low <= (latest_w_ema20 * 1.05) # 5% బఫర్ లోపలికి వచ్చి
+                bounce = ltp > latest_w_ema20 # 20 EMA పైన కరెంట్ ప్రైస్ ఉంటే చాలు
                 
+                # ADX ఎర్రర్ సాల్వ్ అయింది కాబట్టి ఇక్కడ పక్కాగా కాలిక్యులేట్ అవుతుంది
                 if continuous_4w and touch_ema and bounce and (w_adx >= 15):
                     is_w_pullback = True
 
