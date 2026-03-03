@@ -395,7 +395,7 @@ def process_5m_data(df_raw):
         df_s['EMA_50'] = df_s['Close'].ewm(span=50, adjust=False).mean()
         df_s.index = pd.to_datetime(df_s.index)
         
-        # 2. 🔥 Holiday Fix: కనీసం 10 క్యాండిల్స్ పడిన రోజుని మాత్రమే (Trading Day) తీసుకుంటుంది 🔥
+        # 2. Holiday Fix: కనీసం 10 క్యాండిల్స్ పడిన రోజుని మాత్రమే (Trading Day) తీసుకుంటుంది
         unique_dates = sorted(list(set(df_s.index.date)))
         target_date = unique_dates[-1] 
         
@@ -409,7 +409,7 @@ def process_5m_data(df_raw):
         if not df_day.empty:
             df_day['Typical_Price'] = (df_day['High'] + df_day['Low'] + df_day['Close']) / 3
             
-            # 3. 🔥 VWAP NaN Error Fix: వాల్యూమ్ 0 ఉన్నా చార్ట్ క్రాష్ అవ్వకుండా సెట్ చేశాం 🔥
+            # 3. VWAP NaN Error Fix: వాల్యూమ్ 0 ఉన్నా చార్ట్ క్రాష్ అవ్వకుండా సెట్ చేశాం
             if 'Volume' in df_day.columns and df_day['Volume'].sum() > 0:
                 vol_cumsum = df_day['Volume'].cumsum()
                 df_day['VWAP'] = (df_day['Typical_Price'] * df_day['Volume']).cumsum() / vol_cumsum.replace(0, np.nan)
@@ -417,7 +417,7 @@ def process_5m_data(df_raw):
             else: 
                 df_day['VWAP'] = df_day['Typical_Price'].expanding().mean()
             
-            # ఎక్కడా NaN లేకుండా చూసుకుంటాం (ప్లాట్ ఎర్రర్ రాకుండా)
+            # ఎక్కడా NaN లేకుండా చూసుకుంటాం
             df_day = df_day.bfill().ffill()
             return df_day
             
