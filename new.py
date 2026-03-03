@@ -283,7 +283,6 @@ def fetch_all_data():
                 
             vwap = (high + low + ltp) / 3
             
-            # 🔥 Daily 50 EMA Logic (Fix for Intraday Sell side) 🔥
             ema50_d = float(df['Close'].ewm(span=50, adjust=False).mean().iloc[-1]) if len(df) >= 50 else 0.0
             
             is_swing = False
@@ -367,7 +366,7 @@ def fetch_all_data():
                 "Fetch_T": symbol, "T": disp_name, "P": ltp, "O": open_p, "H": high, "L": low, "Prev_C": prev_c,
                 "Prev_H": prev_h, "Prev_L": prev_l, "W_EMA10": latest_w_ema10, "W_EMA50": latest_w_ema50, "D_EMA50": ema50_d,
                 "Day_C": day_chg, "C": net_chg, "S": score, "VolX": vol_x, "Is_Swing": is_swing,
-                "Is_W_Pullback": is_w_pullback, 
+                "Is_W_Pullback": is_w_pullback, "VWAP": vwap, # 🔥 VWAP ఇక్కడ యాడ్ చేసాం 🔥
                 "ATR": atr, "Narrow_CPR": is_narrow_cpr,
                 "Is_Index": is_index, "Is_Sector": is_sector, "Sector": stock_sector
             })
@@ -1035,31 +1034,32 @@ if not df.empty:
             if move_type_filter == "All Moves":
                 df_filtered = df_filtered[df_filtered['Strategy_Icon'] != ""]
             
-            # 🔥 NEW: INTRADAY PRO BREAKOUT TOP 5 LOGIC (MULTI-TIMEFRAME ANALYSIS) 🔥
+            # 🔥 NEW: INTRADAY PRO BREAKOUT TOP 5 LOGIC (USER CUSTOM RULES) 🔥
             elif move_type_filter == "⚡ Intraday Pro Breakout (Top 5)":
                 
-                # BUY Conditions: నిన్నటి High బ్రేక్, Weekly 10 & Daily 50 EMA పైన, 1.2x Volume
+                # BUY Conditions: 
+                # 1. Weekly 10 & 50 EMA పైన 
+                # 2. VWAP పైన 
+                # 3. నిన్నటి Close (Prev_C) పైన 
+                # 4. Volume > 0.8x
                 cond_buy = (
-                    (df_filtered['P'] > df_filtered['Prev_H']) & 
                     (df_filtered['P'] > df_filtered['W_EMA10']) & 
-                    (df_filtered['P'] > df_filtered['D_EMA50']) & 
-                    (df_filtered['VolX'] >= 1.2) & 
-                    (df_filtered['C'] >= 1.5) & 
-                    (df_filtered['P'] > df_filtered['O']) & 
-                    ((df_filtered['H'] - df_filtered['P']) <= (df_filtered['H'] - df_filtered['L']) * 0.30)
+                    (df_filtered['P'] > df_filtered['W_EMA50']) & 
+                    (df_filtered['P'] > df_filtered['VWAP']) & 
+                    (df_filtered['P'] > df_filtered['Prev_C']) & 
+                    (df_filtered['VolX'] > 0.8)
                 )
                 
-                # SELL Conditions: నిన్నటి Low బ్రేక్, Weekly 10 & Daily 50 EMA కింద, 1.2x Volume
+                # SELL Conditions (Reverse):
                 cond_sell = (
-                    (df_filtered['P'] < df_filtered['Prev_L']) & 
                     (df_filtered['P'] < df_filtered['W_EMA10']) & 
-                    (df_filtered['P'] < df_filtered['D_EMA50']) & 
-                    (df_filtered['VolX'] >= 1.2) & 
-                    (df_filtered['C'] <= -1.5) & 
-                    (df_filtered['P'] < df_filtered['O']) & 
-                    ((df_filtered['P'] - df_filtered['L']) <= (df_filtered['H'] - df_filtered['L']) * 0.30)
+                    (df_filtered['P'] < df_filtered['W_EMA50']) & 
+                    (df_filtered['P'] < df_filtered['VWAP']) & 
+                    (df_filtered['P'] < df_filtered['Prev_C']) & 
+                    (df_filtered['VolX'] > 0.8)
                 )
                 
+                # Top 5 సపరేట్ గా తీసి కలపడం (Scoring: Volume & % Change)
                 top_buy = df_filtered[cond_buy].sort_values(by=['VolX', 'Day_C'], ascending=[False, False]).head(5).copy()
                 if not top_buy.empty: top_buy['Strategy_Icon'] = "⚡ BUY"
                 
