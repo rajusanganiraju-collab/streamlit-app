@@ -299,8 +299,9 @@ def fetch_all_data():
                 df_w['EMA_50'] = df_w['Close'].ewm(span=50, adjust=False).mean()
                 
                 # 1. Weekly 10EMA Pro Logic
+                # 1. వరుసగా 10 వారాలు 10EMA, 50EMA పైన ఉంటే చాలు (20 నుండి 10 కి తగ్గించాం)
                 df_w['Trend_Up'] = np.where(df_w['EMA_10'] > df_w['EMA_50'], 1, 0)
-                continuous_20w = df_w['Trend_Up'].rolling(window=20).min().iloc[-1] == 1
+                continuous_10w = df_w['Trend_Up'].rolling(window=10).min().iloc[-1] == 1
                 
                 w_tr = pd.concat([df_w['High'] - df_w['Low'], (df_w['High'] - df_w['Close'].shift(1)).abs(), (df_w['Low'] - df_w['Close'].shift(1)).abs()], axis=1).max(axis=1)
                 w_atr14 = w_tr.ewm(alpha=1/14, adjust=False).mean()
@@ -315,12 +316,13 @@ def fetch_all_data():
                 
                 curr_w = df_w.iloc[-1]
                 
-                touch_ema = curr_w['Low'] <= (curr_w['EMA_10'] * 1.015) 
-                bounce = (curr_w['Close'] > curr_w['EMA_10']) and (curr_w['Close'] > curr_w['Open'])
-                w_vol_rule = curr_w['Volume'] > df_w['Volume'].iloc[-5:-1].mean() 
-                adx_rule = w_adx >= 20 
+                # 2. 10 EMA టచ్ అవ్వాలి & బౌన్స్ అవ్వాలి (బఫర్ 2.0% కి పెంచాం)
+                touch_ema = curr_w['Low'] <= (curr_w['EMA_10'] * 1.02) 
+                bounce = (curr_w['Close'] > curr_w['EMA_10']) # క్లోజింగ్ 10EMA పైన ఉంటే చాలు
+                adx_rule = w_adx >= 15 # ADX 15 పైన ఉంటే చాలు
                 
-                if continuous_20w and touch_ema and bounce and w_vol_rule and adx_rule:
+                # వారం మధ్యలో వీక్లీ వాల్యూమ్ క్యాలిక్యులేట్ చేయడం తప్పు కాబట్టి దాన్ని తీసేసాం.
+                if continuous_10w and touch_ema and bounce and adx_rule:
                     is_w_pullback = True
 
             # 2. Old Swing Logic fallback
@@ -1010,9 +1012,8 @@ if not df.empty:
                 df_filtered = df_filtered[breakout_cond]
                 
             elif move_type_filter == "🌟 Weekly 10EMA Pro":
-                # 🔥 WEEKLY LOGIC (ADX, Vol, 50EMA, 10EMA Pullback)
-                # Daily volume condition >= 1.5 added here as final confirmation
-                df_filtered = df_filtered[(df_filtered['Is_W_Pullback'] == True) & (df_filtered['VolX'] >= 1.5)]
+                # 🔥 డైలీ వాల్యూమ్ కనీసం యావరేజ్ (1.0x) ఉంటే చాలు అని రిలాక్స్ చేశాం 🔥
+                df_filtered = df_filtered[(df_filtered['Is_W_Pullback'] == True) & (df_filtered['VolX'] >= 1.0)]
 
     bull_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bullish')
     bear_cnt = sum(1 for sym in df_filtered['Fetch_T'] if stock_trends.get(sym) == 'Bearish')
