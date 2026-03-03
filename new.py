@@ -228,7 +228,8 @@ def fetch_all_data():
     all_stocks = set(NIFTY_50 + FNO_STOCKS + port_stocks)
     tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + [f"{t}.NS" for t in all_stocks if t]
     
-    data = yf.download(tkrs, period="2y", progress=False, group_by='ticker', threads=5)
+    # 🔥 Thread Error Fix: threads=False చేసాం సర్వర్ క్రాష్ అవ్వకుండా 🔥
+    data = yf.download(tkrs, period="2y", progress=False, group_by='ticker', threads=False)
     
     results = []
     minutes = get_minutes_passed()
@@ -314,6 +315,7 @@ def fetch_all_data():
                 latest_w_ema10 = df_w['EMA_10'].iloc[-1]
                 
                 recent_w_low = df_w['Low'].iloc[-2:].min()
+                # 🔥 Strict 0.2% touch and 2% bounce buffer 🔥
                 touch_ema = recent_w_low <= (latest_w_ema10 * 1.002) 
                 bounce = ltp > latest_w_ema10 
                 catch_early = ltp <= (latest_w_ema10 * 1.02)
@@ -370,6 +372,7 @@ def fetch_all_data():
 
 def process_5m_data(df_raw):
     try:
+        # 🔥 Holiday & NaN Fixes 🔥
         df_s = df_raw.dropna(subset=['Open', 'High', 'Low', 'Close']).copy()
         if df_s.empty: return pd.DataFrame()
         
@@ -410,7 +413,6 @@ def get_news_tag(fetch_sym):
         tkr = yf.Ticker(fetch_sym)
         news_data = tkr.news
         
-        # న్యూస్ దొరక్కపోతే డైరెక్ట్ గా స్టాక్ ఫైనాన్స్ పేజ్ కి పంపించే డిఫాల్ట్ లింక్
         default_link = f"https://finance.yahoo.com/quote/{fetch_sym}"
         
         if news_data and len(news_data) > 0:
@@ -434,29 +436,11 @@ def get_news_tag(fetch_sym):
             
             short_title = (title[:22] + "..") if len(title) > 22 else title
             return f"<a href='{link}' target='_blank' style='color:#58a6ff; text-decoration:none;' title='{title}'>{tags} {short_title}</a>"
-       
-            
-        # న్యూస్ లేకపోతే డీఫాల్ట్ గా ఈ బటన్ వస్తుంది
+        
         return f"<a href='{default_link}' target='_blank' style='color:#8b949e; text-decoration:none;'>🔍 Check News</a>"
     except:
         default_link = f"https://finance.yahoo.com/quote/{fetch_sym}"
         return f"<a href='{default_link}' target='_blank' style='color:#8b949e; text-decoration:none;'>🔍 Check News</a>"
-            
-            if any(w in t_low for w in ['result', 'q1', 'q2', 'q3', 'q4', 'earning', 'profit', 'revenue']): tags += "📊 "
-            elif any(w in t_low for w in ['rbi', 'repo', 'inflation']): tags += "🏦 "
-            elif any(w in t_low for w in ['dividend', 'bonus', 'split']): tags += "💰 "
-            elif any(w in t_low for w in ['fda', 'usfda']): tags += "🇺🇸 "
-            elif any(w in t_low for w in ['order', 'deal', 'win', 'contract']): tags += "📝 "
-            elif any(w in t_low for w in ['budget', 'tax', 'govt', 'policy']): tags += "🏛️ "
-            elif any(w in t_low for w in ['plunge', 'crash', 'scam', 'fraud', 'sebi', 'probe']): tags += "🚨 "
-            elif any(w in t_low for w in ['surge', 'jump', 'soar', 'buyback']): tags += "🚀 "
-            else: tags += "📰 "
-            
-            short_title = (title[:22] + "..") if len(title) > 22 else title
-            return f"<a href='{link}' target='_blank' style='color:#58a6ff; text-decoration:none;' title='{title}'>{tags}{short_title}</a>"
-        return "-"
-    except:
-        return "-"
 
 # --- TABLES HTML GENERATORS ---
 def generate_status(row):
@@ -740,7 +724,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix=""):
     
     try:
         if not df_chart.empty:
-            # 🔥 Chart Error Fix: కేవలం High, Low మాత్రమే తీసుకుని ప్లాట్ గీసేలా సేఫ్ లాజిక్ రాశాం 🔥
+            # 🔥 Chart Error Fix 🔥
             min_val = df_chart['Low'].min()
             max_val = df_chart['High'].max()
             y_padding = (max_val - min_val) * 0.1 if (max_val - min_val) != 0 else min_val * 0.005 
@@ -885,7 +869,7 @@ if not df.empty:
         if search_fetch_t not in all_display_tickers: all_display_tickers.append(search_fetch_t)
             
     with st.spinner("Fetching Live Market Data & Validating Trends..."):
-        five_min_data = yf.download(all_display_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=5)
+        five_min_data = yf.download(all_display_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=False)
 
     processed_charts = {}
     stock_trends = {}
