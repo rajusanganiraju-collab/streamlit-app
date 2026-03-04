@@ -386,8 +386,10 @@ def process_5m_data(df_raw):
         unique_dates = sorted(list(set(df_s.index.date)))
         target_date = unique_dates[-1] 
         
+        # 🔥 Live Market Bug Fix: ఉదయం పూట తక్కువ క్యాండిల్స్ ఉన్నా, Volume > 0 ఉంటే లైవ్ డేటా తీసుకుంటుంది 🔥
         for d in reversed(unique_dates):
-            if len(df_s[df_s.index.date == d]) > 10: 
+            daily_data = df_s[df_s.index.date == d]
+            if len(daily_data) > 5 or ('Volume' in daily_data.columns and daily_data['Volume'].sum() > 0): 
                 target_date = d
                 break
                 
