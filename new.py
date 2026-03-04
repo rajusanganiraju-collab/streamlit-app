@@ -609,8 +609,6 @@ def render_swing_terminal_table(df_subset, stock_trends):
         elif trend_state == 'Bearish': status += " 🔴Trend"
         
         atr_val = row.get("ATR", row["P"] * 0.02)
-        
-        # Override SL and Targets if the strategy logic already provided them
         sl_val = row.get('SL', row["P"] + (1.5 * atr_val) if is_down else row["P"] - (1.5 * atr_val))
         t1_val = row.get('T1', row["P"] - (1.5 * atr_val) if is_down else row["P"] + (1.5 * atr_val))
         t2_val = row.get('T2', row["P"] - (3.0 * atr_val) if is_down else row["P"] + (3.0 * atr_val))
@@ -634,8 +632,7 @@ def render_highscore_terminal_table(df_subset, stock_trends):
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
         day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
         
-        # Use strategy specific icon if available
-        custom_status = row.get('Strategy_Icon', generate_status(row))
+        custom_status = str(row.get('Strategy_Icon', ''))
         if custom_status == "": custom_status = generate_status(row)
         
         news_html = get_news_tag(row['Fetch_T'])
@@ -669,7 +666,7 @@ def render_levels_table(df_subset, stock_trends):
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
         day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
         
-        custom_status = row.get('Strategy_Icon', generate_status(row))
+        custom_status = str(row.get('Strategy_Icon', ''))
         if custom_status == "": custom_status = generate_status(row)
         
         news_html = get_news_tag(row['Fetch_T'])
@@ -775,7 +772,8 @@ def render_closed_trades_table(df_closed):
 # --- 6. TOP NAVIGATION & SEARCH ---
 c1, c2, c3 = st.columns([0.4, 0.3, 0.3])
 with c1: 
-    watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "One Sided Moves 🚀", "Terminal Tables 🗃️", "My Portfolio 💼"], label_visibility="collapsed")
+    # 🔥 NEW: Changed "One Sided Moves 🚀" to "Day Trading Stocks 🚀" 🔥
+    watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Day Trading Stocks 🚀", "Terminal Tables 🗃️", "My Portfolio 💼"], label_visibility="collapsed")
 with c2: 
     sort_mode = st.selectbox("Sort By", ["Custom Sort", "Heatmap Marks Up ⭐", "Heatmap Marks Down ⬇️", "% Change Up 🟢", "% Change Down 🔴"], label_visibility="collapsed")
 with c3: 
@@ -793,7 +791,7 @@ if not df.empty:
     
     move_type_filter = "All Moves"
     with c_type:
-        if watchlist_mode == "One Sided Moves 🚀":
+        if watchlist_mode == "Day Trading Stocks 🚀":
             move_type_filter = st.selectbox("🎯 Strategy Filter", [
                 "All Moves", 
                 "⚡ Intraday Pro Breakout (Top 5)",
@@ -808,7 +806,7 @@ if not df.empty:
             move_type_filter = st.selectbox("📈 Strategy Filter", ["All Swing Stocks", "🚀 Pro Breakout Strategy", "🌟 Weekly 10EMA Pro"], index=0)
             
     with c_tog:
-        if watchlist_mode in ["One Sided Moves 🚀", "High Score Stocks 🔥"]:
+        if watchlist_mode in ["Day Trading Stocks 🚀", "High Score Stocks 🔥"]:
             st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
             st.session_state.use_ema_ribbon = st.toggle("🎯 Strict EMA Filter", value=st.session_state.use_ema_ribbon)
             
@@ -849,7 +847,7 @@ if not df.empty:
         df_filtered = df_stocks[df_stocks['Fetch_T'].isin(port_tickers)]
     elif watchlist_mode == "Nifty 50 Heatmap":
         df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
-    elif watchlist_mode == "One Sided Moves 🚀":
+    elif watchlist_mode == "Day Trading Stocks 🚀":
         df_filtered = df_stocks[df_stocks['C'].abs() >= 1.0].copy()
     elif watchlist_mode == "Swing Trading 📈":
         df_filtered = df_stocks[(df_stocks['Is_Swing'] == True) | (df_stocks['Is_W_Pullback'] == True)]
@@ -927,7 +925,7 @@ if not df.empty:
             trap_tag = ""
             trap_bonus = 0
             
-            if watchlist_mode in ["One Sided Moves 🚀", "High Score Stocks 🔥"] and len(df_day) >= 6 and last_vwap > 0:
+            if watchlist_mode in ["Day Trading Stocks 🚀", "High Score Stocks 🔥"] and len(df_day) >= 6 and last_vwap > 0:
                 curr_open = float(df_day['Open'].iloc[-1])
                 ema10 = float(df_day['EMA_10'].iloc[-1])
                 ema20 = float(df_day['EMA_20'].iloc[-1])
@@ -971,11 +969,11 @@ if not df.empty:
         df_filtered['S'] = df_filtered['S'] + df_filtered['Trend_Score']
         
         # ---------------------------------------------------------
-        # 🚀 ONE SIDED MOVES & PRO STRATEGIES FILTER LOGIC (NEW UNIVERSAL BASE)
+        # 🚀 DAY TRADING STOCKS (NEW UNIVERSAL BASE + LOOP LOGIC)
         # ---------------------------------------------------------
-        if watchlist_mode == "One Sided Moves 🚀":
+        if watchlist_mode == "Day Trading Stocks 🚀":
             
-            # 🔥 UNIVERSAL BASE CONDITIONS FOR MTF & VWAP 🔥
+            # 🔥 UNIVERSAL BASE CONDITIONS FOR ALL DAY TRADING STRATEGIES 🔥
             base_buy = (
                 (df_filtered['P'] > df_filtered['W_EMA10']) & 
                 (df_filtered['P'] > df_filtered['W_EMA50']) & 
@@ -1002,66 +1000,84 @@ if not df.empty:
             s_vwap = (df_filtered['H'] + df_filtered['L'] + df_filtered['P']) / 3
             stock_vwap_dist = (df_filtered['P'] - s_vwap).abs() / s_vwap * 100
             
-            cond_buy = pd.Series(False, index=df_filtered.index)
-            cond_sell = pd.Series(False, index=df_filtered.index)
-            icon_str = "🚀"
+            open_drive_bull = (df_filtered['O'] - df_filtered['L'] <= df_filtered['P'] * 0.003)
+            open_drive_bear = (df_filtered['H'] - df_filtered['O'] <= df_filtered['P'] * 0.003)
 
-            if move_type_filter == "⚡ Intraday Pro Breakout (Top 5)":
-                cond_buy = base_buy & (df_filtered['P'] > df_filtered['O']) & ((df_filtered['H'] - df_filtered['P']) <= (df_filtered['H'] - df_filtered['L']) * 0.30)
-                cond_sell = base_sell & (df_filtered['P'] < df_filtered['O']) & ((df_filtered['P'] - df_filtered['L']) <= (df_filtered['H'] - df_filtered['L']) * 0.30)
-                icon_str = "⚡"
-                
-            elif move_type_filter == "🌊 One Sided Only":
-                open_drive_bull = (df_filtered['O'] - df_filtered['L'] <= df_filtered['P'] * 0.003)
-                open_drive_bear = (df_filtered['H'] - df_filtered['O'] <= df_filtered['P'] * 0.003)
-                cond_buy = base_buy & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['Day_C'] >= 1.5) & (stock_vwap_dist >= (nifty_dist * 1.5)) & (df_filtered['Trend_Score'] >= 3) & open_drive_bull
-                cond_sell = base_sell & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['Day_C'] <= -1.5) & (stock_vwap_dist >= (nifty_dist * 1.5)) & (df_filtered['Trend_Score'] >= 3) & open_drive_bear
-                icon_str = "🌊"
-                
-            elif move_type_filter == "🔄 VWAP Reversal":
-                cond_buy = base_buy & (df_filtered['AlphaTag'].str.contains("Reversal Buy", na=False)) & (df_filtered['Day_C'] >= 1.5) & (stock_vwap_dist >= (nifty_dist * 1.5))
-                cond_sell = base_sell & (df_filtered['AlphaTag'].str.contains("Reversal Sell", na=False)) & (df_filtered['Day_C'] <= -1.5) & (stock_vwap_dist >= (nifty_dist * 1.5))
-                icon_str = "🔄"
-                
-            elif move_type_filter == "🎯 Reversals Only":
-                cond_buy = base_buy & (df_filtered['AlphaTag'].str.contains("Reversal Buy", na=False)) & (df_filtered['Day_C'] >= 1.0)
-                cond_sell = base_sell & (df_filtered['AlphaTag'].str.contains("Reversal Sell", na=False)) & (df_filtered['Day_C'] <= -1.0)
-                icon_str = "🎯"
-
-            elif move_type_filter == "🏹 Rubber Band Stretch":
-                cond_buy = base_buy & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['Day_C'] >= 2.5)
-                cond_sell = base_sell & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['Day_C'] <= -2.5)
-                icon_str = "🏹"
-
-            elif move_type_filter == "🏄‍♂️ Momentum Ignition":
-                cond_buy = base_buy & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] >= 2.0) & ((df_filtered['H'] - df_filtered['P']) <= (df_filtered['H'] - df_filtered['L']) * 0.15)
-                cond_sell = base_sell & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['P'] < df_filtered['O']) & (df_filtered['Day_C'] <= -2.0) & ((df_filtered['P'] - df_filtered['L']) <= (df_filtered['H'] - df_filtered['L']) * 0.15)
-                icon_str = "🏄‍♂️"
-
-            elif move_type_filter == "💥 Narrow CPR Breakout":
-                cond_buy = base_buy & (df_filtered['Narrow_CPR'] == True) & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['Day_C'] >= 1.0)
-                cond_sell = base_sell & (df_filtered['Narrow_CPR'] == True) & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['Day_C'] <= -1.0)
-                icon_str = "💥"
-                
-            elif move_type_filter == "All Moves":
-                cond_buy = base_buy & (df_filtered['Day_C'] >= 1.0)
-                cond_sell = base_sell & (df_filtered['Day_C'] <= -1.0)
-                icon_str = "🚀"
-
-            # 🔥 TOP 5 BUY & TOP 5 SELL FOR EVERY STRATEGY 🔥
-            top_buy = df_filtered[cond_buy].sort_values(by=['VolX', 'Day_C'], ascending=[False, False]).head(5).copy()
-            if not top_buy.empty: top_buy['Strategy_Icon'] = f"{icon_str} BUY"
+            strategies_list = [
+                "⚡ Intraday Pro Breakout (Top 5)",
+                "🌊 One Sided Only", 
+                "🔄 VWAP Reversal",   
+                "🎯 Reversals Only", 
+                "🏹 Rubber Band Stretch",
+                "🏄‍♂️ Momentum Ignition",
+                "💥 Narrow CPR Breakout"
+            ]
             
-            top_sell = df_filtered[cond_sell].sort_values(by=['VolX', 'Day_C'], ascending=[False, True]).head(5).copy()
-            if not top_sell.empty: top_sell['Strategy_Icon'] = f"{icon_str} SELL"
+            # 🔥 ALL MOVES కి మ్యాజిక్ ఇక్కడే జరుగుతుంది (Looping all strategies) 🔥
+            strats_to_run = strategies_list if move_type_filter == "All Moves" else [move_type_filter]
+            all_dfs = []
             
-            df_filtered = pd.concat([top_buy, top_sell])
+            for strat in strats_to_run:
+                c_buy = pd.Series(False, index=df_filtered.index)
+                c_sell = pd.Series(False, index=df_filtered.index)
+                icon_str = ""
+
+                if strat == "⚡ Intraday Pro Breakout (Top 5)":
+                    c_buy = base_buy & (df_filtered['P'] > df_filtered['O']) & ((df_filtered['H'] - df_filtered['P']) <= (df_filtered['H'] - df_filtered['L']) * 0.30)
+                    c_sell = base_sell & (df_filtered['P'] < df_filtered['O']) & ((df_filtered['P'] - df_filtered['L']) <= (df_filtered['H'] - df_filtered['L']) * 0.30)
+                    icon_str = "⚡"
+                    
+                elif strat == "🌊 One Sided Only":
+                    c_buy = base_buy & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['Day_C'] >= 1.5) & (stock_vwap_dist >= (nifty_dist * 1.5)) & (df_filtered['Trend_Score'] >= 3) & open_drive_bull
+                    c_sell = base_sell & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['Day_C'] <= -1.5) & (stock_vwap_dist >= (nifty_dist * 1.5)) & (df_filtered['Trend_Score'] >= 3) & open_drive_bear
+                    icon_str = "🌊"
+                    
+                elif strat == "🔄 VWAP Reversal":
+                    c_buy = base_buy & (df_filtered['AlphaTag'].str.contains("Reversal Buy", na=False)) & (df_filtered['Day_C'] >= 1.5) & (stock_vwap_dist >= (nifty_dist * 1.5))
+                    c_sell = base_sell & (df_filtered['AlphaTag'].str.contains("Reversal Sell", na=False)) & (df_filtered['Day_C'] <= -1.5) & (stock_vwap_dist >= (nifty_dist * 1.5))
+                    icon_str = "🔄"
+                    
+                elif strat == "🎯 Reversals Only":
+                    c_buy = base_buy & (df_filtered['AlphaTag'].str.contains("Reversal Buy", na=False)) & (df_filtered['Day_C'] >= 1.0)
+                    c_sell = base_sell & (df_filtered['AlphaTag'].str.contains("Reversal Sell", na=False)) & (df_filtered['Day_C'] <= -1.0)
+                    icon_str = "🎯"
+
+                elif strat == "🏹 Rubber Band Stretch":
+                    c_buy = base_buy & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['Day_C'] >= 2.5)
+                    c_sell = base_sell & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['Day_C'] <= -2.5)
+                    icon_str = "🏹"
+
+                elif strat == "🏄‍♂️ Momentum Ignition":
+                    c_buy = base_buy & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] >= 2.0) & ((df_filtered['H'] - df_filtered['P']) <= (df_filtered['H'] - df_filtered['L']) * 0.15)
+                    c_sell = base_sell & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['P'] < df_filtered['O']) & (df_filtered['Day_C'] <= -2.0) & ((df_filtered['P'] - df_filtered['L']) <= (df_filtered['H'] - df_filtered['L']) * 0.15)
+                    icon_str = "🏄‍♂️"
+
+                elif strat == "💥 Narrow CPR Breakout":
+                    c_buy = base_buy & (df_filtered['Narrow_CPR'] == True) & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['Day_C'] >= 1.0)
+                    c_sell = base_sell & (df_filtered['Narrow_CPR'] == True) & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['Day_C'] <= -1.0)
+                    icon_str = "💥"
+
+                # Get Top 5 Buy & Top 5 Sell for each Strategy
+                top_buy = df_filtered[c_buy].sort_values(by=['VolX', 'Day_C'], ascending=[False, False]).head(5).copy()
+                if not top_buy.empty: top_buy['Strategy_Icon'] = f"{icon_str} BUY"
+                
+                top_sell = df_filtered[c_sell].sort_values(by=['VolX', 'Day_C'], ascending=[False, True]).head(5).copy()
+                if not top_sell.empty: top_sell['Strategy_Icon'] = f"{icon_str} SELL"
+                
+                all_dfs.append(top_buy)
+                all_dfs.append(top_sell)
+                
+            # Combine all strategies and drop duplicates
+            if all_dfs:
+                df_filtered = pd.concat(all_dfs).drop_duplicates(subset=['Fetch_T'])
+            else:
+                df_filtered = pd.DataFrame(columns=df_filtered.columns)
             
             # 🔥 Auto Calculate Targets and SL for Terminal Display 🔥
             if not df_filtered.empty:
-                df_filtered['T1'] = np.where(df_filtered['Strategy_Icon'].str.contains('BUY'), round(df_filtered['P'] * 1.008, 2), round(df_filtered['P'] * 0.992, 2))
-                df_filtered['T2'] = np.where(df_filtered['Strategy_Icon'].str.contains('BUY'), round(df_filtered['P'] * 1.015, 2), round(df_filtered['P'] * 0.985, 2))
-                df_filtered['SL'] = np.where(df_filtered['Strategy_Icon'].str.contains('BUY'), round(df_filtered['P'] * 0.992, 2), round(df_filtered['P'] * 1.008, 2))
+                df_filtered['T1'] = np.where(df_filtered['Strategy_Icon'].str.contains('BUY', na=False), round(df_filtered['P'] * 1.008, 2), round(df_filtered['P'] * 0.992, 2))
+                df_filtered['T2'] = np.where(df_filtered['Strategy_Icon'].str.contains('BUY', na=False), round(df_filtered['P'] * 1.015, 2), round(df_filtered['P'] * 0.985, 2))
+                df_filtered['SL'] = np.where(df_filtered['Strategy_Icon'].str.contains('BUY', na=False), round(df_filtered['P'] * 0.992, 2), round(df_filtered['P'] * 1.008, 2))
         
         elif watchlist_mode == "Swing Trading 📈":
             if move_type_filter == "🚀 Pro Breakout Strategy":
@@ -1279,11 +1295,11 @@ if not df.empty:
             for _, row in df_stocks_display.iterrows():
                 bg = "bull-card" if row['C'] > 0 else ("bear-card" if row['C'] < 0 else "neut-card")
                 
-                # 🔥 NEW ICONS FOR TOP 5 BUYS & SELLS 🔥
+                # 🔥 ICONS FOR TOP 5 BUYS & SELLS 🔥
                 special_icon = f"⭐{int(row['S'])}"
                 if watchlist_mode == "Swing Trading 📈": 
                     special_icon = "🌟" if row.get('Is_W_Pullback', False) else "🚀"
-                elif watchlist_mode == "One Sided Moves 🚀": 
+                elif watchlist_mode == "Day Trading Stocks 🚀": 
                     strat_name = str(row.get('Strategy_Icon', '🚀'))
                     if 'BUY' in strat_name: special_icon = "🟢 BUY"
                     elif 'SELL' in strat_name: special_icon = "🔴 SELL"
@@ -1295,8 +1311,8 @@ if not df.empty:
             
             if watchlist_mode == "Swing Trading 📈":
                 with st.expander("🌊 View Swing Trading Radar (Ranked Table)", expanded=True): st.markdown(render_swing_terminal_table(df_stocks_display, stock_trends), unsafe_allow_html=True)
-            elif watchlist_mode == "High Score Stocks 🔥" or watchlist_mode == "One Sided Moves 🚀":
-                with st.expander("🔥 View High Score Radar (Ranked Intraday Table)", expanded=True): st.markdown(render_highscore_terminal_table(df_stocks_display, stock_trends), unsafe_allow_html=True)
+            elif watchlist_mode == "High Score Stocks 🔥" or watchlist_mode == "Day Trading Stocks 🚀":
+                with st.expander("🔥 View Day Trading Radar (Ranked Table)", expanded=True): st.markdown(render_highscore_terminal_table(df_stocks_display, stock_trends), unsafe_allow_html=True)
             else:
                 with st.expander("🎯 View Trading Levels (Targets & Stop Loss)", expanded=True): st.markdown(render_levels_table(df_stocks_display, stock_trends), unsafe_allow_html=True)
         else: st.info(f"No {st.session_state.trend_filter} stocks found.")
