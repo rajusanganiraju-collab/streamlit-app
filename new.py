@@ -70,7 +70,7 @@ def save_closed_trades(df):
     df = df.fillna("")
     trade_ws.update([df.columns.values.tolist()] + df.values.tolist())
 
-# --- 4. AUTO RUN & STATE MANAGEMENT ---
+# --- 4. AUTO RUN & STATE MANAGEMENT (2.5 Mins Configured) ---
 st_autorefresh(interval=150000, key="datarefresh")
 
 if 'trend_filter' not in st.session_state:
@@ -220,7 +220,8 @@ def get_minutes_passed():
     open_time = now.replace(hour=9, minute=15, second=0)
     return min(375, max(1, int((now - open_time).total_seconds() / 60)))
 
-@st.cache_data(ttl=60)
+# --- 2.5 Mins Configuration ---
+@st.cache_data(ttl=150)
 def fetch_all_data():
     port_df = load_portfolio()
     port_stocks = [str(sym).upper().strip() for sym in port_df['Symbol'].tolist() if str(sym).strip() != ""]
@@ -228,6 +229,7 @@ def fetch_all_data():
     all_stocks = set(NIFTY_50 + FNO_STOCKS + port_stocks)
     tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + [f"{t}.NS" for t in all_stocks if t]
     
+    # User selected threads=20 & period="2y"
     data = yf.download(tkrs, period="2y", progress=False, group_by='ticker', threads=20)
     
     results = []
@@ -383,7 +385,6 @@ def process_5m_data(df_raw):
         df_s['EMA_50'] = df_s['Close'].ewm(span=50, adjust=False).mean()
         df_s.index = pd.to_datetime(df_s.index)
         
-        # 🔥 బ్యాక్ టు బేసిక్స్: ఎలాంటి కండిషన్స్ (Loops) లేకుండా డైరెక్ట్ గా లేటెస్ట్ డేట్ తీసుకోవడమే! 🔥
         unique_dates = sorted(list(set(df_s.index.date)))
         target_date = unique_dates[-1] 
         
@@ -724,7 +725,9 @@ def render_chart(row, df_chart, show_pin=True, key_suffix=""):
                 fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash')))
                 
             fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=150, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(visible=False, fixedrange=True), yaxis=dict(visible=False, range=[min_val - y_padding, max_val + y_padding], fixedrange=True), hovermode=False, showlegend=False, dragmode=False)
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True})
+            
+            # 🔥 FIX: Added unique key parameter to prevent DuplicateWidgetID error 🔥
+            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True}, key=f"plot_{fetch_sym}_{key_suffix}")
         else: 
             st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Data not available</div>", unsafe_allow_html=True)
     except: 
@@ -768,8 +771,8 @@ def render_closed_trades_table(df_closed):
 # --- 6. TOP NAVIGATION & SEARCH ---
 c1, c2, c3 = st.columns([0.4, 0.3, 0.3])
 with c1: 
-    # 🔥 NEW: Changed "One Sided Moves 🚀" to "Day Trading Stocks 🚀" 🔥
-    watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Day Trading Stocks 🚀", "Terminal Tables 🗃️", "My Portfolio 💼"], label_visibility="collapsed")
+    # 🔥 FIX: Changed index to 3 so "Day Trading Stocks 🚀" loads by default when app opens 🔥
+    watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Day Trading Stocks 🚀", "Terminal Tables 🗃️", "My Portfolio 💼"], index=3, label_visibility="collapsed")
 with c2: 
     sort_mode = st.selectbox("Sort By", ["Custom Sort", "Heatmap Marks Up ⭐", "Heatmap Marks Down ⬇️", "% Change Up 🟢", "% Change Down 🔴"], label_visibility="collapsed")
 with c3: 
@@ -964,12 +967,8 @@ if not df.empty:
         df_filtered['Trend_Score'] = df_filtered['Fetch_T'].map(trend_scores).fillna(0)
         df_filtered['S'] = df_filtered['S'] + df_filtered['Trend_Score']
         
-        # ---------------------------------------------------------
-        # 🚀 DAY TRADING STOCKS (NEW UNIVERSAL BASE + LOOP LOGIC)
-        # ---------------------------------------------------------
         if watchlist_mode == "Day Trading Stocks 🚀":
             
-            # 🔥 UNIVERSAL BASE CONDITIONS FOR ALL DAY TRADING STRATEGIES 🔥
             base_buy = (
                 (df_filtered['P'] > df_filtered['W_EMA10']) & 
                 (df_filtered['P'] > df_filtered['W_EMA50']) & 
@@ -1009,7 +1008,6 @@ if not df.empty:
                 "💥 Narrow CPR Breakout"
             ]
             
-            # 🔥 ALL MOVES కి మ్యాజిక్ ఇక్కడే జరుగుతుంది (Looping all strategies) 🔥
             strats_to_run = strategies_list if move_type_filter == "All Moves" else [move_type_filter]
             all_dfs = []
             
@@ -1053,7 +1051,6 @@ if not df.empty:
                     c_sell = base_sell & (df_filtered['Narrow_CPR'] == True) & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['Day_C'] <= -1.0)
                     icon_str = "💥"
 
-                # Get Top 5 Buy & Top 5 Sell for each Strategy
                 top_buy = df_filtered[c_buy].sort_values(by=['VolX', 'Day_C'], ascending=[False, False]).head(5).copy()
                 if not top_buy.empty: top_buy['Strategy_Icon'] = f"{icon_str} BUY"
                 
@@ -1063,13 +1060,11 @@ if not df.empty:
                 all_dfs.append(top_buy)
                 all_dfs.append(top_sell)
                 
-            # Combine all strategies and drop duplicates
             if all_dfs:
                 df_filtered = pd.concat(all_dfs).drop_duplicates(subset=['Fetch_T'])
             else:
                 df_filtered = pd.DataFrame(columns=df_filtered.columns)
             
-            # 🔥 Auto Calculate Targets and SL for Terminal Display 🔥
             if not df_filtered.empty:
                 df_filtered['T1'] = np.where(df_filtered['Strategy_Icon'].str.contains('BUY', na=False), round(df_filtered['P'] * 1.008, 2), round(df_filtered['P'] * 0.992, 2))
                 df_filtered['T2'] = np.where(df_filtered['Strategy_Icon'].str.contains('BUY', na=False), round(df_filtered['P'] * 1.015, 2), round(df_filtered['P'] * 0.985, 2))
