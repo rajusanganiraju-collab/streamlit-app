@@ -71,7 +71,7 @@ def save_closed_trades(df):
     trade_ws.update([df.columns.values.tolist()] + df.values.tolist())
 
 # --- 4. AUTO RUN & STATE MANAGEMENT ---
-st_autorefresh(interval=60000, key="datarefresh")
+st_autorefresh(interval=150000, key="datarefresh")
 
 if 'trend_filter' not in st.session_state:
     st.session_state.trend_filter = 'All'
@@ -228,7 +228,7 @@ def fetch_all_data():
     all_stocks = set(NIFTY_50 + FNO_STOCKS + port_stocks)
     tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + [f"{t}.NS" for t in all_stocks if t]
     
-    data = yf.download(tkrs, period="2y", progress=False, group_by='ticker', threads=False)
+    data = yf.download(tkrs, period="2y", progress=False, group_by='ticker', threads=20)
     
     results = []
     minutes = get_minutes_passed()
@@ -861,7 +861,7 @@ if not df.empty:
         if search_fetch_t not in all_display_tickers: all_display_tickers.append(search_fetch_t)
             
     with st.spinner("Fetching Live Market Data & Validating Trends..."):
-        five_min_data = yf.download(all_display_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=False)
+        five_min_data = yf.download(all_display_tickers, period="5d", interval="5m", progress=False, group_by='ticker', threads=20)
 
     processed_charts = {}
     stock_trends = {}
