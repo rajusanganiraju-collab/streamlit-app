@@ -71,7 +71,7 @@ def save_closed_trades(df):
     trade_ws.update([df.columns.values.tolist()] + df.values.tolist())
 
 # --- 4. AUTO RUN & STATE MANAGEMENT (2.5 Mins Configured) ---
-st_autorefresh(interval=150000, key="datarefresh")
+st_autorefresh(interval=6000, key="datarefresh")
 
 if 'trend_filter' not in st.session_state:
     st.session_state.trend_filter = 'All'
