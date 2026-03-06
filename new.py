@@ -686,7 +686,7 @@ def render_levels_table(df_subset):
     html += "</tbody></table>"
     return html
 
-# 🔥 RENDER CHART (INSTITUTIONAL FIX: No Error, Perfect Line Hover, Single Line Header) 🔥
+# 🔥 RENDER CHART (INSTITUTIONAL FIX: No Error, Single Inline Title, Thin Horiz Line) 🔥
 def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", show_crosshair=False, show_vol=False):
     display_sym = row['T']
     fetch_sym = row['Fetch_T']
@@ -700,7 +700,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
         cb_key = f"cb_{fetch_sym}_{key_suffix}" if key_suffix else f"cb_{fetch_sym}"
         st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=cb_key, on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
     
-    # 🔥 Layout Optimization: Title, Price, and % all in one single line 🔥
+    # 🔥 Layout: Everything in ONE line (No VWAP/10EMA text) 🔥
     st.markdown(f"""
         <div style='text-align:left; font-size:14px; font-weight:bold; margin-top:3px; margin-bottom:5px; padding-left:30px;'>
             <a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none;'>
@@ -715,13 +715,14 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
             max_val = df_chart['High'].max()
             y_padding = (max_val - min_val) * 0.1 if (max_val - min_val) != 0 else min_val * 0.005 
             
+            # 🔥 Simple Hover Template (Only Price)
+            price_hover = '₹%{y:.2f}<extra></extra>'
+            
             if show_vol:
                 fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.02, row_heights=[0.75, 0.25])
-                
-                # Candlesticks with minimal info (prevents double price)
                 fig.add_trace(go.Candlestick(
                     x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
-                    increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, name="Price"
+                    increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False
                 ), row=1, col=1)
                 
                 if timeframe == "Weekly Chart":
@@ -743,27 +744,26 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8, row=1, col=1)
 
                 if show_crosshair:
-                    # 🔥 Perfect Crosshair: Unified Hover (Shows single price text), dragmode sets + pointer 🔥
-                    fig.update_layout(hovermode='x unified', dragmode='crosshair')
-                    fig.update_traces(hovertemplate='₹%{y:.2f}<extra></extra>', row=1, col=1) # Single Price Format
-                    # Invisible axes but functional hover
-                    fig.update_yaxes(showticklabels=False, showline=False, showgrid=False, zeroline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding], row=1, col=1)
-                    fig.update_xaxes(showticklabels=False, showline=False, showgrid=False, zeroline=False, fixedrange=True, row=1, col=1)
+                    # 🔥 SAFEST CROSSHAIR: hovermode='y', dotted across, no vertical spikes 🔥
+                    fig.update_layout(hovermode='y', dragmode='crosshair', hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d"))
+                    fig.update_traces(hovertemplate=price_hover, row=1, col=1)
+                    fig.update_yaxes(showspikes=True, spikemode='across', spikesnap='cursor', spikethickness=1, spikedash='dot', spikecolor="rgba(255,255,255,0.4)", showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding], row=1, col=1)
+                    fig.update_xaxes(showspikes=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, row=1, col=1)
                     fig.update_yaxes(visible=False, fixedrange=True, row=2, col=1)
                     fig.update_xaxes(visible=False, fixedrange=True, row=2, col=1)
                 else:
+                    fig.update_traces(hoverinfo='skip', row=1, col=1)
                     fig.update_layout(hovermode=False, dragmode=False)
-                    fig.update_yaxes(showticklabels=False, showline=False, showgrid=False, zeroline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding], row=1, col=1)
-                    fig.update_xaxes(showticklabels=False, showline=False, showgrid=False, zeroline=False, fixedrange=True, row=1, col=1)
+                    fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding], row=1, col=1)
+                    fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, row=1, col=1)
                     fig.update_yaxes(visible=False, fixedrange=True, row=2, col=1)
                     fig.update_xaxes(visible=False, fixedrange=True, row=2, col=1)
 
             else:
-                # 🔥 Taller Chart without Volume 🔥
                 fig = go.Figure()
                 fig.add_trace(go.Candlestick(
                     x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
-                    increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, name="Price"
+                    increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False
                 ))
                 
                 if timeframe == "Weekly Chart":
@@ -782,17 +782,18 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8)
 
                 if show_crosshair:
-                    # 🔥 Perfect Crosshair: Unified Hover (Shows single price text), dragmode sets + pointer 🔥
-                    fig.update_layout(hovermode='x unified', dragmode='crosshair', hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d"))
-                    fig.update_traces(hovertemplate='₹%{y:.2f}<extra></extra>') # Single Price Format
-                    fig.update_yaxes(showticklabels=False, showline=False, showgrid=False, zeroline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
-                    fig.update_xaxes(showticklabels=False, showline=False, showgrid=False, zeroline=False, fixedrange=True)
+                    # 🔥 SAFEST CROSSHAIR: hovermode='y', dotted across, no vertical spikes 🔥
+                    fig.update_layout(hovermode='y', dragmode='crosshair', hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d"))
+                    fig.update_traces(hovertemplate=price_hover)
+                    fig.update_yaxes(showspikes=True, spikemode='across', spikesnap='cursor', spikethickness=1, spikedash='dot', spikecolor="rgba(255,255,255,0.4)", showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
+                    fig.update_xaxes(showspikes=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
                 else:
+                    fig.update_traces(hoverinfo='skip')
                     fig.update_layout(hovermode=False, dragmode=False)
-                    fig.update_yaxes(showticklabels=False, showline=False, showgrid=False, zeroline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
-                    fig.update_xaxes(showticklabels=False, showline=False, showgrid=False, zeroline=False, fixedrange=True)
+                    fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
+                    fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
 
-            # 🔥 NO STATIC PLOT! This was causing the error. fixedrange inside axes secures the zoom instead.
+            # 🔥 NO STATIC PLOT! This is what fixes the error! 🔥
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False}, key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}")
         else: 
             st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Data not available</div>", unsafe_allow_html=True)
@@ -1425,12 +1426,10 @@ if not df.empty:
         chart_dict_to_use = weekly_charts if chart_timeframe == "Weekly Chart" else processed_charts
 
         if search_stock != "-- None --":
-            st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:5px; color:#ffd700;'>🔍 Searched Chart: {search_stock}</div>", unsafe_allow_html=True)
             render_chart_grid(pd.DataFrame([df[df['T'] == search_stock].iloc[0]]), show_pin_option=True, key_prefix="search", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
         if watchlist_mode not in ["Terminal Tables 🗃️", "My Portfolio 💼"]:
-            st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>📈 Market Indices</div>", unsafe_allow_html=True)
             render_chart_grid(df_indices, show_pin_option=False, key_prefix="idx", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
