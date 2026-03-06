@@ -686,7 +686,7 @@ def render_levels_table(df_subset):
     html += "</tbody></table>"
     return html
 
-# 🔥 RENDER CHART (INSTITUTIONAL FIX: No Error, Clean Horizontal Line, Single Price Box) 🔥
+# 🔥 RENDER CHART (THE ULTIMATE INSTITUTIONAL FIX) 🔥
 def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", show_crosshair=False, show_vol=False):
     display_sym = row['T']
     fetch_sym = row['Fetch_T']
@@ -700,7 +700,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
         cb_key = f"cb_{fetch_sym}_{key_suffix}" if key_suffix else f"cb_{fetch_sym}"
         st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=cb_key, on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
     
-    # 🔥 Layout: Everything in ONE line! Stock Name | ₹Price | Pct 🔥
+    # 🔥 TITLE UPDATE: Clean Single Line. No Subtitles! 🔥
     st.markdown(f"""
         <div style='text-align:left; font-size:14px; font-weight:bold; margin-top:3px; margin-bottom:5px; padding-left:30px;'>
             <a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none;'>
@@ -715,19 +715,18 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
             max_val = df_chart['High'].max()
             y_padding = (max_val - min_val) * 0.1 if (max_val - min_val) != 0 else min_val * 0.005 
             
-            # Formatted exactly to show only "₹ Price"
-            price_hover = '₹%{y:.2f}<extra></extra>'
-            # We ONLY enable hover text if crosshair is toggled on
-            h_info = 'text' if show_crosshair else 'skip'
-            
+            # 🔥 HOVER LOGIC FIX: Text Array (100% Streamlit Safe) 🔥
+            # Creating an exact array of prices so it shows only one value without crashing
+            price_texts = [f"₹{x:.2f}" for x in df_chart['Close']]
+            my_hover_mode = 'text' if show_crosshair else 'skip'
+
             if show_vol:
                 fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.02, row_heights=[0.75, 0.25])
                 
-                # Candlestick
                 fig.add_trace(go.Candlestick(
                     x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
                     increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False,
-                    hoverinfo=h_info, hovertemplate=price_hover, name=""
+                    name="", hoverinfo=my_hover_mode, hovertext=price_texts
                 ), row=1, col=1)
                 
                 if timeframe == "Weekly Chart":
@@ -740,7 +739,10 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                 colors = ['#2ea043' if close >= open_p else '#da3633' for close, open_p in zip(df_chart['Close'], df_chart['Open'])]
                 fig.add_trace(go.Bar(x=df_chart.index, y=df_chart['Volume'], marker_color=colors, showlegend=False, hoverinfo='skip'), row=2, col=1)
                 
-                fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=230, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                # Invisible axes setup (Removes grid, line, text but keeps functionality)
+                ax_config = dict(showgrid=False, zeroline=False, showticklabels=False, showline=False)
+                
+                fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=230, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
                 
                 if fetch_sym in st.session_state.custom_alerts:
                     alert_data = st.session_state.custom_alerts[fetch_sym]
@@ -749,26 +751,32 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8, row=1, col=1)
 
                 if show_crosshair:
-                    # 🔥 Perfect Safe Crosshair (No spikes, just simple hover line) 🔥
-                    fig.update_layout(hovermode='x', dragmode='crosshair', hoverlabel=dict(bgcolor="#161b22", font_size=11, font_color="#ffffff", bordercolor="#30363d"))
-                    fig.update_xaxes(showspikes=True, spikemode='across', spikesnap='cursor', spikethickness=1, spikedash='dot', spikecolor="rgba(255,255,255,0.4)", showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, row=1, col=1)
-                    fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding], row=1, col=1)
-                    fig.update_xaxes(visible=False, fixedrange=True, row=2, col=1)
-                    fig.update_yaxes(visible=False, fixedrange=True, row=2, col=1)
+                    # 🔥 Perfect Crosshair Config: Safest hovermode, simple horizontal spikeline 🔥
+                    fig.update_layout(
+                        hovermode='closest', 
+                        dragmode='crosshair', 
+                        hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d")
+                    )
+                    # Y-Axis gets a horizontal line
+                    fig.update_yaxes(**ax_config, showspikes=True, spikemode='across', spikesnap='data', spikethickness=1, spikedash='dot', spikecolor="rgba(255,255,255,0.4)", fixedrange=True, range=[min_val - y_padding, max_val + y_padding], row=1, col=1)
+                    # X-Axis gets nothing (No vertical line)
+                    fig.update_xaxes(**ax_config, showspikes=False, fixedrange=True, row=1, col=1)
+                    # Hide Row 2
+                    fig.update_yaxes(**ax_config, visible=False, fixedrange=True, row=2, col=1)
+                    fig.update_xaxes(**ax_config, visible=False, fixedrange=True, row=2, col=1)
                 else:
                     fig.update_layout(hovermode=False, dragmode=False)
-                    fig.update_xaxes(visible=False, fixedrange=True, row=1, col=1)
-                    fig.update_yaxes(visible=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding], row=1, col=1)
-                    fig.update_xaxes(visible=False, fixedrange=True, row=2, col=1)
-                    fig.update_yaxes(visible=False, fixedrange=True, row=2, col=1)
+                    fig.update_yaxes(**ax_config, fixedrange=True, range=[min_val - y_padding, max_val + y_padding], row=1, col=1)
+                    fig.update_xaxes(**ax_config, fixedrange=True, row=1, col=1)
+                    fig.update_yaxes(**ax_config, visible=False, fixedrange=True, row=2, col=1)
+                    fig.update_xaxes(**ax_config, visible=False, fixedrange=True, row=2, col=1)
 
             else:
-                # 🔥 Taller Chart without Volume 🔥
                 fig = go.Figure()
                 fig.add_trace(go.Candlestick(
                     x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
                     increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, 
-                    hoverinfo=h_info, hovertemplate=price_hover, name=""
+                    name="", hoverinfo=my_hover_mode, hovertext=price_texts
                 ))
                 
                 if timeframe == "Weekly Chart":
@@ -777,8 +785,9 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                 else:
                     if 'VWAP' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), hoverinfo='skip'))
                     if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), hoverinfo='skip'))
-                    
-                fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=190, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False)
+                
+                ax_config = dict(showgrid=False, zeroline=False, showticklabels=False, showline=False)    
+                fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=190, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, xaxis_rangeslider_visible=False)
 
                 if fetch_sym in st.session_state.custom_alerts:
                     alert_data = st.session_state.custom_alerts[fetch_sym]
@@ -787,16 +796,22 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8)
 
                 if show_crosshair:
-                    # 🔥 Safe Native Crosshair (No Error, No Hand Symbol, Thin Line) 🔥
-                    fig.update_layout(hovermode='x', dragmode='crosshair', hoverlabel=dict(bgcolor="#161b22", font_size=11, font_color="#ffffff", bordercolor="#30363d"))
-                    fig.update_xaxes(showspikes=True, spikemode='across', spikesnap='cursor', spikethickness=1, spikedash='dot', spikecolor="rgba(255,255,255,0.4)", showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
-                    fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
+                    # 🔥 Perfect Crosshair Config: Safest hovermode, simple horizontal spikeline 🔥
+                    fig.update_layout(
+                        hovermode='closest', 
+                        dragmode='crosshair', 
+                        hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d")
+                    )
+                    # Y-Axis gets a horizontal line
+                    fig.update_yaxes(**ax_config, showspikes=True, spikemode='across', spikesnap='data', spikethickness=1, spikedash='dot', spikecolor="rgba(255,255,255,0.4)", fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
+                    # X-Axis gets nothing (No vertical line)
+                    fig.update_xaxes(**ax_config, showspikes=False, fixedrange=True)
                 else:
                     fig.update_layout(hovermode=False, dragmode=False)
-                    fig.update_xaxes(visible=False, fixedrange=True)
-                    fig.update_yaxes(visible=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
+                    fig.update_yaxes(**ax_config, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
+                    fig.update_xaxes(**ax_config, fixedrange=True)
 
-            # Use st.plotly_chart without restricting static plot so interactions work cleanly
+            # 🔥 NO STATIC PLOT + SAFE CONFIG 🔥
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False}, key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}")
         else: 
             st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Data not available</div>", unsafe_allow_html=True)
