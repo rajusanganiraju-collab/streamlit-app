@@ -127,7 +127,7 @@ st.markdown("""
     }
 
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] div[data-testid="stCheckbox"] {
-        position: absolute !important; top: 8px !important; left: 10px !important; z-index: 100 !important;
+        position: absolute !important; top: 10px !important; left: 10px !important; z-index: 100 !important;
     }
     div[data-testid="stCheckbox"] label { padding: 0 !important; min-height: 0 !important; }
     div.stButton > button { border-radius: 8px !important; border: 1px solid #30363d !important; background-color: #161b22 !important; height: 45px !important; }
@@ -686,7 +686,7 @@ def render_levels_table(df_subset):
     html += "</tbody></table>"
     return html
 
-# 🔥 RENDER CHART (THE ULTIMATE 100% BUG FREE: No Error, Free Moving Crosshair, Clean Text) 🔥
+# 🔥 RENDER CHART (100% SAFE FREE MOVING CROSSHAIR FIX) 🔥
 def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", show_crosshair=False, show_vol=False):
     display_sym = row['T']
     fetch_sym = row['Fetch_T']
@@ -700,7 +700,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
         cb_key = f"cb_{fetch_sym}_{key_suffix}" if key_suffix else f"cb_{fetch_sym}"
         st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=cb_key, on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
     
-    # 🔥 Layout: Everything in ONE line (No VWAP/10EMA text) 🔥
+    # 🔥 TITLE UPDATE: Clean Single Line. No Subtitles! 🔥
     st.markdown(f"""
         <div style='text-align:left; font-size:14px; font-weight:bold; margin-top:3px; margin-bottom:5px; padding-left:30px;'>
             <a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none;'>
@@ -715,17 +715,18 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
             max_val = df_chart['High'].max()
             y_padding = (max_val - min_val) * 0.1 if (max_val - min_val) != 0 else min_val * 0.005 
             
-            # 🔥 VERY SAFE: Use native Plotly formatting to show price (Close, High, Low) 🔥
-            # Setting custom texts that update properly without crashing Streamlit.
-            hover_text_format = [f"Close: ₹{c:.2f}<br>High: ₹{h:.2f}<br>Low: ₹{l:.2f}" for c, h, l in zip(df_chart['Close'], df_chart['High'], df_chart['Low'])]
-
             if show_vol:
                 fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.02, row_heights=[0.75, 0.25])
                 
+                # Invisible scatter for the free moving line magic! (No crashing)
+                fig.add_trace(go.Scatter(
+                    x=df_chart.index, y=df_chart['Close'], mode='lines', line=dict(color='rgba(0,0,0,0)'), 
+                    showlegend=False, hoverinfo='y' if show_crosshair else 'skip', name=""
+                ), row=1, col=1)
+                
                 fig.add_trace(go.Candlestick(
                     x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
-                    increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False,
-                    name="", hoverinfo='text' if show_crosshair else 'skip', hovertext=hover_text_format
+                    increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, hoverinfo='skip'
                 ), row=1, col=1)
                 
                 if timeframe == "Weekly Chart":
@@ -747,10 +748,9 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8, row=1, col=1)
 
                 if show_crosshair:
-                    # 🔥 Safe FREE MOVING Crosshair 🔥
-                    fig.update_layout(hovermode='x', dragmode='crosshair', hoverlabel=dict(bgcolor="#161b22", font_size=11, font_color="#ffffff", bordercolor="#30363d"))
-                    # Dotted thin line. NO 'Unified' which crashes Streamlit!
-                    fig.update_yaxes(showspikes=True, spikemode='across', spikethickness=1, spikedash='dot', spikecolor="rgba(255,255,255,0.4)", showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding], row=1, col=1)
+                    # 🔥 Safe Free Moving Crosshair (Uses standard 'y' spikes without Unified formatting errors) 🔥
+                    fig.update_layout(hovermode='closest', dragmode='crosshair')
+                    fig.update_yaxes(showspikes=True, spikemode='across', spikethickness=1, spikedash='dot', spikecolor="rgba(255,255,255,0.4)", showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=10), showgrid=False, zeroline=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding], row=1, col=1)
                     fig.update_xaxes(showspikes=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, row=1, col=1)
                     fig.update_yaxes(visible=False, fixedrange=True, row=2, col=1)
                     fig.update_xaxes(visible=False, fixedrange=True, row=2, col=1)
@@ -764,10 +764,16 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
             else:
                 # 🔥 Taller Chart without Volume 🔥
                 fig = go.Figure()
+                
+                # Invisible scatter for the free moving line magic! (No crashing)
+                fig.add_trace(go.Scatter(
+                    x=df_chart.index, y=df_chart['Close'], mode='lines', line=dict(color='rgba(0,0,0,0)'), 
+                    showlegend=False, hoverinfo='y' if show_crosshair else 'skip', name=""
+                ))
+                
                 fig.add_trace(go.Candlestick(
                     x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
-                    increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, 
-                    name="", hoverinfo='text' if show_crosshair else 'skip', hovertext=hover_text_format
+                    increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, hoverinfo='skip'
                 ))
                 
                 if timeframe == "Weekly Chart":
@@ -786,16 +792,15 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8)
 
                 if show_crosshair:
-                    # 🔥 Safe FREE MOVING Crosshair 🔥
-                    fig.update_layout(hovermode='x', dragmode='crosshair', hoverlabel=dict(bgcolor="#161b22", font_size=11, font_color="#ffffff", bordercolor="#30363d"))
-                    fig.update_yaxes(showspikes=True, spikemode='across', spikethickness=1, spikedash='dot', spikecolor="rgba(255,255,255,0.4)", showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
+                    # 🔥 Safe Free Moving Crosshair 🔥
+                    fig.update_layout(hovermode='closest', dragmode='crosshair')
+                    fig.update_yaxes(showspikes=True, spikemode='across', spikethickness=1, spikedash='dot', spikecolor="rgba(255,255,255,0.4)", showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=10), showgrid=False, zeroline=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
                     fig.update_xaxes(showspikes=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
                 else:
                     fig.update_layout(hovermode=False, dragmode=False)
                     fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
                     fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
 
-            # 🔥 Safe Config (Prevents bug when dragging) 🔥
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False}, key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}")
         else: 
             st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Data not available</div>", unsafe_allow_html=True)
