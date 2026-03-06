@@ -685,7 +685,7 @@ def render_levels_table(df_subset):
     html += "</tbody></table>"
     return html
 
-# 🔥 3. RENDER CHART (Fix for Perfect Crosshair Line & No Hand Symbol) 🔥
+# 🔥 RENDER CHART (Fix for Perfect Crosshair Line without Error) 🔥
 def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", show_crosshair=False, show_vol=False):
     display_sym = row['T']
     fetch_sym = row['Fetch_T']
@@ -720,15 +720,13 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
             max_val = df_chart['High'].max()
             y_padding = (max_val - min_val) * 0.1 if (max_val - min_val) != 0 else min_val * 0.005 
             
-            # Use specific hovertext to only show the price, with hoverinfo set properly
-            hover_state = 'none' # Always none for traces to prevent big box
-            
+            # Use specific formatting to show only price
             if show_vol:
                 fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.05, row_heights=[0.8, 0.2])
                 fig.add_trace(go.Candlestick(
                     x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
                     increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False,
-                    hoverinfo=hover_state
+                    name="" # Removes the trace name from tooltip
                 ), row=1, col=1)
                 
                 if timeframe == "Weekly Chart":
@@ -751,13 +749,16 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8, row=1, col=1)
 
                 if show_crosshair:
-                    # 🔥 Perfect Crosshair: No vertical line, only horizontal line with clean price label 🔥
+                    # 🔥 Perfect Crosshair without error! Only shows y-axis values on hover 🔥
                     fig.update_layout(hovermode='y unified', dragmode='crosshair') 
+                    # Hide the big tooltip box and just show the axis
+                    fig.update_traces(hoverinfo='none', row=1, col=1)
                     fig.update_yaxes(showspikes=True, spikemode='across', spikesnap='cursor', spikethickness=1, spikedash='dot', spikecolor="#ffffff", showgrid=False, zeroline=False, fixedrange=True, row=1, col=1)
                     fig.update_xaxes(showspikes=False, showticklabels=False, showgrid=False, zeroline=False, fixedrange=True, row=1, col=1)
                     fig.update_yaxes(visible=False, fixedrange=True, row=2, col=1)
                     fig.update_xaxes(visible=False, fixedrange=True, row=2, col=1)
                 else:
+                    fig.update_traces(hoverinfo='skip', row=1, col=1)
                     fig.update_layout(hovermode=False, dragmode=False)
                     fig.update_xaxes(visible=False, fixedrange=True, row=1, col=1)
                     fig.update_yaxes(visible=False, fixedrange=True, row=2, col=1)
@@ -768,7 +769,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                 fig.add_trace(go.Candlestick(
                     x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
                     increasing_line_color='#2ea043', decreasing_line_color='#da3633',
-                    hoverinfo=hover_state
+                    name="" # Removes the trace name from tooltip
                 ))
                 
                 if timeframe == "Weekly Chart":
@@ -787,11 +788,14 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8)
 
                 if show_crosshair:
-                    # 🔥 Perfect Crosshair: No vertical line, only horizontal line with clean price label 🔥
+                    # 🔥 Perfect Crosshair without error! Only shows y-axis values on hover 🔥
                     fig.update_layout(hovermode='y unified', dragmode='crosshair')
+                    # Hide the big tooltip box and just show the axis
+                    fig.update_traces(hoverinfo='none')
                     fig.update_xaxes(showspikes=False, showticklabels=False, showgrid=False, zeroline=False, fixedrange=True)
                     fig.update_yaxes(showspikes=True, spikemode='across', spikesnap='cursor', spikethickness=1, spikedash='dot', spikecolor="#ffffff", showgrid=False, zeroline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
                 else:
+                    fig.update_traces(hoverinfo='skip')
                     fig.update_layout(hovermode=False, dragmode=False)
                     fig.update_xaxes(visible=False, fixedrange=True)
                     fig.update_yaxes(visible=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
