@@ -121,7 +121,6 @@ st.markdown("""
     @media screen and (min-width: 651px) and (max-width: 849px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(3, 1fr) !important; } }
     @media screen and (max-width: 650px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(2, 1fr) !important; gap: 6px !important; } }
     
-    /* 🔥 Adjusted padding to move chart up and save space 🔥 */
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] {
         background-color: #161b22 !important; border: 1px solid #30363d !important; border-radius: 8px !important;
         padding: 5px !important; position: relative !important; width: 100% !important;
@@ -687,7 +686,7 @@ def render_levels_table(df_subset):
     html += "</tbody></table>"
     return html
 
-# 🔥 RENDER CHART (Fix for Perfect Crosshair Line & Larger Chart Height & No Hand Symbol) 🔥
+# 🔥 RENDER CHART (PERFECT CROSSHAIR FIX - NO ERRORS, NO HAND SYMBOL) 🔥
 def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", show_crosshair=False, show_vol=False):
     display_sym = row['T']
     fetch_sym = row['Fetch_T']
@@ -705,7 +704,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
     if timeframe == "Weekly Chart":
         subtitle_html = "<span style='color:#FFD700;'>10 EMA</span> &nbsp;|&nbsp; <span style='color:#00BFFF;'>50 EMA</span>"
         
-    # 🔥 Layout Optimization: Moved Title and Indicators to same line to save height! 🔥
     st.markdown(f"""
         <div style='display:flex; justify-content:center; align-items:baseline; gap:12px; margin-top:-5px; margin-bottom:2px; padding-left:20px;'>
             <a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; font-size:15px; font-weight:bold;'>
@@ -721,31 +719,28 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
             max_val = df_chart['High'].max()
             y_padding = (max_val - min_val) * 0.1 if (max_val - min_val) != 0 else min_val * 0.005 
             
-            # Formatted exactly to show only "₹ Price"
-            price_hover = df_chart['Close'].apply(lambda x: f"₹{x:.2f}")
-            h_info = 'text' if show_crosshair else 'skip'
-            
+            clean_x = dict(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
+            clean_y = dict(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
+
             if show_vol:
-                # 🔥 Taller Chart with Volume 🔥
                 fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.02, row_heights=[0.75, 0.25])
                 fig.add_trace(go.Candlestick(
                     x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
                     increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False,
-                    hoverinfo=h_info, hovertext=price_hover
+                    hoverinfo='none'
                 ), row=1, col=1)
                 
                 if timeframe == "Weekly Chart":
-                    if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), showlegend=False, hoverinfo='skip'), row=1, col=1)
-                    if 'EMA_50' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_50'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'), row=1, col=1)
+                    if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), showlegend=False, hoverinfo='none'), row=1, col=1)
+                    if 'EMA_50' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_50'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='none'), row=1, col=1)
                 else:
-                    if 'VWAP' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='skip'), row=1, col=1)
-                    if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'), row=1, col=1)
+                    if 'VWAP' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='none'), row=1, col=1)
+                    if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='none'), row=1, col=1)
                 
                 colors = ['#2ea043' if close >= open_p else '#da3633' for close, open_p in zip(df_chart['Close'], df_chart['Open'])]
-                fig.add_trace(go.Bar(x=df_chart.index, y=df_chart['Volume'], marker_color=colors, showlegend=False, hoverinfo='skip'), row=2, col=1)
+                fig.add_trace(go.Bar(x=df_chart.index, y=df_chart['Volume'], marker_color=colors, showlegend=False, hoverinfo='none'), row=2, col=1)
                 
                 fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=230, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
-                fig.update_yaxes(range=[min_val - y_padding, max_val + y_padding], fixedrange=True, row=1, col=1)
                 
                 if fetch_sym in st.session_state.custom_alerts:
                     alert_data = st.session_state.custom_alerts[fetch_sym]
@@ -754,36 +749,36 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8, row=1, col=1)
 
                 if show_crosshair:
-                    # 🔥 Perfect Crosshair: Thin line, clean single price box, Cross pointer (+) 🔥
-                    fig.update_layout(
-                        hovermode='closest', dragmode='crosshair',
-                        hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d")
+                    fig.update_layout(hovermode='closest', dragmode='crosshair')
+                    fig.update_yaxes(
+                        showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding],
+                        showspikes=True, spikemode='across', spikesnap='cursor', spikethickness=1, spikedash='dot', spikecolor="#ffffff", 
+                        row=1, col=1
                     )
-                    fig.update_yaxes(showspikes=True, spikemode='across', spikesnap='cursor', spikethickness=1, spikedash='dot', spikecolor="rgba(255,255,255,0.3)", showgrid=False, zeroline=False, fixedrange=True, row=1, col=1)
-                    fig.update_xaxes(showspikes=False, showticklabels=False, showgrid=False, zeroline=False, fixedrange=True, row=1, col=1)
-                    fig.update_yaxes(visible=False, fixedrange=True, row=2, col=1)
-                    fig.update_xaxes(visible=False, fixedrange=True, row=2, col=1)
+                    fig.update_xaxes(**clean_x, row=1, col=1)
+                    fig.update_yaxes(**clean_x, row=2, col=1)
+                    fig.update_xaxes(**clean_x, row=2, col=1)
                 else:
                     fig.update_layout(hovermode=False, dragmode=False)
-                    fig.update_xaxes(visible=False, fixedrange=True, row=1, col=1)
-                    fig.update_yaxes(visible=False, fixedrange=True, row=2, col=1)
-                    fig.update_xaxes(visible=False, fixedrange=True, row=2, col=1)
+                    fig.update_yaxes(**clean_y, row=1, col=1)
+                    fig.update_xaxes(**clean_x, row=1, col=1)
+                    fig.update_yaxes(**clean_x, row=2, col=1)
+                    fig.update_xaxes(**clean_x, row=2, col=1)
 
             else:
-                # 🔥 Taller Chart without Volume 🔥
                 fig = go.Figure()
                 fig.add_trace(go.Candlestick(
                     x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
-                    increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False,
-                    hoverinfo=h_info, hovertext=price_hover
+                    increasing_line_color='#2ea043', decreasing_line_color='#da3633',
+                    hoverinfo='none'
                 ))
                 
                 if timeframe == "Weekly Chart":
-                    if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), hoverinfo='skip'))
-                    if 'EMA_50' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_50'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), hoverinfo='skip'))
+                    if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), hoverinfo='none'))
+                    if 'EMA_50' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_50'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), hoverinfo='none'))
                 else:
-                    if 'VWAP' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), hoverinfo='skip'))
-                    if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), hoverinfo='skip'))
+                    if 'VWAP' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), hoverinfo='none'))
+                    if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), hoverinfo='none'))
                     
                 fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=190, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, xaxis_rangeslider_visible=False)
 
@@ -794,19 +789,17 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8)
 
                 if show_crosshair:
-                    # 🔥 Perfect Crosshair: Thin line, clean single price box, Cross pointer (+) 🔥
-                    fig.update_layout(
-                        hovermode='closest', dragmode='crosshair',
-                        hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d")
+                    fig.update_layout(hovermode='closest', dragmode='crosshair')
+                    fig.update_yaxes(
+                        showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding],
+                        showspikes=True, spikemode='across', spikesnap='cursor', spikethickness=1, spikedash='dot', spikecolor="#ffffff"
                     )
-                    fig.update_yaxes(showspikes=True, spikemode='across', spikesnap='cursor', spikethickness=1, spikedash='dot', spikecolor="rgba(255,255,255,0.3)", showgrid=False, zeroline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
-                    fig.update_xaxes(showspikes=False, showticklabels=False, showgrid=False, zeroline=False, fixedrange=True)
+                    fig.update_xaxes(**clean_x)
                 else:
                     fig.update_layout(hovermode=False, dragmode=False)
-                    fig.update_xaxes(visible=False, fixedrange=True)
-                    fig.update_yaxes(visible=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
+                    fig.update_yaxes(**clean_y)
+                    fig.update_xaxes(**clean_x)
 
-            # 🔥 Fixed the staticPlot issue so the error never comes! 🔥
             interact = show_crosshair or show_vol
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'staticPlot': not interact}, key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}")
         else: 
