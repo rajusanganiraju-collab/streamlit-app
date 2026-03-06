@@ -685,7 +685,7 @@ def render_levels_table(df_subset):
     html += "</tbody></table>"
     return html
 
-# 🔥 3. RENDER CHART (Fix for Ghost Volume, Crosshair Line & Price Hover & Alert Line) 🔥
+# 🔥 3. RENDER CHART (Fix for Ghost Volume, Perfect Crosshair Line & Price Hover) 🔥
 def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", show_crosshair=False, show_vol=False):
     display_sym = row['T']
     fetch_sym = row['Fetch_T']
@@ -724,8 +724,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                 fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.05, row_heights=[0.8, 0.2])
                 fig.add_trace(go.Candlestick(
                     x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
-                    increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False,
-                    hoverinfo='none' # Completely disables hover box for cleaner view
+                    increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, hoverinfo='skip'
                 ), row=1, col=1)
                 
                 if timeframe == "Weekly Chart":
@@ -738,7 +737,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                 colors = ['#2ea043' if close >= open_p else '#da3633' for close, open_p in zip(df_chart['Close'], df_chart['Open'])]
                 fig.add_trace(go.Bar(x=df_chart.index, y=df_chart['Volume'], marker_color=colors, showlegend=False, hoverinfo='skip'), row=2, col=1)
                 
-                fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=180, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', dragmode=False, xaxis_rangeslider_visible=False)
+                fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=180, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
                 fig.update_yaxes(range=[min_val - y_padding, max_val + y_padding], fixedrange=True, row=1, col=1)
                 
                 if fetch_sym in st.session_state.custom_alerts:
@@ -748,12 +747,14 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8, row=1, col=1)
 
                 if show_crosshair:
-                    fig.update_layout(hovermode='closest', hoverdistance=-1)
-                    fig.update_yaxes(showspikes=True, spikemode='across', spikesnap='cursor', showline=False, spikedash='dot', spikethickness=1, spikecolor="#ffffff", showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=10), row=1, col=1)
-                    fig.update_xaxes(showspikes=False, showticklabels=False, row=1, col=1)
+                    # 🔥 Perfect Crosshair (Only Horizontal Line + Price Label, No Hand cursor)
+                    fig.update_layout(hovermode='y', dragmode='crosshair') 
+                    fig.update_yaxes(showspikes=True, spikemode='across', spikesnap='cursor', showspikelabels=True, spikethickness=1, spikedash='dot', spikecolor="#ffffff", showticklabels=True, side='right', tickfont=dict(color="#aaaaaa", size=9), showgrid=False, zeroline=False, fixedrange=True, row=1, col=1)
+                    fig.update_xaxes(showspikes=False, showticklabels=False, showgrid=False, zeroline=False, fixedrange=True, row=1, col=1)
                     fig.update_yaxes(visible=False, fixedrange=True, row=2, col=1)
                     fig.update_xaxes(visible=False, fixedrange=True, row=2, col=1)
                 else:
+                    fig.update_layout(hovermode=False, dragmode=False)
                     fig.update_xaxes(visible=False, fixedrange=True, row=1, col=1)
                     fig.update_yaxes(visible=False, fixedrange=True, row=2, col=1)
                     fig.update_xaxes(visible=False, fixedrange=True, row=2, col=1)
@@ -762,8 +763,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                 fig = go.Figure()
                 fig.add_trace(go.Candlestick(
                     x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
-                    increasing_line_color='#2ea043', decreasing_line_color='#da3633',
-                    hoverinfo='none'
+                    increasing_line_color='#2ea043', decreasing_line_color='#da3633', hoverinfo='skip'
                 ))
                 
                 if timeframe == "Weekly Chart":
@@ -773,7 +773,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                     if 'VWAP' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), hoverinfo='skip'))
                     if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), hoverinfo='skip'))
                     
-                fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=150, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, dragmode=False, xaxis_rangeslider_visible=False)
+                fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=150, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, xaxis_rangeslider_visible=False)
 
                 if fetch_sym in st.session_state.custom_alerts:
                     alert_data = st.session_state.custom_alerts[fetch_sym]
@@ -782,15 +782,17 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8)
 
                 if show_crosshair:
-                    fig.update_layout(hovermode='closest', hoverdistance=-1)
+                    # 🔥 Perfect Crosshair (Only Horizontal Line + Price Label, No Hand cursor)
+                    fig.update_layout(hovermode='y', dragmode='crosshair')
                     fig.update_xaxes(showspikes=False, showticklabels=False, showgrid=False, zeroline=False, fixedrange=True)
-                    fig.update_yaxes(showspikes=True, spikemode='across', spikesnap='cursor', showline=False, spikedash='dot', spikethickness=1, spikecolor="#ffffff", showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=10), showgrid=False, zeroline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
+                    fig.update_yaxes(showspikes=True, spikemode='across', spikesnap='cursor', showspikelabels=True, spikethickness=1, spikedash='dot', spikecolor="#ffffff", showticklabels=True, side='right', tickfont=dict(color="#aaaaaa", size=9), showgrid=False, zeroline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
                 else:
-                    fig.update_layout(hovermode=False)
+                    fig.update_layout(hovermode=False, dragmode=False)
                     fig.update_xaxes(visible=False, fixedrange=True)
                     fig.update_yaxes(visible=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
 
-            interact = show_crosshair or show_vol
+            # 🔥 staticPlot must be False if Crosshair is ON so we can interact 🔥
+            interact = show_crosshair
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'staticPlot': not interact}, key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}")
         else: 
             st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Data not available</div>", unsafe_allow_html=True)
@@ -842,7 +844,7 @@ with c2:
 with c3: 
     view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
 
-# --- UI FOR CHART OPTIONS & CUSTOM ALERTS ---
+# --- UI FOR CHART OPTIONS (Timeframe triggers dynamic sorting) ---
 chart_timeframe = "Day Chart"
 show_crosshair = False
 show_vol = False
@@ -1069,10 +1071,10 @@ if not df.empty:
             live_r = df[df['Fetch_T'] == sym]
             if not live_r.empty:
                 current_ltp = float(live_r['P'].iloc[0])
-                if a_data['type'] == "Price Above Line 📈" and current_ltp >= a_data['price']:
+                if "Above" in a_data['type'] and current_ltp >= a_data['price']:
                     st.toast(f"🔔 ALERT: {a_data['name']} is ABOVE ₹{a_data['price']}! (LTP: {current_ltp})", icon="🚀")
                     alerts_triggered_html += f"<div style='background-color:#1e5f29; color:white; padding:10px; border-radius:5px; margin-bottom:5px;'><b>🔔 ALERT:</b> {a_data['name']} crossed ABOVE ₹{a_data['price']}! (LTP: {current_ltp})</div>"
-                elif a_data['type'] == "Price Below Line 📉" and current_ltp <= a_data['price']:
+                elif "Below" in a_data['type'] and current_ltp <= a_data['price']:
                     st.toast(f"🔔 ALERT: {a_data['name']} is BELOW ₹{a_data['price']}! (LTP: {current_ltp})", icon="🩸")
                     alerts_triggered_html += f"<div style='background-color:#b52524; color:white; padding:10px; border-radius:5px; margin-bottom:5px;'><b>🔔 ALERT:</b> {a_data['name']} crossed BELOW ₹{a_data['price']}! (LTP: {current_ltp})</div>"
 
@@ -1353,7 +1355,6 @@ if not df.empty:
             st.markdown(html_sec + '</div><hr class="custom-hr">', unsafe_allow_html=True)
 
         if not df_stocks_display.empty:
-            # 🔥 SEPARATE BUY & SELL STOCKS FOR HEATMAP 🔥
             if watchlist_mode == "Day Trading Stocks 🚀":
                 df_buy = df_stocks_display[df_stocks_display['Strategy_Icon'].str.contains('BUY', na=False)]
                 df_sell = df_stocks_display[df_stocks_display['Strategy_Icon'].str.contains('SELL', na=False)]
@@ -1397,7 +1398,6 @@ if not df.empty:
     else: # CHART VIEW
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # 🔥 FETCH WEEKLY CHARTS IF NEEDED 🔥
         weekly_charts = {}
         if chart_timeframe == "Weekly Chart":
             with st.spinner("Fetching Weekly Chart Data..."):
@@ -1423,16 +1423,15 @@ if not df.empty:
                         except: pass
 
         chart_dict_to_use = weekly_charts if chart_timeframe == "Weekly Chart" else processed_charts
-        tf_arg = "Weekly Chart" if chart_timeframe == "Weekly Chart" else "Day Chart"
 
         if search_stock != "-- None --":
             st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:5px; color:#ffd700;'>🔍 Searched Chart: {search_stock}</div>", unsafe_allow_html=True)
-            render_chart_grid(pd.DataFrame([df[df['T'] == search_stock].iloc[0]]), show_pin_option=True, key_prefix="search", timeframe=tf_arg, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
+            render_chart_grid(pd.DataFrame([df[df['T'] == search_stock].iloc[0]]), show_pin_option=True, key_prefix="search", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
         if watchlist_mode not in ["Terminal Tables 🗃️", "My Portfolio 💼"]:
             st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>📈 Market Indices</div>", unsafe_allow_html=True)
-            render_chart_grid(df_indices, show_pin_option=False, key_prefix="idx", timeframe=tf_arg, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
+            render_chart_grid(df_indices, show_pin_option=False, key_prefix="idx", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
         pinned_df = df[df['Fetch_T'].isin(st.session_state.pinned_stocks)].copy()
@@ -1440,11 +1439,10 @@ if not df.empty:
         
         if not pinned_df.empty:
             st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#ffd700;'>📌 Pinned Priority Charts</div>", unsafe_allow_html=True)
-            render_chart_grid(pinned_df, show_pin_option=True, key_prefix="pin", timeframe=tf_arg, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
+            render_chart_grid(pinned_df, show_pin_option=True, key_prefix="pin", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
         if not unpinned_df.empty:
-            # 🔥 SEPARATE BUY & SELL STOCKS FOR CHARTS 🔥
             if watchlist_mode == "Day Trading Stocks 🚀":
                 df_buy_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('BUY', na=False)]
                 df_sell_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('SELL', na=False)]
@@ -1454,10 +1452,10 @@ if not df.empty:
                 
             if not df_buy_chart.empty:
                 st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-top:20px; margin-bottom:10px; color:#3fb950;'>🟢 BUY STOCKS ({watchlist_mode})</div>", unsafe_allow_html=True)
-                render_chart_grid(df_buy_chart, show_pin_option=True, key_prefix="main_buy", timeframe=tf_arg, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
+                render_chart_grid(df_buy_chart, show_pin_option=True, key_prefix="main_buy", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
 
             if not df_sell_chart.empty:
                 st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-top:20px; margin-bottom:10px; color:#f85149;'>🔴 SELL STOCKS ({watchlist_mode})</div>", unsafe_allow_html=True)
-                render_chart_grid(df_sell_chart, show_pin_option=True, key_prefix="main_sell", timeframe=tf_arg, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
+                render_chart_grid(df_sell_chart, show_pin_option=True, key_prefix="main_sell", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
 
 else: st.info("Loading Market Data...")
