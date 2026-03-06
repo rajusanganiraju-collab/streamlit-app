@@ -686,7 +686,7 @@ def render_levels_table(df_subset):
     html += "</tbody></table>"
     return html
 
-# 🔥 RENDER CHART (INSTITUTIONAL FIX: No Error, Single Inline Title, Thin Horiz Line Only, Zoom lock) 🔥
+# 🔥 RENDER CHART (INSTITUTIONAL FIX: No Error, Clean Horizontal Line, Clean Price Box) 🔥
 def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", show_crosshair=False, show_vol=False):
     display_sym = row['T']
     fetch_sym = row['Fetch_T']
@@ -700,7 +700,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
         cb_key = f"cb_{fetch_sym}_{key_suffix}" if key_suffix else f"cb_{fetch_sym}"
         st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=cb_key, on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
     
-    # 🔥 Layout: Everything in ONE line (No VWAP/10EMA text) 🔥
+    # 🔥 Single Line Header. No Subtitles! 🔥
     st.markdown(f"""
         <div style='text-align:left; font-size:14px; font-weight:bold; margin-top:3px; margin-bottom:5px; padding-left:30px;'>
             <a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none;'>
@@ -717,7 +717,8 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
             
             if show_vol:
                 fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.02, row_heights=[0.75, 0.25])
-                # Name="" prevents 'trace 0' box
+                
+                # Main Candlestick - No names, safe hover
                 fig.add_trace(go.Candlestick(
                     x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
                     increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, name=""
@@ -742,10 +743,12 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8, row=1, col=1)
 
                 if show_crosshair:
-                    # 🔥 100% ERROR-FREE CROSSHAIR: Simple hover, customized spike lines, crosshair pointer 🔥
-                    fig.update_layout(dragmode='crosshair', hoverlabel=dict(bgcolor="#161b22", font_size=11, font_color="#ffffff", bordercolor="#30363d"))
-                    fig.update_traces(hovertemplate='₹%{y:.2f}<extra></extra>', row=1, col=1) 
-                    fig.update_yaxes(showspikes=True, spikemode='across', spikesnap='cursor', spikethickness=1, spikedash='dot', spikecolor="rgba(255,255,255,0.4)", showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding], row=1, col=1)
+                    # 🔥 No Unified Mode! Safe individual hover template. Crosshair dragmode.
+                    fig.update_layout(hovermode='closest', dragmode='crosshair', hoverlabel=dict(bgcolor="#161b22", font_size=11, font_color="#ffffff", bordercolor="#30363d"))
+                    fig.update_traces(hovertemplate='₹%{y:.2f}<extra></extra>', row=1, col=1)
+                    
+                    # Horizontal Line ONLY. Vertical is turned off.
+                    fig.update_yaxes(showspikes=True, spikemode='across', spikesnap='cursor', spikethickness=1, spikedash='dot', spikecolor="rgba(255,255,255,0.5)", showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding], row=1, col=1)
                     fig.update_xaxes(showspikes=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, row=1, col=1)
                     fig.update_yaxes(visible=False, fixedrange=True, row=2, col=1)
                     fig.update_xaxes(visible=False, fixedrange=True, row=2, col=1)
@@ -780,10 +783,12 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8)
 
                 if show_crosshair:
-                    # 🔥 100% ERROR-FREE CROSSHAIR 🔥
-                    fig.update_layout(dragmode='crosshair', hoverlabel=dict(bgcolor="#161b22", font_size=11, font_color="#ffffff", bordercolor="#30363d"))
+                    # 🔥 No Unified Mode! Safe individual hover template. Crosshair dragmode.
+                    fig.update_layout(hovermode='closest', dragmode='crosshair', hoverlabel=dict(bgcolor="#161b22", font_size=11, font_color="#ffffff", bordercolor="#30363d"))
                     fig.update_traces(hovertemplate='₹%{y:.2f}<extra></extra>')
-                    fig.update_yaxes(showspikes=True, spikemode='across', spikesnap='cursor', spikethickness=1, spikedash='dot', spikecolor="rgba(255,255,255,0.4)", showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
+                    
+                    # Horizontal Line ONLY. Vertical is turned off.
+                    fig.update_yaxes(showspikes=True, spikemode='across', spikesnap='cursor', spikethickness=1, spikedash='dot', spikecolor="rgba(255,255,255,0.5)", showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
                     fig.update_xaxes(showspikes=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
                 else:
                     fig.update_traces(hoverinfo='skip')
@@ -791,7 +796,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                     fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
                     fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
 
-            # 🔥 NO STATIC PLOT! 🔥
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False}, key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}")
         else: 
             st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Data not available</div>", unsafe_allow_html=True)
