@@ -77,7 +77,6 @@ st_autorefresh(interval=150000, key="datarefresh")
 if 'pinned_stocks' not in st.session_state:
     st.session_state.pinned_stocks = []
 
-# 🔥 NEW: Custom Price Alerts Dictionary in State 🔥
 if 'custom_alerts' not in st.session_state:
     st.session_state.custom_alerts = {}
 
@@ -721,15 +720,12 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
             max_val = df_chart['High'].max()
             y_padding = (max_val - min_val) * 0.1 if (max_val - min_val) != 0 else min_val * 0.005 
             
-            # Use specific hovertext to only show the price and not dates/boxes
-            price_hover_text = df_chart['Close'].apply(lambda x: f"₹{x:.2f}")
-
             if show_vol:
                 fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.05, row_heights=[0.8, 0.2])
                 fig.add_trace(go.Candlestick(
                     x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
                     increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False,
-                    hoverinfo='skip'  # We only want the crosshair label on axis
+                    hoverinfo='none' # Completely disables hover box for cleaner view
                 ), row=1, col=1)
                 
                 if timeframe == "Weekly Chart":
@@ -745,7 +741,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                 fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=180, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', dragmode=False, xaxis_rangeslider_visible=False)
                 fig.update_yaxes(range=[min_val - y_padding, max_val + y_padding], fixedrange=True, row=1, col=1)
                 
-                # Check for Custom Alerts and draw line
                 if fetch_sym in st.session_state.custom_alerts:
                     alert_data = st.session_state.custom_alerts[fetch_sym]
                     if alert_data['enabled']:
@@ -753,8 +748,8 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8, row=1, col=1)
 
                 if show_crosshair:
-                    fig.update_layout(hovermode='closest', hoverdistance=50)
-                    fig.update_yaxes(showspikes=True, spikemode='across', spikesnap='cursor', showline=False, spikedash='dot', spikethickness=1, spikecolor="#aaaaaa", showticklabels=True, side='right', tickfont=dict(color="#aaaaaa", size=10), row=1, col=1)
+                    fig.update_layout(hovermode='closest', hoverdistance=-1)
+                    fig.update_yaxes(showspikes=True, spikemode='across', spikesnap='cursor', showline=False, spikedash='dot', spikethickness=1, spikecolor="#ffffff", showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=10), row=1, col=1)
                     fig.update_xaxes(showspikes=False, showticklabels=False, row=1, col=1)
                     fig.update_yaxes(visible=False, fixedrange=True, row=2, col=1)
                     fig.update_xaxes(visible=False, fixedrange=True, row=2, col=1)
@@ -768,7 +763,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                 fig.add_trace(go.Candlestick(
                     x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
                     increasing_line_color='#2ea043', decreasing_line_color='#da3633',
-                    hoverinfo='skip'
+                    hoverinfo='none'
                 ))
                 
                 if timeframe == "Weekly Chart":
@@ -780,7 +775,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                     
                 fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=150, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, dragmode=False, xaxis_rangeslider_visible=False)
 
-                # Check for Custom Alerts and draw line
                 if fetch_sym in st.session_state.custom_alerts:
                     alert_data = st.session_state.custom_alerts[fetch_sym]
                     if alert_data['enabled']:
@@ -788,9 +782,9 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8)
 
                 if show_crosshair:
-                    fig.update_layout(hovermode='closest', hoverdistance=50)
+                    fig.update_layout(hovermode='closest', hoverdistance=-1)
                     fig.update_xaxes(showspikes=False, showticklabels=False, showgrid=False, zeroline=False, fixedrange=True)
-                    fig.update_yaxes(showspikes=True, spikemode='across', spikesnap='cursor', showline=False, spikedash='dot', spikethickness=1, spikecolor="#aaaaaa", showticklabels=True, side='right', tickfont=dict(color="#aaaaaa", size=10), showgrid=False, zeroline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
+                    fig.update_yaxes(showspikes=True, spikemode='across', spikesnap='cursor', showline=False, spikedash='dot', spikethickness=1, spikecolor="#ffffff", showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=10), showgrid=False, zeroline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
                 else:
                     fig.update_layout(hovermode=False)
                     fig.update_xaxes(visible=False, fixedrange=True)
