@@ -225,7 +225,7 @@ def fetch_all_data():
     all_stocks = set(NIFTY_50 + FNO_STOCKS + port_stocks)
     tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + [f"{t}.NS" for t in all_stocks if t]
     
-    # Speed Threads=20 & Period="2y"
+    # Speed Threads=20 & Period="2y" as per your setup
     data = yf.download(tkrs, period="2y", progress=False, group_by='ticker', threads=20)
     
     results = []
@@ -689,7 +689,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
     display_sym = row['T']
     fetch_sym = row['Fetch_T']
     
-    # Calculate correct percentage to display based on timeframe
     pct_val = row.get('W_C', row['C']) if timeframe == "Weekly Chart" else row['C']
     color_hex = "#da3633" if pct_val < 0 else "#2ea043"
     sign = "+" if pct_val > 0 else ""
@@ -736,10 +735,11 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                 fig.add_trace(go.Bar(x=df_chart.index, y=df_chart['Volume'], marker_color=colors, showlegend=False), row=2, col=1)
                 
                 fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=180, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', dragmode=False)
-                fig.update_yaxes(range=[min_val - y_padding, max_val + y_padding], fixedrange=True, row=1, col=1)
-                fig.update_xaxes(visible=False, fixedrange=True, row=1, col=1)
-                fig.update_yaxes(visible=False, fixedrange=True, row=2, col=1)
-                fig.update_xaxes(visible=False, fixedrange=True, row=2, col=1)
+                
+                # 🔥 FIX FOR CROSSHAIR BUG (Removed visible=False) 🔥
+                fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
+                fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
+                fig.update_yaxes(range=[min_val - y_padding, max_val + y_padding], row=1, col=1)
             else:
                 fig = go.Figure()
                 fig.add_trace(go.Candlestick(x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], increasing_line_color='#2ea043', decreasing_line_color='#da3633'))
@@ -751,18 +751,22 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                     if 'VWAP' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot')))
                     if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash')))
                     
-                fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=150, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(visible=False, fixedrange=True), yaxis=dict(visible=False, range=[min_val - y_padding, max_val + y_padding], fixedrange=True), showlegend=False, dragmode=False)
+                fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=150, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, dragmode=False)
+                
+                # 🔥 FIX FOR CROSSHAIR BUG (Removed visible=False) 🔥
+                fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
+                fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
 
-            # 🔥 Crosshair Logic Fix 🔥
+            # 🔥 Crosshair Interaction Settings 🔥
             if show_crosshair:
-                fig.update_layout(hovermode='x unified')
+                fig.update_layout(hovermode='closest')
                 fig.update_xaxes(showspikes=True, spikecolor="white", spikesnap="cursor", spikemode="across", spikethickness=1, spikedash="dot")
                 fig.update_yaxes(showspikes=True, spikecolor="white", spikesnap="cursor", spikemode="across", spikethickness=1, spikedash="dot")
             else:
                 fig.update_layout(hovermode=False)
 
             interact = show_crosshair or show_vol
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'staticPlot': not interact}, key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}")
+            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'staticPlot': not interact}, key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}")
         else: 
             st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Data not available</div>", unsafe_allow_html=True)
     except: 
