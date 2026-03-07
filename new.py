@@ -69,22 +69,23 @@ def save_closed_trades(df):
     trade_ws.clear()
     df = df.fillna("")
     trade_ws.update([df.columns.values.tolist()] + df.values.tolist())
-
-
 # --- 4. AUTO RUN & STATE MANAGEMENT ---
 st_autorefresh(interval=150000, key="datarefresh")
 
 if 'pinned_stocks' not in st.session_state:
-    st.session_state.pinned_stocks = []
+    st.session_state.pinned_stocks = []
 
 if 'custom_alerts' not in st.session_state:
-    st.session_state.custom_alerts = {}
+    st.session_state.custom_alerts = {}
 
 def toggle_pin(symbol):
-    if symbol in st.session_state.pinned_stocks:
-        st.session_state.pinned_stocks.remove(symbol)
-    else:
-        st.session_state.pinned_stocks.append(symbol)
+    if symbol in st.session_state.pinned_stocks:
+        st.session_state.pinned_stocks.remove(symbol)
+    else:
+        st.session_state.pinned_stocks.append(symbol)
+        
+
+
 
 # --- CSS FOR STYLING ---
 st.markdown("""
