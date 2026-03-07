@@ -766,10 +766,10 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
 
                 if show_crosshair:
                     fig.update_layout(hovermode='closest', dragmode=False)
-                    # 🔥 ADDED showspikelabels=True HERE 🔥
+                    # CRASH FIX: Removed invalid 'showspikelabels' attribute
                     fig.update_yaxes(
                         showspikes=True, spikesnap='cursor', spikemode='across', spikethickness=0.5, 
-                        spikedash='solid', spikecolor="rgba(255,255,255,0.5)", showspikelabels=True, 
+                        spikedash='solid', spikecolor="rgba(255,255,255,0.5)", 
                         showgrid=False, zeroline=False, showticklabels=True, side='right', 
                         tickfont=dict(color="#ffffff", size=10), showline=False, 
                         fixedrange=True, range=[min_val - y_padding, max_val + y_padding], row=1, col=1
@@ -811,10 +811,10 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
 
                 if show_crosshair:
                     fig.update_layout(hovermode='closest', dragmode=False)
-                    # 🔥 ADDED showspikelabels=True HERE 🔥
+                    # CRASH FIX: Removed invalid 'showspikelabels' attribute
                     fig.update_yaxes(
                         showspikes=True, spikesnap='cursor', spikemode='across', spikethickness=0.5, 
-                        spikedash='solid', spikecolor="rgba(255,255,255,0.5)", showspikelabels=True, 
+                        spikedash='solid', spikecolor="rgba(255,255,255,0.5)", 
                         showgrid=False, zeroline=False, showticklabels=True, side='right', 
                         tickfont=dict(color="#ffffff", size=10), showline=False, 
                         fixedrange=True, range=[min_val - y_padding, max_val + y_padding]
