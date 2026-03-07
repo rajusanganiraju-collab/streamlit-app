@@ -729,11 +729,13 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                     hoverinfo='skip', name=""
                 ), row=1, col=1)
                 
-                # An invisible scatter line just for the clean hover price! (This tricks Plotly into NEVER crashing)
-                fig.add_trace(go.Scatter(
-                    x=df_chart.index, y=df_chart['Close'], mode='lines', line=dict(color='rgba(0,0,0,0)'), 
-                    showlegend=False, hoverinfo=my_hover, name=""
-                ), row=1, col=1)
+                # Invisible scatter modified to show HIGH and LOW nicely
+hover_data = "High: ₹" + df_chart['High'].round(2).astype(str) + "<br>Low: ₹" + df_chart['Low'].round(2).astype(str)
+fig.add_trace(go.Scatter(
+    x=df_chart.index, y=df_chart['High'], mode='lines', line=dict(color='rgba(0,0,0,0)'), 
+    showlegend=False, hoverinfo='text' if show_crosshair else 'skip', text=hover_data, 
+    hovertemplate="%{text}<extra></extra>" if show_crosshair else None, name=""
+), row=1, col=1)
                 
                 if timeframe == "Weekly Chart":
                     if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), showlegend=False, hoverinfo='skip'), row=1, col=1)
@@ -776,11 +778,13 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                     increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, hoverinfo='skip', name=""
                 ))
                 
-                # Invisible scatter for perfect clean hover
-                fig.add_trace(go.Scatter(
-                    x=df_chart.index, y=df_chart['Close'], mode='lines', line=dict(color='rgba(0,0,0,0)'), 
-                    showlegend=False, hoverinfo=my_hover, name=""
-                ))
+                # Invisible scatter modified to show HIGH and LOW nicely
+hover_data = "High: ₹" + df_chart['High'].round(2).astype(str) + "<br>Low: ₹" + df_chart['Low'].round(2).astype(str)
+fig.add_trace(go.Scatter(
+    x=df_chart.index, y=df_chart['High'], mode='lines', line=dict(color='rgba(0,0,0,0)'), 
+    showlegend=False, hoverinfo='text' if show_crosshair else 'skip', text=hover_data, 
+    hovertemplate="%{text}<extra></extra>" if show_crosshair else None, name=""
+))
                 
                 if timeframe == "Weekly Chart":
                     if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), hoverinfo='skip'))
