@@ -773,19 +773,55 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8, row=1, col=1)
 
                 if show_crosshair:
-                    fig.update_layout(hovermode='x', dragmode=False, hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d"))
-                    fig.update_yaxes(showspikes=True, spikesnap='cursor', spikemode='across', spikethickness=0.2, spikedash='solid', spikecolor="rgba(255,255,255,0.4)", showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=10), showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding], row=1, col=1)
-                    fig.update_xaxes(showspikes=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, row=1, col=1)
+                    # 'closest' వాడితే చార్ట్ మీద ఎక్కడ మౌస్ పెట్టినా లైన్ ఫ్రీగా కదులుతుంది
+                    fig.update_layout(
+                        hovermode='closest', 
+                        dragmode=False, 
+                        margin=dict(l=0, r=45, t=0, b=0), # Y-axis మీద ప్రైస్ ట్యాగ్ కోసం స్పేస్
+                        hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d")
+                    )
                     
-                    fig.update_yaxes(visible=False, fixedrange=True, row=2, col=1)
-                    fig.update_xaxes(visible=False, fixedrange=True, row=2, col=1)
-                else:
-                    fig.update_layout(hovermode=False, dragmode=False)
-                    fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding], row=1, col=1)
-                    fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, row=1, col=1)
+                    # Y-Axis సెట్టింగ్స్ (ముఖ్యమైనది: showspikelabels=True)
+                    fig.update_yaxes(
+                        showspikes=True, 
+                        spikesnap='cursor', # మౌస్/టచ్ చేసిన చోటకే లైన్ వెళ్తుంది
+                        spikemode='across', 
+                        spikethickness=1, 
+                        spikedash='dot', 
+                        spikecolor="rgba(255, 255, 255, 0.6)", 
+                        showspikelabels=True, # గీత చివర Y-Axis పైన ప్రైస్ బాక్స్ వస్తుంది
+                        spikelabelcolor="#ffffff",
+                        showgrid=False, 
+                        zeroline=False, 
+                        showticklabels=True, 
+                        side='right', 
+                        tickfont=dict(color="#ffffff", size=10), 
+                        showline=False, 
+                        fixedrange=True, 
+                        range=[min_val - y_padding, max_val + y_padding],
+                        row=1, col=1 if show_vol else None
+                    )
                     
-                    fig.update_yaxes(visible=False, fixedrange=True, row=2, col=1)
-                    fig.update_xaxes(visible=False, fixedrange=True, row=2, col=1)
+                    # X-Axis లైన్ (నిలువుగా వచ్చే గీత కోసం)
+                    fig.update_xaxes(
+                        showspikes=True, 
+                        spikesnap='cursor',
+                        spikemode='across',
+                        spikethickness=1,
+                        spikedash='dot',
+                        spikecolor="rgba(255, 255, 255, 0.6)",
+                        showspikelabels=False, # కింద టైమ్ లేబుల్ అవసరం లేదు కాబట్టి
+                        showgrid=False, 
+                        zeroline=False, 
+                        showticklabels=False, 
+                        showline=False, 
+                        fixedrange=True,
+                        row=1, col=1 if show_vol else None
+                    )
+                    
+                    if show_vol:
+                        fig.update_yaxes(visible=False, fixedrange=True, row=2, col=1)
+                        fig.update_xaxes(visible=False, fixedrange=True, row=2, col=1)
 
             else:
                 fig = go.Figure()
