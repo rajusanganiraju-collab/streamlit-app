@@ -127,7 +127,7 @@ st.markdown("""
     }
 
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] div[data-testid="stCheckbox"] {
-        position: absolute !important; top: 10px !important; left: 10px !important; z-index: 100 !important;
+        position: absolute !important; top: 8px !important; left: 10px !important; z-index: 100 !important;
     }
     div[data-testid="stCheckbox"] label { padding: 0 !important; min-height: 0 !important; }
     div.stButton > button { border-radius: 8px !important; border: 1px solid #30363d !important; background-color: #161b22 !important; height: 45px !important; }
@@ -686,7 +686,7 @@ def render_levels_table(df_subset):
     html += "</tbody></table>"
     return html
 
-# 🔥 THE FINAL CHART RENDER FUNCTION (100% SAFE FROM CRASHES) 🔥
+# 🔥 RENDER CHART (PERFECT CROSSHAIR FIX - NO ERRORS, NO HAND SYMBOL) 🔥
 def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", show_crosshair=False, show_vol=False):
     display_sym = row['T']
     fetch_sym = row['Fetch_T']
@@ -700,12 +700,16 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
         cb_key = f"cb_{fetch_sym}_{key_suffix}" if key_suffix else f"cb_{fetch_sym}"
         st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=cb_key, on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
     
-    # 🔥 Layout: Super Clean Single Line (No Subtitles) 🔥
+    subtitle_html = "<span style='color:#FFD700;'>VWAP</span> &nbsp;|&nbsp; <span style='color:#00BFFF;'>10 EMA</span>"
+    if timeframe == "Weekly Chart":
+        subtitle_html = "<span style='color:#FFD700;'>10 EMA</span> &nbsp;|&nbsp; <span style='color:#00BFFF;'>50 EMA</span>"
+        
     st.markdown(f"""
-        <div style='text-align:left; font-size:14px; font-weight:bold; margin-top:3px; margin-bottom:5px; padding-left:30px;'>
-            <a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none;'>
-                {display_sym} &nbsp;&nbsp; <span style='color:#ffffff;'>₹{row['P']:.2f}</span> &nbsp;&nbsp; <span style='color:{color_hex}; font-size:12px;'>({sign}{pct_val:.2f}%)</span>
+        <div style='display:flex; justify-content:center; align-items:baseline; gap:12px; margin-top:-5px; margin-bottom:2px; padding-left:20px;'>
+            <a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; font-size:15px; font-weight:bold;'>
+                {display_sym} <span style='color:{color_hex}; font-size:13px;'>({sign}{pct_val:.2f}%)</span>
             </a>
+            <span style='font-size:10px; color:#8b949e;'>{subtitle_html}</span>
         </div>
     """, unsafe_allow_html=True)
     
@@ -715,35 +719,26 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
             max_val = df_chart['High'].max()
             y_padding = (max_val - min_val) * 0.1 if (max_val - min_val) != 0 else min_val * 0.005 
             
-            # To strictly prevent bugs, we only use 'y' hoverinfo if user wants crosshair.
-            # 'y' natively shows only the value of the line it touches. No custom template strings.
-            my_hover = 'y' if show_crosshair else 'skip'
-            
+            clean_x = dict(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
+            clean_y = dict(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
+
             if show_vol:
                 fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.02, row_heights=[0.75, 0.25])
-                
-                # Main Candlestick
                 fig.add_trace(go.Candlestick(
                     x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
-                    increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, 
-                    hoverinfo='skip', name=""
-                ), row=1, col=1)
-                
-                # An invisible scatter line just for the clean hover price! (This tricks Plotly into NEVER crashing)
-                fig.add_trace(go.Scatter(
-                    x=df_chart.index, y=df_chart['Close'], mode='lines', line=dict(color='rgba(0,0,0,0)'), 
-                    showlegend=False, hoverinfo=my_hover, name=""
+                    increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False,
+                    hoverinfo='none'
                 ), row=1, col=1)
                 
                 if timeframe == "Weekly Chart":
-                    if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), showlegend=False, hoverinfo='skip'), row=1, col=1)
-                    if 'EMA_50' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_50'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'), row=1, col=1)
+                    if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), showlegend=False, hoverinfo='none'), row=1, col=1)
+                    if 'EMA_50' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_50'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='none'), row=1, col=1)
                 else:
-                    if 'VWAP' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='skip'), row=1, col=1)
-                    if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'), row=1, col=1)
+                    if 'VWAP' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='none'), row=1, col=1)
+                    if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='none'), row=1, col=1)
                 
                 colors = ['#2ea043' if close >= open_p else '#da3633' for close, open_p in zip(df_chart['Close'], df_chart['Open'])]
-                fig.add_trace(go.Bar(x=df_chart.index, y=df_chart['Volume'], marker_color=colors, showlegend=False, hoverinfo='skip'), row=2, col=1)
+                fig.add_trace(go.Bar(x=df_chart.index, y=df_chart['Volume'], marker_color=colors, showlegend=False, hoverinfo='none'), row=2, col=1)
                 
                 fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=230, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
                 
@@ -754,40 +749,36 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8, row=1, col=1)
 
                 if show_crosshair:
-                    fig.update_layout(hovermode='x', dragmode=False, hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d"))
-                    # The magic happens here: showticklabels=True gives the price label on the right side.
-                    fig.update_yaxes(showspikes=True, spikemode='across', spikethickness=1, spikedash='dot', spikecolor="rgba(255,255,255,0.5)", showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=10), showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding], row=1, col=1)
-                    fig.update_xaxes(showspikes=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, row=1, col=1)
-                    
-                    fig.update_yaxes(visible=False, fixedrange=True, row=2, col=1)
-                    fig.update_xaxes(visible=False, fixedrange=True, row=2, col=1)
+                    fig.update_layout(hovermode='closest', dragmode='crosshair')
+                    fig.update_yaxes(
+                        showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding],
+                        showspikes=True, spikemode='across', spikesnap='cursor', spikethickness=1, spikedash='dot', spikecolor="#ffffff", 
+                        row=1, col=1
+                    )
+                    fig.update_xaxes(**clean_x, row=1, col=1)
+                    fig.update_yaxes(**clean_x, row=2, col=1)
+                    fig.update_xaxes(**clean_x, row=2, col=1)
                 else:
                     fig.update_layout(hovermode=False, dragmode=False)
-                    fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding], row=1, col=1)
-                    fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, row=1, col=1)
-                    
-                    fig.update_yaxes(visible=False, fixedrange=True, row=2, col=1)
-                    fig.update_xaxes(visible=False, fixedrange=True, row=2, col=1)
+                    fig.update_yaxes(**clean_y, row=1, col=1)
+                    fig.update_xaxes(**clean_x, row=1, col=1)
+                    fig.update_yaxes(**clean_x, row=2, col=1)
+                    fig.update_xaxes(**clean_x, row=2, col=1)
 
             else:
                 fig = go.Figure()
                 fig.add_trace(go.Candlestick(
                     x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
-                    increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, hoverinfo='skip', name=""
-                ))
-                
-                # Invisible scatter for perfect clean hover
-                fig.add_trace(go.Scatter(
-                    x=df_chart.index, y=df_chart['Close'], mode='lines', line=dict(color='rgba(0,0,0,0)'), 
-                    showlegend=False, hoverinfo=my_hover, name=""
+                    increasing_line_color='#2ea043', decreasing_line_color='#da3633',
+                    hoverinfo='none'
                 ))
                 
                 if timeframe == "Weekly Chart":
-                    if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), hoverinfo='skip'))
-                    if 'EMA_50' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_50'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), hoverinfo='skip'))
+                    if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), hoverinfo='none'))
+                    if 'EMA_50' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_50'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), hoverinfo='none'))
                 else:
-                    if 'VWAP' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), hoverinfo='skip'))
-                    if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), hoverinfo='skip'))
+                    if 'VWAP' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), hoverinfo='none'))
+                    if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), hoverinfo='none'))
                     
                 fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=190, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, xaxis_rangeslider_visible=False)
 
@@ -798,20 +789,23 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8)
 
                 if show_crosshair:
-                    fig.update_layout(hovermode='x', dragmode=False, hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d"))
-                    fig.update_yaxes(showspikes=True, spikemode='across', spikethickness=1, spikedash='dot', spikecolor="rgba(255,255,255,0.5)", showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=10), showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
-                    fig.update_xaxes(showspikes=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
+                    fig.update_layout(hovermode='closest', dragmode='crosshair')
+                    fig.update_yaxes(
+                        showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding],
+                        showspikes=True, spikemode='across', spikesnap='cursor', spikethickness=1, spikedash='dot', spikecolor="#ffffff"
+                    )
+                    fig.update_xaxes(**clean_x)
                 else:
                     fig.update_layout(hovermode=False, dragmode=False)
-                    fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
-                    fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
+                    fig.update_yaxes(**clean_y)
+                    fig.update_xaxes(**clean_x)
 
-            # 🔥 NO config dictionaries that break Streamlit. Just normal rendering! 🔥
-            st.plotly_chart(fig, use_container_width=True, key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}")
+            interact = show_crosshair or show_vol
+            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'staticPlot': not interact}, key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}")
         else: 
             st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Data not available</div>", unsafe_allow_html=True)
-    except Exception as e: 
-        st.markdown(f"<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart error</div>", unsafe_allow_html=True)
+    except: 
+        st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart error</div>", unsafe_allow_html=True)
 
 def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Day", chart_dict=None, show_crosshair=False, show_vol=False):
     if df_grid.empty: return
@@ -1439,10 +1433,12 @@ if not df.empty:
         chart_dict_to_use = weekly_charts if chart_timeframe == "Weekly Chart" else processed_charts
 
         if search_stock != "-- None --":
+            st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:5px; color:#ffd700;'>🔍 Searched Chart: {search_stock}</div>", unsafe_allow_html=True)
             render_chart_grid(pd.DataFrame([df[df['T'] == search_stock].iloc[0]]), show_pin_option=True, key_prefix="search", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
         if watchlist_mode not in ["Terminal Tables 🗃️", "My Portfolio 💼"]:
+            st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>📈 Market Indices</div>", unsafe_allow_html=True)
             render_chart_grid(df_indices, show_pin_option=False, key_prefix="idx", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
@@ -1450,7 +1446,7 @@ if not df.empty:
         unpinned_df = df_stocks_display[~df_stocks_display['Fetch_T'].isin(pinned_df['Fetch_T'].tolist())]
         
         if not pinned_df.empty:
-            st.markdown("<div style='font-size:16px; font-weight:bold; margin-bottom:5px; color:#ffd700;'>📌 Pinned Priority Charts</div>", unsafe_allow_html=True)
+            st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#ffd700;'>📌 Pinned Priority Charts</div>", unsafe_allow_html=True)
             render_chart_grid(pinned_df, show_pin_option=True, key_prefix="pin", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
@@ -1463,11 +1459,11 @@ if not df.empty:
                 df_sell_chart = unpinned_df[unpinned_df[sort_key] < 0]
                 
             if not df_buy_chart.empty:
-                st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:10px; margin-bottom:5px; color:#3fb950;'>🟢 BUY STOCKS ({watchlist_mode})</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-top:20px; margin-bottom:10px; color:#3fb950;'>🟢 BUY STOCKS ({watchlist_mode})</div>", unsafe_allow_html=True)
                 render_chart_grid(df_buy_chart, show_pin_option=True, key_prefix="main_buy", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
 
             if not df_sell_chart.empty:
-                st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:20px; margin-bottom:5px; color:#f85149;'>🔴 SELL STOCKS ({watchlist_mode})</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-top:20px; margin-bottom:10px; color:#f85149;'>🔴 SELL STOCKS ({watchlist_mode})</div>", unsafe_allow_html=True)
                 render_chart_grid(df_sell_chart, show_pin_option=True, key_prefix="main_sell", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
 
 else: st.info("Loading Market Data...")
