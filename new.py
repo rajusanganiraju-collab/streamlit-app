@@ -26,12 +26,13 @@ def init_connection():
 client = init_connection()
 
 try:
-    db_sheet = client.open("Trading_DB")
-    port_ws = db_sheet.worksheet("Portfolio")
-    trade_ws = db_sheet.worksheet("TradeBook")
+    db_sheet = client.open("Trading_DB")
+    port_ws = db_sheet.worksheet("Portfolio")
+    trade_ws = db_sheet.worksheet("TradeBook")
 except Exception as e:
-    st.error(f"గూగుల్ షీట్ కనెక్ట్ అవ్వలేదు బాస్! Error: {e}")
-    st.stop()
+    st.error(f"గూగుల్ షీట్ కనెక్ట్ అవ్వలేదు బాస్! Error: {e}")
+    st.stop()
+    
 
 # --- 3. DATA LOAD & SAVE FUNCTIONS ---
 def load_portfolio():
