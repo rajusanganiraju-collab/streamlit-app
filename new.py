@@ -686,7 +686,7 @@ def render_levels_table(df_subset):
     html += "</tbody></table>"
     return html
 
-# 🔥 THE FINAL CHART RENDER FUNCTION (100% SAFE FROM CRASHES) 🔥
+# 🔥 RENDER CHART (YOUR WORKING CODE + FREE-MOVING CROSSHAIR) 🔥
 def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", show_crosshair=False, show_vol=False):
     display_sym = row['T']
     fetch_sym = row['Fetch_T']
@@ -715,24 +715,13 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
             max_val = df_chart['High'].max()
             y_padding = (max_val - min_val) * 0.1 if (max_val - min_val) != 0 else min_val * 0.005 
             
-            # To strictly prevent bugs, we only use 'y' hoverinfo if user wants crosshair.
-            # 'y' natively shows only the value of the line it touches. No custom template strings.
-            my_hover = 'y' if show_crosshair else 'skip'
-            
             if show_vol:
                 fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.02, row_heights=[0.75, 0.25])
                 
-                # Main Candlestick
+                # Candlestick
                 fig.add_trace(go.Candlestick(
                     x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
-                    increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, 
-                    hoverinfo='skip', name=""
-                ), row=1, col=1)
-                
-                # An invisible scatter line just for the clean hover price! (This tricks Plotly into NEVER crashing)
-                fig.add_trace(go.Scatter(
-                    x=df_chart.index, y=df_chart['Close'], mode='lines', line=dict(color='rgba(0,0,0,0)'), 
-                    showlegend=False, hoverinfo=my_hover, name=""
+                    increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, hoverinfo='skip', name=""
                 ), row=1, col=1)
                 
                 if timeframe == "Weekly Chart":
@@ -754,10 +743,22 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8, row=1, col=1)
 
                 if show_crosshair:
-                    fig.update_layout(hovermode='x', dragmode=False, hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d"))
-                    # The magic happens here: showticklabels=True gives the price label on the right side.
-                    fig.update_yaxes(showspikes=True, spikemode='across', spikethickness=1, spikedash='dot', spikecolor="rgba(255,255,255,0.5)", showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=10), showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding], row=1, col=1)
-                    fig.update_xaxes(showspikes=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, row=1, col=1)
+                    # 🔥 THE MAGIC: Free-Moving Crosshair (No Errors!) 🔥
+                    fig.update_layout(hovermode=False, dragmode='crosshair')
+                    
+                    fig.update_yaxes(
+                        showspikes=True, spikemode='across', spikesnap='cursor', showspikelabels=True, 
+                        spikethickness=1, spikedash='dot', spikecolor="rgba(255,255,255,0.7)", 
+                        showgrid=False, zeroline=False, showticklabels=True, side='right', tickformat=".2f",
+                        tickfont=dict(color="#ffffff", size=10), showline=False, fixedrange=True, 
+                        range=[min_val - y_padding, max_val + y_padding], row=1, col=1
+                    )
+                    fig.update_xaxes(
+                        showspikes=True, spikemode='across', spikesnap='cursor', 
+                        spikethickness=1, spikedash='dot', spikecolor="rgba(255,255,255,0.3)", 
+                        showgrid=False, zeroline=False, showticklabels=False, showline=False, 
+                        fixedrange=True, row=1, col=1
+                    )
                     
                     fig.update_yaxes(visible=False, fixedrange=True, row=2, col=1)
                     fig.update_xaxes(visible=False, fixedrange=True, row=2, col=1)
@@ -770,16 +771,11 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                     fig.update_xaxes(visible=False, fixedrange=True, row=2, col=1)
 
             else:
+                # 🔥 Taller Chart without Volume 🔥
                 fig = go.Figure()
                 fig.add_trace(go.Candlestick(
                     x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
                     increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, hoverinfo='skip', name=""
-                ))
-                
-                # Invisible scatter for perfect clean hover
-                fig.add_trace(go.Scatter(
-                    x=df_chart.index, y=df_chart['Close'], mode='lines', line=dict(color='rgba(0,0,0,0)'), 
-                    showlegend=False, hoverinfo=my_hover, name=""
                 ))
                 
                 if timeframe == "Weekly Chart":
@@ -798,16 +794,29 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8)
 
                 if show_crosshair:
-                    fig.update_layout(hovermode='x', dragmode=False, hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d"))
-                    fig.update_yaxes(showspikes=True, spikemode='across', spikethickness=1, spikedash='dot', spikecolor="rgba(255,255,255,0.5)", showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=10), showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
-                    fig.update_xaxes(showspikes=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
+                    # 🔥 THE MAGIC: Free-Moving Crosshair (No Errors!) 🔥
+                    fig.update_layout(hovermode=False, dragmode='crosshair')
+                    
+                    fig.update_yaxes(
+                        showspikes=True, spikemode='across', spikesnap='cursor', showspikelabels=True, 
+                        spikethickness=1, spikedash='dot', spikecolor="rgba(255,255,255,0.7)", 
+                        showgrid=False, zeroline=False, showticklabels=True, side='right', tickformat=".2f",
+                        tickfont=dict(color="#ffffff", size=10), showline=False, fixedrange=True, 
+                        range=[min_val - y_padding, max_val + y_padding]
+                    )
+                    fig.update_xaxes(
+                        showspikes=True, spikemode='across', spikesnap='cursor', 
+                        spikethickness=1, spikedash='dot', spikecolor="rgba(255,255,255,0.3)", 
+                        showgrid=False, zeroline=False, showticklabels=False, showline=False, 
+                        fixedrange=True
+                    )
                 else:
                     fig.update_layout(hovermode=False, dragmode=False)
                     fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
                     fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
 
-            # 🔥 NO config dictionaries that break Streamlit. Just normal rendering! 🔥
-            st.plotly_chart(fig, use_container_width=True, key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}")
+            # Your EXACT working st.plotly_chart call
+            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False}, key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}")
         else: 
             st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Data not available</div>", unsafe_allow_html=True)
     except Exception as e: 
