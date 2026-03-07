@@ -1398,7 +1398,7 @@ if not df.empty:
                         else: special_icon = "🚀"
                         
                     html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">{special_icon}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if pct_val>0 else ""}{pct_val:.2f}%</div></a>'
-            st.markdown(html_stk + '</div>', unsafe_allow_html=True)
+                st.markdown(html_stk + '</div>', unsafe_allow_html=True)
 
             if not df_buy.empty: render_heatmap_section(df_buy, f"🟢 BUY STOCKS ({watchlist_mode})", "#3fb950")
             if not df_sell.empty: render_heatmap_section(df_sell, f"🔴 SELL STOCKS ({watchlist_mode})", "#f85149")
