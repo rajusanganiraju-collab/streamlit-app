@@ -17,10 +17,11 @@ st.set_page_config(page_title="Market Heatmap", page_icon="📊", layout="wide")
 @st.cache_resource
 def init_connection():
     creds_json = st.secrets["gcp_service_account"]
-    creds_dict = json.loads(creds_json)
-    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-    creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-    return gspread.authorize(creds)
+    creds_dict = json.loads(creds_json)
+    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+    creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+    return gspread.authorize(creds)
+
 
 client = init_connection()
 
