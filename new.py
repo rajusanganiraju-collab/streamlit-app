@@ -756,7 +756,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                 if show_crosshair:
                     fig.update_layout(hovermode='x', dragmode=False, hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d"))
                     # The magic happens here: showticklabels=True gives the price label on the right side.
-                    fig.update_yaxes(showspikes=True, spikesnap='cursor', spikemode='across', spikethickness=0.5, spikedash='dot', spikecolor="rgba(255,255,255,0.3)", showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=10), showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding], row=1, col=1)
+                    fig.update_yaxes(showspikes=True, spikesnap='cursor', spikemode='across', spikethickness=1, spikedash='dot', spikecolor="rgba(255,255,255,0.5)", showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=10), showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding], row=1, col=1)
                     fig.update_xaxes(showspikes=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, row=1, col=1)
                     
                     fig.update_yaxes(visible=False, fixedrange=True, row=2, col=1)
@@ -799,7 +799,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
 
                 if show_crosshair:
                     fig.update_layout(hovermode='x', dragmode=False, hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d"))
-                    fig.update_yaxes(showspikes=True, spikesnap='cursor', spikemode='across', spikethickness=0.5, spikedash='dot', spikecolor="rgba(255,255,255,0.3)", showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=10), showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
+                    fig.update_yaxes(showspikes=True, spikesnap='cursor', spikemode='across', spikethickness=1, spikedash='dot', spikecolor="rgba(255,255,255,0.5)", showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=10), showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
                     fig.update_xaxes(showspikes=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
                 else:
                     fig.update_layout(hovermode=False, dragmode=False)
