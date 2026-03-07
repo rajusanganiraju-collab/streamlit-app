@@ -71,7 +71,7 @@ def save_closed_trades(df):
     trade_ws.update([df.columns.values.tolist()] + df.values.tolist())
 
 # --- 4. AUTO RUN & STATE MANAGEMENT (2.5 Mins Configured) ---
-st_autorefresh(interval=6000, key="datarefresh")
+st_autorefresh(interval=150000, key="datarefresh")
 
 if 'trend_filter' not in st.session_state:
     st.session_state.trend_filter = 'All'
@@ -463,11 +463,10 @@ def render_html_table(df_subset, title, color_class):
     html += "</tbody></table>"
     return html
 
-# 🔥 PORTFOLIO TABLES (Now uses Weekly Trend dict) 🔥
-def render_portfolio_table(df_port, df_stocks, weekly_trends):
+def render_portfolio_table(df_port, df_stocks, stock_trends):
     if df_port.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>Portfolio is empty. Add a stock using the option below!</div>"
     
-    html = f'<table class="term-table"><thead><tr><th colspan="11" class="term-head-port">💼 LIVE PORTFOLIO TERMINAL</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:10%;">STOCK</th><th style="width:8%;">DATE</th><th style="width:5%;">QTY</th><th style="width:7%;">AVG</th><th style="width:7%;">LTP</th><th style="width:7%;">WEEKLY TREND</th><th style="width:12%;">STATUS</th><th style="width:16%;">📰 LATEST NEWS</th><th style="width:9%;">DAY P&L</th><th style="width:9%;">TOT P&L</th><th style="width:10%;">P&L %</th></tr></thead><tbody>'
+    html = f'<table class="term-table"><thead><tr><th colspan="11" class="term-head-port">💼 LIVE PORTFOLIO TERMINAL</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:10%;">STOCK</th><th style="width:8%;">DATE</th><th style="width:5%;">QTY</th><th style="width:7%;">AVG</th><th style="width:7%;">LTP</th><th style="width:7%;">TREND</th><th style="width:12%;">STATUS</th><th style="width:16%;">📰 LATEST NEWS</th><th style="width:9%;">DAY P&L</th><th style="width:9%;">TOT P&L</th><th style="width:10%;">P&L %</th></tr></thead><tbody>'
     
     total_invested, total_current, total_day_pnl = 0, 0, 0
     
@@ -493,7 +492,7 @@ def render_portfolio_table(df_port, df_stocks, weekly_trends):
             
             fetch_t = live_row['Fetch_T'].iloc[0]
             news_html = get_news_tag(fetch_t)
-            trend_state = weekly_trends.get(fetch_t, "Neutral")
+            trend_state = stock_trends.get(fetch_t, "Neutral")
             if trend_state == 'Bullish': trend_html = "🟢 Bullish"
             elif trend_state == 'Bearish': trend_html = "🔴 Bearish"
             else: trend_html = "⚪ Neutral"
@@ -529,9 +528,9 @@ def render_portfolio_table(df_port, df_stocks, weekly_trends):
     html += "</tbody></table>"
     return html
 
-def render_portfolio_swing_advice_table(df_port, df_stocks, weekly_trends):
+def render_portfolio_swing_advice_table(df_port, df_stocks, stock_trends):
     if df_port.empty: return ""
-    html = f'<table class="term-table"><thead><tr><th colspan="9" class="term-head-swing">🤖 PORTFOLIO SWING ADVISOR (ACTION & LEVELS)</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:13%;">STOCK</th><th style="width:8%;">AVG PRICE</th><th style="width:8%;">LTP</th><th style="width:8%;">P&L %</th><th style="width:8%;">WEEKLY TREND</th><th style="width:17%;">📰 LATEST NEWS</th><th style="width:12%; color:#f85149;">🛑 TRAILING SL</th><th style="width:12%; color:#3fb950;">🎯 NEXT TARGET</th><th style="width:14%;">💡 ACTION ADVICE</th></tr></thead><tbody>'
+    html = f'<table class="term-table"><thead><tr><th colspan="9" class="term-head-swing">🤖 PORTFOLIO SWING ADVISOR (ACTION & LEVELS)</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:13%;">STOCK</th><th style="width:8%;">AVG PRICE</th><th style="width:8%;">LTP</th><th style="width:8%;">P&L %</th><th style="width:8%;">TREND</th><th style="width:17%;">📰 LATEST NEWS</th><th style="width:12%; color:#f85149;">🛑 TRAILING SL</th><th style="width:12%; color:#3fb950;">🎯 NEXT TARGET</th><th style="width:14%;">💡 ACTION ADVICE</th></tr></thead><tbody>'
 
     for i, (_, row) in enumerate(df_port.iterrows()):
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
@@ -548,7 +547,7 @@ def render_portfolio_swing_advice_table(df_port, df_stocks, weekly_trends):
         pnl_color = "text-green" if pnl_pct >= 0 else "text-red"
         t_sign = "+" if pnl_pct > 0 else ""
 
-        trend_state = weekly_trends.get(live_data['Fetch_T'], "Neutral")
+        trend_state = stock_trends.get(live_data['Fetch_T'], "Neutral")
         is_swing = live_data['Is_Swing']
         atr_val = live_data.get("ATR", ltp * 0.02)
         news_html = get_news_tag(live_data['Fetch_T'])
@@ -689,8 +688,7 @@ def render_levels_table(df_subset, stock_trends):
     html += "</tbody></table>"
     return html
 
-# 🔥 RENDER CHART (Dynamic Subtitles & Lines for Day/Weekly) 🔥
-def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day"):
+def render_chart(row, df_chart, show_pin=True, key_suffix=""):
     display_sym = row['T']
     fetch_sym = row['Fetch_T']
     color_hex = "#da3633" if (display_sym == "INDIA VIX" and row['C'] > 0) or (display_sym != "INDIA VIX" and row['C'] < 0) else "#2ea043"
@@ -701,10 +699,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day"):
         cb_key = f"cb_{fetch_sym}_{key_suffix}" if key_suffix else f"cb_{fetch_sym}"
         st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=cb_key, on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
     
-    subtitle_html = "<span style='color:#FFD700;'>--- VWAP</span> &nbsp;|&nbsp; <span style='color:#00BFFF;'>- - 10 EMA</span>"
-    if timeframe == "Weekly":
-        subtitle_html = "<span style='color:#FFD700;'>--- 10 EMA</span> &nbsp;|&nbsp; <span style='color:#00BFFF;'>- - 50 EMA</span>"
-        
     st.markdown(f"""
         <div style='text-align:center; font-size:15px; margin-top:2px;'>
             <a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none;'>
@@ -712,7 +706,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day"):
             </a>
         </div>
         <div style='text-align:center; font-size:10px; color:#8b949e; margin-bottom:5px;'>
-            {subtitle_html}
+            <span style='color:#FFD700;'>--- VWAP</span> &nbsp;|&nbsp; <span style='color:#00BFFF;'>- - 10 EMA</span>
         </div>
     """, unsafe_allow_html=True)
     
@@ -725,32 +719,27 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day"):
             fig = go.Figure()
             fig.add_trace(go.Candlestick(x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], increasing_line_color='#2ea043', decreasing_line_color='#da3633'))
             
-            if timeframe == "Weekly":
-                if 'EMA_10' in df_chart.columns:
-                    fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5)))
-                if 'EMA_50' in df_chart.columns:
-                    fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_50'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash')))
-            else:
-                if 'VWAP' in df_chart.columns:
-                    fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot')))
-                if 'EMA_10' in df_chart.columns:
-                    fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash')))
+            if 'VWAP' in df_chart.columns:
+                fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot')))
+            if 'EMA_10' in df_chart.columns:
+                fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash')))
                 
             fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=150, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(visible=False, fixedrange=True), yaxis=dict(visible=False, range=[min_val - y_padding, max_val + y_padding], fixedrange=True), hovermode=False, showlegend=False, dragmode=False)
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True}, key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}")
+            
+            # 🔥 FIX: Added unique key parameter to prevent DuplicateWidgetID error 🔥
+            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'staticPlot': True}, key=f"plot_{fetch_sym}_{key_suffix}")
         else: 
             st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Data not available</div>", unsafe_allow_html=True)
     except: 
         st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart error</div>", unsafe_allow_html=True)
 
-def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Day", chart_dict=None):
+def render_chart_grid(df_grid, show_pin_option, key_prefix):
     if df_grid.empty: return
-    if chart_dict is None: chart_dict = {}
     with st.container():
         st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
         for j, (_, row) in enumerate(df_grid.iterrows()):
             with st.container():
-                render_chart(row, chart_dict.get(row['Fetch_T'], pd.DataFrame()), show_pin=show_pin_option, key_suffix=f"{key_prefix}_{j}", timeframe=timeframe)
+                render_chart(row, processed_charts.get(row['Fetch_T'], pd.DataFrame()), show_pin=show_pin_option, key_suffix=f"{key_prefix}_{j}")
 
 def render_closed_trades_table(df_closed):
     if df_closed.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No closed trades yet. Sell a stock to book P&L!</div>"
@@ -782,6 +771,7 @@ def render_closed_trades_table(df_closed):
 # --- 6. TOP NAVIGATION & SEARCH ---
 c1, c2, c3 = st.columns([0.4, 0.3, 0.3])
 with c1: 
+    # 🔥 FIX: Changed index to 3 so "Day Trading Stocks 🚀" loads by default when app opens 🔥
     watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Day Trading Stocks 🚀", "Terminal Tables 🗃️", "My Portfolio 💼"], index=3, label_visibility="collapsed")
 with c2: 
     sort_mode = st.selectbox("Sort By", ["Custom Sort", "Heatmap Marks Up ⭐", "Heatmap Marks Down ⬇️", "% Change Up 🟢", "% Change Down 🔴"], label_visibility="collapsed")
@@ -814,15 +804,10 @@ if not df.empty:
         elif watchlist_mode == "Swing Trading 📈":
             move_type_filter = st.selectbox("📈 Strategy Filter", ["All Swing Stocks", "🚀 Pro Breakout Strategy", "🌟 Weekly 10EMA Pro"], index=0)
             
-    chart_timeframe = "Day Chart"
     with c_tog:
         if watchlist_mode in ["Day Trading Stocks 🚀", "High Score Stocks 🔥"]:
             st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
             st.session_state.use_ema_ribbon = st.toggle("🎯 Strict EMA Filter", value=st.session_state.use_ema_ribbon)
-        # 🔥 FIX: Weekly Chart Toggle added for Swing Trading and Portfolio views 🔥
-        elif view_mode == "Chart 📈" and watchlist_mode in ["Swing Trading 📈", "My Portfolio 💼"]:
-            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-            chart_timeframe = st.radio("Timeframe", ["Day Chart", "Weekly Chart"], horizontal=True, label_visibility="collapsed")
             
     df_indices = df[df['Is_Index']].copy()
     df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3})
@@ -879,7 +864,6 @@ if not df.empty:
 
     processed_charts = {}
     stock_trends = {}
-    weekly_trends = {}  # 🔥 NEW: Dictionary for Weekly Trends
     alpha_tags = {}
     trend_scores = {}
 
@@ -901,22 +885,6 @@ if not df.empty:
         df_day = process_5m_data(df_raw)
         processed_charts[sym] = df_day
         
-        # 🔥 NEW: Calculate Strict Weekly Trend (for Portfolio)
-        try:
-            sym_row = df[df['Fetch_T'] == sym].iloc[0]
-            w_ema10 = float(sym_row['W_EMA10'])
-            w_ema50 = float(sym_row['W_EMA50'])
-            last_p = float(sym_row['P'])
-            
-            if last_p > w_ema10 and w_ema10 >= w_ema50:
-                weekly_trends[sym] = 'Bullish'
-            elif last_p < w_ema10 and w_ema10 <= w_ema50:
-                weekly_trends[sym] = 'Bearish'
-            else:
-                weekly_trends[sym] = 'Neutral'
-        except:
-            weekly_trends[sym] = 'Neutral'
-            
         if sym in df_filtered['Fetch_T'].tolist() and not df_day.empty:
             last_price = df_day['Close'].iloc[-1]
             last_vwap = df_day['VWAP'].iloc[-1]
@@ -1206,12 +1174,11 @@ if not df.empty:
         if alerts_html:
             st.markdown(alerts_html, unsafe_allow_html=True)
             
-        # 🔥 Now passing 'weekly_trends' to Portfolio tables instead of intraday 'stock_trends' 🔥
-        st.markdown(render_portfolio_table(df_port_saved, df_stocks, weekly_trends), unsafe_allow_html=True)
+        st.markdown(render_portfolio_table(df_port_saved, df_stocks, stock_trends), unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
         
         with st.expander("🤖 View Portfolio Swing Advisor (Action & Levels)", expanded=False):
-            st.markdown(render_portfolio_swing_advice_table(df_port_saved, df_stocks, weekly_trends), unsafe_allow_html=True)
+            st.markdown(render_portfolio_swing_advice_table(df_port_saved, df_stocks, stock_trends), unsafe_allow_html=True)
         
         with st.expander("➕ Search & Add Stock to Portfolio", expanded=False):
             with st.form("portfolio_add_form", clear_on_submit=True):
@@ -1319,6 +1286,7 @@ if not df.empty:
             for _, row in df_stocks_display.iterrows():
                 bg = "bull-card" if row['C'] > 0 else ("bear-card" if row['C'] < 0 else "neut-card")
                 
+                # 🔥 ICONS FOR TOP 5 BUYS & SELLS 🔥
                 special_icon = f"⭐{int(row['S'])}"
                 if watchlist_mode == "Swing Trading 📈": 
                     special_icon = "🌟" if row.get('Is_W_Pullback', False) else "🚀"
@@ -1342,43 +1310,14 @@ if not df.empty:
             
     else: # CHART VIEW
         st.markdown("<br>", unsafe_allow_html=True)
-        
-        # 🔥 WEEKLY CHART DATA FETCHING LOGIC 🔥
-        weekly_charts = {}
-        if chart_timeframe == "Weekly Chart":
-            with st.spinner("Fetching Weekly Chart Data..."):
-                display_tkrs = []
-                if search_stock != "-- None --": display_tkrs.append(search_fetch_t)
-                if watchlist_mode not in ["Terminal Tables 🗃️", "My Portfolio 💼"]:
-                    display_tkrs.extend(df_indices['Fetch_T'].tolist())
-                display_tkrs.extend(st.session_state.pinned_stocks)
-                display_tkrs.extend(df_stocks_display['Fetch_T'].tolist())
-                
-                display_tkrs = list(set(display_tkrs)) # remove duplicates
-                
-                if display_tkrs:
-                    wk_data = yf.download(display_tkrs, period="2y", interval="1wk", progress=False, group_by='ticker', threads=20)
-                    for sym in display_tkrs:
-                        try:
-                            df_w = wk_data[sym] if len(display_tkrs) > 1 else wk_data
-                            df_w = df_w.dropna(subset=['Close']).copy()
-                            if not df_w.empty:
-                                df_w['EMA_10'] = df_w['Close'].ewm(span=10, adjust=False).mean()
-                                df_w['EMA_50'] = df_w['Close'].ewm(span=50, adjust=False).mean()
-                                weekly_charts[sym] = df_w
-                        except: pass
-
-        chart_dict_to_use = weekly_charts if chart_timeframe == "Weekly Chart" else processed_charts
-        tf_arg = "Weekly" if chart_timeframe == "Weekly Chart" else "Day"
-
         if search_stock != "-- None --":
             st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:5px; color:#ffd700;'>🔍 Searched Chart: {search_stock}</div>", unsafe_allow_html=True)
-            render_chart_grid(pd.DataFrame([df[df['T'] == search_stock].iloc[0]]), show_pin_option=True, key_prefix="search", timeframe=tf_arg, chart_dict=chart_dict_to_use)
+            render_chart_grid(pd.DataFrame([df[df['T'] == search_stock].iloc[0]]), show_pin_option=True, key_prefix="search")
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
         if watchlist_mode not in ["Terminal Tables 🗃️", "My Portfolio 💼"]:
             st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>📈 Market Indices</div>", unsafe_allow_html=True)
-            render_chart_grid(df_indices, show_pin_option=False, key_prefix="idx", timeframe=tf_arg, chart_dict=chart_dict_to_use)
+            render_chart_grid(df_indices, show_pin_option=False, key_prefix="idx")
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
         pinned_df = df[df['Fetch_T'].isin(st.session_state.pinned_stocks)].copy()
@@ -1386,11 +1325,11 @@ if not df.empty:
         
         if not pinned_df.empty:
             st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#ffd700;'>📌 Pinned Priority Charts</div>", unsafe_allow_html=True)
-            render_chart_grid(pinned_df, show_pin_option=True, key_prefix="pin", timeframe=tf_arg, chart_dict=chart_dict_to_use)
+            render_chart_grid(pinned_df, show_pin_option=True, key_prefix="pin")
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
         if not unpinned_df.empty:
             st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>{watchlist_mode} ({st.session_state.trend_filter})</div>", unsafe_allow_html=True)
-            render_chart_grid(unpinned_df, show_pin_option=True, key_prefix="main", timeframe=tf_arg, chart_dict=chart_dict_to_use)
+            render_chart_grid(unpinned_df, show_pin_option=True, key_prefix="main")
 
 else: st.info("Loading Market Data...")
