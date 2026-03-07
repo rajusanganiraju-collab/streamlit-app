@@ -734,7 +734,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
             max_val = df_chart['High'].max()
             y_padding = (max_val - min_val) * 0.1 if (max_val - min_val) != 0 else min_val * 0.005 
             
-            # ఇక్కడ 'none' వాడటం వల్ల లైన్ వస్తుంది, కానీ బాక్స్ రాదు!
             my_hover = 'none' if show_crosshair else 'skip'
             
             if show_vol:
@@ -766,8 +765,15 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8, row=1, col=1)
 
                 if show_crosshair:
-                    fig.update_layout(hovermode='closest', dragmode=False, hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d"))
-                    fig.update_yaxes(showspikes=True, spikesnap='cursor', spikemode='across', spikethickness=0.5, spikedash='solid', spikecolor="rgba(255,255,255,0.4)", showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=10), showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding], row=1, col=1)
+                    fig.update_layout(hovermode='closest', dragmode=False)
+                    # 🔥 ADDED showspikelabels=True HERE 🔥
+                    fig.update_yaxes(
+                        showspikes=True, spikesnap='cursor', spikemode='across', spikethickness=0.5, 
+                        spikedash='solid', spikecolor="rgba(255,255,255,0.5)", showspikelabels=True, 
+                        showgrid=False, zeroline=False, showticklabels=True, side='right', 
+                        tickfont=dict(color="#ffffff", size=10), showline=False, 
+                        fixedrange=True, range=[min_val - y_padding, max_val + y_padding], row=1, col=1
+                    )
                     fig.update_xaxes(showspikes=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, row=1, col=1)
                     
                     fig.update_yaxes(visible=False, fixedrange=True, row=2, col=1)
@@ -804,8 +810,15 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8)
 
                 if show_crosshair:
-                    fig.update_layout(hovermode='closest', dragmode=False, hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d"))
-                    fig.update_yaxes(showspikes=True, spikesnap='cursor', spikemode='across', spikethickness=0.5, spikedash='solid', spikecolor="rgba(255,255,255,0.4)", showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=10), showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
+                    fig.update_layout(hovermode='closest', dragmode=False)
+                    # 🔥 ADDED showspikelabels=True HERE 🔥
+                    fig.update_yaxes(
+                        showspikes=True, spikesnap='cursor', spikemode='across', spikethickness=0.5, 
+                        spikedash='solid', spikecolor="rgba(255,255,255,0.5)", showspikelabels=True, 
+                        showgrid=False, zeroline=False, showticklabels=True, side='right', 
+                        tickfont=dict(color="#ffffff", size=10), showline=False, 
+                        fixedrange=True, range=[min_val - y_padding, max_val + y_padding]
+                    )
                     fig.update_xaxes(showspikes=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
                 else:
                     fig.update_layout(hovermode=False, dragmode=False)
@@ -817,7 +830,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
             st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Data not available</div>", unsafe_allow_html=True)
     except Exception as e: 
         st.markdown(f"<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart error</div>", unsafe_allow_html=True)
-
 def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Day", chart_dict=None, show_crosshair=False, show_vol=False):
     if df_grid.empty: return
     if chart_dict is None: chart_dict = {}
