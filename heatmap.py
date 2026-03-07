@@ -7,11 +7,10 @@ import json
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import os
 from datetime import datetime, time as dt_time
 from streamlit_autorefresh import st_autorefresh
 
-# --- 1. PAGE CONFIGURATION & CSS ---
+# --- 1. PAGE CONFIGURATION & PRO CSS ---
 st.set_page_config(page_title="Pro Trading Terminal", page_icon="💹", layout="wide")
 
 st.markdown("""
@@ -46,7 +45,7 @@ st.markdown("""
     .t-symbol a:hover { color: #79c0ff !important; border-bottom: 1px solid #79c0ff; }
     
     /* Heatmap Cards */
-    .heatmap-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px; padding: 5px 0; }
+    .heatmap-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; padding: 5px 0; }
     .stock-card { border-radius: 6px; padding: 8px 4px; text-align: center; text-decoration: none !important; color: white !important; display: flex; flex-direction: column; justify-content: center; height: 90px; position: relative; box-shadow: 0 2px 4px rgba(0,0,0,0.3); transition: transform 0.2s; }
     .stock-card:hover { transform: scale(1.05); z-index: 10; box-shadow: 0 4px 8px rgba(0,0,0,0.5); border: 1px solid #58a6ff; }
     .bull-card { background-color: #1e5f29 !important; } .bear-card { background-color: #b52524 !important; } .neut-card { background-color: #21262d !important; border: 1px solid #30363d;} 
@@ -60,20 +59,27 @@ st.markdown("""
 # --- 2. GOOGLE SHEETS CONNECTION ---
 @st.cache_resource
 def init_connection():
-    creds_json = st.secrets["gcp_service_account"]
-    creds_dict = json.loads(creds_json)
-    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-    creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-    return gspread.authorize(creds)
+    try:
+        creds_json = st.secrets["gcp_service_account"]
+        creds_dict = json.loads(creds_json)
+        scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+        return gspread.authorize(creds)
+    except Exception:
+        return None
 
 client = init_connection()
 
-try:
-    db_sheet = client.open("Trading_DB")
-    port_ws = db_sheet.worksheet("Portfolio")
-    trade_ws = db_sheet.worksheet("TradeBook")
-except Exception as e:
-    st.error(f"గూగుల్ షీట్ కనెక్ట్ అవ్వలేదు బాస్! Error: {e}")
+if client:
+    try:
+        db_sheet = client.open("Trading_DB")
+        port_ws = db_sheet.worksheet("Portfolio")
+        trade_ws = db_sheet.worksheet("TradeBook")
+    except Exception as e:
+        st.error(f"గూగుల్ షీట్ కనెక్ట్ అవ్వలేదు బాస్! Error: {e}")
+        st.stop()
+else:
+    st.error("గూగుల్ షీట్ సీక్రెట్స్ దొరకలేదు.")
     st.stop()
 
 def load_portfolio():
@@ -84,24 +90,13 @@ def load_portfolio():
             df.rename(columns={'Stock Name': 'Symbol', 'Buy Price': 'Buy_Price', 'Buy Date': 'Date'}, inplace=True)
             for col in ['SL', 'T1', 'T2']:
                 if col not in df.columns: df[col] = 0.0
-            save_portfolio(df)
         return df
     except: return pd.DataFrame(columns=['Symbol', 'Buy_Price', 'Quantity', 'Date', 'SL', 'T1', 'T2'])
-
-def save_portfolio(df):
-    port_ws.clear()
-    df = df.fillna("")
-    port_ws.update([df.columns.values.tolist()] + df.values.tolist())
 
 # --- 3. STATE & AUTO REFRESH ---
 st_autorefresh(interval=150000, key="datarefresh")
 
 if 'pinned_stocks' not in st.session_state: st.session_state.pinned_stocks = []
-if 'custom_alerts' not in st.session_state: st.session_state.custom_alerts = {}
-
-def toggle_pin(symbol):
-    if symbol in st.session_state.pinned_stocks: st.session_state.pinned_stocks.remove(symbol)
-    else: st.session_state.pinned_stocks.append(symbol)
 
 # --- 4. DATA LISTS ---
 INDICES_MAP = {"^NSEI": "NIFTY", "^NSEBANK": "BANKNIFTY", "^INDIAVIX": "INDIA VIX"}
@@ -111,25 +106,29 @@ NIFTY_50_SECTORS = {
     "PHARMA": ["SUNPHARMA", "CIPLA", "DRREDDY", "APOLLOHOSP"],
     "IT": ["TCS", "INFY", "HCLTECH", "WIPRO", "TECHM"],
     "BANK": ["HDFCBANK", "ICICIBANK", "SBIN", "AXISBANK", "KOTAKBANK", "INDUSINDBK"],
-    # ... (Keep your full NIFTY_50_SECTORS list here)
+    "ENERGY": ["RELIANCE", "ONGC", "NTPC", "POWERGRID", "COALINDIA", "BPCL"],
+    "AUTO": ["TATAMOTORS", "M&M", "MARUTI", "BAJAJ-AUTO", "EICHERMOT", "HEROMOTOCO"],
+    "METAL": ["TATASTEEL", "JSWSTEEL", "HINDALCO"],
+    "FMCG": ["ITC", "HINDUNILVR", "NESTLEIND", "BRITANNIA", "TATACONSUM"],
+    "INFRA_CEMENT": ["LT", "ULTRACEMCO", "GRASIM"],
+    "OTHERS": ["BHARTIARTL", "ASIANPAINT", "TITAN", "ADANIENT", "ADANIPORTS", "TRENT", "BEL"]
 }
 NIFTY_50 = [stock for sector in NIFTY_50_SECTORS.values() for stock in sector]
 
+# (NOTE: Place your full FNO list here)
 FNO_STOCKS = [
-    "AARTIIND", "ABB", "ACC", "ADANIENT", "ADANIPORTS", "ITC", "RELIANCE" 
-    # ... (BOSS, MEERU VADUTUNNA POORTHI FNO STOCKS LIST NI IKKADA PASTE CHEYYANDI)
+    "AARTIIND", "ABB", "ABBOTINDIA", "ABCAPITAL", "ABFRL", "ACC", "ADANIENSOL", "ADANIENT", "ADANIPORTS",
+    "ALKEM", "AMBUJACEM", "ANGELONE", "APOLLOHOSP", "APOLLOTYRE", "ASHOKLEY", "ASIANPAINT", "ASTRAL", "ATUL",
+    "AUBANK", "AUROPHARMA", "AXISBANK", "BAJAJ-AUTO", "BAJAJFINSV", "BAJFINANCE", "BALKRISIND", "BALRAMCHIN"
 ]
 
 # --- 5. MODULAR DATA ENGINE ---
-
 @st.cache_data(ttl=150)
 def download_daily_data(tickers):
-    """Module 1: Only downloads raw daily data"""
     return yf.download(tickers, period="1y", progress=False, group_by='ticker', threads=20)
 
 @st.cache_data(ttl=86400)
 def fetch_fundamentals(symbols_list):
-    """Module 2: Fetches Fundamentals once a day"""
     fund_data = []
     for sym in symbols_list:
         try:
@@ -147,25 +146,8 @@ def fetch_fundamentals(symbols_list):
         except: continue
     return pd.DataFrame(fund_data)
 
-def calculate_stock_score(df, ltp, vwap, open_p, high, low, day_chg, vol_x, is_index):
-    """Module 3: Core Strategy Scoring Logic"""
-    score = 0
-    if is_index: return 0
-    
-    stock_dist = abs(ltp - vwap) / vwap * 100 if vwap > 0 else 0
-    if stock_dist > 0.75: score += 5
-    elif stock_dist > 0.50: score += 3
-    
-    if abs(open_p - low) <= (ltp * 0.003) or abs(open_p - high) <= (ltp * 0.003): score += 3 
-    if vol_x > 1.0: score += 3 
-    if (ltp >= high * 0.998 and day_chg > 0.5) or (ltp <= low * 1.002 and day_chg < -0.5): score += 1
-    
-    return score
-
-# (Integrating your complex fetch_all_data elegantly)
 @st.cache_data(ttl=150)
 def process_market_radar():
-    """Module 4: Integrates data and math for the Radar"""
     port_df = load_portfolio()
     port_stocks = [str(sym).upper().strip() for sym in port_df['Symbol'].tolist() if str(sym).strip() != ""]
     all_stocks = set(NIFTY_50 + FNO_STOCKS + port_stocks)
@@ -185,8 +167,8 @@ def process_market_radar():
             high = float(df['High'].iloc[-1])
             low = float(df['Low'].iloc[-1])
             
-            day_chg = ((ltp - open_p) / open_p) * 100
-            net_chg = ((ltp - prev_c) / prev_c) * 100
+            day_chg = ((ltp - open_p) / open_p) * 100 if open_p > 0 else 0
+            net_chg = ((ltp - prev_c) / prev_c) * 100 if prev_c > 0 else 0
             vwap = (high + low + ltp) / 3
             vol_x = float(df['Volume'].iloc[-1]) / df['Volume'].iloc[-6:-1].mean() if df['Volume'].iloc[-6:-1].mean() > 0 else 0
             
@@ -194,7 +176,13 @@ def process_market_radar():
             is_sector = symbol in SECTOR_INDICES_MAP
             disp_name = INDICES_MAP.get(symbol, SECTOR_INDICES_MAP.get(symbol, symbol.replace(".NS", "")))
             
-            score = calculate_stock_score(df, ltp, vwap, open_p, high, low, day_chg, vol_x, is_index)
+            score = 0
+            if not is_index and not is_sector:
+                stock_dist = abs(ltp - vwap) / vwap * 100 if vwap > 0 else 0
+                if stock_dist > 0.75: score += 5
+                elif stock_dist > 0.50: score += 3
+                if abs(open_p - low) <= (ltp * 0.003) or abs(open_p - high) <= (ltp * 0.003): score += 3 
+                if vol_x > 1.0: score += 3 
             
             results.append({
                 "Fetch_T": symbol, "T": disp_name, "P": ltp, "O": open_p, "H": high, "L": low, "Prev_C": prev_c,
@@ -204,9 +192,8 @@ def process_market_radar():
         except: continue
     return pd.DataFrame(results)
 
-# --- 6. PLOTLY CHART RENDERER (WITH UPDATED CROSSHAIR) ---
+# --- 6. PLOTLY CHART RENDERER (PERFECT CROSSHAIR) ---
 def render_pro_chart(df_chart, display_sym, pct_val):
-    """Renders the ultra-clean chart with High/Low tooltip"""
     if df_chart.empty: 
         st.warning("Chart Data Unavailable")
         return
@@ -214,7 +201,7 @@ def render_pro_chart(df_chart, display_sym, pct_val):
     color_hex = "#f85149" if pct_val < 0 else "#3fb950"
     sign = "+" if pct_val > 0 else ""
     
-    st.markdown(f"<div style='font-size:15px; font-weight:bold; padding-left:10px;'>{display_sym} <span style='color:{color_hex}; font-size:13px;'>({sign}{pct_val:.2f}%)</span></div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='font-size:15px; font-weight:bold; padding-left:10px; margin-bottom:5px;'>{display_sym} <span style='color:{color_hex}; font-size:13px;'>({sign}{pct_val:.2f}%)</span></div>", unsafe_allow_html=True)
     
     min_val = df_chart['Low'].min()
     max_val = df_chart['High'].max()
@@ -229,7 +216,7 @@ def render_pro_chart(df_chart, display_sym, pct_val):
         hoverinfo='skip', name=""
     ), row=1, col=1)
     
-    # 2. INVISIBLE SCATTER: To show HIGH and LOW cleanly when hovering
+    # 2. INVISIBLE SCATTER: High and Low tooltip only!
     hover_data = "High: ₹" + df_chart['High'].round(2).astype(str) + "<br>Low: ₹" + df_chart['Low'].round(2).astype(str)
     fig.add_trace(go.Scatter(
         x=df_chart.index, y=df_chart['High'], mode='lines', line=dict(color='rgba(0,0,0,0)'), 
@@ -241,20 +228,21 @@ def render_pro_chart(df_chart, display_sym, pct_val):
     colors = ['#3fb950' if close >= open_p else '#f85149' for close, open_p in zip(df_chart['Close'], df_chart['Open'])]
     fig.add_trace(go.Bar(x=df_chart.index, y=df_chart['Volume'], marker_color=colors, showlegend=False, hoverinfo='skip'), row=2, col=1)
 
-    # MAGIC LAYOUT (Ultra-thin crosshair)
+    # MAGIC LAYOUT: Thin Crosshair
     fig.update_layout(
-        margin=dict(l=0, r=0, t=0, b=0), height=300, 
+        margin=dict(l=0, r=0, t=0, b=0), height=350, 
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', 
         xaxis_rangeslider_visible=False, hovermode='x unified', dragmode=False
     )
     
-    # Apply spikesnap='cursor' and very thin spikethickness=0.2
+    # EXACT CROSSHAIR CODE: spikesnap='cursor' and spikethickness=0.2
     fig.update_yaxes(
         showspikes=True, spikesnap='cursor', spikemode='across', spikethickness=0.2, spikedash='solid', spikecolor="rgba(255,255,255,0.4)", 
         showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#8b949e", size=10), showline=False, 
         fixedrange=True, range=[min_val - y_padding, max_val + y_padding], row=1, col=1
     )
     fig.update_xaxes(showspikes=False, showgrid=False, zeroline=False, showticklabels=False, row=1, col=1)
+    
     fig.update_yaxes(visible=False, fixedrange=True, row=2, col=1)
     fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=True, tickfont=dict(color="#8b949e", size=10), row=2, col=1)
 
@@ -278,16 +266,20 @@ with tabs[0]:
         df_stocks = df_radar[(~df_radar['Is_Index']) & (~df_radar['Is_Sector'])].sort_values(by="VolX", ascending=False)
         
         if radar_mode == "Heatmap View":
-            st.markdown("<div style='margin-top:15px; color:#c9d1d9; font-weight:bold;'>🔥 Top Momentum Stocks</div>", unsafe_allow_html=True)
+            st.markdown("<div style='margin-top:15px; color:#c9d1d9; font-weight:bold; margin-bottom:10px;'>🔥 Top Momentum Stocks</div>", unsafe_allow_html=True)
+            
+            # PERFECT SINGLE-LINE HTML STRING TO PREVENT RENDERING BUGS
             html_stk = '<div class="heatmap-grid">'
-            for _, row in df_stocks.head(30).iterrows():
+            for _, row in df_stocks.head(40).iterrows():
                 bg = "bull-card" if row['C'] > 0 else "bear-card"
-                html_stk += f'<a href="#" class="stock-card {bg}"><div class="t-score">⭐{int(row["S"])}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if row["C"]>0 else ""}{row["C"]:.2f}%</div></a>'
-                st.markdown(html_stk + '</div>', unsafe_allow_html=True)
+                html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">⭐{int(row["S"])}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if row["C"]>0 else ""}{row["C"]:.2f}%</div></a>'
+            html_stk += '</div>'
+            
+            st.markdown(html_stk, unsafe_allow_html=True)
+            
         else:
-            # Simple Professional Table View
             st.dataframe(
-                df_stocks[['T', 'P', 'C', 'Day_C', 'VolX', 'S']].head(15).style.background_gradient(cmap='RdYlGn', subset=['C']),
+                df_stocks[['T', 'P', 'C', 'Day_C', 'VolX', 'S']].head(20).style.background_gradient(cmap='RdYlGn', subset=['C']),
                 use_container_width=True, hide_index=True
             )
     else:
@@ -297,10 +289,10 @@ with tabs[0]:
 with tabs[1]:
     st.markdown("<div style='color:#8b949e; margin-bottom:10px;'>Analyze the intrinsic value of NIFTY 50 and FNO stocks. Data is cached to load instantly.</div>", unsafe_allow_html=True)
     
-    if st.button("🔄 Fetch Top 20 Market Fundamentals"):
+    if st.button("🔄 Fetch Top 30 Market Fundamentals"):
         with st.spinner("Fetching Institutional Data from Exchange..."):
-            # Fetching for top 20 stocks for speed. You can pass your full FNO_STOCKS here.
-            df_fund = fetch_fundamentals(NIFTY_50[:20]) 
+            # Fetching for top 30 stocks for speed. 
+            df_fund = fetch_fundamentals(NIFTY_50[:30]) 
             if not df_fund.empty:
                 html_fund = f'<table class="term-table"><thead><tr><th colspan="7" class="term-head-fund">🏢 FUNDAMENTAL METRICS & 52W LEVELS</th></tr><tr><th>STOCK</th><th>SECTOR</th><th>MKT CAP (₹ Cr)</th><th>P/E RATIO</th><th>DIV YIELD</th><th>52W HIGH</th><th>52W LOW</th></tr></thead><tbody>'
                 for _, row in df_fund.iterrows():
@@ -314,7 +306,6 @@ with tabs[2]:
     st.markdown("### 💼 Live Portfolio Analytics")
     
     if not df_port.empty:
-        # Quick Portfolio Display
         st.dataframe(df_port, use_container_width=True, hide_index=True)
     else:
         st.info("Portfolio is empty. Database connected successfully.")
@@ -328,7 +319,6 @@ with tabs[3]:
     
     if search_stock != "-- None --":
         with st.spinner(f"Loading high-res chart for {search_stock}..."):
-            # Fetch specific 5m data for the ultimate professional chart
             fetch_sym = df_radar[df_radar['T'] == search_stock]['Fetch_T'].iloc[0] if not df_radar.empty else f"{search_stock}.NS"
             chart_raw = yf.download(fetch_sym, period="5d", interval="15m", progress=False)
             
