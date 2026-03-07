@@ -734,7 +734,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
             max_val = df_chart['High'].max()
             y_padding = (max_val - min_val) * 0.1 if (max_val - min_val) != 0 else min_val * 0.005 
             
-            my_hover = 'none' if show_crosshair else 'skip'
+            my_hover = 'y' if show_crosshair else 'skip'
             
             if show_vol:
                 fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.02, row_heights=[0.75, 0.25])
@@ -743,7 +743,13 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                 fig.add_trace(go.Candlestick(
                     x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
                     increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, 
-                    hoverinfo=my_hover, name=""
+                    hoverinfo='skip', name=""
+                ), row=1, col=1)
+                
+                # INVISIBLE TRACE: 'y unified' కోసమే ఈ స్పెషల్ టూల్ టిప్ బాక్స్
+                fig.add_trace(go.Scatter(
+                    x=df_chart.index, y=df_chart['Close'], mode='lines', line=dict(color='rgba(0,0,0,0)'), 
+                    showlegend=False, hoverinfo=my_hover, hovertemplate="<b>₹ %{y:.2f}</b><extra></extra>", name=""
                 ), row=1, col=1)
                 
                 if timeframe == "Weekly Chart":
@@ -765,15 +771,9 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8, row=1, col=1)
 
                 if show_crosshair:
-                    fig.update_layout(hovermode='closest', dragmode=False)
-                    # CRASH FIX: Removed invalid 'showspikelabels' attribute
-                    fig.update_yaxes(
-                        showspikes=True, spikesnap='cursor', spikemode='across', spikethickness=0.5, 
-                        spikedash='solid', spikecolor="rgba(255,255,255,0.5)", 
-                        showgrid=False, zeroline=False, showticklabels=True, side='right', 
-                        tickfont=dict(color="#ffffff", size=10), showline=False, 
-                        fixedrange=True, range=[min_val - y_padding, max_val + y_padding], row=1, col=1
-                    )
+                    # 🔥 'y unified' adds a horizontal line and puts the value in a neat box at the axis 🔥
+                    fig.update_layout(hovermode='y unified', dragmode=False, hoverlabel=dict(bgcolor="#21262d", font_size=13, font_color="#ffffff", bordercolor="#58a6ff"))
+                    fig.update_yaxes(showspikes=False, showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#8b949e", size=10), showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding], row=1, col=1)
                     fig.update_xaxes(showspikes=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, row=1, col=1)
                     
                     fig.update_yaxes(visible=False, fixedrange=True, row=2, col=1)
@@ -788,10 +788,15 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
 
             else:
                 fig = go.Figure()
-                # Main Candlestick
                 fig.add_trace(go.Candlestick(
                     x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
-                    increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, hoverinfo=my_hover, name=""
+                    increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, hoverinfo='skip', name=""
+                ))
+                
+                # INVISIBLE TRACE for pure price label
+                fig.add_trace(go.Scatter(
+                    x=df_chart.index, y=df_chart['Close'], mode='lines', line=dict(color='rgba(0,0,0,0)'), 
+                    showlegend=False, hoverinfo=my_hover, hovertemplate="<b>₹ %{y:.2f}</b><extra></extra>", name=""
                 ))
                 
                 if timeframe == "Weekly Chart":
@@ -810,15 +815,9 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8)
 
                 if show_crosshair:
-                    fig.update_layout(hovermode='closest', dragmode=False)
-                    # CRASH FIX: Removed invalid 'showspikelabels' attribute
-                    fig.update_yaxes(
-                        showspikes=True, spikesnap='cursor', spikemode='across', spikethickness=0.5, 
-                        spikedash='solid', spikecolor="rgba(255,255,255,0.5)", 
-                        showgrid=False, zeroline=False, showticklabels=True, side='right', 
-                        tickfont=dict(color="#ffffff", size=10), showline=False, 
-                        fixedrange=True, range=[min_val - y_padding, max_val + y_padding]
-                    )
+                    # 🔥 'y unified' magic 🔥
+                    fig.update_layout(hovermode='y unified', dragmode=False, hoverlabel=dict(bgcolor="#21262d", font_size=13, font_color="#ffffff", bordercolor="#58a6ff"))
+                    fig.update_yaxes(showspikes=False, showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#8b949e", size=10), showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
                     fig.update_xaxes(showspikes=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
                 else:
                     fig.update_layout(hovermode=False, dragmode=False)
