@@ -283,7 +283,7 @@ with tabs[0]:
             for _, row in df_stocks.head(30).iterrows():
                 bg = "bull-card" if row['C'] > 0 else "bear-card"
                 html_stk += f'<a href="#" class="stock-card {bg}"><div class="t-score">⭐{int(row["S"])}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if row["C"]>0 else ""}{row["C"]:.2f}%</div></a>'
-            st.markdown(html_stk + '</div>', unsafe_allow_html=True)
+                st.markdown(html_stk + '</div>', unsafe_allow_html=True)
         else:
             # Simple Professional Table View
             st.dataframe(
