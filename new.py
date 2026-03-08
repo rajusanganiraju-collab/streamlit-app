@@ -737,10 +737,10 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
             if show_vol:
                 fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.02, row_heights=[0.75, 0.25])
                 
-                # Main Candlestick (Hover info తీసేశాం)
+                # క్యాండిల్ డేటా అస్సలు కనిపించకుండా hoverinfo='skip' పెట్టాను
                 fig.add_trace(go.Candlestick(
                     x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
-                    increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, name=""
+                    increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, hoverinfo='skip', name=""
                 ), row=1, col=1)
                 
                 if timeframe == "Weekly Chart":
@@ -764,16 +764,15 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                 if show_crosshair:
                     fig.update_layout(hovermode='closest', dragmode='pan')
                     fig.update_yaxes(
-                        showspikes=True, spikemode='across', spikesnap='cursor', showspikelabels=True, 
+                        showspikes=True, spikemode='across', spikesnap='cursor', # ఫ్రీ మూవ్ క్రాస్ హెయిర్
                         spikecolor="rgba(255, 255, 255, 0.6)", spikethickness=1, spikedash='dot', 
-                        spikelabelbgcolor="#3fb950", spikelabelfont=dict(color="white", size=12, weight="bold"),
                         showgrid=False, zeroline=False, showticklabels=True, side='right', 
                         tickfont=dict(color="#ffffff", size=10), showline=False, fixedrange=True, 
                         range=[min_val - y_padding, max_val + y_padding], row=1, col=1
                     )
                     fig.update_xaxes(
                         showspikes=True, spikemode='across', spikesnap='cursor', spikecolor="rgba(255, 255, 255, 0.6)",
-                        spikethickness=1, spikedash='dot', showspikelabels=False, showgrid=False, zeroline=False, 
+                        spikethickness=1, spikedash='dot', showgrid=False, zeroline=False, 
                         showticklabels=False, showline=False, fixedrange=True, row=1, col=1
                     )
                 else:
@@ -786,9 +785,10 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
 
             else:
                 fig = go.Figure()
+                # క్యాండిల్ డేటా అస్సలు కనిపించకుండా hoverinfo='skip' పెట్టాను
                 fig.add_trace(go.Candlestick(
                     x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
-                    increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, name=""
+                    increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, hoverinfo='skip', name=""
                 ))
                 
                 if timeframe == "Weekly Chart":
@@ -809,16 +809,15 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                 if show_crosshair:
                     fig.update_layout(hovermode='closest', dragmode='pan')
                     fig.update_yaxes(
-                        showspikes=True, spikemode='across', spikesnap='cursor', showspikelabels=True, 
+                        showspikes=True, spikemode='across', spikesnap='cursor', # ఫ్రీ మూవ్ క్రాస్ హెయిర్
                         spikecolor="rgba(255, 255, 255, 0.6)", spikethickness=1, spikedash='dot', 
-                        spikelabelbgcolor="#3fb950", spikelabelfont=dict(color="white", size=12, weight="bold"),
                         showgrid=False, zeroline=False, showticklabels=True, side='right', 
                         tickfont=dict(color="#ffffff", size=10), showline=False, fixedrange=True, 
                         range=[min_val - y_padding, max_val + y_padding]
                     )
                     fig.update_xaxes(
                         showspikes=True, spikemode='across', spikesnap='cursor', spikecolor="rgba(255, 255, 255, 0.6)",
-                        spikethickness=1, spikedash='dot', showspikelabels=False, showgrid=False, zeroline=False, 
+                        spikethickness=1, spikedash='dot', showgrid=False, zeroline=False, 
                         showticklabels=False, showline=False, fixedrange=True
                     )
                 else:
@@ -844,7 +843,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
             st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Data not available</div>", unsafe_allow_html=True)
     except Exception as e: 
         st.markdown(f"<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart error</div>", unsafe_allow_html=True)
-
 def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Day", chart_dict=None, show_crosshair=False, show_vol=False):
     if df_grid.empty: return
     if chart_dict is None: chart_dict = {}
