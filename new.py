@@ -1,4 +1,4 @@
-import streamlit as st
+    import streamlit as st
 import yfinance as yf
 import pandas as pd
 import gspread
@@ -734,27 +734,37 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
             max_val = df_chart['High'].max()
             y_padding = (max_val - min_val) * 0.1 if (max_val - min_val) != 0 else min_val * 0.005 
             
+            my_hover = 'y' if show_crosshair else 'skip'
+            
             if show_vol:
                 fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.02, row_heights=[0.75, 0.25])
                 
-                # మ్యాజిక్ ఇక్కడే ఉంది: 'skip' బదులు 'none' వాడాము. 
-                # దీనివల్ల క్యాండిల్ డేటా కనపడదు కానీ క్రాస్ హెయిర్ (గీత) ఫ్రీగా కదులుతుంది!
+                # Main Candlestick
                 fig.add_trace(go.Candlestick(
                     x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
-                    increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, hoverinfo='none', name=""
+                    increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, 
+                    hoverinfo='skip', name=""
+                ), row=1, col=1)
+                
+                # Invisible scatter modified to show HIGH and LOW nicely
+                hover_data = "High: ₹" + df_chart['High'].round(2).astype(str) + "<br>Low: ₹" + df_chart['Low'].round(2).astype(str)
+                fig.add_trace(go.Scatter(
+                    x=df_chart.index, y=df_chart['High'], mode='lines', line=dict(color='rgba(0,0,0,0)'), 
+                    showlegend=False, hoverinfo='text' if show_crosshair else 'skip', text=hover_data, 
+                    hovertemplate="%{text}<extra></extra>" if show_crosshair else None, name=""
                 ), row=1, col=1)
                 
                 if timeframe == "Weekly Chart":
-                    if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), showlegend=False, hoverinfo='none'), row=1, col=1)
-                    if 'EMA_50' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_50'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='none'), row=1, col=1)
+                    if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), showlegend=False, hoverinfo='skip'), row=1, col=1)
+                    if 'EMA_50' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_50'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'), row=1, col=1)
                 else:
-                    if 'VWAP' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='none'), row=1, col=1)
-                    if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='none'), row=1, col=1)
+                    if 'VWAP' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='skip'), row=1, col=1)
+                    if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'), row=1, col=1)
                 
                 colors = ['#2ea043' if close >= open_p else '#da3633' for close, open_p in zip(df_chart['Close'], df_chart['Open'])]
-                fig.add_trace(go.Bar(x=df_chart.index, y=df_chart['Volume'], marker_color=colors, showlegend=False, hoverinfo='none'), row=2, col=1)
+                fig.add_trace(go.Bar(x=df_chart.index, y=df_chart['Volume'], marker_color=colors, showlegend=False, hoverinfo='skip'), row=2, col=1)
                 
-                fig.update_layout(margin=dict(l=0, r=45, t=0, b=0), height=230, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
+                fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=230, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
                 
                 if fetch_sym in st.session_state.custom_alerts:
                     alert_data = st.session_state.custom_alerts[fetch_sym]
@@ -763,43 +773,79 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8, row=1, col=1)
 
                 if show_crosshair:
-                    fig.update_layout(hovermode='closest', dragmode='pan')
+                    # 'closest' వాడితే చార్ట్ మీద ఎక్కడ మౌస్ పెట్టినా లైన్ ఫ్రీగా కదులుతుంది
+                    fig.update_layout(
+                        hovermode='closest', 
+                        dragmode=False, 
+                        margin=dict(l=0, r=45, t=0, b=0), # Y-axis మీద ప్రైస్ ట్యాగ్ కోసం స్పేస్
+                        hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d")
+                    )
+                    
+                    # Y-Axis సెట్టింగ్స్ (ముఖ్యమైనది: showspikelabels=True)
                     fig.update_yaxes(
-                        showspikes=True, spikemode='across', spikesnap='cursor', showspikelabels=True, 
-                        spikecolor="rgba(255, 255, 255, 0.6)", spikethickness=1, spikedash='dot', 
-                        spikelabelbgcolor="#3fb950", spikelabelfont=dict(color="white", size=12, weight="bold"),
-                        showgrid=False, zeroline=False, showticklabels=True, side='right', 
-                        tickfont=dict(color="#ffffff", size=10), showline=False, fixedrange=True, 
-                        range=[min_val - y_padding, max_val + y_padding], row=1, col=1
+                        showspikes=True, 
+                        spikesnap='cursor', # మౌస్/టచ్ చేసిన చోటకే లైన్ వెళ్తుంది
+                        spikemode='across', 
+                        spikethickness=1, 
+                        spikedash='dot', 
+                        spikecolor="rgba(255, 255, 255, 0.6)", 
+                        showspikelabels=True, # గీత చివర Y-Axis పైన ప్రైస్ బాక్స్ వస్తుంది
+                        spikelabelcolor="#ffffff",
+                        showgrid=False, 
+                        zeroline=False, 
+                        showticklabels=True, 
+                        side='right', 
+                        tickfont=dict(color="#ffffff", size=10), 
+                        showline=False, 
+                        fixedrange=True, 
+                        range=[min_val - y_padding, max_val + y_padding],
+                        row=1, col=1 if show_vol else None
                     )
+                    
+                    # X-Axis లైన్ (నిలువుగా వచ్చే గీత కోసం)
                     fig.update_xaxes(
-                        showspikes=True, spikemode='across', spikesnap='cursor', spikecolor="rgba(255, 255, 255, 0.6)",
-                        spikethickness=1, spikedash='dot', showspikelabels=False, showgrid=False, zeroline=False, 
-                        showticklabels=False, showline=False, fixedrange=True, row=1, col=1
+                        showspikes=True, 
+                        spikesnap='cursor',
+                        spikemode='across',
+                        spikethickness=1,
+                        spikedash='dot',
+                        spikecolor="rgba(255, 255, 255, 0.6)",
+                        showspikelabels=False, # కింద టైమ్ లేబుల్ అవసరం లేదు కాబట్టి
+                        showgrid=False, 
+                        zeroline=False, 
+                        showticklabels=False, 
+                        showline=False, 
+                        fixedrange=True,
+                        row=1, col=1 if show_vol else None
                     )
-                else:
-                    fig.update_layout(hovermode=False, dragmode=False)
-                    fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding], row=1, col=1)
-                    fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, row=1, col=1)
-
-                fig.update_yaxes(visible=False, fixedrange=True, row=2, col=1)
-                fig.update_xaxes(visible=False, fixedrange=True, row=2, col=1)
+                    
+                    if show_vol:
+                        fig.update_yaxes(visible=False, fixedrange=True, row=2, col=1)
+                        fig.update_xaxes(visible=False, fixedrange=True, row=2, col=1)
 
             else:
                 fig = go.Figure()
                 fig.add_trace(go.Candlestick(
                     x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
-                    increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, hoverinfo='none', name=""
+                    increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, hoverinfo='skip', name=""
+                ))
+                
+                # Invisible scatter modified to show HIGH and LOW nicely
+                hover_data = "High: ₹" + df_chart['High'].round(2).astype(str) + "<br>Low: ₹" + df_chart['Low'].round(2).astype(str)
+                fig.add_trace(go.Scatter(
+                    x=df_chart.index, y=df_chart['High'], mode='lines', line=dict(color='rgba(0,0,0,0)'), 
+                    showlegend=False, hoverinfo='text' if show_crosshair else 'skip', text=hover_data, 
+                    hovertemplate="%{text}<extra></extra>" if show_crosshair else None, name=""
                 ))
                 
                 if timeframe == "Weekly Chart":
-                    if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), hoverinfo='none'))
-                    if 'EMA_50' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_50'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), hoverinfo='none'))
+                    if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), hoverinfo='skip'))
+                    if 'EMA_50' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_50'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), hoverinfo='skip'))
                 else:
-                    if 'VWAP' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), hoverinfo='none'))
-                    if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), hoverinfo='none'))
+                    if 'VWAP' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), hoverinfo='skip'))
+                    if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), hoverinfo='skip'))
                     
-                fig.update_layout(margin=dict(l=0, r=45, t=0, b=0), height=190, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, xaxis_rangeslider_visible=False)
+                fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=190, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, xaxis_rangeslider_visible=False)
 
                 if fetch_sym in st.session_state.custom_alerts:
                     alert_data = st.session_state.custom_alerts[fetch_sym]
@@ -808,43 +854,20 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8)
 
                 if show_crosshair:
-                    fig.update_layout(hovermode='closest', dragmode='pan')
-                    fig.update_yaxes(
-                        showspikes=True, spikemode='across', spikesnap='cursor', showspikelabels=True, 
-                        spikecolor="rgba(255, 255, 255, 0.6)", spikethickness=1, spikedash='dot', 
-                        spikelabelbgcolor="#3fb950", spikelabelfont=dict(color="white", size=12, weight="bold"),
-                        showgrid=False, zeroline=False, showticklabels=True, side='right', 
-                        tickfont=dict(color="#ffffff", size=10), showline=False, fixedrange=True, 
-                        range=[min_val - y_padding, max_val + y_padding]
-                    )
-                    fig.update_xaxes(
-                        showspikes=True, spikemode='across', spikesnap='cursor', spikecolor="rgba(255, 255, 255, 0.6)",
-                        spikethickness=1, spikedash='dot', showspikelabels=False, showgrid=False, zeroline=False, 
-                        showticklabels=False, showline=False, fixedrange=True
-                    )
+                    fig.update_layout(hovermode='x', dragmode=False, hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d"))
+                    fig.update_yaxes(showspikes=True, spikesnap='cursor', spikemode='across', spikethickness=0.2, spikedash='solid', spikecolor="rgba(255,255,255,0.4)", showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=10), showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
+                    fig.update_xaxes(showspikes=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
                 else:
                     fig.update_layout(hovermode=False, dragmode=False)
                     fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
                     fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
 
-            # --- CHART DRAWING TOOLS (Mark lines కోసం) ---
-            chart_config = {
-                'modeBarButtonsToAdd': ['drawhline', 'eraseshape'], 
-                'displayModeBar': True,
-                'displaylogo': False
-            }
-
-            st.plotly_chart(
-                fig, 
-                use_container_width=True, 
-                config=chart_config, 
-                key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}"
-            )
-
+            st.plotly_chart(fig, use_container_width=True, key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}")
         else: 
             st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Data not available</div>", unsafe_allow_html=True)
     except Exception as e: 
         st.markdown(f"<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart error</div>", unsafe_allow_html=True)
+
 def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Day", chart_dict=None, show_crosshair=False, show_vol=False):
     if df_grid.empty: return
     if chart_dict is None: chart_dict = {}
