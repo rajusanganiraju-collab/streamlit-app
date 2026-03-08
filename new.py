@@ -773,24 +773,24 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8, row=1, col=1)
 
                 if show_crosshair:
-                    # 'closest' వాడితే చార్ట్ మీద ఎక్కడ మౌస్ పెట్టినా లైన్ ఫ్రీగా కదులుతుంది
+                    # మౌస్ ఫ్రీగా కదలడానికి closest మోడ్
                     fig.update_layout(
                         hovermode='closest', 
-                        dragmode=False, 
-                        margin=dict(l=0, r=45, t=0, b=0), # Y-axis మీద ప్రైస్ ట్యాగ్ కోసం స్పేస్
-                        hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d")
+                        dragmode='pan', 
+                        margin=dict(l=0, r=45, t=0, b=0) 
                     )
                     
-                    # Y-Axis సెట్టింగ్స్ (ముఖ్యమైనది: showspikelabels=True)
+                    # Y-Axis సెట్టింగ్స్ (Free move price tag ఇక్కడే వస్తుంది)
                     fig.update_yaxes(
                         showspikes=True, 
-                        spikesnap='cursor', # మౌస్/టచ్ చేసిన చోటకే లైన్ వెళ్తుంది
                         spikemode='across', 
+                        spikesnap='cursor', # మ్యాజిక్ ఇక్కడే: క్యాండిల్ తో సంబంధం లేకుండా ఫ్రీ మూవ్
+                        showspikelabels=True, # కుడివైపు ప్రైస్ ట్యాగ్ చూపిస్తుంది
+                        spikecolor="rgba(255, 255, 255, 0.6)",
                         spikethickness=1, 
                         spikedash='dot', 
-                        spikecolor="rgba(255, 255, 255, 0.6)", 
-                        showspikelabels=True, # గీత చివర Y-Axis పైన ప్రైస్ బాక్స్ వస్తుంది
-                        spikelabelcolor="#ffffff",
+                        spikelabelbgcolor="#3fb950", # గ్రీన్ కలర్ ప్రైస్ ట్యాగ్ బాక్స్
+                        spikelabelfont=dict(color="white", size=12, weight="bold"),
                         showgrid=False, 
                         zeroline=False, 
                         showticklabels=True, 
@@ -801,6 +801,27 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         range=[min_val - y_padding, max_val + y_padding],
                         row=1, col=1 if show_vol else None
                     )
+                    
+                    # X-Axis సెట్టింగ్స్
+                    fig.update_xaxes(
+                        showspikes=True, 
+                        spikemode='across',
+                        spikesnap='cursor',
+                        spikecolor="rgba(255, 255, 255, 0.6)",
+                        spikethickness=1,
+                        spikedash='dot',
+                        showspikelabels=False,
+                        showgrid=False, 
+                        zeroline=False, 
+                        showticklabels=False, 
+                        showline=False, 
+                        fixedrange=True,
+                        row=1, col=1 if show_vol else None
+                    )
+                    
+                    if show_vol:
+                        fig.update_yaxes(visible=False, fixedrange=True, row=2, col=1)
+                        fig.update_xaxes(visible=False, fixedrange=True, row=2, col=1)
                     
                     # X-Axis లైన్ (నిలువుగా వచ్చే గీత కోసం)
                     fig.update_xaxes(
@@ -862,7 +883,20 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                     fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
                     fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
 
-            st.plotly_chart(fig, use_container_width=True, key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}")
+            # --- CHART DRAWING TOOLS (Mark lines కోసం) ---
+            chart_config = {
+                'modeBarButtonsToAdd': ['drawhline', 'eraseshape'], # అడ్డగీత గీయడానికి, చెరపడానికి
+                'displayModeBar': True,
+                'displaylogo': False
+            }
+
+            st.plotly_chart(
+                fig, 
+                use_container_width=True, 
+                config=chart_config, 
+                key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}"
+            )
+
         else: 
             st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Data not available</div>", unsafe_allow_html=True)
     except Exception as e: 
