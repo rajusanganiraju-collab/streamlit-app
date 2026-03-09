@@ -1162,17 +1162,13 @@ if not df.empty:
             base_buy = (
                 (df_filtered['P'] > df_filtered['W_EMA10']) & 
                 (df_filtered['P'] > df_filtered['W_EMA50']) & 
-                (df_filtered['P'] > df_filtered['VWAP']) & 
-                (df_filtered['P'] > df_filtered['Prev_C']) & 
-                (df_filtered['VolX'] >= 0.8)
+                (df_filtered['P'] > df_filtered['VWAP'])
             )
             
             base_sell = (
                 (df_filtered['P'] < df_filtered['W_EMA10']) & 
                 (df_filtered['P'] < df_filtered['W_EMA50']) & 
-                (df_filtered['P'] < df_filtered['VWAP']) & 
-                (df_filtered['P'] < df_filtered['Prev_C']) & 
-                (df_filtered['VolX'] >= 0.8)
+                (df_filtered['P'] < df_filtered['VWAP'])
             )
 
             nifty_dist = 0.25 
