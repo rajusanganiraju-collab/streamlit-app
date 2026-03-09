@@ -178,6 +178,15 @@ TV_SECTOR_URL = {
     "^CNXPHARMA": "NSE:CNXPHARMA", "^CNXFMCG": "NSE:CNXFMCG", "^CNXENERGY": "NSE:CNXENERGY", "^CNXREALTY": "NSE:CNXREALTY"
 }
 
+# --- COMMODITY MAP (NEW) ---
+COMMODITY_MAP = {
+    "GC=F": "GOLD", 
+    "SI=F": "SILVER", 
+    "CL=F": "CRUDE OIL", 
+    "NG=F": "NATURAL GAS", 
+    "HG=F": "COPPER"
+}
+
 NIFTY_50_SECTORS = {
     "PHARMA": ["SUNPHARMA", "CIPLA", "DRREDDY", "APOLLOHOSP"],
     "IT": ["TCS", "INFY", "HCLTECH", "WIPRO", "TECHM"],
@@ -227,7 +236,8 @@ def fetch_all_data():
     port_stocks = [str(sym).upper().strip() for sym in port_df['Symbol'].tolist() if str(sym).strip() != ""]
     
     all_stocks = set(NIFTY_50 + FNO_STOCKS + port_stocks)
-    tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + [f"{t}.NS" for t in all_stocks if t]
+    # Added COMMODITY_MAP.keys() here
+    tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + list(COMMODITY_MAP.keys()) + [f"{t}.NS" for t in all_stocks if t]
     
     data = yf.download(tkrs, period="2y", progress=False, group_by='ticker', threads=20)
     
@@ -357,12 +367,14 @@ def fetch_all_data():
             if (ltp >= high * 0.998 and day_chg > 0.5) or (ltp <= low * 1.002 and day_chg < -0.5): score += 1
             if (ltp > (low * 1.01) and ltp > vwap) or (ltp < (high * 0.99) and ltp < vwap): score += 1
             
+            # Identify Symbol Category
             is_index = symbol in INDICES_MAP
             is_sector = symbol in SECTOR_INDICES_MAP
-            disp_name = INDICES_MAP.get(symbol, SECTOR_INDICES_MAP.get(symbol, symbol.replace(".NS", "")))
+            is_commodity = symbol in COMMODITY_MAP
+            disp_name = INDICES_MAP.get(symbol, SECTOR_INDICES_MAP.get(symbol, COMMODITY_MAP.get(symbol, symbol.replace(".NS", ""))))
             
             stock_sector = "OTHER"
-            if not is_index and not is_sector:
+            if not is_index and not is_sector and not is_commodity:
                 for sec, stocks in NIFTY_50_SECTORS.items():
                     if disp_name in stocks:
                         stock_sector = sec
@@ -374,7 +386,7 @@ def fetch_all_data():
                 "Day_C": day_chg, "C": net_chg, "W_C": float(weekly_net_chg), "S": score, "VolX": vol_x, "Is_Swing": is_swing,
                 "Is_W_Pullback": is_w_pullback, "VWAP": vwap,
                 "ATR": atr, "Narrow_CPR": is_narrow_cpr,
-                "Is_Index": is_index, "Is_Sector": is_sector, "Sector": stock_sector
+                "Is_Index": is_index, "Is_Sector": is_sector, "Sector": stock_sector, "Is_Commodity": is_commodity
             })
         except: continue
     return pd.DataFrame(results)
@@ -716,7 +728,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
     sign = "+" if pct_val > 0 else ""
     tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
     
-    if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX", "DOW", "NSDQ"]:
+    if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX", "DOW", "NSDQ"] and not row.get('Is_Commodity'):
         cb_key = f"cb_{fetch_sym}_{key_suffix}" if key_suffix else f"cb_{fetch_sym}"
         st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=cb_key, on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
     
@@ -773,23 +785,21 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8, row=1, col=1)
 
                 if show_crosshair:
-                    # 'closest' వాడితే చార్ట్ మీద ఎక్కడ మౌస్ పెట్టినా లైన్ ఫ్రీగా కదులుతుంది
                     fig.update_layout(
                         hovermode='closest', 
                         dragmode=False, 
-                        margin=dict(l=0, r=45, t=0, b=0), # Y-axis మీద ప్రైస్ ట్యాగ్ కోసం స్పేస్
+                        margin=dict(l=0, r=45, t=0, b=0), 
                         hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d")
                     )
                     
-                    # Y-Axis సెట్టింగ్స్ (ముఖ్యమైనది: showspikelabels=True)
                     fig.update_yaxes(
                         showspikes=True, 
-                        spikesnap='cursor', # మౌస్/టచ్ చేసిన చోటకే లైన్ వెళ్తుంది
+                        spikesnap='cursor', 
                         spikemode='across', 
                         spikethickness=1, 
                         spikedash='dot', 
                         spikecolor="rgba(255, 255, 255, 0.6)", 
-                        showspikelabels=True, # గీత చివర Y-Axis పైన ప్రైస్ బాక్స్ వస్తుంది
+                        showspikelabels=True, 
                         spikelabelcolor="#ffffff",
                         showgrid=False, 
                         zeroline=False, 
@@ -802,7 +812,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         row=1, col=1 if show_vol else None
                     )
                     
-                    # X-Axis లైన్ (నిలువుగా వచ్చే గీత కోసం)
                     fig.update_xaxes(
                         showspikes=True, 
                         spikesnap='cursor',
@@ -810,7 +819,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         spikethickness=1,
                         spikedash='dot',
                         spikecolor="rgba(255, 255, 255, 0.6)",
-                        showspikelabels=False, # కింద టైమ్ లేబుల్ అవసరం లేదు కాబట్టి
+                        showspikelabels=False, 
                         showgrid=False, 
                         zeroline=False, 
                         showticklabels=False, 
@@ -907,7 +916,7 @@ def render_closed_trades_table(df_closed):
 # --- 6. TOP NAVIGATION & SEARCH ---
 c1, c2, c3 = st.columns([0.4, 0.3, 0.3])
 with c1: 
-    watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Day Trading Stocks 🚀", "Terminal Tables 🗃️", "My Portfolio 💼", "Fundamentals 🏢"], index=3, label_visibility="collapsed")
+    watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Day Trading Stocks 🚀", "Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢"], index=3, label_visibility="collapsed")
 with c2: 
     sort_mode = st.selectbox("Sort By", ["Custom Sort", "Heatmap Marks Up ⭐", "Heatmap Marks Down ⬇️", "% Change Up 🟢", "% Change Down 🔴"], label_visibility="collapsed")
 with c3: 
@@ -918,30 +927,30 @@ chart_timeframe = "Day Chart"
 show_crosshair = False
 show_vol = False
 
-if view_mode == "Chart 📈" or watchlist_mode in ["Swing Trading 📈", "My Portfolio 💼"]:
+if view_mode == "Chart 📈" or watchlist_mode in ["Swing Trading 📈", "My Portfolio 💼", "Commodity 🛢️"]:
     st.markdown("<div style='padding: 10px; background-color:#161b22; border-radius:8px; border:1px solid #30363d; margin-bottom: 5px; display:flex; justify-content:space-around; align-items:center;'>", unsafe_allow_html=True)
     c_opt1, c_opt2, c_opt3 = st.columns(3)
     with c_opt1:
-        if watchlist_mode in ["Swing Trading 📈", "My Portfolio 💼"]:
+        if watchlist_mode in ["Swing Trading 📈", "My Portfolio 💼", "Commodity 🛢️"]:
             chart_timeframe = st.radio("⏳ Timeframe:", ["Day Chart", "Weekly Chart"], horizontal=True, label_visibility="collapsed")
     with c_opt2:
-        if view_mode == "Chart 📈": show_crosshair = st.toggle("⌖ Show Crosshair Price")
+        if view_mode == "Chart 📈" or watchlist_mode == "Commodity 🛢️": show_crosshair = st.toggle("⌖ Show Crosshair Price")
     with c_opt3:
-        if view_mode == "Chart 📈": show_vol = st.toggle("📊 Show Volume Bars")
+        if view_mode == "Chart 📈" or watchlist_mode == "Commodity 🛢️": show_vol = st.toggle("📊 Show Volume Bars")
     st.markdown("</div>", unsafe_allow_html=True)
 
 # --- 7. RENDER LOGIC & TREND ANALYSIS ---
 df = fetch_all_data()
 
 if not df.empty:
-    all_names = sorted(df[(~df['Is_Sector']) & (~df['Is_Index'])]['T'].unique().tolist())
+    all_names = sorted(df[(~df['Is_Sector']) & (~df['Is_Index']) & (~df['Is_Commodity'])]['T'].unique().tolist())
     
     # 🔥 CUSTOM PRICE ALERT EXPANDER 🔥
-    if view_mode == "Chart 📈":
+    if view_mode == "Chart 📈" or watchlist_mode == "Commodity 🛢️":
         with st.expander("🔔 Add Custom Price Alert Line", expanded=False):
             ac1, ac2, ac3, ac4, ac5 = st.columns([2, 2, 2, 1, 1])
-            with ac1: alert_sym_disp = st.selectbox("Select Stock", ["-- None --"] + all_names, key="alert_sym_sel", label_visibility="collapsed")
-            with ac2: alert_price = st.number_input("Alert Price (₹)", min_value=0.0, value=0.0, step=0.5, label_visibility="collapsed")
+            with ac1: alert_sym_disp = st.selectbox("Select Stock", ["-- None --"] + all_names + list(COMMODITY_MAP.values()), key="alert_sym_sel", label_visibility="collapsed")
+            with ac2: alert_price = st.number_input("Alert Price (₹ / $)", min_value=0.0, value=0.0, step=0.5, label_visibility="collapsed")
             with ac3: alert_cond = st.selectbox("Condition", ["Price Above Line 📈", "Price Below Line 📉"], label_visibility="collapsed")
             with ac4: alert_enable = st.toggle("Enable", value=True, key="alert_en_tog")
             with ac5:
@@ -995,7 +1004,9 @@ if not df.empty:
     else:
         df_sectors = df_sectors.sort_values(by="C", ascending=False)
     
-    df_stocks = df[(~df['Is_Index']) & (~df['Is_Sector'])].copy()
+    df_stocks = df[(~df['Is_Index']) & (~df['Is_Sector']) & (~df['Is_Commodity'])].copy()
+    df_commodities = df[df['Is_Commodity']].copy()
+    
     df_nifty = df_stocks[df_stocks['T'].isin(NIFTY_50)].copy()
     sector_perf = df_nifty.groupby('Sector')['C'].mean().sort_values(ascending=False)
     valid_sectors = [s for s in sector_perf.index if s != "OTHER"]
@@ -1020,8 +1031,9 @@ if not df.empty:
     elif watchlist_mode == "My Portfolio 💼":
         port_tickers = [f"{str(sym).upper().strip()}.NS" for sym in df_port_saved['Symbol'].tolist() if str(sym).strip() != ""]
         df_filtered = df_stocks[df_stocks['Fetch_T'].isin(port_tickers)]
+    elif watchlist_mode == "Commodity 🛢️":
+        df_filtered = df_commodities.copy()
     elif watchlist_mode == "Fundamentals 🏢":
-        # Will apply to all FNO stocks by default, or top movers if we want speed
         df_filtered = df_stocks.copy()
     elif watchlist_mode == "Nifty 50 Heatmap":
         df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
@@ -1263,7 +1275,7 @@ if not df.empty:
                 
                 breakout_cond = (
                     (df_filtered['P'] > df_filtered['O']) &            
-                    (top_body <= (total_range * 0.25)) &              
+                    (top_body <= (total_range * 0.25)) &             
                     (df_filtered['VolX'] >= 1.5) &                    
                     (df_filtered['Day_C'] >= 2.0) &                   
                     (df_filtered['Is_Swing'] == True)                 
@@ -1297,7 +1309,6 @@ if not df.empty:
     # NEW FUNDAMENTALS TAB LOGIC
     if watchlist_mode == "Fundamentals 🏢":
         st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#d29922;'>🏢 Core Fundamentals & Market Data</div>", unsafe_allow_html=True)
-        # Getting top 30 from current display list for performance, or fetch all if small
         fund_tickers = df_stocks_display['Fetch_T'].tolist()[:30] if not df_stocks_display.empty else NIFTY_50[:30]
         
         with st.spinner("Fetching Institutional Data from Exchange..."):
@@ -1423,7 +1434,7 @@ if not df.empty:
                 df_closed_view = load_closed_trades()
                 st.markdown(render_closed_trades_table(df_closed_view), unsafe_allow_html=True) 
     elif view_mode == "Heat Map" and watchlist_mode != "Fundamentals 🏢":
-        if not df_indices.empty:
+        if not df_indices.empty and watchlist_mode != "Commodity 🛢️":
             html_idx = '<div class="heatmap-grid">'
             for _, row in df_indices.iterrows():
                 pct_val = float(row.get('W_C', row['C'])) if chart_timeframe == "Weekly Chart" else float(row['C'])
@@ -1432,7 +1443,7 @@ if not df.empty:
                 html_idx += f'<a href="https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(row["Fetch_T"])}" target="_blank" class="stock-card {bg}"><div class="t-score">IDX</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if pct_val>0 else ""}{pct_val:.2f}%</div></a>'
             st.markdown(html_idx + '</div><hr class="custom-hr">', unsafe_allow_html=True)
         
-        if not df_sectors.empty:
+        if not df_sectors.empty and watchlist_mode != "Commodity 🛢️":
             html_sec = '<div class="heatmap-grid">'
             for _, row in df_sectors.iterrows():
                 pct_val = float(row.get('W_C', row['C'])) if chart_timeframe == "Weekly Chart" else float(row['C'])
@@ -1464,12 +1475,14 @@ if not df.empty:
                         elif 'SELL' in strat_name: special_icon = "🔴 SELL"
                         elif strat_name != "": special_icon = strat_name
                         else: special_icon = "🚀"
+                    elif watchlist_mode == "Commodity 🛢️":
+                        special_icon = "🛢️"
                         
                     html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">{special_icon}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if pct_val>0 else ""}{pct_val:.2f}%</div></a>'
                 st.markdown(html_stk + '</div>', unsafe_allow_html=True)
 
-            if not df_buy.empty: render_heatmap_section(df_buy, f"🟢 BUY STOCKS ({watchlist_mode})", "#3fb950")
-            if not df_sell.empty: render_heatmap_section(df_sell, f"🔴 SELL STOCKS ({watchlist_mode})", "#f85149")
+            if not df_buy.empty: render_heatmap_section(df_buy, f"🟢 POSITIVE / BUY ({watchlist_mode})", "#3fb950")
+            if not df_sell.empty: render_heatmap_section(df_sell, f"🔴 NEGATIVE / SELL ({watchlist_mode})", "#f85149")
             
             st.markdown('<br>', unsafe_allow_html=True)
             
@@ -1477,9 +1490,9 @@ if not df.empty:
                 with st.expander("🌊 View Swing Trading Radar (Ranked Table)", expanded=True): st.markdown(render_swing_terminal_table(df_stocks_display), unsafe_allow_html=True)
             elif watchlist_mode == "High Score Stocks 🔥" or watchlist_mode == "Day Trading Stocks 🚀":
                 with st.expander("🔥 View Day Trading Radar (Ranked Table)", expanded=True): st.markdown(render_highscore_terminal_table(df_stocks_display), unsafe_allow_html=True)
-            else:
+            elif watchlist_mode != "Commodity 🛢️":
                 with st.expander("🎯 View Trading Levels (Targets & Stop Loss)", expanded=True): st.markdown(render_levels_table(df_stocks_display), unsafe_allow_html=True)
-        else: st.info("No stocks found.")
+        else: st.info("No items found.")
             
     else: # CHART VIEW (or Fundamentals view fallback if needed)
         st.markdown("<br>", unsafe_allow_html=True)
@@ -1489,7 +1502,7 @@ if not df.empty:
             with st.spinner("Fetching Weekly Chart Data..."):
                 display_tkrs = []
                 if search_stock != "-- None --": display_tkrs.append(search_fetch_t)
-                if watchlist_mode not in ["Terminal Tables 🗃️", "My Portfolio 💼"]:
+                if watchlist_mode not in ["Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️"]:
                     display_tkrs.extend(df_indices['Fetch_T'].tolist())
                 display_tkrs.extend(st.session_state.pinned_stocks)
                 display_tkrs.extend(df_stocks_display['Fetch_T'].tolist())
@@ -1514,7 +1527,7 @@ if not df.empty:
             render_chart_grid(pd.DataFrame([df[df['T'] == search_stock].iloc[0]]), show_pin_option=True, key_prefix="search", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
-        if watchlist_mode not in ["Terminal Tables 🗃️", "My Portfolio 💼", "Fundamentals 🏢"]:
+        if watchlist_mode not in ["Terminal Tables 🗃️", "My Portfolio 💼", "Fundamentals 🏢", "Commodity 🛢️"]:
             render_chart_grid(df_indices, show_pin_option=False, key_prefix="idx", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
@@ -1535,11 +1548,11 @@ if not df.empty:
                 df_sell_chart = unpinned_df[unpinned_df[sort_key] < 0]
                 
             if not df_buy_chart.empty:
-                st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:10px; margin-bottom:5px; color:#3fb950;'>🟢 BUY STOCKS ({watchlist_mode})</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:10px; margin-bottom:5px; color:#3fb950;'>🟢 POSITIVE / BUY ({watchlist_mode})</div>", unsafe_allow_html=True)
                 render_chart_grid(df_buy_chart, show_pin_option=True, key_prefix="main_buy", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
 
             if not df_sell_chart.empty:
-                st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:20px; margin-bottom:5px; color:#f85149;'>🔴 SELL STOCKS ({watchlist_mode})</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:20px; margin-bottom:5px; color:#f85149;'>🔴 NEGATIVE / SELL ({watchlist_mode})</div>", unsafe_allow_html=True)
                 render_chart_grid(df_sell_chart, show_pin_option=True, key_prefix="main_sell", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
 
 else: st.info("Loading Market Data...")
