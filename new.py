@@ -1372,22 +1372,26 @@ if not df.empty:
                         else:
                             new_date_str = new_date.strftime("%d-%b-%Y")
                             if new_sym in df_port_saved['Symbol'].values: 
-                                # పాత క్వాంటిటీ మరియు పాత ధర తీసుకోవడం
                                 old_row = df_port_saved[df_port_saved['Symbol'] == new_sym].iloc[0]
                                 old_qty = float(old_row['Quantity'])
                                 old_price = float(old_row['Buy_Price'])
                                 
-                                # కొత్త యావరేజ్ ప్రైస్ (Average Price) మరియు మొత్తం క్వాంటిటీ లెక్కించడం
                                 total_qty = old_qty + new_qty
                                 avg_price = ((old_qty * old_price) + (new_qty * new_price)) / total_qty
                                 
-                                # పాత రికార్డును కొత్త యావరేజ్ మరియు క్వాంటిటీతో అప్‌డేట్ చేయడం
                                 df_port_saved.loc[df_port_saved['Symbol'] == new_sym, ['Buy_Price', 'Quantity', 'Date', 'SL', 'T1', 'T2']] = [round(avg_price, 2), total_qty, new_date_str, new_sl, new_t1, new_t2]
                                 st.success(f"✅ {new_sym} యావరేజ్ చేయబడింది! (New Avg: ₹{round(avg_price, 2)}, Total Qty: {int(total_qty)})")
                             else:
                                 new_row = pd.DataFrame({"Symbol": [new_sym], "Buy_Price": [new_price], "Quantity": [new_qty], "Date": [new_date_str], "SL": [new_sl], "T1": [new_t1], "T2": [new_t2]})
                                 df_port_saved = pd.concat([df_port_saved, new_row], ignore_index=True)
                                 st.success(f"✅ {new_sym} పోర్ట్‌ఫోలియోలో యాడ్ చేయబడింది!")
+                            
+                            # కచ్చితంగా సేవ్ చేసి, పేజీని రీఫ్రెష్ చేసే కోడ్
+                            import time
+                            save_portfolio(df_port_saved)
+                            fetch_all_data.clear()
+                            time.sleep(1.5) # మెసేజ్ చదవడానికి 1.5 సెకన్ల గ్యాప్ ఇస్తుంది
+                            st.rerun()
                 else: st.warning("Type a symbol first!")
         
         if not df_port_saved.empty:
