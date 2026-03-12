@@ -178,7 +178,7 @@ TV_SECTOR_URL = {
     "^CNXPHARMA": "NSE:CNXPHARMA", "^CNXFMCG": "NSE:CNXFMCG", "^CNXENERGY": "NSE:CNXENERGY", "^CNXREALTY": "NSE:CNXREALTY"
 }
 
-# --- COMMODITY MAP (NEW) ---
+# --- COMMODITY MAP ---
 COMMODITY_MAP = {
     "GC=F": "GOLD", 
     "SI=F": "SILVER", 
@@ -236,7 +236,6 @@ def fetch_all_data():
     port_stocks = [str(sym).upper().strip() for sym in port_df['Symbol'].tolist() if str(sym).strip() != ""]
     
     all_stocks = set(NIFTY_50 + FNO_STOCKS + port_stocks)
-    # Added COMMODITY_MAP.keys() here
     tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + list(COMMODITY_MAP.keys()) + [f"{t}.NS" for t in all_stocks if t]
     
     data = yf.download(tkrs, period="2y", progress=False, group_by='ticker', threads=20)
@@ -367,7 +366,6 @@ def fetch_all_data():
             if (ltp >= high * 0.998 and day_chg > 0.5) or (ltp <= low * 1.002 and day_chg < -0.5): score += 1
             if (ltp > (low * 1.01) and ltp > vwap) or (ltp < (high * 0.99) and ltp < vwap): score += 1
             
-            # Identify Symbol Category
             is_index = symbol in INDICES_MAP
             is_sector = symbol in SECTOR_INDICES_MAP
             is_commodity = symbol in COMMODITY_MAP
@@ -421,41 +419,6 @@ def process_5m_data(df_raw):
         return pd.DataFrame()
     except: return pd.DataFrame()
 
-@st.cache_data(ttl=1800)
-def get_news_tag(fetch_sym):
-    try:
-        tkr = yf.Ticker(fetch_sym)
-        news_data = tkr.news
-        
-        default_link = f"https://finance.yahoo.com/quote/{fetch_sym}"
-        
-        if news_data and len(news_data) > 0:
-            title = news_data[0].get('title', '')
-            link = news_data[0].get('link', default_link)
-            
-            if not link or link == '#': 
-                link = default_link
-                
-            t_low = title.lower()
-            tags = "📰"
-            
-            if any(w in t_low for w in ['result', 'q1', 'q2', 'q3', 'q4', 'earning', 'profit', 'revenue']): tags = "📊"
-            elif any(w in t_low for w in ['rbi', 'repo', 'inflation', 'rate']): tags = "🏦"
-            elif any(w in t_low for w in ['dividend', 'bonus', 'split']): tags = "💰"
-            elif any(w in t_low for w in ['fda', 'usfda', 'us']): tags = "🇺🇸"
-            elif any(w in t_low for w in ['order', 'deal', 'win', 'contract', 'pact']): tags = "📝"
-            elif any(w in t_low for w in ['budget', 'tax', 'govt', 'policy', 'tariff']): tags = "🏛️"
-            elif any(w in t_low for w in ['plunge', 'crash', 'scam', 'fraud', 'sebi', 'probe', 'slump']): tags = "🚨"
-            elif any(w in t_low for w in ['surge', 'jump', 'soar', 'buyback', 'rally', 'high']): tags = "🚀"
-            
-            short_title = (title[:22] + "..") if len(title) > 22 else title
-            return f"<a href='{link}' target='_blank' style='color:#58a6ff; text-decoration:none;' title='{title}'>{tags} {short_title}</a>"
-        
-        return f"<a href='{default_link}' target='_blank' style='color:#8b949e; text-decoration:none;'>🔍 Check News</a>"
-    except:
-        default_link = f"https://finance.yahoo.com/quote/{fetch_sym}"
-        return f"<a href='{default_link}' target='_blank' style='color:#8b949e; text-decoration:none;'>🔍 Check News</a>"
-
 def generate_status(row):
     status = ""
     p = row['P']
@@ -488,26 +451,23 @@ def fetch_fundamentals_data(symbols_list):
 
 def render_html_table(df_subset, title, color_class):
     if df_subset.empty: return ""
-    html = f'<table class="term-table"><thead><tr><th colspan="8" class="{color_class}">{title}</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:16%;">STOCK</th><th style="width:10%;">PRICE</th><th style="width:10%;">DAY%</th><th style="width:10%;">NET%</th><th style="width:8%;">VOL</th><th style="width:20%;">STATUS</th><th style="width:20%;">📰 LATEST NEWS</th><th style="width:6%;">SCORE</th></tr></thead><tbody>'
+    html = f'<table class="term-table"><thead><tr><th colspan="7" class="{color_class}">{title}</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:20%;">STOCK</th><th style="width:12%;">PRICE</th><th style="width:12%;">DAY%</th><th style="width:12%;">NET%</th><th style="width:10%;">VOL</th><th style="width:26%;">STATUS</th><th style="width:8%;">SCORE</th></tr></thead><tbody>'
     for i, (_, row) in enumerate(df_subset.iterrows()):
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
         day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
         net_color = "text-green" if row['C'] >= 0 else "text-red"
         status = generate_status(row)
-        news_html = get_news_tag(row['Fetch_T'])
-        html += f'<tr class="{bg_class}"><td class="t-symbol {net_color}"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td><td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td class="{net_color}">{row["C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td><td style="font-size:10px; text-align:left;">{news_html}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
+        html += f'<tr class="{bg_class}"><td class="t-symbol {net_color}"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td><td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td class="{net_color}">{row["C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
     html += "</tbody></table>"
     return html
 
-def render_portfolio_table(df_port, df_stocks, weekly_trends):
+def render_portfolio_table(df_port, df_stocks, weekly_trends, port_sort="Default"):
     if df_port.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>Portfolio is empty. Add a stock using the option below!</div>"
     
-    html = f'<table class="term-table"><thead><tr><th colspan="11" class="term-head-port">💼 LIVE PORTFOLIO TERMINAL</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:10%;">STOCK</th><th style="width:8%;">DATE</th><th style="width:5%;">QTY</th><th style="width:7%;">AVG</th><th style="width:7%;">LTP</th><th style="width:10%;">WK TREND</th><th style="width:9%;">STATUS</th><th style="width:16%;">📰 LATEST NEWS</th><th style="width:9%;">DAY P&L</th><th style="width:9%;">TOT P&L</th><th style="width:10%;">P&L %</th></tr></thead><tbody>'
-    
+    rows_data = []
     total_invested, total_current, total_day_pnl = 0, 0, 0
     
     for i, (_, row) in enumerate(df_port.iterrows()):
-        bg_class = "row-dark" if i % 2 == 0 else "row-light"
         sym = str(row['Symbol']).upper().strip()
         try: qty = float(row['Quantity'])
         except: qty = 0
@@ -518,15 +478,12 @@ def render_portfolio_table(df_port, df_stocks, weekly_trends):
         if date_val in ['nan', 'NaN', '']: date_val = '-'
         
         live_row = df_stocks[df_stocks['T'] == sym]
-        status_html, trend_html = "", "➖"
-        news_html = "-"
+        trend_html = "➖"
         
         if not live_row.empty:
             ltp = float(live_row['P'].iloc[0])
             prev_c = float(live_row['Prev_C'].iloc[0])
-            status_html = generate_status(live_row.iloc[0])
             fetch_t = live_row['Fetch_T'].iloc[0]
-            news_html = get_news_tag(fetch_t)
             
             trend_state = weekly_trends.get(fetch_t, "Neutral")
             if trend_state == 'Bullish': trend_html = "🟢 Bullish"
@@ -534,7 +491,6 @@ def render_portfolio_table(df_port, df_stocks, weekly_trends):
             else: trend_html = "⚪ Neutral"
         else:
             ltp, prev_c = buy_p, buy_p
-            status_html = "Search Error"
             
         invested = buy_p * qty
         current = ltp * qty
@@ -546,12 +502,31 @@ def render_portfolio_table(df_port, df_stocks, weekly_trends):
         total_current += current
         total_day_pnl += day_pnl
         
-        tpnl_color = "text-green" if overall_pnl >= 0 else "text-red"
-        dpnl_color = "text-green" if day_pnl >= 0 else "text-red"
-        t_sign = "+" if overall_pnl > 0 else ""
-        d_sign = "+" if day_pnl > 0 else ""
+        rows_data.append({
+            'sym': sym, 'date': date_val, 'qty': qty, 'buy_p': buy_p,
+            'ltp': ltp, 'trend_html': trend_html, 'invested': invested,
+            'overall_pnl': overall_pnl, 'pnl_pct': pnl_pct, 'day_pnl': day_pnl
+        })
         
-        html += f'<tr class="{bg_class}"><td class="t-symbol {tpnl_color}"><a href="https://in.tradingview.com/chart/?symbol=NSE:{sym}" target="_blank">{sym}</a></td><td>{date_val}</td><td>{int(qty)}</td><td>{buy_p:.2f}</td><td>{ltp:.2f}</td><td style="font-size:10px;">{trend_html}</td><td style="font-size:10px;">{status_html}</td><td style="font-size:10px; text-align:left;">{news_html}</td><td class="{dpnl_color}">{d_sign}{day_pnl:,.0f}</td><td class="{tpnl_color}">{t_sign}{overall_pnl:,.0f}</td><td class="{tpnl_color}">{t_sign}{pnl_pct:.2f}%</td></tr>'
+    # Apply user-selected sorting
+    if port_sort == "Day P&L ⬆️": rows_data.sort(key=lambda x: x['day_pnl'], reverse=True)
+    elif port_sort == "Day P&L ⬇️": rows_data.sort(key=lambda x: x['day_pnl'], reverse=False)
+    elif port_sort == "Total P&L ⬆️": rows_data.sort(key=lambda x: x['overall_pnl'], reverse=True)
+    elif port_sort == "Total P&L ⬇️": rows_data.sort(key=lambda x: x['overall_pnl'], reverse=False)
+    elif port_sort == "P&L % ⬆️": rows_data.sort(key=lambda x: x['pnl_pct'], reverse=True)
+    elif port_sort == "P&L % ⬇️": rows_data.sort(key=lambda x: x['pnl_pct'], reverse=False)
+
+    html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-port">💼 LIVE PORTFOLIO TERMINAL</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:12%;">STOCK</th><th style="width:10%;">DATE</th><th style="width:6%;">QTY</th><th style="width:9%;">AVG</th><th style="width:9%;">LTP</th><th style="width:11%;">WK TREND</th><th style="width:13%;">INVESTED (₹)</th><th style="width:10%;">DAY P&L</th><th style="width:10%;">TOT P&L</th><th style="width:10%;">P&L %</th></tr></thead><tbody>'
+    
+    for i, rd in enumerate(rows_data):
+        bg_class = "row-dark" if i % 2 == 0 else "row-light"
+        
+        tpnl_color = "text-green" if rd['overall_pnl'] >= 0 else "text-red"
+        dpnl_color = "text-green" if rd['day_pnl'] >= 0 else "text-red"
+        t_sign = "+" if rd['overall_pnl'] > 0 else ""
+        d_sign = "+" if rd['day_pnl'] > 0 else ""
+        
+        html += f'<tr class="{bg_class}"><td class="t-symbol {tpnl_color}"><a href="https://in.tradingview.com/chart/?symbol=NSE:{rd["sym"]}" target="_blank">{rd["sym"]}</a></td><td>{rd["date"]}</td><td>{int(rd["qty"])}</td><td>{rd["buy_p"]:.2f}</td><td>{rd["ltp"]:.2f}</td><td style="font-size:10px;">{rd["trend_html"]}</td><td>{rd["invested"]:,.0f}</td><td class="{dpnl_color}">{d_sign}{rd["day_pnl"]:,.0f}</td><td class="{tpnl_color}">{t_sign}{rd["overall_pnl"]:,.0f}</td><td class="{tpnl_color}">{t_sign}{rd["pnl_pct"]:.2f}%</td></tr>'
     
     overall_total_pnl = total_current - total_invested
     overall_total_pct = (overall_total_pnl / total_invested * 100) if total_invested > 0 else 0
@@ -560,13 +535,13 @@ def render_portfolio_table(df_port, df_stocks, weekly_trends):
     d_color = "text-green" if total_day_pnl >= 0 else "text-red"
     d_sign = "+" if total_day_pnl > 0 else ""
     
-    html += f'<tr class="port-total"><td colspan="8" style="text-align:right; padding-right:15px; font-size:12px;">INVESTED: ₹{total_invested:,.0f} &nbsp;|&nbsp; CURRENT: ₹{total_current:,.0f} &nbsp;|&nbsp; OVERALL P&L:</td><td class="{d_color}">{d_sign}₹{total_day_pnl:,.0f}</td><td class="{o_color}">{o_sign}₹{overall_total_pnl:,.0f}</td><td class="{o_color}">{o_sign}{overall_total_pct:.2f}%</td></tr>'
+    html += f'<tr class="port-total"><td colspan="7" style="text-align:right; padding-right:15px; font-size:12px;">TOTAL INVESTED: ₹{total_invested:,.0f} &nbsp;|&nbsp; CURRENT: ₹{total_current:,.0f} &nbsp;|&nbsp; OVERALL P&L:</td><td class="{d_color}">{d_sign}₹{total_day_pnl:,.0f}</td><td class="{o_color}">{o_sign}₹{overall_total_pnl:,.0f}</td><td class="{o_color}">{o_sign}{overall_total_pct:.2f}%</td></tr>'
     html += "</tbody></table>"
     return html
 
 def render_portfolio_swing_advice_table(df_port, df_stocks, weekly_trends):
     if df_port.empty: return ""
-    html = f'<table class="term-table"><thead><tr><th colspan="9" class="term-head-swing">🤖 PORTFOLIO SWING ADVISOR (ACTION & LEVELS)</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:13%;">STOCK</th><th style="width:8%;">AVG PRICE</th><th style="width:8%;">LTP</th><th style="width:8%;">P&L %</th><th style="width:10%;">WK TREND</th><th style="width:15%;">📰 LATEST NEWS</th><th style="width:12%; color:#f85149;">🛑 TRAILING SL</th><th style="width:12%; color:#3fb950;">🎯 NEXT TARGET</th><th style="width:14%;">💡 ACTION ADVICE</th></tr></thead><tbody>'
+    html = f'<table class="term-table"><thead><tr><th colspan="8" class="term-head-swing">🤖 PORTFOLIO SWING ADVISOR (ACTION & LEVELS)</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:15%;">STOCK</th><th style="width:10%;">AVG PRICE</th><th style="width:10%;">LTP</th><th style="width:10%;">P&L %</th><th style="width:12%;">WK TREND</th><th style="width:13%; color:#f85149;">🛑 TRAILING SL</th><th style="width:13%; color:#3fb950;">🎯 NEXT TARGET</th><th style="width:17%;">💡 ACTION ADVICE</th></tr></thead><tbody>'
 
     for i, (_, row) in enumerate(df_port.iterrows()):
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
@@ -586,7 +561,6 @@ def render_portfolio_swing_advice_table(df_port, df_stocks, weekly_trends):
         trend_state = weekly_trends.get(live_data['Fetch_T'], "Neutral")
         is_swing = live_data['Is_Swing']
         atr_val = live_data.get("ATR", ltp * 0.02)
-        news_html = get_news_tag(live_data['Fetch_T'])
 
         advice = ""
         adv_color = ""
@@ -618,7 +592,7 @@ def render_portfolio_swing_advice_table(df_port, df_stocks, weekly_trends):
 
         row_str = f'<tr class="{bg_class}"><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{sym}" target="_blank">{sym}</a></td>'
         row_str += f'<td>{buy_p:.2f}</td><td>{ltp:.2f}</td><td class="{pnl_color}">{t_sign}{pnl_pct:.2f}%</td><td style="font-size:10px;">{trend_html}</td>'
-        row_str += f'<td style="font-size:10px; text-align:left;">{news_html}</td><td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td><td style="{adv_color}">{advice}</td></tr>'
+        row_str += f'<td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td><td style="{adv_color}">{advice}</td></tr>'
         html += row_str
 
     html += "</tbody></table>"
@@ -628,12 +602,11 @@ def render_swing_terminal_table(df_subset):
     if df_subset.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No Swing Trading Setups found right now.</div>"
     
     df_sorted = df_subset.reset_index(drop=True)
-    html = f'<table class="term-table"><thead><tr><th colspan="11" class="term-head-swing">🌊 SWING TRADING RADAR (RANKED ALGORITHM)</th></tr><tr style="background-color: #21262d;"><th style="width:4%;">RANK</th><th style="text-align:left; width:11%;">STOCK</th><th style="width:7%;">LTP</th><th style="width:7%;">DAY%</th><th style="width:7%;">VOL</th><th style="width:13%;">STATUS</th><th style="width:17%;">📰 LATEST NEWS</th><th style="width:9%; color:#f85149;">🛑 STOP LOSS</th><th style="width:9%; color:#3fb950;">🎯 TARGET 1</th><th style="width:9%; color:#3fb950;">🎯 TARGET 2</th><th style="width:7%;">SCORE</th></tr></thead><tbody>'
+    html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-swing">🌊 SWING TRADING RADAR (RANKED ALGORITHM)</th></tr><tr style="background-color: #21262d;"><th style="width:4%;">RANK</th><th style="text-align:left; width:13%;">STOCK</th><th style="width:9%;">LTP</th><th style="width:9%;">DAY%</th><th style="width:8%;">VOL</th><th style="width:17%;">STATUS</th><th style="width:11%; color:#f85149;">🛑 STOP LOSS</th><th style="width:11%; color:#3fb950;">🎯 TARGET 1</th><th style="width:11%; color:#3fb950;">🎯 TARGET 2</th><th style="width:7%;">SCORE</th></tr></thead><tbody>'
     for i, row in df_sorted.iterrows():
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
         day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
         status = generate_status(row)
-        news_html = get_news_tag(row['Fetch_T'])
         
         w_ema10 = float(row['W_EMA10'])
         w_ema50 = float(row['W_EMA50'])
@@ -655,7 +628,7 @@ def render_swing_terminal_table(df_subset):
         rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
         row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td>'
         row_str += f'<td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px; cursor:help;" title="{status}">{status}</td>'
-        row_str += f'<td style="font-size:10px; text-align:left;">{news_html}</td><td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td>'
+        row_str += f'<td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td>'
         row_str += f'<td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
         html += row_str 
         
@@ -666,14 +639,13 @@ def render_highscore_terminal_table(df_subset):
     if df_subset.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No High Score Stocks found right now.</div>"
     
     df_sorted = df_subset.reset_index(drop=True)
-    html = f'<table class="term-table"><thead><tr><th colspan="11" class="term-head-high">🔥 HIGH SCORE RADAR (RANKED INTRADAY MOVERS)</th></tr><tr style="background-color: #21262d;"><th style="width:4%;">RANK</th><th style="text-align:left; width:11%;">STOCK</th><th style="width:7%;">LTP</th><th style="width:7%;">DAY%</th><th style="width:7%;">VOL</th><th style="width:13%;">STATUS</th><th style="width:17%;">📰 LATEST NEWS</th><th style="width:9%; color:#f85149;">🛑 STOP LOSS</th><th style="width:9%; color:#3fb950;">🎯 TARGET 1</th><th style="width:9%; color:#3fb950;">🎯 TARGET 2</th><th style="width:7%;">SCORE</th></tr></thead><tbody>'
+    html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-high">🔥 HIGH SCORE RADAR (RANKED INTRADAY MOVERS)</th></tr><tr style="background-color: #21262d;"><th style="width:4%;">RANK</th><th style="text-align:left; width:13%;">STOCK</th><th style="width:9%;">LTP</th><th style="width:9%;">DAY%</th><th style="width:8%;">VOL</th><th style="width:17%;">STATUS</th><th style="width:11%; color:#f85149;">🛑 STOP LOSS</th><th style="width:11%; color:#3fb950;">🎯 TARGET 1</th><th style="width:11%; color:#3fb950;">🎯 TARGET 2</th><th style="width:7%;">SCORE</th></tr></thead><tbody>'
     for i, row in df_sorted.iterrows():
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
         day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
         
         custom_status = str(row.get('Strategy_Icon', ''))
         if custom_status == "": custom_status = generate_status(row)
-        news_html = get_news_tag(row['Fetch_T'])
         
         is_down = row['C'] < 0
         atr_val = row.get("ATR", row["P"] * 0.02)
@@ -684,7 +656,7 @@ def render_highscore_terminal_table(df_subset):
         rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
         row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td>'
         row_str += f'<td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px; cursor:help;" title="{custom_status}">{custom_status}</td>'
-        row_str += f'<td style="font-size:10px; text-align:left;">{news_html}</td><td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td>'
+        row_str += f'<td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td>'
         row_str += f'<td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
         html += row_str
     html += "</tbody></table>"
@@ -694,14 +666,13 @@ def render_levels_table(df_subset):
     if df_subset.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No Stocks found right now.</div>"
     
     df_sorted = df_subset.reset_index(drop=True)
-    html = f'<table class="term-table"><thead><tr><th colspan="11" class="term-head-levels">🎯 INTRADAY TRADING LEVELS (SUPPORT & RESISTANCE)</th></tr><tr style="background-color: #21262d;"><th style="width:4%;">RANK</th><th style="text-align:left; width:11%;">STOCK</th><th style="width:7%;">LTP</th><th style="width:7%;">DAY%</th><th style="width:7%;">VOL</th><th style="width:13%;">STATUS</th><th style="width:17%;">📰 LATEST NEWS</th><th style="width:9%; color:#f85149;">🛑 STOP LOSS</th><th style="width:9%; color:#3fb950;">🎯 TARGET 1</th><th style="width:9%; color:#3fb950;">🎯 TARGET 2</th><th style="width:7%;">SCORE</th></tr></thead><tbody>'
+    html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-levels">🎯 INTRADAY TRADING LEVELS (SUPPORT & RESISTANCE)</th></tr><tr style="background-color: #21262d;"><th style="width:4%;">RANK</th><th style="text-align:left; width:13%;">STOCK</th><th style="width:9%;">LTP</th><th style="width:9%;">DAY%</th><th style="width:8%;">VOL</th><th style="width:17%;">STATUS</th><th style="width:11%; color:#f85149;">🛑 STOP LOSS</th><th style="width:11%; color:#3fb950;">🎯 TARGET 1</th><th style="width:11%; color:#3fb950;">🎯 TARGET 2</th><th style="width:7%;">SCORE</th></tr></thead><tbody>'
     for i, row in df_sorted.iterrows():
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
         day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
         
         custom_status = str(row.get('Strategy_Icon', ''))
         if custom_status == "": custom_status = generate_status(row)
-        news_html = get_news_tag(row['Fetch_T'])
         is_down = row['C'] < 0
         
         atr_val = row.get("ATR", row["P"] * 0.02)
@@ -712,7 +683,7 @@ def render_levels_table(df_subset):
         rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
         row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td>'
         row_str += f'<td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px; cursor:help;" title="{custom_status}">{custom_status}</td>'
-        row_str += f'<td style="font-size:10px; text-align:left;">{news_html}</td><td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td>'
+        row_str += f'<td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td>'
         row_str += f'<td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
         html += row_str
     html += "</tbody></table>"
@@ -1342,7 +1313,12 @@ if not df.empty:
         st.markdown(render_html_table(df_broader, "🌌 BROADER MARKET", "term-head-brd"), unsafe_allow_html=True)
         
     elif watchlist_mode == "My Portfolio 💼" and view_mode == "Heat Map":
-        st.markdown(render_portfolio_table(df_port_saved, df_stocks, weekly_trends), unsafe_allow_html=True)
+        # ఫిల్టర్ డ్రాప్‌డౌన్ 
+        sc1, sc2 = st.columns([0.7, 0.3])
+        with sc2:
+            port_sort = st.selectbox("↕️ Sort Portfolio:", ["Default", "Day P&L ⬆️", "Day P&L ⬇️", "Total P&L ⬆️", "Total P&L ⬇️", "P&L % ⬆️", "P&L % ⬇️"], label_visibility="collapsed")
+        
+        st.markdown(render_portfolio_table(df_port_saved, df_stocks, weekly_trends, port_sort), unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
         
         with st.expander("🤖 View Portfolio Swing Advisor (Action & Levels)", expanded=False):
@@ -1386,11 +1362,10 @@ if not df.empty:
                                 df_port_saved = pd.concat([df_port_saved, new_row], ignore_index=True)
                                 st.success(f"✅ {new_sym} పోర్ట్‌ఫోలియోలో యాడ్ చేయబడింది!")
                             
-                            # కచ్చితంగా సేవ్ చేసి, పేజీని రీఫ్రెష్ చేసే కోడ్
                             import time
                             save_portfolio(df_port_saved)
                             fetch_all_data.clear()
-                            time.sleep(1.5) # మెసేజ్ చదవడానికి 1.5 సెకన్ల గ్యాప్ ఇస్తుంది
+                            time.sleep(1.5) 
                             st.rerun()
                 else: st.warning("Type a symbol first!")
         
