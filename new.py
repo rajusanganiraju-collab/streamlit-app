@@ -72,7 +72,7 @@ def save_closed_trades(df):
     trade_ws.update([df.columns.values.tolist()] + df.values.tolist())
 
 # --- 4. AUTO RUN & STATE MANAGEMENT ---
-st_autorefresh(interval=150000, key="datarefresh")
+st_autorefresh(interval=60000, key="datarefresh")
 
 if 'pinned_stocks' not in st.session_state:
     st.session_state.pinned_stocks = []
