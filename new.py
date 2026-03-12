@@ -157,6 +157,8 @@ st.markdown("""
     .term-head-swing { background-color: #005a9e; color: white; text-align: left !important; padding-left: 10px !important; font-size:14px; }
     .term-head-high { background-color: #b71c1c; color: white; text-align: left !important; padding-left: 10px !important; font-size:14px; }
     .term-head-levels { background-color: #004d40; color: white; text-align: left !important; padding-left: 10px !important; font-size:14px; }
+    .term-head-fund { background-color: #d29922; color: #161b22; text-align: left !important; padding-left: 10px !important; font-size:14px; }
+    
     .row-dark { background-color: #161b22; } .row-light { background-color: #0e1117; }
     .text-green { color: #3fb950; font-weight: bold; } .text-red { color: #f85149; font-weight: bold; }
     .t-symbol { text-align: left !important; font-weight: bold; }
@@ -950,6 +952,8 @@ if not df.empty:
         search_stock = st.selectbox("🔍 Search & View Chart", ["-- None --"] + all_names)
     
     move_type_filter = "All Moves"
+    fund_filter = "Top Ranked Stocks ⭐"
+    
     with c_type:
         if watchlist_mode == "Day Trading Stocks 🚀":
             move_type_filter = st.selectbox("🎯 Strategy Filter", [
@@ -964,6 +968,10 @@ if not df.empty:
             ], index=0)
         elif watchlist_mode == "Swing Trading 📈":
             move_type_filter = st.selectbox("📈 Strategy Filter", ["All Swing Stocks", "🚀 Pro Breakout Strategy", "🌟 Weekly 10EMA Pro"], index=0)
+        elif watchlist_mode == "Fundamentals 🏢":
+            fund_filter = st.selectbox("📊 Filter by Technicals", [
+                "Top Ranked Stocks ⭐", "Swing Trading Candidates 📈", "Nifty 50 Stocks", "My Portfolio 💼"
+            ], index=0)
             
     df_indices = df[df['Is_Index']].copy()
     df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3, "DOW": 4, "NSDQ": 5})
@@ -1005,7 +1013,15 @@ if not df.empty:
     elif watchlist_mode == "Commodity 🛢️":
         df_filtered = df_commodities.copy()
     elif watchlist_mode == "Fundamentals 🏢":
-        df_filtered = df_stocks.copy()
+        if fund_filter == "Swing Trading Candidates 📈":
+            df_filtered = df_stocks[(df_stocks['Is_Swing'] == True) | (df_stocks['Is_W_Pullback'] == True)]
+        elif fund_filter == "Nifty 50 Stocks":
+            df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
+        elif fund_filter == "My Portfolio 💼":
+            port_tickers = [f"{str(sym).upper().strip()}.NS" for sym in df_port_saved['Symbol'].tolist() if str(sym).strip() != ""]
+            df_filtered = df_stocks[df_stocks['Fetch_T'].isin(port_tickers)]
+        else: # "Top Ranked Stocks ⭐"
+            df_filtered = df_stocks[df_stocks['S'] >= 6]
     elif watchlist_mode == "Nifty 50 Heatmap":
         df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
     elif watchlist_mode == "Day Trading Stocks 🚀":
@@ -1279,16 +1295,24 @@ if not df.empty:
             
     # NEW FUNDAMENTALS TAB LOGIC
     if watchlist_mode == "Fundamentals 🏢":
-        st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#d29922;'>🏢 Core Fundamentals & Market Data</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#d29922;'>🏢 Core Fundamentals ({fund_filter})</div>", unsafe_allow_html=True)
         fund_tickers = df_stocks_display['Fetch_T'].tolist()[:30] if not df_stocks_display.empty else NIFTY_50[:30]
         
         with st.spinner("Fetching Institutional Data from Exchange..."):
             df_fund = fetch_fundamentals_data(fund_tickers)
             if not df_fund.empty:
-                html_fund = f'<table class="term-table"><thead><tr><th colspan="7" class="term-head-fund">📊 FUNDAMENTAL METRICS & 52W LEVELS</th></tr><tr><th style="text-align:left;">STOCK</th><th>SECTOR</th><th>MKT CAP (₹ Cr)</th><th>P/E RATIO</th><th>DIV YIELD</th><th>52W HIGH</th><th>52W LOW</th></tr></thead><tbody>'
+                html_fund = f'<table class="term-table"><thead><tr><th colspan="9" class="term-head-fund" style="background-color: #d29922; color: #161b22;">📊 FUNDAMENTAL & TECHNICAL METRICS</th></tr><tr><th style="text-align:left;">STOCK</th><th>SECTOR</th><th>LTP (₹)</th><th>TECH SCORE</th><th>MKT CAP (Cr)</th><th>P/E RATIO</th><th>DIV YIELD</th><th>52W HIGH</th><th>52W LOW</th></tr></thead><tbody>'
                 for _, row in df_fund.iterrows():
                     stock_name = row["Fetch_T"].replace(".NS", "")
-                    html_fund += f'<tr><td class="t-symbol">{stock_name}</td><td>{row["Sector"]}</td><td>{row["Market_Cap (Cr)"]:,.2f}</td><td>{row["P/E Ratio"]}</td><td>{row["Div Yield %"]}%</td><td class="text-green">₹{row["52W High"]}</td><td class="text-red">₹{row["52W Low"]}</td></tr>'
+                    
+                    tech_row = df_stocks_display[df_stocks_display['Fetch_T'] == row["Fetch_T"]]
+                    if not tech_row.empty:
+                        ltp_val = float(tech_row['P'].iloc[0])
+                        score_val = int(tech_row['S'].iloc[0])
+                    else:
+                        ltp_val, score_val = 0.0, 0
+                        
+                    html_fund += f'<tr><td class="t-symbol">{stock_name}</td><td>{row["Sector"]}</td><td>{ltp_val:.2f}</td><td style="color:#ffd700;">⭐ {score_val}</td><td>{row["Market_Cap (Cr)"]:,.2f}</td><td>{row["P/E Ratio"]}</td><td>{row["Div Yield %"]}%</td><td class="text-green">₹{row["52W High"]}</td><td class="text-red">₹{row["52W Low"]}</td></tr>'
                 html_fund += '</tbody></table>'
                 st.markdown(html_fund, unsafe_allow_html=True)
             else:
@@ -1313,7 +1337,6 @@ if not df.empty:
         st.markdown(render_html_table(df_broader, "🌌 BROADER MARKET", "term-head-brd"), unsafe_allow_html=True)
         
     elif watchlist_mode == "My Portfolio 💼" and view_mode == "Heat Map":
-        # ఫిల్టర్ డ్రాప్‌డౌన్ 
         sc1, sc2 = st.columns([0.7, 0.3])
         with sc2:
             port_sort = st.selectbox("↕️ Sort Portfolio:", ["Default", "Day P&L ⬆️", "Day P&L ⬇️", "Total P&L ⬆️", "Total P&L ⬇️", "P&L % ⬆️", "P&L % ⬇️"], label_visibility="collapsed")
