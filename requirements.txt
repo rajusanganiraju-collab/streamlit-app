@@ -5,3 +5,12 @@ streamlit-autorefresh
 plotly
 gspread
 google-auth
+scikit-learn
+streamlit
+yfinance
+pandas
+numpy
+plotly
+gspread
+google-auth
+streamlit-autorefresh
