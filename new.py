@@ -992,7 +992,8 @@ if not df.empty:
                 "🎯 Reversals Only", 
                 "🏹 Rubber Band Stretch",
                 "🏄‍♂️ Momentum Ignition",
-                "💥 Narrow CPR Breakout"
+                "💥 Narrow CPR Breakout",
+                "🧲 10-EMA Retest (Best Entry)"  # <--- ఈ లైన్ యాడ్ చేసాం
             ], index=0)
         elif watchlist_mode == "Swing Trading 📈":
             move_type_filter = st.selectbox("📈 Strategy Filter", ["All Swing Stocks", "🚀 Pro Breakout Strategy", "🌟 Weekly 10EMA Pro"], index=0)
