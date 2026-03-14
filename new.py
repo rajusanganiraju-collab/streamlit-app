@@ -1022,14 +1022,14 @@ if not df.empty:
             df_filtered = df_stocks[df_stocks['Fetch_T'].isin(port_tickers)]
         else:
             df_filtered = df_stocks[df_stocks['S'] >= 6]
-    elif watchlist_mode == "Nifty 50 Heatmap":
-        df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
-    elif watchlist_mode == "🤖 Today's AI Predictions":
-        df_filtered = df_stocks.copy()
-        ai_predictions = []
-        ai_probs = []
+        elif watchlist_mode == "Nifty 50 Heatmap":
+            df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
+        elif watchlist_mode == "🤖 Today's AI Predictions":
+            df_filtered = df_stocks.copy()
+            ai_predictions = []
+            ai_probs = []
         
-        for _, row in df_filtered.iterrows():
+            for _, row in df_filtered.iterrows():
             up_prob = 0
             dn_prob = 0
             
