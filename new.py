@@ -655,39 +655,15 @@ def render_swing_terminal_table(df_subset):
     html += "</tbody></table>"
     return html
 
-def render_highscore_terminal_table(df_subset):
-    if df_subset.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No High Score Stocks found right now.</div>"
-    
-    is_ai = 'AI_Prob' in df_subset.columns
-    col_title = "🤖 AI PROB" if is_ai else "SCORE"
-    
-    df_sorted = df_subset.reset_index(drop=True)
-    html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-high">🔥 HIGH SCORE RADAR (RANKED INTRADAY MOVERS)</th></tr><tr style="background-color: #21262d;"><th style="width:4%;">RANK</th><th style="text-align:left; width:13%;">STOCK</th><th style="width:9%;">LTP</th><th style="width:9%;">DAY%</th><th style="width:8%;">VOL</th><th style="width:17%;">STATUS</th><th style="width:11%; color:#f85149;">🛑 STOP LOSS</th><th style="width:11%; color:#3fb950;">🎯 TARGET 1</th><th style="width:11%; color:#3fb950;">🎯 TARGET 2</th><th style="width:7%;">{col_title}</th></tr></thead><tbody>'
-    for i, row in df_sorted.iterrows():
-        bg_class = "row-dark" if i % 2 == 0 else "row-light"
-        day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
-        
-        strat_icon = str(row.get('Strategy_Icon', ''))
-        base_status = generate_status(row)
-        custom_status = f"{strat_icon} | {base_status}".strip() if strat_icon else base_status
-        
-        is_down = row['C'] < 0
-        atr_val = row.get("ATR", row["P"] * 0.02)
-        sl_val = row.get('SL', row["P"] + (1.5 * atr_val) if is_down else row["P"] - (1.5 * atr_val))
-        t1_val = row.get('T1', row["P"] - (1.5 * atr_val) if is_down else row["P"] + (1.5 * atr_val))
-        t2_val = row.get('T2', row["P"] - (3.0 * atr_val) if is_down else row["P"] + (3.0 * atr_val))
-            
-        rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
-        row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td>'
-        row_str += f'<td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px; cursor:help;" title="{custom_status}">{custom_status}</td>'
-        row_str += f'<td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td>'
-        
-        score_display = f"{int(row['AI_Prob'])}%" if is_ai else int(row["S"])
-        
-        row_str += f'<td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#ffd700; font-weight:bold; font-size:13px;">{score_display}</td></tr>'
-        html += row_str
-    html += "</tbody></table>"
-    return html
+special_icon = f"⭐{int(row['S'])}"
+                    if watchlist_mode == "🤖 Today's AI Predictions":
+                        # AI Prob ఫిల్టర్ పెడితే రోబో పర్సంటేజ్, లేదంటే పాత స్టార్ స్కోర్
+                        if sort_mode == "🤖 AI Prob Up ⬆️":
+                            special_icon = f"🤖{int(row.get('AI_Prob', 0))}%"
+                        else:
+                            special_icon = f"⭐{int(row['S'])}"
+                    elif watchlist_mode == "Swing Trading 📈": 
+                        special_icon = "🌟" if row.get('Is_W_Pullback', False) else "🚀"
 
 def render_levels_table(df_subset):
     if df_subset.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No Stocks found right now.</div>"
@@ -915,7 +891,7 @@ c1, c2, c3 = st.columns([0.4, 0.3, 0.3])
 with c1: 
     watchlist_mode = st.selectbox("Watchlist", ["🤖 Today's AI Predictions", "High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Day Trading Stocks 🚀", "Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢"], index=0, label_visibility="collapsed")
 with c2: 
-    sort_mode = st.selectbox("Sort By", ["Custom Sort", "Heatmap Marks Up ⭐", "Heatmap Marks Down ⬇️", "🤖 AI Prob Up ⬆️", "% Change Up 🟢", "% Change Down 🔴"], label_visibility="collapsed")
+    sort_mode = st.selectbox("Sort By", ["Custom Sort", "Score Wise Up ⭐", "Score Wise Down ⬇️", "🤖 AI Prob Up ⬆️", "% Change Up 🟢", "% Change Down 🔴"], label_visibility="collapsed")
 with c3: 
     view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
 
@@ -1350,25 +1326,22 @@ if not df.empty:
         df_stocks_display = df_filtered.sort_values(by=sort_key, ascending=True)
         
     elif sort_mode == "🤖 AI Prob Up ⬆️":
-        # కొత్త ఫిల్టర్: AI పర్సంటేజ్ తో టాప్ నుండి బాటమ్ కి సార్ట్ చేస్తుంది
         if "AI_Prob" in df_filtered.columns:
             df_stocks_display = df_filtered.sort_values(by=['AI_Prob', 'VolX', sort_key], ascending=[False, False, False])
         else:
             df_stocks_display = df_filtered.sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, False])
             
-    elif sort_mode == "Heatmap Marks Up ⭐": 
-        # పాత ఫిల్టర్: పాత S (Score) తోనే సార్ట్ చేస్తుంది
+    elif sort_mode == "Score Wise Up ⭐": 
         df_stocks_display = pd.concat([
             df_filtered[df_filtered[sort_key] >= 0].sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, False]), 
             df_filtered[df_filtered[sort_key] < 0].sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, True])
         ])
-    elif sort_mode == "Heatmap Marks Down ⬇️": 
+    elif sort_mode == "Score Wise Down ⬇️": 
         df_stocks_display = pd.concat([
             df_filtered[df_filtered[sort_key] < 0].sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, True]), 
             df_filtered[df_filtered[sort_key] >= 0].sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, False])
         ])
     else:
-        # Custom Sort (Default)
         if watchlist_mode == "🤖 Today's AI Predictions":
             df_stocks_display = df_filtered.sort_values(by=['AI_Prob', 'VolX'], ascending=[False, False])
         else:
@@ -1562,7 +1535,11 @@ if not df.empty:
                     
                     special_icon = f"⭐{int(row['S'])}"
                     if watchlist_mode == "🤖 Today's AI Predictions":
-                        special_icon = f"🤖{int(row.get('AI_Prob', 0))}%"
+                        # AI Prob ఫిల్టర్ పెడితే రోబో పర్సంటేజ్, లేదంటే పాత స్టార్ స్కోర్
+                        if sort_mode == "🤖 AI Prob Up ⬆️":
+                            special_icon = f"🤖{int(row.get('AI_Prob', 0))}%"
+                        else:
+                            special_icon = f"⭐{int(row['S'])}"
                     elif watchlist_mode == "Swing Trading 📈": 
                         special_icon = "🌟" if row.get('Is_W_Pullback', False) else "🚀"
                     elif watchlist_mode == "Day Trading Stocks 🚀":
