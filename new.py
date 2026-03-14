@@ -1283,8 +1283,8 @@ if not df.empty:
                 "🏹 Rubber Band Stretch",
                 "🏄‍♂️ Momentum Ignition",
                 "💥 Narrow CPR Breakout",
-                "🧲 10-EMA Retest (Best Entry)"
-            ], index=0)
+                "🧲 10-EMA Retest (Best Entry)"  # <--- ఇది యాడ్ చేయాలి
+            ]
             
             strats_to_run = strategies_list if move_type_filter == "All Moves" else [move_type_filter]
             all_dfs = []
@@ -1324,10 +1324,12 @@ if not df.empty:
                     c_sell = base_sell & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['P'] < df_filtered['O']) & (df_filtered['Day_C'] <= -2.0) & ((df_filtered['P'] - df_filtered['L']) <= (df_filtered['H'] - df_filtered['L']) * 0.15)
                     icon_str = "🏄‍♂️"
 
-                elif strat == "💥 Narrow CPR Breakout":
-                    c_buy = base_buy & (df_filtered['Narrow_CPR'] == True) & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['Day_C'] >= 1.0)
-                    c_sell = base_sell & (df_filtered['Narrow_CPR'] == True) & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['Day_C'] <= -1.0)
-                    icon_str = "💥"
+                elif strat == "🧲 10-EMA Retest (Best Entry)":
+                    # పక్కాగా బేస్ కండిషన్స్ (Long Term EMAs & VWAP) మ్యాచ్ అయ్యి, 
+                    # కేవలం 5-నిమిషాల చార్ట్ లో రీటెస్ట్ అయినవి మాత్రమే వస్తాయి!
+                    c_buy = base_buy & (df_filtered['Retest_Tag'] == "BUY_RETEST")
+                    c_sell = base_sell & (df_filtered['Retest_Tag'] == "SELL_RETEST")
+                    icon_str = "🧲"
 
                 top_buy = df_filtered[c_buy].sort_values(by=['VolX', 'Day_C'], ascending=[False, False]).head(5).copy()
                 if not top_buy.empty: top_buy['Strategy_Icon'] = f"{icon_str} BUY"
