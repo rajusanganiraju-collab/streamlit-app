@@ -294,6 +294,15 @@ def fetch_all_data():
                 curr_vol = 0.0
                 
             vwap = (high + low + ltp) / 3
+            
+            # --- BULLS VS BEARS POWER CALCULATION ---
+            high_low_range = high - low
+            bull_power = 0
+            bear_power = 0
+            if high_low_range > 0:
+                bull_power = ((ltp - low) / high_low_range) * 100
+                bear_power = ((high - ltp) / high_low_range) * 100
+
             ema50_d = float(df['Close'].ewm(span=50, adjust=False).mean().iloc[-1]) if len(df) >= 50 else 0.0
             
             is_swing = False
@@ -368,6 +377,10 @@ def fetch_all_data():
             if (ltp >= high * 0.998 and day_chg > 0.5) or (ltp <= low * 1.002 and day_chg < -0.5): score += 1
             if (ltp > (low * 1.01) and ltp > vwap) or (ltp < (high * 0.99) and ltp < vwap): score += 1
             
+            # Bulls & Bears స్కోర్
+            if bull_power >= 85 and day_chg > 1.0: score += 3 
+            if bear_power >= 85 and day_chg < -1.0: score += 3
+            
             is_index = symbol in INDICES_MAP
             is_sector = symbol in SECTOR_INDICES_MAP
             is_commodity = symbol in COMMODITY_MAP
@@ -386,6 +399,7 @@ def fetch_all_data():
                 "Day_C": day_chg, "C": net_chg, "W_C": float(weekly_net_chg), "S": score, "VolX": vol_x, "Is_Swing": is_swing,
                 "Is_W_Pullback": is_w_pullback, "VWAP": vwap,
                 "ATR": atr, "Narrow_CPR": is_narrow_cpr,
+                "Bull_P": bull_power, "Bear_P": bear_power,
                 "Is_Index": is_index, "Is_Sector": is_sector, "Sector": stock_sector, "Is_Commodity": is_commodity
             })
         except: continue
@@ -423,12 +437,17 @@ def process_5m_data(df_raw):
 
 def generate_status(row):
     status = ""
-    p = row['P']
+    p = row.get('P', 0)
+    
+    # Bulls/Bears Indicator
+    if row.get('Bull_P', 0) >= 80: status += f"🐂Bulls {int(row['Bull_P'])}% "
+    elif row.get('Bear_P', 0) >= 80: status += f"🐻Bears {int(row['Bear_P'])}% "
+    
     if 'AlphaTag' in row and row['AlphaTag']: status += f"{row['AlphaTag']} "
-    if abs(row['O'] - row['L']) < (p * 0.002): status += "O=L🔥 "
-    if abs(row['O'] - row['H']) < (p * 0.002): status += "O=H🩸 "
-    if row['C'] > 0 and row['Day_C'] > 0 and row['VolX'] > 1.5: status += "Rec⇈ "
-    if row['VolX'] > 1.5: status += "VOL🟢 "
+    if 'O' in row and 'L' in row and abs(row['O'] - row['L']) < (p * 0.002): status += "O=L🔥 "
+    if 'O' in row and 'H' in row and abs(row['O'] - row['H']) < (p * 0.002): status += "O=H🩸 "
+    if row.get('C', 0) > 0 and row.get('Day_C', 0) > 0 and row.get('VolX', 0) > 1.5: status += "Rec⇈ "
+    if row.get('VolX', 0) > 1.5: status += "VOL🟢 "
     return status.strip()
 
 # --- NEW FUNDAMENTALS DATA FETCHER ---
@@ -510,7 +529,6 @@ def render_portfolio_table(df_port, df_stocks, weekly_trends, port_sort="Default
             'overall_pnl': overall_pnl, 'pnl_pct': pnl_pct, 'day_pnl': day_pnl
         })
         
-    # Apply user-selected sorting
     if port_sort == "Day P&L ⬆️": rows_data.sort(key=lambda x: x['day_pnl'], reverse=True)
     elif port_sort == "Day P&L ⬇️": rows_data.sort(key=lambda x: x['day_pnl'], reverse=False)
     elif port_sort == "Total P&L ⬆️": rows_data.sort(key=lambda x: x['overall_pnl'], reverse=True)
@@ -718,8 +736,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
             min_val = df_chart['Low'].min()
             max_val = df_chart['High'].max()
             y_padding = (max_val - min_val) * 0.1 if (max_val - min_val) != 0 else min_val * 0.005 
-            
-            my_hover = 'y' if show_crosshair else 'skip'
             
             if show_vol:
                 fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.02, row_heights=[0.75, 0.25])
@@ -1020,7 +1036,7 @@ if not df.empty:
         elif fund_filter == "My Portfolio 💼":
             port_tickers = [f"{str(sym).upper().strip()}.NS" for sym in df_port_saved['Symbol'].tolist() if str(sym).strip() != ""]
             df_filtered = df_stocks[df_stocks['Fetch_T'].isin(port_tickers)]
-        else: # "Top Ranked Stocks ⭐"
+        else:
             df_filtered = df_stocks[df_stocks['S'] >= 6]
     elif watchlist_mode == "Nifty 50 Heatmap":
         df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
