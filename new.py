@@ -907,7 +907,7 @@ def render_closed_trades_table(df_closed):
 # --- 6. TOP NAVIGATION & SEARCH ---
 c1, c2, c3 = st.columns([0.4, 0.3, 0.3])
 with c1: 
-    watchlist_mode = st.selectbox("Watchlist", ["High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Day Trading Stocks 🚀", "Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢"], index=3, label_visibility="collapsed")
+    watchlist_mode = st.selectbox("Watchlist", ["🤖 Today's AI Predictions", "High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Day Trading Stocks 🚀", "Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢"], index=0, label_visibility="collapsed")
 with c2: 
     sort_mode = st.selectbox("Sort By", ["Custom Sort", "Heatmap Marks Up ⭐", "Heatmap Marks Down ⬇️", "% Change Up 🟢", "% Change Down 🔴"], label_visibility="collapsed")
 with c3: 
@@ -1042,6 +1042,51 @@ if not df.empty:
             df_filtered = df_stocks[df_stocks['S'] >= 6]
     elif watchlist_mode == "Nifty 50 Heatmap":
         df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
+    elif watchlist_mode == "🤖 Today's AI Predictions":
+        df_filtered = df_stocks.copy()
+        ai_predictions = []
+        ai_probs = []
+        
+        for _, row in df_filtered.iterrows():
+            up_prob = 0
+            dn_prob = 0
+            
+            # --- 🚀 AI CALCULATION FOR 'UP' TREND ---
+            if row['P'] > row['VWAP']: up_prob += 25 # VWAP పైన ఉంటే 25% ఛాన్స్
+            if row['VolX'] >= 1.5: up_prob += 20 # వాల్యూమ్ బాగుంటే 20%
+            if row.get('Bull_P', 0) >= 80: up_prob += 30 # బుల్స్ పవర్ 80% పైన ఉంటే 30%
+            if abs(row['O'] - row['L']) < (row['P'] * 0.002): up_prob += 25 # ఓపెన్=లో అయితే 25%
+            
+            # --- 🩸 AI CALCULATION FOR 'DOWN' TREND ---
+            if row['P'] < row['VWAP']: dn_prob += 25
+            if row['VolX'] >= 1.5: dn_prob += 20
+            if row.get('Bear_P', 0) >= 80: dn_prob += 30
+            if abs(row['O'] - row['H']) < (row['P'] * 0.002): dn_prob += 25
+            
+            # ఫైనల్ ప్రిడిక్షన్ డిసైడ్ చేయడం
+            if up_prob >= 70: # 70% కంటే ఎక్కువ కన్ఫర్మేషన్ వస్తేనే..
+                ai_predictions.append("🚀 AI PREDICTS: UP")
+                ai_probs.append(up_prob)
+            elif dn_prob >= 70:
+                ai_predictions.append("🩸 AI PREDICTS: DOWN")
+                ai_probs.append(dn_prob)
+            else:
+                ai_predictions.append("Neutral")
+                ai_probs.append(0)
+                
+        df_filtered['Strategy_Icon'] = ai_predictions
+        df_filtered['AI_Prob'] = ai_probs
+        # కేవలం పక్కాగా కన్ఫర్మ్ అయినవే (Neutral కానివి) ఫిల్టర్ చేయాలి
+        df_filtered = df_filtered[df_filtered['Strategy_Icon'] != "Neutral"]
+        
+        # టార్గెట్స్ & స్టాప్ లాస్ జనరేట్ చేయడం
+        if not df_filtered.empty:
+            df_filtered['T1'] = np.where(df_filtered['Strategy_Icon'].str.contains('UP', na=False), round(df_filtered['P'] * 1.008, 2), round(df_filtered['P'] * 0.992, 2))
+            df_filtered['T2'] = np.where(df_filtered['Strategy_Icon'].str.contains('UP', na=False), round(df_filtered['P'] * 1.015, 2), round(df_filtered['P'] * 0.985, 2))
+            df_filtered['SL'] = np.where(df_filtered['Strategy_Icon'].str.contains('UP', na=False), round(df_filtered['P'] * 0.992, 2), round(df_filtered['P'] * 1.008, 2))
+            
+            # బెస్ట్ పర్సంటేజ్ ఉన్నవి టాప్‌లో వచ్చేలా సార్టింగ్
+            df_filtered = df_filtered.sort_values(by=['AI_Prob', 'VolX'], ascending=[False, False])
     elif watchlist_mode == "Day Trading Stocks 🚀":
         df_filtered = df_stocks[df_stocks['C'].abs() >= 1.0].copy()
     elif watchlist_mode == "Swing Trading 📈":
@@ -1517,7 +1562,9 @@ if not df.empty:
             
             st.markdown('<br>', unsafe_allow_html=True)
             
-            if watchlist_mode == "Swing Trading 📈":
+            if watchlist_mode == "🤖 Today's AI Predictions":
+                with st.expander("🤖 View AI Predictive Radar (Probability Based)", expanded=True): st.markdown(render_highscore_terminal_table(df_stocks_display), unsafe_allow_html=True)
+            elif watchlist_mode == "Swing Trading 📈":
                 with st.expander("🌊 View Swing Trading Radar (Ranked Table)", expanded=True): st.markdown(render_swing_terminal_table(df_stocks_display), unsafe_allow_html=True)
             elif watchlist_mode == "High Score Stocks 🔥" or watchlist_mode == "Day Trading Stocks 🚀":
                 with st.expander("🔥 View Day Trading Radar (Ranked Table)", expanded=True): st.markdown(render_highscore_terminal_table(df_stocks_display), unsafe_allow_html=True)
