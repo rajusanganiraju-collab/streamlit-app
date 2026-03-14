@@ -1337,7 +1337,8 @@ if not df.empty:
 
     # 🔥 STRICT DYNAMIC SORTING 🔥
     sort_key = "W_C" if chart_timeframe == "Weekly Chart" else "C"
-    sort_col = "S"
+    # AI మోడ్ లో ఉంటే AI_Prob తో సార్ట్ చెయ్, లేదంటే పాత S (Score) తో చెయ్
+    sort_col = "AI_Prob" if watchlist_mode == "🤖 Today's AI Predictions" else "S"
     
     if sort_mode == "% Change Up 🟢": 
         df_stocks_display = df_filtered.sort_values(by=sort_key, ascending=False)
@@ -1543,9 +1544,13 @@ if not df.empty:
                     bg = "bull-card" if pct_val > 0 else ("bear-card" if pct_val < 0 else "neut-card")
                     
                     special_icon = f"⭐{int(row['S'])}"
-                    if watchlist_mode == "Swing Trading 📈": 
+                    
+                    # AI మోడ్ లో ఉంటే పర్సంటేజ్ చూపించు
+                    if watchlist_mode == "🤖 Today's AI Predictions":
+                        special_icon = f"🤖{int(row.get('AI_Prob', 0))}%"
+                    elif watchlist_mode == "Swing Trading 📈": 
                         special_icon = "🌟" if row.get('Is_W_Pullback', False) else "🚀"
-                    elif watchlist_mode == "Day Trading Stocks 🚀": 
+                    elif watchlist_mode == "Day Trading Stocks 🚀":
                         strat_name = str(row.get('Strategy_Icon', '🚀'))
                         if 'BUY' in strat_name: special_icon = "🟢 BUY"
                         elif 'SELL' in strat_name: special_icon = "🔴 SELL"
