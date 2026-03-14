@@ -1114,6 +1114,7 @@ if not df.empty:
     weekly_trends = {}
     alpha_tags = {}
     trend_scores = {}
+    retest_tags = {} # 🔥 కొత్తగా యాడ్ చేసిన డిక్షనరీ
 
     nifty_dist_5m = 0.1
     if "^NSEI" in five_min_data.columns.levels[0]:
@@ -1203,7 +1204,28 @@ if not df.empty:
                         trap_bonus = 6
 
             alpha_tags[sym] = f"{alpha_tag} {one_sided_tag} {trap_tag}".strip()
-            trend_scores[sym] = trend_bonus + trap_bonus   
+            trend_scores[sym] = trend_bonus + trap_bonus
+            # --- 🔥 NEW: 5-MIN 10 EMA RETEST LOGIC 🔥 ---
+            retest_tag = ""
+            if watchlist_mode == "Day Trading Stocks 🚀" and len(df_day) >= 4:
+                c1 = df_day.iloc[-1] # కరెంట్ లైవ్ క్యాండిల్
+                c2 = df_day.iloc[-2] # ముందు క్యాండిల్
+                
+                # BUY RETEST: ప్రైస్ VWAP పైన ఉండి, 10 EMA ని టచ్ చేసి పైకి లేస్తుంటే...
+                if c1['Close'] > c1['VWAP'] and c1['EMA_10'] > c1['VWAP']:
+                    # ముందు క్యాండిల్ లో (Low), 10 EMA ని టచ్ అయితే (0.2% బఫర్)
+                    if (c2['Low'] <= c2['EMA_10'] * 1.002) and (c2['Close'] >= c2['EMA_10']): 
+                        # కరెంట్ క్యాండిల్ గ్రీన్ లో ఉండి, 10 EMA పైన ట్రేడ్ అవుతుంటే
+                        if c1['Close'] > c1['Open'] and c1['Close'] > c1['EMA_10']: 
+                            retest_tag = "BUY_RETEST"
+                            
+                # SELL RETEST: ప్రైస్ VWAP కింద ఉండి, 10 EMA ని టచ్ చేసి పడిపోతుంటే...
+                elif c1['Close'] < c1['VWAP'] and c1['EMA_10'] < c1['VWAP']:
+                    if (c2['High'] >= c2['EMA_10'] * 0.998) and (c2['Close'] <= c2['EMA_10']):
+                        if c1['Close'] < c1['Open'] and c1['Close'] < c1['EMA_10']:
+                            retest_tag = "SELL_RETEST"
+                            
+            retest_tags[sym] = retest_tag
 
     alerts_triggered_html = ""
     for sym, a_data in st.session_state.custom_alerts.items():
@@ -1224,6 +1246,7 @@ if not df.empty:
     if not df_filtered.empty:
         df_filtered['AlphaTag'] = df_filtered['Fetch_T'].map(alpha_tags).fillna("")
         df_filtered['Trend_Score'] = df_filtered['Fetch_T'].map(trend_scores).fillna(0)
+        df_filtered['Retest_Tag'] = df_filtered['Fetch_T'].map(retest_tags).fillna("") # 🔥 కొత్త మ్యాపింగ్
         df_filtered['S'] = df_filtered['S'] + df_filtered['Trend_Score']
         
         if watchlist_mode == "Day Trading Stocks 🚀":
@@ -1259,8 +1282,9 @@ if not df.empty:
                 "🎯 Reversals Only", 
                 "🏹 Rubber Band Stretch",
                 "🏄‍♂️ Momentum Ignition",
-                "💥 Narrow CPR Breakout"
-            ]
+                "💥 Narrow CPR Breakout",
+                "🧲 10-EMA Retest (Best Entry)"
+            ], index=0)
             
             strats_to_run = strategies_list if move_type_filter == "All Moves" else [move_type_filter]
             all_dfs = []
