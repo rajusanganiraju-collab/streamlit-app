@@ -664,8 +664,9 @@ def render_highscore_terminal_table(df_subset):
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
         day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
         
-        custom_status = str(row.get('Strategy_Icon', ''))
-        if custom_status == "": custom_status = generate_status(row)
+        strat_icon = str(row.get('Strategy_Icon', ''))
+        base_status = generate_status(row)
+        custom_status = f"{strat_icon} | {base_status}".strip() if strat_icon else base_status
         
         is_down = row['C'] < 0
         atr_val = row.get("ATR", row["P"] * 0.02)
@@ -691,8 +692,9 @@ def render_levels_table(df_subset):
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
         day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
         
-        custom_status = str(row.get('Strategy_Icon', ''))
-        if custom_status == "": custom_status = generate_status(row)
+        strat_icon = str(row.get('Strategy_Icon', ''))
+        base_status = generate_status(row)
+        custom_status = f"{strat_icon} | {base_status}".strip() if strat_icon else base_status
         is_down = row['C'] < 0
         
         atr_val = row.get("ATR", row["P"] * 0.02)
