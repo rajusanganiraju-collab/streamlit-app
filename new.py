@@ -983,7 +983,8 @@ if not df.empty:
     fund_filter = "Top Ranked Stocks ⭐"
     
     with c_type:
-        if watchlist_mode == "Day Trading Stocks 🚀":
+        # ఇక్కడ AI Predictions పేరు కూడా యాడ్ చేశాం
+        if watchlist_mode in ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions"]:
             move_type_filter = st.selectbox("🎯 Strategy Filter", [
                 "All Moves", 
                 "⚡ Intraday Pro Breakout (Top 5)",
@@ -1208,7 +1209,7 @@ if not df.empty:
             trend_scores[sym] = trend_bonus + trap_bonus
             # --- 🔥 NEW: 5-MIN 10 EMA RETEST LOGIC 🔥 ---
             retest_tag = ""
-            if watchlist_mode == "Day Trading Stocks 🚀" and len(df_day) >= 4:
+            if watchlist_mode in ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions"] and len(df_day) >= 4:
                 c1 = df_day.iloc[-1] # కరెంట్ లైవ్ క్యాండిల్
                 c2 = df_day.iloc[-2] # ముందు క్యాండిల్
                 
@@ -1247,8 +1248,15 @@ if not df.empty:
     if not df_filtered.empty:
         df_filtered['AlphaTag'] = df_filtered['Fetch_T'].map(alpha_tags).fillna("")
         df_filtered['Trend_Score'] = df_filtered['Fetch_T'].map(trend_scores).fillna(0)
-        df_filtered['Retest_Tag'] = df_filtered['Fetch_T'].map(retest_tags).fillna("") # 🔥 కొత్త మ్యాపింగ్
+        df_filtered['Retest_Tag'] = df_filtered['Fetch_T'].map(retest_tags).fillna("") 
         df_filtered['S'] = df_filtered['S'] + df_filtered['Trend_Score']
+        
+        # 🔥 AI Predictions లో Retest ఫిల్టర్ పనిచేయడానికి లాజిక్:
+        if watchlist_mode == "🤖 Today's AI Predictions" and move_type_filter == "🧲 10-EMA Retest (Best Entry)":
+            df_filtered = df_filtered[
+                (df_filtered['Strategy_Icon'].str.contains('UP', na=False) & (df_filtered['Retest_Tag'] == 'BUY_RETEST')) |
+                (df_filtered['Strategy_Icon'].str.contains('DOWN', na=False) & (df_filtered['Retest_Tag'] == 'SELL_RETEST'))
+            ]
         
         if watchlist_mode == "Day Trading Stocks 🚀":
             base_buy = (
