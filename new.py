@@ -1334,10 +1334,27 @@ if not df.empty:
                     icon_str = "🏄‍♂️"
 
                 elif strat == "🧲 10-EMA Retest (Best Entry)":
-                    # పక్కాగా బేస్ కండిషన్స్ (Long Term EMAs & VWAP) మ్యాచ్ అయ్యి, 
-                    # కేవలం 5-నిమిషాల చార్ట్ లో రీటెస్ట్ అయినవి మాత్రమే వస్తాయి!
-                    c_buy = base_buy & (df_filtered['Retest_Tag'] == "BUY_RETEST")
-                    c_sell = base_sell & (df_filtered['Retest_Tag'] == "SELL_RETEST")
+                    # 1. AI Predictions కండిషన్ (కనీసం 70% స్కోర్ తెచ్చుకునేవి)
+                    ai_buy = (df_filtered['P'] > df_filtered['VWAP']) & (df_filtered['VolX'] >= 1.5) & (df_filtered.get('Bull_P', 0) >= 75)
+                    ai_sell = (df_filtered['P'] < df_filtered['VWAP']) & (df_filtered['VolX'] >= 1.5) & (df_filtered.get('Bear_P', 0) >= 75)
+                    
+                    # 2. మిగతా అన్ని Day Trading స్ట్రాటజీల కండిషన్స్ (కనీసం ఒకదానిలో పాస్ అవ్వాలి)
+                    dt_buy = (
+                        (df_filtered['Trend_Score'] >= 3) | 
+                        (df_filtered['Narrow_CPR'] == True) | 
+                        (df_filtered['AlphaTag'].str.contains("Reversal Buy", na=False)) | 
+                        (df_filtered['Day_C'] >= 1.5) 
+                    )
+                    dt_sell = (
+                        (df_filtered['Trend_Score'] >= 3) | 
+                        (df_filtered['Narrow_CPR'] == True) | 
+                        (df_filtered['AlphaTag'].str.contains("Reversal Sell", na=False)) | 
+                        (df_filtered['Day_C'] <= -1.5)
+                    )
+                    
+                    # ఫైనల్ గా: బేస్ ట్రెండ్ ఉండి + (AI లో లేదా Day Trading లో సెలెక్ట్ అయ్యి) + 10-EMA Retest జరగాలి!
+                    c_buy = base_buy & (ai_buy | dt_buy) & (df_filtered['Retest_Tag'] == "BUY_RETEST")
+                    c_sell = base_sell & (ai_sell | dt_sell) & (df_filtered['Retest_Tag'] == "SELL_RETEST")
                     icon_str = "🧲"
 
                 top_buy = df_filtered[c_buy].sort_values(by=['VolX', 'Day_C'], ascending=[False, False]).head(5).copy()
