@@ -1207,24 +1207,26 @@ if not df.empty:
 
             alpha_tags[sym] = f"{alpha_tag} {one_sided_tag} {trap_tag}".strip()
             trend_scores[sym] = trend_bonus + trap_bonus
-            # --- 🔥 NEW: 5-MIN 10 EMA RETEST LOGIC 🔥 ---
+            # --- 🔥 NEW STRICT 10 EMA RETEST LOGIC 🔥 ---
             retest_tag = ""
             if watchlist_mode in ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions"] and len(df_day) >= 4:
                 c1 = df_day.iloc[-1] # కరెంట్ లైవ్ క్యాండిల్
                 c2 = df_day.iloc[-2] # ముందు క్యాండిల్
                 
-                # BUY RETEST: ప్రైస్ VWAP పైన ఉండి, 10 EMA ని టచ్ చేసి పైకి లేస్తుంటే...
+                # BUY RETEST
                 if c1['Close'] > c1['VWAP'] and c1['EMA_10'] > c1['VWAP']:
-                    # ముందు క్యాండిల్ లో (Low), 10 EMA ని టచ్ అయితే (0.2% బఫర్)
                     if (c2['Low'] <= c2['EMA_10'] * 1.002) and (c2['Close'] >= c2['EMA_10']): 
-                        # కరెంట్ క్యాండిల్ గ్రీన్ లో ఉండి, 10 EMA పైన ట్రేడ్ అవుతుంటే
-                        if c1['Close'] > c1['Open'] and c1['Close'] > c1['EMA_10']: 
+                        # 🔥 కొత్త లాజిక్: కరెంట్ క్యాండిల్ 10 EMA కి గరిష్టంగా 0.3% దూరంలో మాత్రమే ఉండాలి!
+                        max_allowed_price = c1['EMA_10'] * 1.003
+                        if c1['Close'] > c1['Open'] and (c1['EMA_10'] <= c1['Close'] <= max_allowed_price): 
                             retest_tag = "BUY_RETEST"
                             
-                # SELL RETEST: ప్రైస్ VWAP కింద ఉండి, 10 EMA ని టచ్ చేసి పడిపోతుంటే...
+                # SELL RETEST
                 elif c1['Close'] < c1['VWAP'] and c1['EMA_10'] < c1['VWAP']:
                     if (c2['High'] >= c2['EMA_10'] * 0.998) and (c2['Close'] <= c2['EMA_10']):
-                        if c1['Close'] < c1['Open'] and c1['Close'] < c1['EMA_10']:
+                        # 🔥 కొత్త లాజిక్: కరెంట్ క్యాండిల్ 10 EMA కి గరిష్టంగా 0.3% కింద మాత్రమే ఉండాలి! దాటితే వద్దు!
+                        min_allowed_price = c1['EMA_10'] * 0.997
+                        if c1['Close'] < c1['Open'] and (min_allowed_price <= c1['Close'] <= c1['EMA_10']):
                             retest_tag = "SELL_RETEST"
                             
             retest_tags[sym] = retest_tag
