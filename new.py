@@ -968,7 +968,7 @@ if view_mode == "Chart 📈":
     st.markdown(f"<h5 style='color: #3fb950;'>🟢 POSITIVE / BUY ({watchlist_mode})</h5>", unsafe_allow_html=True)
     
     # మీ డేటాఫ్రేమ్ లో పాజిటివ్ స్టాక్స్ ఫిల్టర్
-    df_buy = df_display[df_display['Strategy_Icon'].str.contains('BUY|UP', na=False, case=False)]
+    df_buy = df_filtered[df_filtered['Strategy_Icon'].str.contains('BUY|UP', na=False, case=False)]
     
     if not df_buy.empty:
         cols3 = st.columns(3) # 3 చార్ట్స్ ఒక లైన్ లో
