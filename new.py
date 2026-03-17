@@ -929,17 +929,34 @@ chart_timeframe = "Day Chart"
 show_crosshair = False
 show_vol = False
 
-if view_mode == "Chart 📈" or watchlist_mode in ["Swing Trading 📈", "My Portfolio 💼", "Commodity 🛢️"]:
-    st.markdown("<div style='padding: 10px; background-color:#161b22; border-radius:8px; border:1px solid #30363d; margin-bottom: 5px; display:flex; justify-content:space-around; align-items:center;'>", unsafe_allow_html=True)
-    c_opt1, c_opt2, c_opt3 = st.columns(3)
-    with c_opt1:
-        if watchlist_mode in ["Swing Trading 📈", "My Portfolio 💼", "Commodity 🛢️"]:
-            chart_timeframe = st.radio("⏳ Timeframe:", ["Day Chart", "Weekly Chart"], horizontal=True, label_visibility="collapsed")
-    with c_opt2:
-        if view_mode == "Chart 📈" or watchlist_mode == "Commodity 🛢️": show_crosshair = st.toggle("⌖ Show Crosshair Price")
-    with c_opt3:
-        if view_mode == "Chart 📈" or watchlist_mode == "Commodity 🛢️": show_vol = st.toggle("📊 Show Volume Bars")
-    st.markdown("</div>", unsafe_allow_html=True)
+if view_mode == "Chart 📈":
+    
+    # --- 1. మెయిన్ ఇండెక్స్ సెక్షన్ ---
+    st.markdown("<h5 style='color: #00BFFF;'>🌍 Global & Main Indices</h5>", unsafe_allow_html=True)
+    main_indices = ["NIFTY", "BANKNIFTY", "INDIA VIX", "DOW", "NSDQ"]
+    
+    # (ఇక్కడ ఈ main_indices ని చార్ట్స్ లో చూపించే మీ పాత for loop లాజిక్ వేయండి)
+
+
+    # --- 💡 డివైడర్ లైన్ (సన్నటి గీత) ---
+    st.markdown("<hr style='border: 1px solid #30363d; margin: 15px 0;'>", unsafe_allow_html=True)
+
+
+    # --- 2. సెక్టార్ ఇండెక్స్ సెక్షన్ ---
+    st.markdown("<h5 style='color: #ffd700;'>📊 Sectoral Indices</h5>", unsafe_allow_html=True)
+    sector_indices = ["NIFTY IT", "NIFTY AUTO", "NIFTY METAL", "NIFTY FMCG", "NIFTY PHARMA", "NIFTY ENERGY"]
+    
+    # (ఇక్కడ ఈ sector_indices ని చార్ట్స్ లో చూపించే లాజిక్ వేయండి)
+
+
+    # --- 💡 డివైడర్ లైన్ (సన్నటి గీత) ---
+    st.markdown("<hr style='border: 1px solid #30363d; margin: 15px 0;'>", unsafe_allow_html=True)
+
+
+    # --- 3. మెయిన్ స్టాక్స్ (రెగ్యులర్ లిస్ట్) ---
+    st.markdown("<h5 style='color: #3fb950;'>🎯 Day Trading Stocks</h5>", unsafe_allow_html=True)
+    
+    # (ఇక్కడ మీ ఫిల్టర్ అయిన స్టాక్స్ df_display చార్ట్స్ ప్రింట్ అయ్యే అసలైన లాజిక్ వస్తుంది)
 
 # --- 7. RENDER LOGIC & TREND ANALYSIS ---
 df = fetch_all_data()
