@@ -929,74 +929,18 @@ chart_timeframe = "Day Chart"
 show_crosshair = False
 show_vol = False
 
-if view_mode == "Chart 📈":
-    
-    # ==========================================
-    # 1. GLOBAL & MAIN INDICES (మెయిన్ ఇండెక్స్ చార్ట్స్)
-    # ==========================================
-    st.markdown("<h5 style='color: #00BFFF;'>🌍 Global & Main Indices</h5>", unsafe_allow_html=True)
-    main_indices = ["NIFTY", "BANKNIFTY", "INDIA VIX", "DOW", "NSDQ"]
-    
-    cols1 = st.columns(len(main_indices))
-    for i, sym in enumerate(main_indices):
-        with cols1[i]:
-            # 👇 (ఇక్కడ మీ నిఫ్టీ చార్ట్ గీసే పాత కోడ్ పెట్టండి. ఉదాహరణకి కింద లైన్ లాగా)
-            # st.plotly_chart(create_chart(sym), use_container_width=True)
-            pass 
+if view_mode == "Chart 📈" or watchlist_mode in ["Swing Trading 📈", "My Portfolio 💼", "Commodity 🛢️"]:
+    st.markdown("<div style='padding: 10px; background-color:#161b22; border-radius:8px; border:1px solid #30363d; margin-bottom: 5px; display:flex; justify-content:space-around; align-items:center;'>", unsafe_allow_html=True)
+    c_opt1, c_opt2, c_opt3 = st.columns(3)
+    with c_opt1:
+        if watchlist_mode in ["Swing Trading 📈", "My Portfolio 💼", "Commodity 🛢️"]:
+            chart_timeframe = st.radio("⏳ Timeframe:", ["Day Chart", "Weekly Chart"], horizontal=True, label_visibility="collapsed")
+    with c_opt2:
+        if view_mode == "Chart 📈" or watchlist_mode == "Commodity 🛢️": show_crosshair = st.toggle("⌖ Show Crosshair Price")
+    with c_opt3:
+        if view_mode == "Chart 📈" or watchlist_mode == "Commodity 🛢️": show_vol = st.toggle("📊 Show Volume Bars")
+    st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown("<hr style='border: 1px solid #30363d; margin: 15px 0;'>", unsafe_allow_html=True)
-
-    # ==========================================
-    # 2. SECTORAL INDICES (సెక్టార్ ఇండెక్స్ చార్ట్స్)
-    # ==========================================
-    st.markdown("<h5 style='color: #ffd700;'>📊 Sectoral Indices</h5>", unsafe_allow_html=True)
-    sector_indices = ["NIFTY IT", "NIFTY AUTO", "NIFTY METAL", "NIFTY FMCG", "NIFTY PHARMA", "NIFTY ENERGY"]
-    
-    # సెక్టార్స్ ఎక్కువ ఉన్నాయి కాబట్టి 3 చొప్పున వరుసగా రావడానికి...
-    cols2 = st.columns(3) 
-    for i, sym in enumerate(sector_indices):
-        with cols2[i % 3]:
-            # 👇 (ఇక్కడ మళ్ళీ మీ చార్ట్ గీసే కోడ్ పెట్టండి)
-            # st.plotly_chart(create_chart(sym), use_container_width=True)
-            pass
-
-    st.markdown("<hr style='border: 1px solid #30363d; margin: 15px 0;'>", unsafe_allow_html=True)
-
-    # ==========================================
-    # 3. POSITIVE / BUY STOCKS (పెరిగే స్టాక్స్ చార్ట్స్)
-    # ==========================================
-    st.markdown(f"<h5 style='color: #3fb950;'>🟢 POSITIVE / BUY ({watchlist_mode})</h5>", unsafe_allow_html=True)
-    
-    # మీ డేటాఫ్రేమ్ లో పాజిటివ్ స్టాక్స్ ఫిల్టర్
-    df_buy = df_filtered[df_filtered['Strategy_Icon'].str.contains('BUY|UP', na=False, case=False)]
-    
-    if not df_buy.empty:
-        cols3 = st.columns(3) # 3 చార్ట్స్ ఒక లైన్ లో
-        for i, (idx, row) in enumerate(df_buy.iterrows()):
-            with cols3[i % 3]:
-                # 👇 (ఇక్కడ స్టాక్ చార్ట్ గీసే కోడ్ పెట్టండి. row['Fetch_T'] వాడండి)
-                pass
-    else:
-        st.write("No Buy stocks found.")
-
-    st.markdown("<hr style='border: 1px solid #30363d; margin: 15px 0;'>", unsafe_allow_html=True)
-
-    # ==========================================
-    # 4. NEGATIVE / SELL STOCKS (పడే స్టాక్స్ చార్ట్స్)
-    # ==========================================
-    st.markdown(f"<h5 style='color: #f85149;'>🔴 NEGATIVE / SELL ({watchlist_mode})</h5>", unsafe_allow_html=True)
-    
-    # మీ డేటాఫ్రేమ్ లో నెగెటివ్ స్టాక్స్ ఫిల్టర్
-    df_sell = df_display[df_display['Strategy_Icon'].str.contains('SELL|DOWN', na=False, case=False)]
-    
-    if not df_sell.empty:
-        cols4 = st.columns(3)
-        for i, (idx, row) in enumerate(df_sell.iterrows()):
-            with cols4[i % 3]:
-                # 👇 (ఇక్కడ స్టాక్ చార్ట్ గీసే కోడ్ పెట్టండి. row['Fetch_T'] వాడండి)
-                pass
-    else:
-        st.write("No Sell stocks found.")
 # --- 7. RENDER LOGIC & TREND ANALYSIS ---
 df = fetch_all_data()
 
