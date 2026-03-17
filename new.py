@@ -1103,7 +1103,8 @@ if not df.empty:
     else:
         df_filtered = df_stocks[(df_stocks['S'] >= 11) & (df_stocks['VolX'] >= 1.5)]
 
-    all_display_tickers = list(set(df_indices['Fetch_T'].tolist() + df_filtered['Fetch_T'].tolist() + st.session_state.pinned_stocks))
+    # 🔥 ఇక్కడ సెక్టార్స్ (df_sectors) ని కూడా యాడ్ చేసాం!
+    all_display_tickers = list(set(df_indices['Fetch_T'].tolist() + df_sectors['Fetch_T'].tolist() + df_filtered['Fetch_T'].tolist() + st.session_state.pinned_stocks))
     
     if search_stock != "-- None --":
         search_fetch_t = df[df['T'] == search_stock]['Fetch_T'].iloc[0]
@@ -1655,6 +1656,7 @@ if not df.empty:
                 if search_stock != "-- None --": display_tkrs.append(search_fetch_t)
                 if watchlist_mode not in ["Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️"]:
                     display_tkrs.extend(df_indices['Fetch_T'].tolist())
+                    display_tkrs.extend(df_sectors['Fetch_T'].tolist()) # 🔥 సెక్టార్స్ డేటా లాగడానికి
                 display_tkrs.extend(st.session_state.pinned_stocks)
                 display_tkrs.extend(df_stocks_display['Fetch_T'].tolist())
                 
@@ -1679,9 +1681,18 @@ if not df.empty:
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
         if watchlist_mode not in ["Terminal Tables 🗃️", "My Portfolio 💼", "Fundamentals 🏢", "Commodity 🛢️"]:
+            
+            # 1. మెయిన్ ఇండెక్స్ చార్ట్స్
+            st.markdown("<div style='font-size:16px; font-weight:bold; margin-bottom:5px; color:#00BFFF;'>🌍 Global & Main Indices</div>", unsafe_allow_html=True)
             render_chart_grid(df_indices, show_pin_option=False, key_prefix="idx", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
-        
+            
+            # 2. 🔥 సెక్టార్ చార్ట్స్ (కొత్తగా యాడ్ చేసింది)
+            if not df_sectors.empty:
+                st.markdown("<div style='font-size:16px; font-weight:bold; margin-bottom:5px; color:#ffd700;'>📊 Sectoral Indices</div>", unsafe_allow_html=True)
+                render_chart_grid(df_sectors, show_pin_option=False, key_prefix="sec", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
+                st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
+
         pinned_df = df[df['Fetch_T'].isin(st.session_state.pinned_stocks)].copy()
         unpinned_df = df_stocks_display[~df_stocks_display['Fetch_T'].isin(pinned_df['Fetch_T'].tolist())]
         
