@@ -931,35 +931,72 @@ show_vol = False
 
 if view_mode == "Chart 📈":
     
-    # --- 1. మెయిన్ ఇండెక్స్ చార్ట్స్ ---
+    # ==========================================
+    # 1. GLOBAL & MAIN INDICES (మెయిన్ ఇండెక్స్ చార్ట్స్)
+    # ==========================================
     st.markdown("<h5 style='color: #00BFFF;'>🌍 Global & Main Indices</h5>", unsafe_allow_html=True)
     main_indices = ["NIFTY", "BANKNIFTY", "INDIA VIX", "DOW", "NSDQ"]
     
-    # 👇 (ఇక్కడ మెయిన్ చార్ట్స్ ప్రింట్ చేయడానికి మీరు రాసిన పాత కోడ్ ఉంటుంది. దాన్ని అలాగే ఉంచండి)
-    # ఉదాహరణకు మీ కోడ్ లో ఇలా ఉండి ఉండొచ్చు:
-    # cols1 = st.columns(len(main_indices))
-    # for i, sym in enumerate(main_indices):
-    #     ... chart గీసే లాజిక్ ...
+    cols1 = st.columns(len(main_indices))
+    for i, sym in enumerate(main_indices):
+        with cols1[i]:
+            # 👇 (ఇక్కడ మీ నిఫ్టీ చార్ట్ గీసే పాత కోడ్ పెట్టండి. ఉదాహరణకి కింద లైన్ లాగా)
+            # st.plotly_chart(create_chart(sym), use_container_width=True)
+            pass 
 
-
-    # --- 💡 డివైడర్ లైన్ ---
     st.markdown("<hr style='border: 1px solid #30363d; margin: 15px 0;'>", unsafe_allow_html=True)
 
-
-    # --- 2. సెక్టార్ చార్ట్స్ (ఇక్కడే మీరు అడిగింది వచ్చేది) ---
-    st.markdown("<h5 style='color: #ffd700;'>📊 Sectoral Indices Charts</h5>", unsafe_allow_html=True)
+    # ==========================================
+    # 2. SECTORAL INDICES (సెక్టార్ ఇండెక్స్ చార్ట్స్)
+    # ==========================================
+    st.markdown("<h5 style='color: #ffd700;'>📊 Sectoral Indices</h5>", unsafe_allow_html=True)
     sector_indices = ["NIFTY IT", "NIFTY AUTO", "NIFTY METAL", "NIFTY FMCG", "NIFTY PHARMA", "NIFTY ENERGY"]
     
-    # 🔥 బాస్, పైన మెయిన్ చార్ట్స్ గీయడానికి వాడిన సేమ్ `for` లూప్ కోడ్ ని ఇక్కడ కాపీ పేస్ట్ చేయండి!
-    # కాకపోతే `main_indices` బదులు `sector_indices` అని మార్చండి.
-    
-    # (మీ కోడ్ బట్టి కింద లాజిక్ అడ్జస్ట్ చేయండి)
-    cols2 = st.columns(len(sector_indices))
+    # సెక్టార్స్ ఎక్కువ ఉన్నాయి కాబట్టి 3 చొప్పున వరుసగా రావడానికి...
+    cols2 = st.columns(3) 
     for i, sym in enumerate(sector_indices):
-        with cols2[i]:
-            # ఇక్కడ పైన వాడిన ఆ `st.plotly_chart(fig)` లాజిక్ మొత్తం కాపీ చేసి పేస్ట్ చేయండి. 
-            # (డేటా df_stocks నుండి వస్తే దాన్ని ఫిల్టర్ చేసే లైన్స్ కూడా వేయాలి)
+        with cols2[i % 3]:
+            # 👇 (ఇక్కడ మళ్ళీ మీ చార్ట్ గీసే కోడ్ పెట్టండి)
+            # st.plotly_chart(create_chart(sym), use_container_width=True)
             pass
+
+    st.markdown("<hr style='border: 1px solid #30363d; margin: 15px 0;'>", unsafe_allow_html=True)
+
+    # ==========================================
+    # 3. POSITIVE / BUY STOCKS (పెరిగే స్టాక్స్ చార్ట్స్)
+    # ==========================================
+    st.markdown(f"<h5 style='color: #3fb950;'>🟢 POSITIVE / BUY ({watchlist_mode})</h5>", unsafe_allow_html=True)
+    
+    # మీ డేటాఫ్రేమ్ లో పాజిటివ్ స్టాక్స్ ఫిల్టర్
+    df_buy = df_display[df_display['Strategy_Icon'].str.contains('BUY|UP', na=False, case=False)]
+    
+    if not df_buy.empty:
+        cols3 = st.columns(3) # 3 చార్ట్స్ ఒక లైన్ లో
+        for i, (idx, row) in enumerate(df_buy.iterrows()):
+            with cols3[i % 3]:
+                # 👇 (ఇక్కడ స్టాక్ చార్ట్ గీసే కోడ్ పెట్టండి. row['Fetch_T'] వాడండి)
+                pass
+    else:
+        st.write("No Buy stocks found.")
+
+    st.markdown("<hr style='border: 1px solid #30363d; margin: 15px 0;'>", unsafe_allow_html=True)
+
+    # ==========================================
+    # 4. NEGATIVE / SELL STOCKS (పడే స్టాక్స్ చార్ట్స్)
+    # ==========================================
+    st.markdown(f"<h5 style='color: #f85149;'>🔴 NEGATIVE / SELL ({watchlist_mode})</h5>", unsafe_allow_html=True)
+    
+    # మీ డేటాఫ్రేమ్ లో నెగెటివ్ స్టాక్స్ ఫిల్టర్
+    df_sell = df_display[df_display['Strategy_Icon'].str.contains('SELL|DOWN', na=False, case=False)]
+    
+    if not df_sell.empty:
+        cols4 = st.columns(3)
+        for i, (idx, row) in enumerate(df_sell.iterrows()):
+            with cols4[i % 3]:
+                # 👇 (ఇక్కడ స్టాక్ చార్ట్ గీసే కోడ్ పెట్టండి. row['Fetch_T'] వాడండి)
+                pass
+    else:
+        st.write("No Sell stocks found.")
 # --- 7. RENDER LOGIC & TREND ANALYSIS ---
 df = fetch_all_data()
 
