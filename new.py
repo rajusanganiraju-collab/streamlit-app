@@ -931,33 +931,35 @@ show_vol = False
 
 if view_mode == "Chart 📈":
     
-    # --- 1. మెయిన్ ఇండెక్స్ సెక్షన్ ---
+    # --- 1. మెయిన్ ఇండెక్స్ చార్ట్స్ ---
     st.markdown("<h5 style='color: #00BFFF;'>🌍 Global & Main Indices</h5>", unsafe_allow_html=True)
     main_indices = ["NIFTY", "BANKNIFTY", "INDIA VIX", "DOW", "NSDQ"]
     
-    # (ఇక్కడ ఈ main_indices ని చార్ట్స్ లో చూపించే మీ పాత for loop లాజిక్ వేయండి)
+    # 👇 (ఇక్కడ మెయిన్ చార్ట్స్ ప్రింట్ చేయడానికి మీరు రాసిన పాత కోడ్ ఉంటుంది. దాన్ని అలాగే ఉంచండి)
+    # ఉదాహరణకు మీ కోడ్ లో ఇలా ఉండి ఉండొచ్చు:
+    # cols1 = st.columns(len(main_indices))
+    # for i, sym in enumerate(main_indices):
+    #     ... chart గీసే లాజిక్ ...
 
 
-    # --- 💡 డివైడర్ లైన్ (సన్నటి గీత) ---
+    # --- 💡 డివైడర్ లైన్ ---
     st.markdown("<hr style='border: 1px solid #30363d; margin: 15px 0;'>", unsafe_allow_html=True)
 
 
-    # --- 2. సెక్టార్ ఇండెక్స్ సెక్షన్ ---
-    st.markdown("<h5 style='color: #ffd700;'>📊 Sectoral Indices</h5>", unsafe_allow_html=True)
+    # --- 2. సెక్టార్ చార్ట్స్ (ఇక్కడే మీరు అడిగింది వచ్చేది) ---
+    st.markdown("<h5 style='color: #ffd700;'>📊 Sectoral Indices Charts</h5>", unsafe_allow_html=True)
     sector_indices = ["NIFTY IT", "NIFTY AUTO", "NIFTY METAL", "NIFTY FMCG", "NIFTY PHARMA", "NIFTY ENERGY"]
     
-    # (ఇక్కడ ఈ sector_indices ని చార్ట్స్ లో చూపించే లాజిక్ వేయండి)
-
-
-    # --- 💡 డివైడర్ లైన్ (సన్నటి గీత) ---
-    st.markdown("<hr style='border: 1px solid #30363d; margin: 15px 0;'>", unsafe_allow_html=True)
-
-
-    # --- 3. మెయిన్ స్టాక్స్ (రెగ్యులర్ లిస్ట్) ---
-    st.markdown("<h5 style='color: #3fb950;'>🎯 Day Trading Stocks</h5>", unsafe_allow_html=True)
+    # 🔥 బాస్, పైన మెయిన్ చార్ట్స్ గీయడానికి వాడిన సేమ్ `for` లూప్ కోడ్ ని ఇక్కడ కాపీ పేస్ట్ చేయండి!
+    # కాకపోతే `main_indices` బదులు `sector_indices` అని మార్చండి.
     
-    # (ఇక్కడ మీ ఫిల్టర్ అయిన స్టాక్స్ df_display చార్ట్స్ ప్రింట్ అయ్యే అసలైన లాజిక్ వస్తుంది)
-
+    # (మీ కోడ్ బట్టి కింద లాజిక్ అడ్జస్ట్ చేయండి)
+    cols2 = st.columns(len(sector_indices))
+    for i, sym in enumerate(sector_indices):
+        with cols2[i]:
+            # ఇక్కడ పైన వాడిన ఆ `st.plotly_chart(fig)` లాజిక్ మొత్తం కాపీ చేసి పేస్ట్ చేయండి. 
+            # (డేటా df_stocks నుండి వస్తే దాన్ని ఫిల్టర్ చేసే లైన్స్ కూడా వేయాలి)
+            pass
 # --- 7. RENDER LOGIC & TREND ANALYSIS ---
 df = fetch_all_data()
 
