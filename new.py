@@ -662,12 +662,12 @@ def render_highscore_terminal_table(df_subset):
     is_ai = 'AI_Prob' in df_subset.columns
     
     if is_ai:
-        headers = '<th style="width:8%; color:#00BFFF;">🤖 AI PROB</th><th style="width:6%;">SCORE</th>'
+        headers = '<th style="width:7%; color:#00BFFF;">🤖 AI</th><th style="width:5%;">SCORE</th>'
     else:
-        headers = '<th style="width:7%;">SCORE</th>'
+        headers = '<th style="width:6%;">SCORE</th>'
         
     df_sorted = df_subset.reset_index(drop=True)
-    html = f'<table class="term-table"><thead><tr><th colspan="11" class="term-head-high">🔥 HIGH SCORE RADAR (RANKED INTRADAY MOVERS)</th></tr><tr style="background-color: #21262d;"><th style="width:4%;">RANK</th><th style="text-align:left; width:13%;">STOCK</th><th style="width:8%;">LTP</th><th style="width:8%;">DAY%</th><th style="width:7%;">VOL</th><th style="width:17%;">STATUS</th><th style="width:11%; color:#f85149;">🛑 STOP LOSS</th><th style="width:11%; color:#3fb950;">🎯 TARGET 1</th><th style="width:11%; color:#3fb950;">🎯 TARGET 2</th>{headers}</tr></thead><tbody>'
+    html = f'<table class="term-table"><thead><tr><th colspan="12" class="term-head-high">🔥 HIGH SCORE RADAR (RANKED INTRADAY MOVERS)</th></tr><tr style="background-color: #21262d;"><th style="width:4%;">RANK</th><th style="text-align:left; width:12%;">STOCK</th><th style="width:9%; color:#ffd700;">SECTOR</th><th style="width:7%;">LTP</th><th style="width:7%;">DAY%</th><th style="width:6%;">VOL</th><th style="width:16%;">STATUS</th><th style="width:10%; color:#f85149;">🛑 SL</th><th style="width:10%; color:#3fb950;">🎯 T1</th><th style="width:10%; color:#3fb950;">🎯 T2</th>{headers}</tr></thead><tbody>'
     
     for i, row in df_sorted.iterrows():
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
@@ -685,6 +685,17 @@ def render_highscore_terminal_table(df_subset):
             
         rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
         row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td>'
+        
+        # 🔥 NEW: Sector & Points Display
+        sec_name = row.get("Sector", "OTHER")
+        sec_pts = int(row.get("Sector_Bonus", 0))
+        if sec_pts > 0:
+            sec_display = f"{sec_name}<br><span style='color:#00BFFF;'>({sec_pts} Pts)</span>"
+        else:
+            sec_display = f"{sec_name}"
+            
+        row_str += f'<td style="font-size:10px; color:#c9d1d9; font-weight:bold;">{sec_display}</td>'
+        
         row_str += f'<td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px; cursor:help;" title="{custom_status}">{custom_status}</td>'
         row_str += f'<td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td>'
         
@@ -920,8 +931,7 @@ c1, c2, c3 = st.columns([0.4, 0.3, 0.3])
 with c1: 
     watchlist_mode = st.selectbox("Watchlist", ["🤖 Today's AI Predictions", "High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Day Trading Stocks 🚀", "Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢"], index=0, label_visibility="collapsed")
 with c2: 
-    sort_mode = st.selectbox("Sort By", ["Custom Sort", "Score Wise Up ⭐", "Score Wise Down ⬇️", "🤖 AI Prob Up ⬆️", "% Change Up 🟢", "% Change Down 🔴"], label_visibility="collapsed")
-with c3: 
+    sort_mode = st.selectbox("Sort By", ["Custom Sort", "Sector Trending First 📊", "Score Wise Up ⭐", "Score Wise Down ⬇️", "🤖 AI Prob Up ⬆️", "% Change Up 🟢", "% Change Down 🔴"], label_visibility="collapsed")
     view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
 
 # --- UI FOR CHART OPTIONS ---
@@ -1091,10 +1101,21 @@ if not df.empty:
         df_filtered = df_filtered[df_filtered['Strategy_Icon'] != "Neutral"]
         
         if not df_filtered.empty:
-            df_filtered['T1'] = np.where(df_filtered['Strategy_Icon'].str.contains('UP', na=False), round(df_filtered['P'] * 1.008, 2), round(df_filtered['P'] * 0.992, 2))
-            df_filtered['T2'] = np.where(df_filtered['Strategy_Icon'].str.contains('UP', na=False), round(df_filtered['P'] * 1.015, 2), round(df_filtered['P'] * 0.985, 2))
-            df_filtered['SL'] = np.where(df_filtered['Strategy_Icon'].str.contains('UP', na=False), round(df_filtered['P'] * 0.992, 2), round(df_filtered['P'] * 1.008, 2))
-            df_filtered = df_filtered.sort_values(by=['AI_Prob', 'VolX'], ascending=[False, False])
+        df_filtered['AlphaTag'] = df_filtered['Fetch_T'].map(alpha_tags).fillna("")
+        df_filtered['Trend_Score'] = df_filtered['Fetch_T'].map(trend_scores).fillna(0)
+        df_filtered['Retest_Tag'] = df_filtered['Fetch_T'].map(retest_tags).fillna("") 
+        df_filtered['S'] = df_filtered['S'] + df_filtered['Trend_Score']
+        
+        # 🔥 NEW: Sector Points Logic
+        if watchlist_mode in ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions"]:
+            sector_abs_perf = sector_perf.abs().sort_values(ascending=False)
+            sector_bonus_map = {}
+            for rank, (sec, val) in enumerate(sector_abs_perf.items()):
+                bonus = max(10 - (rank * 2), 0)
+                sector_bonus_map[sec] = bonus
+            df_filtered['Sector_Bonus'] = df_filtered['Sector'].map(sector_bonus_map).fillna(0)
+        else:
+            df_filtered['Sector_Bonus'] = 0
             
     elif watchlist_mode == "Day Trading Stocks 🚀":
         df_filtered = df_stocks[df_stocks['C'].abs() >= 1.0].copy()
@@ -1399,11 +1420,19 @@ if not df.empty:
     # 🔥 STRICT DYNAMIC SORTING 🔥
     sort_key = "W_C" if chart_timeframe == "Weekly Chart" else "C"
     
+    if 'Sector_Bonus' not in df_filtered.columns: df_filtered['Sector_Bonus'] = 0
+    
     if sort_mode == "% Change Up 🟢": 
         df_stocks_display = df_filtered.sort_values(by=sort_key, ascending=False)
     elif sort_mode == "% Change Down 🔴": 
         df_stocks_display = df_filtered.sort_values(by=sort_key, ascending=True)
         
+    elif sort_mode == "Sector Trending First 📊":
+        if "AI_Prob" in df_filtered.columns:
+            df_stocks_display = df_filtered.sort_values(by=['Sector_Bonus', 'AI_Prob', 'VolX'], ascending=[False, False, False])
+        else:
+            df_stocks_display = df_filtered.sort_values(by=['Sector_Bonus', 'S', 'VolX'], ascending=[False, False, False])
+            
     elif sort_mode == "🤖 AI Prob Up ⬆️":
         if "AI_Prob" in df_filtered.columns:
             df_stocks_display = df_filtered.sort_values(by=['AI_Prob', 'VolX', sort_key], ascending=[False, False, False])
