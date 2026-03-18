@@ -1100,22 +1100,7 @@ if not df.empty:
         df_filtered['AI_Prob'] = ai_probs
         df_filtered = df_filtered[df_filtered['Strategy_Icon'] != "Neutral"]
         
-    if not df_filtered.empty:
-        df_filtered['AlphaTag'] = df_filtered['Fetch_T'].map(alpha_tags).fillna("")
-        df_filtered['Trend_Score'] = df_filtered['Fetch_T'].map(trend_scores).fillna(0)
-        df_filtered['Retest_Tag'] = df_filtered['Fetch_T'].map(retest_tags).fillna("") 
-        df_filtered['S'] = df_filtered['S'] + df_filtered['Trend_Score']
-        
-        # 🔥 NEW: Sector Points Logic
-        if watchlist_mode in ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions"]:
-            sector_abs_perf = sector_perf.abs().sort_values(ascending=False)
-            sector_bonus_map = {}
-            for rank, (sec, val) in enumerate(sector_abs_perf.items()):
-                bonus = max(10 - (rank * 2), 0)
-                sector_bonus_map[sec] = bonus
-            df_filtered['Sector_Bonus'] = df_filtered['Sector'].map(sector_bonus_map).fillna(0)
-        else:
-            df_filtered['Sector_Bonus'] = 0    
+    
             
     elif watchlist_mode == "Day Trading Stocks 🚀":
         df_filtered = df_stocks[df_stocks['C'].abs() >= 1.0].copy()
@@ -1269,12 +1254,24 @@ if not df.empty:
     if alerts_triggered_html:
         st.markdown(alerts_triggered_html, unsafe_allow_html=True)
 
+    # 👇 ఇక్కడి నుండి పక్కాగా కాపీ చేసి రీప్లేస్ చేయండి 👇
     if not df_filtered.empty:
         df_filtered['AlphaTag'] = df_filtered['Fetch_T'].map(alpha_tags).fillna("")
         df_filtered['Trend_Score'] = df_filtered['Fetch_T'].map(trend_scores).fillna(0)
         df_filtered['Retest_Tag'] = df_filtered['Fetch_T'].map(retest_tags).fillna("") 
         df_filtered['S'] = df_filtered['S'] + df_filtered['Trend_Score']
         
+        # 🔥 NEW: Sector Points Logic
+        if watchlist_mode in ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions"]:
+            sector_abs_perf = sector_perf.abs().sort_values(ascending=False)
+            sector_bonus_map = {}
+            for rank, (sec, val) in enumerate(sector_abs_perf.items()):
+                bonus = max(10 - (rank * 2), 0)
+                sector_bonus_map[sec] = bonus
+            df_filtered['Sector_Bonus'] = df_filtered['Sector'].map(sector_bonus_map).fillna(0)
+        else:
+            df_filtered['Sector_Bonus'] = 0
+            
         # 🔥 AI Predictions లో Retest ఫిల్టర్ పనిచేయడానికి లాజిక్:
         if watchlist_mode == "🤖 Today's AI Predictions" and move_type_filter == "🧲 10-EMA Retest (Best Entry)":
             df_filtered = df_filtered[
