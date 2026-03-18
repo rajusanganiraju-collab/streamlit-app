@@ -1100,7 +1100,7 @@ if not df.empty:
         df_filtered['AI_Prob'] = ai_probs
         df_filtered = df_filtered[df_filtered['Strategy_Icon'] != "Neutral"]
         
-        if not df_filtered.empty:
+    if not df_filtered.empty:
         df_filtered['AlphaTag'] = df_filtered['Fetch_T'].map(alpha_tags).fillna("")
         df_filtered['Trend_Score'] = df_filtered['Fetch_T'].map(trend_scores).fillna(0)
         df_filtered['Retest_Tag'] = df_filtered['Fetch_T'].map(retest_tags).fillna("") 
@@ -1115,7 +1115,7 @@ if not df.empty:
                 sector_bonus_map[sec] = bonus
             df_filtered['Sector_Bonus'] = df_filtered['Sector'].map(sector_bonus_map).fillna(0)
         else:
-            df_filtered['Sector_Bonus'] = 0
+            df_filtered['Sector_Bonus'] = 0    
             
     elif watchlist_mode == "Day Trading Stocks 🚀":
         df_filtered = df_stocks[df_stocks['C'].abs() >= 1.0].copy()
