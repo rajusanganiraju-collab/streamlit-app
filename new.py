@@ -1717,10 +1717,10 @@ if not df.empty:
             render_chart_grid(df_indices, show_pin_option=False, key_prefix="idx", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
             
-            # 2. 🔥 సెక్టార్ చార్ట్స్ (కొత్తగా యాడ్ చేసింది)
+            # 2. 🔥 సెక్టార్ చార్ట్స్ (Expander లో దాచాం)
             if not df_sectors.empty:
-                st.markdown("<div style='font-size:16px; font-weight:bold; margin-bottom:5px; color:#ffd700;'>📊 Sectoral Indices</div>", unsafe_allow_html=True)
-                render_chart_grid(df_sectors, show_pin_option=False, key_prefix="sec", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
+                with st.expander("📊 View Sectoral Indices Charts", expanded=False):
+                    render_chart_grid(df_sectors, show_pin_option=False, key_prefix="sec", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
                 st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
 
         pinned_df = df[df['Fetch_T'].isin(st.session_state.pinned_stocks)].copy()
