@@ -1033,10 +1033,10 @@ if not df.empty:
     df_indices = df_indices.sort_values('Order')
     
     df_sectors = df[df['Is_Sector']].copy()
-    if "Day_C" in df_sectors.columns:
-        df_sectors = df_sectors.sort_values(by="Day_C", ascending=False)
-    else:
-        df_sectors = df_sectors.sort_values(by="C", ascending=False)
+    
+    # 🔥 FIX: సెక్టార్ చార్ట్స్ పక్కాగా హీట్‌మ్యాప్ ఆర్డర్ లో (High to Low) రావడానికి
+    sec_sort_key = "W_C" if chart_timeframe == "Weekly Chart" else "C"
+    df_sectors = df_sectors.sort_values(by=sec_sort_key, ascending=False)
     
     df_stocks = df[(~df['Is_Index']) & (~df['Is_Sector']) & (~df['Is_Commodity'])].copy()
     df_commodities = df[df['Is_Commodity']].copy()
