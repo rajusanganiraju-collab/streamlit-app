@@ -1728,9 +1728,10 @@ if not df.empty:
             render_chart_grid(df_indices, show_pin_option=False, key_prefix="idx", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
             
-            # 2. 🔥 సెక్టార్ చార్ట్స్ (Expander లో దాచాం)
+            # 2. 🔥 సెక్టార్ చార్ట్స్ (Toggle స్విచ్ తో దాచాం)
             if not df_sectors.empty:
-                with st.expander("📊 View Sectoral Indices Charts", expanded=False):
+                show_sec_charts = st.toggle("📊 Show Sectoral Indices Charts", value=False)
+                if show_sec_charts:
                     render_chart_grid(df_sectors, show_pin_option=False, key_prefix="sec", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
                 st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
 
