@@ -948,7 +948,7 @@ if not df.empty:
 # 💡 మెయిన్ సెట్టింగ్స్ (ఎప్పుడూ కనిపించేవి - కేవలం 1 లైన్)
 c1, c2 = st.columns([0.6, 0.4])
 with c1: 
-    watchlist_mode = st.selectbox("Watchlist", ["🤖 Today's AI Predictions", "High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Day Trading Stocks 🚀", "Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢"], index=0, label_visibility="collapsed")
+    watchlist_mode = st.selectbox("Watchlist", ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions", "High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢"], index=0, label_visibility="collapsed")
 with c2: 
     view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
 
@@ -973,7 +973,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
             fund_filter = st.selectbox("Fundamentals Filter", ["Top Ranked Stocks ⭐", "Swing Trading Candidates 📈", "Nifty 50 Stocks", "My Portfolio 💼"], index=0)
             
     with sc2:
-        sort_mode = st.selectbox("Sort By", ["Custom Sort", "Sector Trending First 📊", "Score Wise Up ⭐", "Score Wise Down ⬇️", "🤖 AI Prob Up ⬆️", "% Change Up 🟢", "% Change Down 🔴"])
+        sort_mode = st.selectbox("Sort By", ["Score Wise Up ⭐", "Custom Sort", "Sector Trending First 📊", "Score Wise Down ⬇️", "🤖 AI Prob Up ⬆️", "% Change Up 🟢", "% Change Down 🔴"], index=0)
         
     with sc3:
         search_stock = st.selectbox("Search Stock", ["-- None --"] + all_names)
@@ -1113,7 +1113,11 @@ if not df.empty:
                 
         df_filtered['Strategy_Icon'] = ai_predictions
         df_filtered['AI_Prob'] = ai_probs
-        df_filtered = df_filtered[df_filtered['Strategy_Icon'] != "Neutral"]
+        
+        # 🔥 FIX: న్యూట్రల్ కానివి మరియు స్కోర్ కచ్చితంగా 11 లేదా అంతకంటే ఎక్కువ ఉన్నవి మాత్రమే కావాలి!
+        df_filtered = df_filtered[(df_filtered['Strategy_Icon'] != "Neutral") & (df_filtered['S'] >= 11)]
+        
+        if not df_filtered.empty:
         
     
             
