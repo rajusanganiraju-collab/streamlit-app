@@ -1117,8 +1117,7 @@ if not df.empty:
         # 🔥 FIX: న్యూట్రల్ కానివి మరియు స్కోర్ కచ్చితంగా 11 లేదా అంతకంటే ఎక్కువ ఉన్నవి మాత్రమే కావాలి!
         df_filtered = df_filtered[(df_filtered['Strategy_Icon'] != "Neutral") & (df_filtered['S'] >= 11)]
         
-        if not df_filtered.empty:
-        
+             
     
             
     elif watchlist_mode == "Day Trading Stocks 🚀":
