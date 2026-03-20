@@ -1815,9 +1815,16 @@ if not df.empty:
                         sec_df = df_stocks[df_stocks['T'].isin(sec_stock_names)].copy()
                         
                         if not sec_df.empty:
-                            # Day_C బట్టి అబ్సల్యూట్ చేంజ్ (అంటే ఎంత పడినా, ఎంత పెరిగినా టాప్ లో వస్తాయి)
-                            sec_df['Abs_Move'] = sec_df['Day_C'].abs()
-                            sec_df = sec_df.sort_values(by='Abs_Move', ascending=False).head(6)
+                            # 🔥 సెక్టార్ ట్రెండ్ బట్టి సార్టింగ్: పాజిటివ్ అయితే ఎక్కువ పెరిగినవి, నెగెటివ్ అయితే ఎక్కువ పడినవి ముందు వస్తాయి.
+                            sec_trend_row = df_sectors[df_sectors['T'] == st.session_state.active_sec]
+                            is_sec_down = False
+                            if not sec_trend_row.empty:
+                                is_sec_down = float(sec_trend_row['Day_C'].iloc[0]) < 0
+
+                            if is_sec_down:
+                                sec_df = sec_df.sort_values(by='Day_C', ascending=True).head(6)  # పడినవి ముందు వస్తాయి
+                            else:
+                                sec_df = sec_df.sort_values(by='Day_C', ascending=False).head(6) # పెరిగినవి ముందు వస్తాయి
                             
                             render_chart_grid(sec_df, show_pin_option=True, key_prefix="sec_top6", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
                         else:
