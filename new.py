@@ -1029,13 +1029,13 @@ if not df.empty:
     # (మిగతా పాత కోడ్ అంతా దీని కింద మామూలుగానే ఉంటుంది)
             
     df_indices = df[df['Is_Index']].copy()
-    df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3, "DOW": 4, "NSDQ": 5})
-    df_indices = df_indices.sort_values('Order')
+    # ఇండెక్స్ లను కూడా ఆ రోజు పెరిగిన/తగ్గిన ఓపెనింగ్ ప్రైస్ ఆధారంగా సార్ట్ చేస్తున్నాం 
+    df_indices = df_indices.sort_values(by='Day_C', ascending=False)
     
     df_sectors = df[df['Is_Sector']].copy()
     
     # 🔥 FIX: సెక్టార్ చార్ట్స్ పక్కాగా హీట్‌మ్యాప్ ఆర్డర్ లో (High to Low) రావడానికి
-    sec_sort_key = "W_C" if chart_timeframe == "Weekly Chart" else "C"
+    sec_sort_key = "W_C" if chart_timeframe == "Weekly Chart" else "Day_C"
     df_sectors = df_sectors.sort_values(by=sec_sort_key, ascending=False)
     
     df_stocks = df[(~df['Is_Index']) & (~df['Is_Sector']) & (~df['Is_Commodity'])].copy()
@@ -1433,7 +1433,7 @@ if not df.empty:
                 df_filtered = df_filtered[df_filtered['Is_W_Pullback'] == True]
 
     # 🔥 STRICT DYNAMIC SORTING 🔥
-    sort_key = "W_C" if chart_timeframe == "Weekly Chart" else "C"
+    sort_key = "W_C" if chart_timeframe == "Weekly Chart" else "Day_C"
     
     if 'Sector_Bonus' not in df_filtered.columns: df_filtered['Sector_Bonus'] = 0
     
