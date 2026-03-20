@@ -992,7 +992,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
     sc1, sc2, sc3 = st.columns(3)
     with sc1:
         if watchlist_mode in ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions"]:
-            move_type_filter = st.selectbox("Strategy Filter", ["All Moves", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)"], index=0)
+            move_type_filter = st.selectbox("Strategy Filter", ["All Moves", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)"], index=0)
         elif watchlist_mode == "Swing Trading 📈":
             move_type_filter = st.selectbox("Strategy Filter", ["All Swing Stocks", "🚀 Pro Breakout Strategy", "🌟 Weekly 10EMA Pro"], index=0)
         elif watchlist_mode == "Fundamentals 🏢":
@@ -1363,7 +1363,8 @@ if not df.empty:
                 "🏹 Rubber Band Stretch",
                 "🏄‍♂️ Momentum Ignition",
                 "💥 Narrow CPR Breakout",
-                "🧲 10-EMA Retest (Best Entry)"  # <--- ఇది యాడ్ చేయాలి
+                "🧲 10-EMA Retest (Best Entry)",
+                "📉 FIB Retracement (0.382)"
             ]
             
             strats_to_run = strategies_list if move_type_filter == "All Moves" else [move_type_filter]
@@ -1427,6 +1428,19 @@ if not df.empty:
                     c_buy = base_buy & (ai_buy | dt_buy) & (df_filtered['Retest_Tag'] == "BUY_RETEST")
                     c_sell = base_sell & (ai_sell | dt_sell) & (df_filtered['Retest_Tag'] == "SELL_RETEST")
                     icon_str = "🧲"
+            elif strat == "📉 FIB Retracement (0.382)":
+                    # Fibonacci Calculation: (High - Low) * 0.382
+                    fib_range = (df_filtered['H'] - df_filtered['L'])
+                    fib_level_buy = df_filtered['H'] - (fib_range * 0.382)
+                    fib_level_sell = df_filtered['L'] + (fib_range * 0.382)
+
+                    # BUY: ప్రైస్ VWAP పైన ఉండాలి + హై నుండి 0.382 లెవల్ కంటే కిందకు రావాలి
+                    c_buy = (df_filtered['P'] > df_filtered['VWAP']) & (df_filtered['P'] <= fib_level_buy) & (fib_range > 0)
+                    
+                    # SELL: ప్రైస్ VWAP కింద ఉండాలి + లో నుండి 0.382 లెవల్ కంటే పైకి రావాలి
+                    c_sell = (df_filtered['P'] < df_filtered['VWAP']) & (df_filtered['P'] >= fib_level_sell) & (fib_range > 0)
+                    
+                    icon_str = "📉 FIB"
 
                 top_buy = df_filtered[c_buy].sort_values(by=['VolX', 'Day_C'], ascending=[False, False]).head(5).copy()
                 if not top_buy.empty: top_buy['Strategy_Icon'] = f"{icon_str} BUY"
