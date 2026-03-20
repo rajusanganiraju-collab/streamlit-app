@@ -909,14 +909,16 @@ def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Day", cha
     if chart_dict is None: chart_dict = {}
     with st.container():
         st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
-        for j, (_, row) in enumerate(df_grid.iterrows()):
+        # 🔥 FIX: పాత కోడ్ లో ఉన్న 'enumerate' మరియు 'j' ని తీసేశాం. 
+        for _, row in df_grid.iterrows():
             with st.container():
-                render_chart(row, chart_dict.get(row['Fetch_T'], pd.DataFrame()), show_pin=show_pin_option, key_suffix=f"{key_prefix}_{j}", timeframe=timeframe, show_crosshair=show_crosshair, show_vol=show_vol)
+                # 🔥 FIX: key_suffix లో 'j' ని రిమూవ్ చేసాం. దీనివల్ల ఆటోమేటిక్ టిక్స్ రావు!
+                render_chart(row, chart_dict.get(row['Fetch_T'], pd.DataFrame()), show_pin=show_pin_option, key_suffix=key_prefix, timeframe=timeframe, show_crosshair=show_crosshair, show_vol=show_vol)
                 
-                # 🔥 NEW 2: సెక్టార్ చార్ట్స్ కింద Toggle Button
+                # సెక్టార్ చార్ట్స్ కింద Toggle Button
                 if is_sector:
                     btn_lbl = f"🔽 View Stocks" if st.session_state.active_sec != row['T'] else f"🔼 Hide Stocks"
-                    if st.button(btn_lbl, key=f"btn_sec_{row['T']}_{j}", use_container_width=True):
+                    if st.button(btn_lbl, key=f"btn_sec_{row['Fetch_T']}", use_container_width=True):
                         if st.session_state.active_sec == row['T']:
                             st.session_state.active_sec = None
                         else:
