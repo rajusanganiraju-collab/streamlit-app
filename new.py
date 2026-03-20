@@ -755,7 +755,8 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
     display_sym = row['T']
     fetch_sym = row['Fetch_T']
     
-    pct_val = float(row.get('W_C', row['C'])) if timeframe == "Weekly Chart" else float(row['C'])
+    # 🔥 ఇక్కడ 'C' (Net Change) తీసేసి 'Day_C' (Intraday Change - ఈరోజు ఓపెన్ నుండి) పెట్టాం
+    pct_val = float(row.get('W_C', row['C'])) if timeframe == "Weekly Chart" else float(row['Day_C'])
     color_hex = "#da3633" if pct_val < 0 else "#2ea043"
     sign = "+" if pct_val > 0 else ""
     tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
@@ -1815,16 +1816,18 @@ if not df.empty:
                         sec_df = df_stocks[df_stocks['T'].isin(sec_stock_names)].copy()
                         
                         if not sec_df.empty:
-                            # 🔥 సెక్టార్ ట్రెండ్ బట్టి సార్టింగ్: పాజిటివ్ అయితే ఎక్కువ పెరిగినవి, నెగెటివ్ అయితే ఎక్కువ పడినవి ముందు వస్తాయి.
+                            # 🔥 ఈ రోజు ఓపెన్ ప్రైస్ (Day_C) బట్టి పక్కాగా సార్ట్ చేస్తున్నాం
+                            sort_col = 'W_C' if chart_timeframe == "Weekly Chart" else 'Day_C'
+                            
                             sec_trend_row = df_sectors[df_sectors['T'] == st.session_state.active_sec]
                             is_sec_down = False
                             if not sec_trend_row.empty:
-                                is_sec_down = float(sec_trend_row['Day_C'].iloc[0]) < 0
+                                is_sec_down = float(sec_trend_row[sort_col].iloc[0]) < 0
 
                             if is_sec_down:
-                                sec_df = sec_df.sort_values(by='Day_C', ascending=True).head(6)  # పడినవి ముందు వస్తాయి
+                                sec_df = sec_df.sort_values(by=sort_col, ascending=True).head(6)  # పడినవి ముందు వస్తాయి
                             else:
-                                sec_df = sec_df.sort_values(by='Day_C', ascending=False).head(6) # పెరిగినవి ముందు వస్తాయి
+                                sec_df = sec_df.sort_values(by=sort_col, ascending=False).head(6) # పెరిగినవి ముందు వస్తాయి
                             
                             render_chart_grid(sec_df, show_pin_option=True, key_prefix="sec_top6", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
                         else:
