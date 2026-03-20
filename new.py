@@ -1374,8 +1374,36 @@ if not df.empty:
                 "📉 FIB Retracement (0.382)"
             ]
             
-            # 🔥 మల్టీ-సెలెక్ట్ కి తగ్గట్టుగా లూప్ లాజిక్
+            strategies_list = [
+                "⚡ Intraday Pro Breakout (Top 5)",
+                "🌊 One Sided Only", 
+                "🔄 VWAP Reversal",   
+                "🎯 Reversals Only", 
+                "🏹 Rubber Band Stretch",
+                "🏄‍♂️ Momentum Ignition",
+                "💥 Narrow CPR Breakout",
+                "🧲 10-EMA Retest (Best Entry)",
+                "📉 FIB Retracement (0.382)"
+            ]
+            
+            # --- 🔥 FIB MASTER FILTER LOGIC 🔥 ---
+            fib_range = (df_filtered['H'] - df_filtered['L'])
+            fib_buy_0382 = df_filtered['H'] - (fib_range * 0.382)
+            fib_buy_0618 = df_filtered['H'] - (fib_range * 0.618)
+            fib_sell_0382 = df_filtered['L'] + (fib_range * 0.382)
+            fib_sell_0618 = df_filtered['L'] + (fib_range * 0.618)
+
+            fib_buy_mask = (df_filtered['P'] > df_filtered['VWAP']) & (df_filtered['P'] <= fib_buy_0382) & (df_filtered['P'] >= fib_buy_0618) & (fib_range > 0)
+            fib_sell_mask = (df_filtered['P'] < df_filtered['VWAP']) & (df_filtered['P'] >= fib_sell_0382) & (df_filtered['P'] <= fib_sell_0618) & (fib_range > 0)
+
+            apply_fib_strict = "📉 FIB Retracement (0.382)" in move_type_filter
+            other_strats_selected = [s for s in move_type_filter if s not in ["📉 FIB Retracement (0.382)", "All Moves"]]
+            
             strats_to_run = strategies_list if (not move_type_filter or "All Moves" in move_type_filter) else move_type_filter
+            
+            if apply_fib_strict and (len(other_strats_selected) > 0 or "All Moves" in move_type_filter):
+                strats_to_run = [s for s in strats_to_run if s != "📉 FIB Retracement (0.382)"]
+
             all_dfs = []
             
             for strat in strats_to_run:
@@ -1412,59 +1440,31 @@ if not df.empty:
                     c_buy = base_buy & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] >= 2.0) & ((df_filtered['H'] - df_filtered['P']) <= (df_filtered['H'] - df_filtered['L']) * 0.15)
                     c_sell = base_sell & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['P'] < df_filtered['O']) & (df_filtered['Day_C'] <= -2.0) & ((df_filtered['P'] - df_filtered['L']) <= (df_filtered['H'] - df_filtered['L']) * 0.15)
                     icon_str = "🏄‍♂️"
+                    
+                elif strat == "💥 Narrow CPR Breakout":
+                    c_buy = base_buy & (df_filtered['Narrow_CPR'] == True) & (df_filtered['Day_C'] >= 1.0)
+                    c_sell = base_sell & (df_filtered['Narrow_CPR'] == True) & (df_filtered['Day_C'] <= -1.0)
+                    icon_str = "💥"
 
                 elif strat == "🧲 10-EMA Retest (Best Entry)":
-                    # 1. AI Predictions కండిషన్ (కనీసం 70% స్కోర్ తెచ్చుకునేవి)
                     ai_buy = (df_filtered['P'] > df_filtered['VWAP']) & (df_filtered['VolX'] >= 1.5) & (df_filtered.get('Bull_P', 0) >= 75)
                     ai_sell = (df_filtered['P'] < df_filtered['VWAP']) & (df_filtered['VolX'] >= 1.5) & (df_filtered.get('Bear_P', 0) >= 75)
-                    
-                    # 2. మిగతా అన్ని Day Trading స్ట్రాటజీల కండిషన్స్ (కనీసం ఒకదానిలో పాస్ అవ్వాలి)
-                    dt_buy = (
-                        (df_filtered['Trend_Score'] >= 3) | 
-                        (df_filtered['Narrow_CPR'] == True) | 
-                        (df_filtered['AlphaTag'].str.contains("Reversal Buy", na=False)) | 
-                        (df_filtered['Day_C'] >= 1.5) 
-                    )
-                    dt_sell = (
-                        (df_filtered['Trend_Score'] >= 3) | 
-                        (df_filtered['Narrow_CPR'] == True) | 
-                        (df_filtered['AlphaTag'].str.contains("Reversal Sell", na=False)) | 
-                        (df_filtered['Day_C'] <= -1.5)
-                    )
-                    
-                    # ఫైనల్ గా: బేస్ ట్రెండ్ ఉండి + (AI లో లేదా Day Trading లో సెలెక్ట్ అయ్యి) + 10-EMA Retest జరగాలి!
+                    dt_buy = ((df_filtered['Trend_Score'] >= 3) | (df_filtered['Narrow_CPR'] == True) | (df_filtered['AlphaTag'].str.contains("Reversal Buy", na=False)) | (df_filtered['Day_C'] >= 1.5))
+                    dt_sell = ((df_filtered['Trend_Score'] >= 3) | (df_filtered['Narrow_CPR'] == True) | (df_filtered['AlphaTag'].str.contains("Reversal Sell", na=False)) | (df_filtered['Day_C'] <= -1.5))
                     c_buy = base_buy & (ai_buy | dt_buy) & (df_filtered['Retest_Tag'] == "BUY_RETEST")
                     c_sell = base_sell & (ai_sell | dt_sell) & (df_filtered['Retest_Tag'] == "SELL_RETEST")
                     icon_str = "🧲"
+                    
                 elif strat == "📉 FIB Retracement (0.382)":
-                    fib_range = (df_filtered['H'] - df_filtered['L'])
-                    
-                    # --- BUY LEVELS (పైనుండి కిందకు రీట్రేస్) ---
-                    fib_buy_0382 = df_filtered['H'] - (fib_range * 0.382)
-                    fib_buy_0618 = df_filtered['H'] - (fib_range * 0.618)
-                    
-                    # --- SELL LEVELS (కిందనుండి పైకి రీట్రేస్) ---
-                    fib_sell_0382 = df_filtered['L'] + (fib_range * 0.382)
-                    fib_sell_0618 = df_filtered['L'] + (fib_range * 0.618)
-
-                    # BUY కండిషన్: VWAP పైన ఉండాలి, 0.382 కి కింద, 0.618 కి పైన ఉండాలి
-                    c_buy = (
-                        (df_filtered['P'] > df_filtered['VWAP']) & 
-                        (df_filtered['P'] <= fib_buy_0382) & 
-                        (df_filtered['P'] >= fib_buy_0618) & 
-                        (fib_range > 0)
-                    )
-                    
-                    # SELL కండిషన్: VWAP కింద ఉండాలి, 0.382 కి పైన, 0.618 కి కింద ఉండాలి
-                    c_sell = (
-                        (df_filtered['P'] < df_filtered['VWAP']) & 
-                        (df_filtered['P'] >= fib_sell_0382) & 
-                        (df_filtered['P'] <= fib_sell_0618) & 
-                        (fib_range > 0)
-                    )
+                    c_buy = base_buy & fib_buy_mask
+                    c_sell = base_sell & fib_sell_mask
                     icon_str = "📉 FIB"
-                
-                # ఇక్కడున్న else కండిషన్ ని పూర్తిగా రిమూవ్ చేసాము!
+
+                # --- 🔥 THE CONFLUENCE MAGIC 🔥 ---
+                if apply_fib_strict and strat != "📉 FIB Retracement (0.382)":
+                    c_buy = c_buy & fib_buy_mask
+                    c_sell = c_sell & fib_sell_mask
+                    icon_str = icon_str + " + 📉FIB"
 
                 top_buy = df_filtered[c_buy].sort_values(by=['VolX', 'Day_C'], ascending=[False, False]).head(5).copy()
                 if not top_buy.empty: top_buy['Strategy_Icon'] = f"{icon_str} BUY"
