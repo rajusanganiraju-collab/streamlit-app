@@ -1429,18 +1429,17 @@ if not df.empty:
                     c_sell = base_sell & (ai_sell | dt_sell) & (df_filtered['Retest_Tag'] == "SELL_RETEST")
                     icon_str = "🧲"
                 elif strat == "📉 FIB Retracement (0.382)":
-                    # Fibonacci Calculation: (High - Low) * 0.382
-                    fib_range = (df_filtered['H'] - df_filtered['L'])
-                    fib_level_buy = df_filtered['H'] - (fib_range * 0.382)
-                    fib_level_sell = df_filtered['L'] + (fib_range * 0.382)
+                    # 🔥 FIX: సెలెక్ట్ చేసిన స్ట్రాటజీ మాత్రమే వచ్చేలా కండిషన్
+                    if move_type_filter == "📉 FIB Retracement (0.382)" or move_type_filter == "All Moves":
+                        fib_range = (df_filtered['H'] - df_filtered['L'])
+                        fib_level_buy = df_filtered['H'] - (fib_range * 0.382)
+                        fib_level_sell = df_filtered['L'] + (fib_range * 0.382)
 
-                    # BUY: ప్రైస్ VWAP పైన ఉండాలి + హై నుండి 0.382 లెవల్ కంటే కిందకు రావాలి
-                    c_buy = (df_filtered['P'] > df_filtered['VWAP']) & (df_filtered['P'] <= fib_level_buy) & (fib_range > 0)
-                    
-                    # SELL: ప్రైస్ VWAP కింద ఉండాలి + లో నుండి 0.382 లెవల్ కంటే పైకి రావాలి
-                    c_sell = (df_filtered['P'] < df_filtered['VWAP']) & (df_filtered['P'] >= fib_level_sell) & (fib_range > 0)
-                    
-                    icon_str = "📉 FIB"
+                        c_buy = (df_filtered['P'] > df_filtered['VWAP']) & (df_filtered['P'] <= fib_level_buy) & (fib_range > 0)
+                        c_sell = (df_filtered['P'] < df_filtered['VWAP']) & (df_filtered['P'] >= fib_level_sell) & (fib_range > 0)
+                        icon_str = "📉 FIB"
+                    else:
+                        c_buy, c_sell = False, False
 
                 top_buy = df_filtered[c_buy].sort_values(by=['VolX', 'Day_C'], ascending=[False, False]).head(5).copy()
                 if not top_buy.empty: top_buy['Strategy_Icon'] = f"{icon_str} BUY"
