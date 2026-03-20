@@ -979,7 +979,7 @@ with c2:
     view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
 
 # డిఫాల్ట్ వేరియబుల్స్ (ఎర్రర్స్ రాకుండా)
-move_type_filter = "All Moves"
+move_type_filter = ["All Moves"] # 🔥 Changed to list for multi-select
 fund_filter = "Top Ranked Stocks ⭐"
 sort_mode = "Custom Sort"
 chart_timeframe = "Day Chart"
@@ -992,9 +992,16 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
     sc1, sc2, sc3 = st.columns(3)
     with sc1:
         if watchlist_mode in ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions"]:
-            move_type_filter = st.selectbox("Strategy Filter", ["All Moves", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)"], index=0)
+            # 🔥 Multi-select added here
+            move_type_filter = st.multiselect("Strategy Filter", 
+                ["All Moves", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)"], 
+                default=["All Moves"]
+            )
         elif watchlist_mode == "Swing Trading 📈":
-            move_type_filter = st.selectbox("Strategy Filter", ["All Swing Stocks", "🚀 Pro Breakout Strategy", "🌟 Weekly 10EMA Pro"], index=0)
+            move_type_filter = st.multiselect("Strategy Filter", 
+                ["All Swing Stocks", "🚀 Pro Breakout Strategy", "🌟 Weekly 10EMA Pro"], 
+                default=["All Swing Stocks"]
+            )
         elif watchlist_mode == "Fundamentals 🏢":
             fund_filter = st.selectbox("Fundamentals Filter", ["Top Ranked Stocks ⭐", "Swing Trading Candidates 📈", "Nifty 50 Stocks", "My Portfolio 💼"], index=0)
             
@@ -1323,7 +1330,7 @@ if not df.empty:
             df_filtered['Sector_Bonus'] = 0
             
         # 🔥 AI Predictions లో Retest ఫిల్టర్ పనిచేయడానికి లాజిక్:
-        if watchlist_mode == "🤖 Today's AI Predictions" and move_type_filter == "🧲 10-EMA Retest (Best Entry)":
+        if watchlist_mode == "🤖 Today's AI Predictions" and "🧲 10-EMA Retest (Best Entry)" in move_type_filter:
             df_filtered = df_filtered[
                 (df_filtered['Strategy_Icon'].str.contains('UP', na=False) & (df_filtered['Retest_Tag'] == 'BUY_RETEST')) |
                 (df_filtered['Strategy_Icon'].str.contains('DOWN', na=False) & (df_filtered['Retest_Tag'] == 'SELL_RETEST'))
@@ -1367,7 +1374,8 @@ if not df.empty:
                 "📉 FIB Retracement (0.382)"
             ]
             
-            strats_to_run = strategies_list if move_type_filter == "All Moves" else [move_type_filter]
+            # 🔥 మల్టీ-సెలెక్ట్ కి తగ్గట్టుగా లూప్ లాజిక్
+            strats_to_run = strategies_list if (not move_type_filter or "All Moves" in move_type_filter) else move_type_filter
             all_dfs = []
             
             for strat in strats_to_run:
