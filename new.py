@@ -979,7 +979,8 @@ with c2:
     view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
 
 # డిఫాల్ట్ వేరియబుల్స్ (ఎర్రర్స్ రాకుండా)
-move_type_filter = ["All Moves"] # 🔥 Changed to list for multi-select
+# 🔥 మీకు కావాల్సిన 3 స్ట్రాటజీలను ఇక్కడే డిఫాల్ట్ గా సెట్ చేసాం
+move_type_filter = ["🌊 One Sided Only", "🎯 Reversals Only", "🏹 Rubber Band Stretch"] 
 fund_filter = "Top Ranked Stocks ⭐"
 sort_mode = "Custom Sort"
 chart_timeframe = "Day Chart"
@@ -992,10 +993,9 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
     sc1, sc2, sc3 = st.columns(3)
     with sc1:
         if watchlist_mode in ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions"]:
-            # 🔥 Multi-select added here
             move_type_filter = st.multiselect("Strategy Filter", 
                 ["All Moves", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)"], 
-                default=["All Moves"]
+                default=["🌊 One Sided Only", "🎯 Reversals Only", "🏹 Rubber Band Stretch"]
             )
         elif watchlist_mode == "Swing Trading 📈":
             move_type_filter = st.multiselect("Strategy Filter", 
