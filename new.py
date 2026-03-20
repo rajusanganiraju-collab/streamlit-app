@@ -80,6 +80,20 @@ if 'pinned_stocks' not in st.session_state:
 if 'custom_alerts' not in st.session_state:
     st.session_state.custom_alerts = {}
 
+# 🔥 NEW 1: సెక్టార్ టోగుల్ స్టేట్ & సెక్టార్ స్టాక్స్ లిస్ట్
+if 'active_sec' not in st.session_state:
+    st.session_state.active_sec = None
+
+TOP_SECTOR_STOCKS = {
+    "NIFTY IT": ["TCS", "INFY", "HCLTECH", "WIPRO", "TECHM", "COFORGE", "PERSISTENT", "LTIM"],
+    "NIFTY AUTO": ["TATAMOTORS", "M&M", "MARUTI", "BAJAJ-AUTO", "EICHERMOT", "HEROMOTOCO", "TVSMOTOR", "ASHOKLEY"],
+    "NIFTY METAL": ["TATASTEEL", "JSWSTEEL", "HINDALCO", "VEDL", "NMDC", "SAIL", "JINDALSTEL"],
+    "NIFTY PHARMA": ["SUNPHARMA", "CIPLA", "DRREDDY", "DIVISLAB", "LUPIN", "AUROPHARMA", "TORNTPHARM"],
+    "NIFTY FMCG": ["ITC", "HINDUNILVR", "NESTLEIND", "BRITANNIA", "TATACONSUM", "DABUR", "GODREJCP", "MARICO"],
+    "NIFTY ENERGY": ["RELIANCE", "ONGC", "NTPC", "POWERGRID", "COALINDIA", "BPCL", "TATAPOWER", "IOC"],
+    "NIFTY REALTY": ["DLF", "GODREJPROP", "OBEROIRLTY", "PRESTIGE", "MACROTECH", "PHOENIXLTD"]
+}
+
 def toggle_pin(symbol):
     if symbol in st.session_state.pinned_stocks:
         st.session_state.pinned_stocks.remove(symbol)
@@ -890,7 +904,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
     except Exception as e: 
         st.markdown(f"<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart error</div>", unsafe_allow_html=True)
 
-def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Day", chart_dict=None, show_crosshair=False, show_vol=False):
+def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Day", chart_dict=None, show_crosshair=False, show_vol=False, is_sector=False):
     if df_grid.empty: return
     if chart_dict is None: chart_dict = {}
     with st.container():
@@ -898,6 +912,16 @@ def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Day", cha
         for j, (_, row) in enumerate(df_grid.iterrows()):
             with st.container():
                 render_chart(row, chart_dict.get(row['Fetch_T'], pd.DataFrame()), show_pin=show_pin_option, key_suffix=f"{key_prefix}_{j}", timeframe=timeframe, show_crosshair=show_crosshair, show_vol=show_vol)
+                
+                # 🔥 NEW 2: సెక్టార్ చార్ట్స్ కింద Toggle Button
+                if is_sector:
+                    btn_lbl = f"🔽 View Stocks" if st.session_state.active_sec != row['T'] else f"🔼 Hide Stocks"
+                    if st.button(btn_lbl, key=f"btn_sec_{row['T']}_{j}", use_container_width=True):
+                        if st.session_state.active_sec == row['T']:
+                            st.session_state.active_sec = None
+                        else:
+                            st.session_state.active_sec = row['T']
+                        st.rerun()
 
 def render_closed_trades_table(df_closed):
     if df_closed.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No closed trades yet. Sell a stock to book P&L!</div>"
@@ -1029,8 +1053,9 @@ if not df.empty:
     # (మిగతా పాత కోడ్ అంతా దీని కింద మామూలుగానే ఉంటుంది)
             
     df_indices = df[df['Is_Index']].copy()
-    # ఇండెక్స్ లను కూడా ఆ రోజు పెరిగిన/తగ్గిన ఓపెనింగ్ ప్రైస్ ఆధారంగా సార్ట్ చేస్తున్నాం 
-    df_indices = df_indices.sort_values(by='Day_C', ascending=False)
+    # 🔥 FIX 1: VIX ఫస్ట్ రాకుండా పాత ఆర్డర్ (Nifty -> BankNifty -> Vix) సెట్ చేసాం
+    df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3, "DOW": 4, "NSDQ": 5})
+    df_indices = df_indices.sort_values('Order')
     
     df_sectors = df[df['Is_Sector']].copy()
     
@@ -1127,8 +1152,13 @@ if not df.empty:
     else:
         df_filtered = df_stocks[(df_stocks['S'] >= 11) & (df_stocks['VolX'] >= 1.5)]
 
-    # 🔥 ఇక్కడ సెక్టార్స్ (df_sectors) ని కూడా యాడ్ చేసాం!
+    # 🔥 NEW 3: సెక్టార్ క్లిక్ చేస్తే ఆ స్టాక్స్ కూడా 5-min చార్ట్ కి లోడ్ అవ్వడానికి
     all_display_tickers = list(set(df_indices['Fetch_T'].tolist() + df_sectors['Fetch_T'].tolist() + df_filtered['Fetch_T'].tolist() + st.session_state.pinned_stocks))
+    
+    if st.session_state.get('active_sec'):
+        sec_stock_names = TOP_SECTOR_STOCKS.get(st.session_state.active_sec, [])
+        sec_tickers = [f"{sym}.NS" for sym in sec_stock_names]
+        all_display_tickers = list(set(all_display_tickers + sec_tickers))
     
     if search_stock != "-- None --":
         search_fetch_t = df[df['T'] == search_stock]['Fetch_T'].iloc[0]
@@ -1735,7 +1765,24 @@ if not df.empty:
             if not df_sectors.empty:
                 show_sec_charts = st.toggle("📊 Show Sectoral Indices Charts", value=False)
                 if show_sec_charts:
-                    render_chart_grid(df_sectors, show_pin_option=False, key_prefix="sec", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
+                    # ఇక్కడ is_sector=True పాస్ చేసాం బటన్స్ రావడానికి
+                    render_chart_grid(df_sectors, show_pin_option=False, key_prefix="sec", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol, is_sector=True)
+                    
+                    # 🔥 NEW 4: క్లిక్ చేసిన సెక్టార్ లో ఎక్కువ మూమెంట్ ఉన్న Top 6 స్టాక్స్
+                    if st.session_state.get('active_sec'):
+                        st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:10px; margin-bottom:5px; color:#ffd700;'>🌟 Top 6 Active Movers in {st.session_state.active_sec}</div>", unsafe_allow_html=True)
+                        sec_stock_names = TOP_SECTOR_STOCKS.get(st.session_state.active_sec, [])
+                        sec_df = df_stocks[df_stocks['T'].isin(sec_stock_names)].copy()
+                        
+                        if not sec_df.empty:
+                            # Day_C బట్టి అబ్సల్యూట్ చేంజ్ (అంటే ఎంత పడినా, ఎంత పెరిగినా టాప్ లో వస్తాయి)
+                            sec_df['Abs_Move'] = sec_df['Day_C'].abs()
+                            sec_df = sec_df.sort_values(by='Abs_Move', ascending=False).head(6)
+                            
+                            render_chart_grid(sec_df, show_pin_option=True, key_prefix="sec_top6", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
+                        else:
+                            st.info(f"Market Data syncing for {st.session_state.active_sec} stocks... Please wait.")
+                            
                 st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
 
         pinned_df = df[df['Fetch_T'].isin(st.session_state.pinned_stocks)].copy()
