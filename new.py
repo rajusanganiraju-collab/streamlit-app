@@ -1438,11 +1438,30 @@ if not df.empty:
                     icon_str = "🧲"
                 elif strat == "📉 FIB Retracement (0.382)":
                     fib_range = (df_filtered['H'] - df_filtered['L'])
-                    fib_level_buy = df_filtered['H'] - (fib_range * 0.382)
-                    fib_level_sell = df_filtered['L'] + (fib_range * 0.382)
+                    
+                    # --- BUY LEVELS (పైనుండి కిందకు రీట్రేస్) ---
+                    fib_buy_0382 = df_filtered['H'] - (fib_range * 0.382)
+                    fib_buy_0618 = df_filtered['H'] - (fib_range * 0.618)
+                    
+                    # --- SELL LEVELS (కిందనుండి పైకి రీట్రేస్) ---
+                    fib_sell_0382 = df_filtered['L'] + (fib_range * 0.382)
+                    fib_sell_0618 = df_filtered['L'] + (fib_range * 0.618)
 
-                    c_buy = (df_filtered['P'] > df_filtered['VWAP']) & (df_filtered['P'] <= fib_level_buy) & (fib_range > 0)
-                    c_sell = (df_filtered['P'] < df_filtered['VWAP']) & (df_filtered['P'] >= fib_level_sell) & (fib_range > 0)
+                    # BUY కండిషన్: VWAP పైన ఉండాలి, 0.382 కి కింద, 0.618 కి పైన ఉండాలి
+                    c_buy = (
+                        (df_filtered['P'] > df_filtered['VWAP']) & 
+                        (df_filtered['P'] <= fib_buy_0382) & 
+                        (df_filtered['P'] >= fib_buy_0618) & 
+                        (fib_range > 0)
+                    )
+                    
+                    # SELL కండిషన్: VWAP కింద ఉండాలి, 0.382 కి పైన, 0.618 కి కింద ఉండాలి
+                    c_sell = (
+                        (df_filtered['P'] < df_filtered['VWAP']) & 
+                        (df_filtered['P'] >= fib_sell_0382) & 
+                        (df_filtered['P'] <= fib_sell_0618) & 
+                        (fib_range > 0)
+                    )
                     icon_str = "📉 FIB"
                 
                 # ఇక్కడున్న else కండిషన్ ని పూర్తిగా రిమూవ్ చేసాము!
