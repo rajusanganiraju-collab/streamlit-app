@@ -1428,7 +1428,7 @@ if not df.empty:
                     c_buy = base_buy & (ai_buy | dt_buy) & (df_filtered['Retest_Tag'] == "BUY_RETEST")
                     c_sell = base_sell & (ai_sell | dt_sell) & (df_filtered['Retest_Tag'] == "SELL_RETEST")
                     icon_str = "🧲"
-            elif strat == "📉 FIB Retracement (0.382)":
+                    elif strat == "📉 FIB Retracement (0.382)":
                     # Fibonacci Calculation: (High - Low) * 0.382
                     fib_range = (df_filtered['H'] - df_filtered['L'])
                     fib_level_buy = df_filtered['H'] - (fib_range * 0.382)
