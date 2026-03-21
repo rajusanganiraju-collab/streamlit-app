@@ -960,13 +960,7 @@ if not df.empty:
 watchlist_mode = st.selectbox("Watchlist", ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions", "High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢"], index=0, label_visibility="collapsed")
 
 # 🔥 రేడియో బటన్ మరియు పాజ్ టోగుల్ ని ఒకే లైన్ లో లాక్ చేస్తున్నాం
-with st.container():
-    st.markdown("<div class='view-pause-marker'></div>", unsafe_allow_html=True)
-    c1, c2 = st.columns([0.6, 0.4]) 
-    with c1: 
-        view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
-    with c2:
-        st.session_state.pause_refresh = st.toggle("⏸️ Pause", value=st.session_state.pause_refresh)
+view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
 
 # డిఫాల్ట్ వేరియబుల్స్ (ఎర్రర్స్ రాకుండా)
 # 🔥 మీకు కావాల్సిన 3 స్ట్రాటజీలను ఇక్కడే డిఫాల్ట్ గా సెట్ చేసాం
