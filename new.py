@@ -1798,7 +1798,14 @@ if not df.empty:
             
             # 2. 🔥 సెక్టార్ చార్ట్స్ (Toggle స్విచ్ తో దాచాం)
             if not df_sectors.empty:
+                # 🔥 FIX: పై లైన్ కి, కింద లైన్ కి మధ్యలో టోగుల్ సెంటర్ లో ఉండటానికి ఇక్కడ పైన 12px గ్యాప్ ఇస్తున్నాం
+                st.markdown("<div style='margin-top: 12px;'></div>", unsafe_allow_html=True)
+                
                 show_sec_charts = st.toggle("📊 Show Sectoral Indices Charts", value=False)
+                
+                # కింద కూడా బ్యాలెన్స్ చేయడానికి చిన్న గ్యాప్
+                st.markdown("<div style='margin-bottom: 2px;'></div>", unsafe_allow_html=True)
+                
                 if show_sec_charts:
                     # ఇక్కడ is_sector=True పాస్ చేసాం బటన్స్ రావడానికి
                     render_chart_grid(df_sectors, show_pin_option=False, key_prefix="sec", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol, is_sector=True)
