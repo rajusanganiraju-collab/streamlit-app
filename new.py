@@ -778,8 +778,15 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
             max_val = df_chart['High'].max()
             y_padding = (max_val - min_val) * 0.1 if (max_val - min_val) != 0 else min_val * 0.005 
             
-            # 🔥 హోవర్ డేటాలో టైమ్ కూడా యాడ్ చేసాం!
-            hover_data = "🕒 " + df_chart.index.strftime('%d-%b %H:%M') + "<br>📈 H: ₹" + df_chart['High'].round(2).astype(str) + "<br>📉 L: ₹" + df_chart['Low'].round(2).astype(str)
+            # 🔥 Yahoo Finance టైమ్ ని మన IST (Indian Standard Time) కి మారుస్తున్నాం
+            chart_times = pd.to_datetime(df_chart.index)
+            if chart_times.tz is not None:
+                chart_times = chart_times.tz_convert('Asia/Kolkata')
+            else:
+                chart_times = chart_times.tz_localize('UTC').tz_convert('Asia/Kolkata')
+                
+            # 🔥 హోవర్ డేటాలో పక్కా ఇండియన్ టైమ్ (AM/PM ఫార్మాట్ లో)
+            hover_data = "🕒 " + chart_times.strftime('%d-%b %I:%M %p') + "<br>📈 H: ₹" + df_chart['High'].round(2).astype(str) + "<br>📉 L: ₹" + df_chart['Low'].round(2).astype(str)
             
             if show_vol:
                 fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.02, row_heights=[0.75, 0.25])
