@@ -154,15 +154,19 @@ st.markdown("""
         position: relative !important;
         z-index: 50 !important;
     }
-    /* 🔥 NEW: మొబైల్ లో కూడా వాచ్ లిస్ట్, చార్ట్ బటన్, పాజ్ బటన్ ఒకే లైన్ లో ఉంచడానికి */
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .top-bar-marker) > div[data-testid="stHorizontalBlock"] {
+    /* 🔥 NEW: రేడియో బటన్ మరియు పాజ్ బటన్ ఎంత చిన్న స్క్రీన్ అయినా ఒకే లైన్ లో ఉంచడానికి */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .view-pause-marker) > div[data-testid="stHorizontalBlock"] {
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
         align-items: center !important;
     }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .top-bar-marker) > div[data-testid="stElementContainer"]:has(.top-bar-marker) {
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .view-pause-marker) > div[data-testid="stElementContainer"]:has(.view-pause-marker) {
         display: none !important;
+    }
+    /* రేడియో బటన్ కి సమానంగా పాజ్ బటన్ లైన్ అవ్వడానికి */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .view-pause-marker) div[data-testid="stCheckbox"] {
+        margin-top: 4px !important;
     }
 
     div[data-testid="stCheckbox"] label { padding: 0 !important; min-height: 0 !important; }
@@ -957,15 +961,17 @@ if not df.empty:
 # --- 7. ULTRA COMPACT UI SETTINGS (MOBILE FRIENDLY) ---
 # =========================================================
 
-# 💡 మెయిన్ సెట్టింగ్స్ (ఎంత చిన్న స్క్రీన్ అయినా ఒకే లైన్‌లో పక్కాగా వస్తాయి)
+# 💡 మెయిన్ సెట్టింగ్స్ (మొబైల్ కి పక్కాగా సెట్ అయ్యేలా)
+# వాచ్ లిస్ట్ ని ఫుల్ లైన్ లో పెడుతున్నాం
+watchlist_mode = st.selectbox("Watchlist", ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions", "High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢"], index=0, label_visibility="collapsed")
+
+# 🔥 రేడియో బటన్ మరియు పాజ్ టోగుల్ ని ఒకే లైన్ లో లాక్ చేస్తున్నాం
 with st.container():
-    st.markdown("<div class='top-bar-marker'></div>", unsafe_allow_html=True)
-    c1, c2, c3 = st.columns([1.6, 0.9, 0.9]) 
+    st.markdown("<div class='view-pause-marker'></div>", unsafe_allow_html=True)
+    c1, c2 = st.columns([0.6, 0.4]) 
     with c1: 
-        watchlist_mode = st.selectbox("Watchlist", ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions", "High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢"], index=0, label_visibility="collapsed")
-    with c2: 
         view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
-    with c3:
+    with c2:
         st.session_state.pause_refresh = st.toggle("⏸️ Pause", value=st.session_state.pause_refresh)
 
 # డిఫాల్ట్ వేరియబుల్స్ (ఎర్రర్స్ రాకుండా)
