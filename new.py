@@ -1753,6 +1753,8 @@ if not df.empty:
                         
                     html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">{special_icon}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if pct_val>0 else ""}{pct_val:.2f}%</div></a>'
                 st.markdown(html_stk + '</div>', unsafe_allow_html=True)
+            if not df_buy.empty: render_heatmap_section(df_buy, f"🟢 POSITIVE / BUY ({watchlist_mode})", "#3fb950")
+            if not df_sell.empty: render_heatmap_section(df_sell, f"🔴 NEGATIVE / SELL ({watchlist_mode})", "#f85149")
             
             if watchlist_mode == "🤖 Today's AI Predictions":
                 with st.expander("🤖 View AI Predictive Radar (Probability Based)", expanded=True): st.markdown(render_highscore_terminal_table(df_stocks_display), unsafe_allow_html=True)
