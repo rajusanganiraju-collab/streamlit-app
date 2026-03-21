@@ -1694,19 +1694,26 @@ if not df.empty:
                 df_closed_view = load_closed_trades()
                 st.markdown(render_closed_trades_table(df_closed_view), unsafe_allow_html=True) 
     elif view_mode == "Heat Map" and watchlist_mode != "Fundamentals 🏢":
+        # 🔥 FIX: సార్టింగ్ మరియు పర్సంటేజ్ రెండూ పక్కాగా Intraday ('Day_C') కి సింక్ చేస్తున్నాం 
+        map_sort_key = "W_C" if chart_timeframe == "Weekly Chart" else "Day_C"
+
         if not df_indices.empty and watchlist_mode != "Commodity 🛢️":
             html_idx = '<div class="heatmap-grid">'
             for _, row in df_indices.iterrows():
-                pct_val = float(row.get('W_C', row['C'])) if chart_timeframe == "Weekly Chart" else float(row['C'])
+                # ఇక్కడ 'C' ని 'Day_C' కి మార్చాం
+                pct_val = float(row.get('W_C', row['Day_C'])) if chart_timeframe == "Weekly Chart" else float(row['Day_C'])
                 bg = "bear-card" if (row['T'] == "INDIA VIX" and pct_val > 0) else ("bull-card" if pct_val > 0 else "neut-card")
                 if row['T'] != "INDIA VIX" and pct_val < 0: bg = "bear-card"
                 html_idx += f'<a href="https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(row["Fetch_T"])}" target="_blank" class="stock-card {bg}"><div class="t-score">IDX</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if pct_val>0 else ""}{pct_val:.2f}%</div></a>'
             st.markdown(html_idx + '</div><hr class="custom-hr">', unsafe_allow_html=True)
         
         if not df_sectors.empty and watchlist_mode != "Commodity 🛢️":
+            # 🔥 సెక్టార్స్ ని హీట్‌మ్యాప్ ప్రింట్ అయ్యే ముందే పక్కాగా సార్ట్ చేస్తున్నాం
+            df_sectors = df_sectors.sort_values(by=map_sort_key, ascending=False)
             html_sec = '<div class="heatmap-grid">'
             for _, row in df_sectors.iterrows():
-                pct_val = float(row.get('W_C', row['C'])) if chart_timeframe == "Weekly Chart" else float(row['C'])
+                # ఇక్కడ 'C' ని 'Day_C' కి మార్చాం
+                pct_val = float(row.get('W_C', row['Day_C'])) if chart_timeframe == "Weekly Chart" else float(row['Day_C'])
                 bg = "bull-card" if pct_val > 0 else ("bear-card" if pct_val < 0 else "neut-card")
                 html_sec += f'<a href="https://in.tradingview.com/chart/?symbol={TV_SECTOR_URL.get(row["Fetch_T"], "")}" target="_blank" class="stock-card {bg}"><div class="t-score" style="color:#00BFFF;">SEC</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if pct_val>0 else ""}{pct_val:.2f}%</div></a>'
             st.markdown(html_sec + '</div><hr class="custom-hr">', unsafe_allow_html=True)
@@ -1723,7 +1730,8 @@ if not df.empty:
                 st.markdown(f"<div style='font-size:16px; font-weight:bold; margin: 15px 0 5px 0; color:{title_color};'>{title}</div>", unsafe_allow_html=True)
                 html_stk = '<div class="heatmap-grid">'
                 for _, row in df_sec.iterrows():
-                    pct_val = float(row.get('W_C', row['C'])) if chart_timeframe == "Weekly Chart" else float(row['C'])
+                    # ఇక్కడ 'C' ని 'Day_C' కి మార్చాం
+                    pct_val = float(row.get('W_C', row['Day_C'])) if chart_timeframe == "Weekly Chart" else float(row['Day_C'])
                     bg = "bull-card" if pct_val > 0 else ("bear-card" if pct_val < 0 else "neut-card")
                     
                     special_icon = f"⭐{int(row['S'])}"
@@ -1745,11 +1753,6 @@ if not df.empty:
                         
                     html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">{special_icon}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if pct_val>0 else ""}{pct_val:.2f}%</div></a>'
                 st.markdown(html_stk + '</div>', unsafe_allow_html=True)
-
-            if not df_buy.empty: render_heatmap_section(df_buy, f"🟢 POSITIVE / BUY ({watchlist_mode})", "#3fb950")
-            if not df_sell.empty: render_heatmap_section(df_sell, f"🔴 NEGATIVE / SELL ({watchlist_mode})", "#f85149")
-            
-            st.markdown('<br>', unsafe_allow_html=True)
             
             if watchlist_mode == "🤖 Today's AI Predictions":
                 with st.expander("🤖 View AI Predictive Radar (Probability Based)", expanded=True): st.markdown(render_highscore_terminal_table(df_stocks_display), unsafe_allow_html=True)
