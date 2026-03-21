@@ -72,7 +72,12 @@ def save_closed_trades(df):
     trade_ws.update([df.columns.values.tolist()] + df.values.tolist())
 
 # --- 4. AUTO RUN & STATE MANAGEMENT ---
-st_autorefresh(interval=60000, key="datarefresh")
+if 'pause_refresh' not in st.session_state:
+    st.session_state.pause_refresh = False
+
+# పాజ్ టోగుల్ ఆన్‌లో లేకపోతేనే రిఫ్రెష్ అవుతుంది
+if not st.session_state.pause_refresh:
+    st_autorefresh(interval=60000, key="datarefresh")
 
 if 'pinned_stocks' not in st.session_state:
     st.session_state.pinned_stocks = []
@@ -755,7 +760,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
     display_sym = row['T']
     fetch_sym = row['Fetch_T']
     
-    # 🔥 ఇక్కడ 'C' (Net Change) తీసేసి 'Day_C' (Intraday Change - ఈరోజు ఓపెన్ నుండి) పెట్టాం
     pct_val = float(row.get('W_C', row['C'])) if timeframe == "Weekly Chart" else float(row['Day_C'])
     color_hex = "#da3633" if pct_val < 0 else "#2ea043"
     sign = "+" if pct_val > 0 else ""
@@ -765,19 +769,17 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
         cb_key = f"cb_{fetch_sym}_{key_suffix}" if key_suffix else f"cb_{fetch_sym}"
         st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=cb_key, on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
     
-    st.markdown(f"""
-        <div style='text-align:left; font-size:14px; font-weight:bold; margin-top:3px; margin-bottom:5px; padding-left:30px;'>
-            <a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none;'>
-                {display_sym} &nbsp;&nbsp; <span style='color:#ffffff;'>₹{row['P']:.2f}</span> &nbsp;&nbsp; <span style='color:{color_hex}; font-size:12px;'>({sign}{pct_val:.2f}%)</span>
-            </a>
-        </div>
-    """, unsafe_allow_html=True)
+    # 🔥 Plotly Annotation లోపల చూపించడానికి HTML ఫార్మాట్ (ఫుల్ స్క్రీన్ కోసం)
+    title_html = f"<a href='{tv_link}' target='_blank' style='color:#ffffff;'><b>{display_sym}</b> &nbsp; ₹{row['P']:.2f} &nbsp; <span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span></a>"
     
     try:
         if not df_chart.empty:
             min_val = df_chart['Low'].min()
             max_val = df_chart['High'].max()
             y_padding = (max_val - min_val) * 0.1 if (max_val - min_val) != 0 else min_val * 0.005 
+            
+            # 🔥 హోవర్ డేటాలో టైమ్ కూడా యాడ్ చేసాం!
+            hover_data = "🕒 " + df_chart.index.strftime('%d-%b %H:%M') + "<br>📈 H: ₹" + df_chart['High'].round(2).astype(str) + "<br>📉 L: ₹" + df_chart['Low'].round(2).astype(str)
             
             if show_vol:
                 fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.02, row_heights=[0.75, 0.25])
@@ -788,7 +790,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                     hoverinfo='skip', name=""
                 ), row=1, col=1)
                 
-                hover_data = "High: ₹" + df_chart['High'].round(2).astype(str) + "<br>Low: ₹" + df_chart['Low'].round(2).astype(str)
                 fig.add_trace(go.Scatter(
                     x=df_chart.index, y=df_chart['High'], mode='lines', line=dict(color='rgba(0,0,0,0)'), 
                     showlegend=False, hoverinfo='text' if show_crosshair else 'skip', text=hover_data, 
@@ -807,6 +808,9 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                 
                 fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=230, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
                 
+                # 🔥 ఫుల్ స్క్రీన్‌లో కూడా కనిపించే టైటిల్ (Annotation)
+                fig.add_annotation(text=title_html, xref="paper", yref="paper", x=0.01, y=0.96, showarrow=False, font=dict(size=14, color="#ffffff"), bgcolor="rgba(14, 17, 23, 0.8)", borderpad=4, borderwidth=0)
+
                 if fetch_sym in st.session_state.custom_alerts:
                     alert_data = st.session_state.custom_alerts[fetch_sym]
                     if alert_data['enabled']:
@@ -822,44 +826,18 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                     )
                     
                     fig.update_yaxes(
-                        showspikes=True, 
-                        spikesnap='cursor', 
-                        spikemode='across', 
-                        spikethickness=1, 
-                        spikedash='dot', 
-                        spikecolor="rgba(255, 255, 255, 0.6)", 
-                        showspikelabels=True, 
-                        spikelabelcolor="#ffffff",
-                        showgrid=False, 
-                        zeroline=False, 
-                        showticklabels=True, 
-                        side='right', 
-                        tickfont=dict(color="#ffffff", size=10), 
-                        showline=False, 
-                        fixedrange=True, 
-                        range=[min_val - y_padding, max_val + y_padding],
-                        row=1, col=1 if show_vol else None
+                        showspikes=True, spikesnap='cursor', spikemode='across', spikethickness=1, spikedash='dot', spikecolor="rgba(255, 255, 255, 0.6)", 
+                        showspikelabels=True, spikelabelcolor="#ffffff", showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=10), showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding], row=1, col=1
                     )
                     
                     fig.update_xaxes(
-                        showspikes=True, 
-                        spikesnap='cursor',
-                        spikemode='across',
-                        spikethickness=1,
-                        spikedash='dot',
-                        spikecolor="rgba(255, 255, 255, 0.6)",
-                        showspikelabels=False, 
-                        showgrid=False, 
-                        zeroline=False, 
-                        showticklabels=False, 
-                        showline=False, 
-                        fixedrange=True,
-                        row=1, col=1 if show_vol else None
+                        showspikes=True, spikesnap='cursor', spikemode='across', spikethickness=1, spikedash='dot', spikecolor="rgba(255, 255, 255, 0.6)", 
+                        showspikelabels=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, row=1, col=1
                     )
                     
-                    if show_vol:
-                        fig.update_yaxes(visible=False, fixedrange=True, row=2, col=1)
-                        fig.update_xaxes(visible=False, fixedrange=True, row=2, col=1)
+                if show_vol:
+                    fig.update_yaxes(visible=False, fixedrange=True, row=2, col=1)
+                    fig.update_xaxes(visible=False, fixedrange=True, row=2, col=1)
 
             else:
                 fig = go.Figure()
@@ -868,7 +846,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                     increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, hoverinfo='skip', name=""
                 ))
                 
-                hover_data = "High: ₹" + df_chart['High'].round(2).astype(str) + "<br>Low: ₹" + df_chart['Low'].round(2).astype(str)
                 fig.add_trace(go.Scatter(
                     x=df_chart.index, y=df_chart['High'], mode='lines', line=dict(color='rgba(0,0,0,0)'), 
                     showlegend=False, hoverinfo='text' if show_crosshair else 'skip', text=hover_data, 
@@ -883,6 +860,9 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                     if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), hoverinfo='skip'))
                     
                 fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=190, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, xaxis_rangeslider_visible=False)
+
+                # 🔥 ఫుల్ స్క్రీన్‌లో కూడా కనిపించే టైటిల్ (Annotation)
+                fig.add_annotation(text=title_html, xref="paper", yref="paper", x=0.01, y=0.96, showarrow=False, font=dict(size=14, color="#ffffff"), bgcolor="rgba(14, 17, 23, 0.8)", borderpad=4, borderwidth=0)
 
                 if fetch_sym in st.session_state.custom_alerts:
                     alert_data = st.session_state.custom_alerts[fetch_sym]
@@ -899,9 +879,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                     fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
                     fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
 
-            st.plotly_chart(fig, use_container_width=True, key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}")
-        else: 
-            st.markdown("<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Data not available</div>", unsafe_allow_html=True)
+        st.plotly_chart(fig, use_container_width=True, key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}")
     except Exception as e: 
         st.markdown(f"<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart error</div>", unsafe_allow_html=True)
 
@@ -973,11 +951,14 @@ if not df.empty:
 # =========================================================
 
 # 💡 మెయిన్ సెట్టింగ్స్ (ఎప్పుడూ కనిపించేవి - కేవలం 1 లైన్)
-c1, c2 = st.columns([0.6, 0.4])
+c1, c2, c3 = st.columns([0.45, 0.35, 0.20])
 with c1: 
     watchlist_mode = st.selectbox("Watchlist", ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions", "High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢"], index=0, label_visibility="collapsed")
 with c2: 
     view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
+with c3:
+    # 🔥 కొత్త పాజ్ బటన్. ఫుల్ స్క్రీన్ అనాలసిస్ కోసం ఇది వాడండి.
+    st.session_state.pause_refresh = st.toggle("⏸️ Pause Refresh", value=st.session_state.pause_refresh)
 
 # డిఫాల్ట్ వేరియబుల్స్ (ఎర్రర్స్ రాకుండా)
 # 🔥 మీకు కావాల్సిన 3 స్ట్రాటజీలను ఇక్కడే డిఫాల్ట్ గా సెట్ చేసాం
