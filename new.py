@@ -105,7 +105,6 @@ def toggle_pin(symbol):
     else:
         st.session_state.pinned_stocks.append(symbol)
 
-# --- CSS FOR STYLING ---
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
@@ -148,6 +147,14 @@ st.markdown("""
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] div[data-testid="stCheckbox"] {
         position: absolute !important; top: 10px !important; left: 10px !important; z-index: 100 !important;
     }
+    
+    /* 🔥 NEW: పిన్ బాక్స్ కి, చార్ట్ కి మధ్య ఉన్న చెత్త గ్యాప్ ని లాగేస్తున్నాం */
+    div[data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(div[data-testid="stCheckbox"]) {
+        margin-bottom: -45px !important; 
+        position: relative !important;
+        z-index: 50 !important;
+    }
+
     div[data-testid="stCheckbox"] label { padding: 0 !important; min-height: 0 !important; }
     div.stButton > button { border-radius: 8px !important; border: 1px solid #30363d !important; background-color: #161b22 !important; height: 45px !important; }
     
