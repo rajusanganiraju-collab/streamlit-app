@@ -820,10 +820,11 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                 colors = ['#2ea043' if close >= open_p else '#da3633' for close, open_p in zip(df_chart['Close'], df_chart['Open'])]
                 fig.add_trace(go.Bar(x=df_chart.index, y=df_chart['Volume'], marker_color=colors, showlegend=False, hoverinfo='skip'), row=2, col=1)
                 
-                fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=230, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
+                # 🔥 t=35 ఇచ్చి చార్ట్ పైన ఖాళీ స్థలం క్రియేట్ చేశాం
+                fig.update_layout(margin=dict(l=0, r=0, t=35, b=0), height=230, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
                 
-                # 🔥 ఫుల్ స్క్రీన్‌లో కూడా కనిపించే టైటిల్ (Annotation)
-                fig.add_annotation(text=title_html, xref="paper", yref="paper", x=0.01, y=0.96, showarrow=False, font=dict(size=14, color="#ffffff"), bgcolor="rgba(14, 17, 23, 0.8)", borderpad=4, borderwidth=0)
+                # 🔥 పేరుని చార్ట్ బయట పైకి (y=1, yanchor="bottom") మరియు పిన్ బాక్స్ పక్కకి (xshift=35) జరిపాం!
+                fig.add_annotation(text=title_html, xref="paper", yref="paper", x=0, xanchor="left", xshift=35, y=1, yanchor="bottom", yshift=2, showarrow=False, font=dict(size=13, color="#ffffff"), bgcolor="rgba(0,0,0,0)", borderpad=2, borderwidth=0)
 
                 if fetch_sym in st.session_state.custom_alerts:
                     alert_data = st.session_state.custom_alerts[fetch_sym]
@@ -873,10 +874,11 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                     if 'VWAP' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), hoverinfo='skip'))
                     if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), hoverinfo='skip'))
                     
-                fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=190, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, xaxis_rangeslider_visible=False)
+                # 🔥 t=35 ఇచ్చి చార్ట్ పైన ఖాళీ స్థలం క్రియేట్ చేశాం
+                fig.update_layout(margin=dict(l=0, r=0, t=35, b=0), height=190, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, xaxis_rangeslider_visible=False)
 
-                # 🔥 ఫుల్ స్క్రీన్‌లో కూడా కనిపించే టైటిల్ (Annotation)
-                fig.add_annotation(text=title_html, xref="paper", yref="paper", x=0.01, y=0.96, showarrow=False, font=dict(size=14, color="#ffffff"), bgcolor="rgba(14, 17, 23, 0.8)", borderpad=4, borderwidth=0)
+                # 🔥 పేరుని చార్ట్ బయట పైకి (y=1, yanchor="bottom") మరియు పిన్ బాక్స్ పక్కకి (xshift=35) జరిపాం!
+                fig.add_annotation(text=title_html, xref="paper", yref="paper", x=0, xanchor="left", xshift=35, y=1, yanchor="bottom", yshift=2, showarrow=False, font=dict(size=13, color="#ffffff"), bgcolor="rgba(0,0,0,0)", borderpad=2, borderwidth=0)
 
                 if fetch_sym in st.session_state.custom_alerts:
                     alert_data = st.session_state.custom_alerts[fetch_sym]
