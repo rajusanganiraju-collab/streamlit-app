@@ -154,6 +154,16 @@ st.markdown("""
         position: relative !important;
         z-index: 50 !important;
     }
+    /* 🔥 NEW: మొబైల్ లో కూడా వాచ్ లిస్ట్, చార్ట్ బటన్, పాజ్ బటన్ ఒకే లైన్ లో ఉంచడానికి */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .top-bar-marker) > div[data-testid="stHorizontalBlock"] {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        align-items: center !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .top-bar-marker) > div[data-testid="stElementContainer"]:has(.top-bar-marker) {
+        display: none !important;
+    }
 
     div[data-testid="stCheckbox"] label { padding: 0 !important; min-height: 0 !important; }
     div.stButton > button { border-radius: 8px !important; border: 1px solid #30363d !important; background-color: #161b22 !important; height: 45px !important; }
@@ -947,14 +957,16 @@ if not df.empty:
 # --- 7. ULTRA COMPACT UI SETTINGS (MOBILE FRIENDLY) ---
 # =========================================================
 
-# 💡 మెయిన్ సెట్టింగ్స్ (ఖాళీ ప్లేస్ వాడుకుంటూ ఒకే లైన్‌లో అన్నీ సెట్ చేసాం)
-c1, c2, c3 = st.columns([1.6, 0.9, 0.8]) 
-with c1: 
-    watchlist_mode = st.selectbox("Watchlist", ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions", "High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢"], index=0, label_visibility="collapsed")
-with c2: 
-    view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
-with c3:
-    st.session_state.pause_refresh = st.toggle("⏸️ Pause", value=st.session_state.pause_refresh)
+# 💡 మెయిన్ సెట్టింగ్స్ (ఎంత చిన్న స్క్రీన్ అయినా ఒకే లైన్‌లో పక్కాగా వస్తాయి)
+with st.container():
+    st.markdown("<div class='top-bar-marker'></div>", unsafe_allow_html=True)
+    c1, c2, c3 = st.columns([1.6, 0.9, 0.9]) 
+    with c1: 
+        watchlist_mode = st.selectbox("Watchlist", ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions", "High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢"], index=0, label_visibility="collapsed")
+    with c2: 
+        view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
+    with c3:
+        st.session_state.pause_refresh = st.toggle("⏸️ Pause", value=st.session_state.pause_refresh)
 
 # డిఫాల్ట్ వేరియబుల్స్ (ఎర్రర్స్ రాకుండా)
 # 🔥 మీకు కావాల్సిన 3 స్ట్రాటజీలను ఇక్కడే డిఫాల్ట్ గా సెట్ చేసాం
@@ -1744,8 +1756,6 @@ if not df.empty:
         else: st.info("No items found.")
             
     else: 
-        st.markdown("<br>", unsafe_allow_html=True)
-        
         weekly_charts = {}
         if chart_timeframe == "Weekly Chart":
             with st.spinner("Fetching Weekly Chart Data..."):
