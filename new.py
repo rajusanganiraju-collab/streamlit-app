@@ -947,14 +947,15 @@ if not df.empty:
 # --- 7. ULTRA COMPACT UI SETTINGS (MOBILE FRIENDLY) ---
 # =========================================================
 
-# 💡 మెయిన్ సెట్టింగ్స్ (ఎప్పుడూ కనిపించేవి - కేవలం 1 లైన్)
-# 🔥 మొబైల్ & హాఫ్ స్క్రీన్ కి తగ్గట్టుగా కాలమ్ రేషియో మార్చాం
-c1, c2, c3 = st.columns([1.8, 1.2, 1.2]) 
+# 💡 మెయిన్ సెట్టింగ్స్ (మొబైల్ కి పక్కాగా సెట్ అయ్యేలా)
+# వాచ్ లిస్ట్ ని ఫుల్ లైన్ లో పెడుతున్నాం
+watchlist_mode = st.selectbox("Watchlist", ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions", "High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢"], index=0, label_visibility="collapsed")
+
+# రేడియో బటన్ మరియు పాజ్ టోగుల్ ని పక్కపక్కన పెడుతున్నాం
+c1, c2 = st.columns([0.6, 0.4])
 with c1: 
-    watchlist_mode = st.selectbox("Watchlist", ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions", "High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢"], index=0, label_visibility="collapsed")
-with c2: 
     view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
-with c3:
+with c2:
     st.session_state.pause_refresh = st.toggle("⏸️ Pause Refresh", value=st.session_state.pause_refresh)
 
 # డిఫాల్ట్ వేరియబుల్స్ (ఎర్రర్స్ రాకుండా)
