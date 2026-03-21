@@ -760,55 +760,46 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
     display_sym = row['T']
     fetch_sym = row['Fetch_T']
     
-    pct_val = float(row.get('W_C', row['C'])) if timeframe == "Weekly Chart" else float(row['Day_C'])
+    pct_val = float(row.get('W_C', row['Day_C'])) if timeframe == "Weekly Chart" else float(row['Day_C'])
     color_hex = "#da3633" if pct_val < 0 else "#2ea043"
     sign = "+" if pct_val > 0 else ""
     tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
     
+    # 🔥 పిన్ చెక్‌బాక్స్
     if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX", "DOW", "NSDQ"] and not row.get('Is_Commodity'):
         cb_key = f"cb_{fetch_sym}_{key_suffix}" if key_suffix else f"cb_{fetch_sym}"
         st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=cb_key, on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
     
-    # 🔥 Plotly Annotation లోపల చూపించడానికి HTML ఫార్మాట్ (ఫుల్ స్క్రీన్ కోసం)
-    title_html = f"<a href='{tv_link}' target='_blank' style='color:#ffffff;'><b>{display_sym}</b> &nbsp; ₹{row['P']:.2f} &nbsp; <span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span></a>"
+    # 🔥 ఫుల్ స్క్రీన్‌లో వచ్చేలా చార్ట్ లోపలే టైటిల్ ఇస్తున్నాం
+    title_html = f"<a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none;'><b>{display_sym}</b> &nbsp; ₹{row['P']:.2f} &nbsp; <span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span></a>"
     
     try:
         if not df_chart.empty:
             min_val = df_chart['Low'].min()
             max_val = df_chart['High'].max()
-            y_padding = (max_val - min_val) * 0.1 if (max_val - min_val) != 0 else min_val * 0.005 
             
-            # 🔥 Yahoo Finance టైమ్ ని మన IST (Indian Standard Time) కి మారుస్తున్నాం
+            # 🔥 y_padding పెంచాం! దీనివల్ల చార్ట్ లోపల పైభాగంలో ఖాళీ స్థలం వస్తుంది (క్యాండిల్స్ కట్ అవ్వవు)
+            y_padding = (max_val - min_val) * 0.15 if (max_val - min_val) != 0 else min_val * 0.005 
+            
             chart_times = pd.to_datetime(df_chart.index)
             if chart_times.tz is not None:
                 chart_times = chart_times.tz_convert('Asia/Kolkata')
             else:
                 chart_times = chart_times.tz_localize('UTC').tz_convert('Asia/Kolkata')
                 
-            # 🔥 హోవర్ డేటాలో Time తో పాటు O, H, L, C అన్నీ యాడ్ చేశాం!
             hover_data = (
                 "🕒 " + chart_times.strftime('%d-%b %I:%M %p') + 
-                "<br>📈 H: ₹" + df_chart['High'].round(2).astype(str) +
                 "<br>🟢 O: ₹" + df_chart['Open'].round(2).astype(str) + 
-                "<br>🔴 C: ₹" + df_chart['Close'].round(2).astype(str) + 
-                "<br>📉 L: ₹" + df_chart['Low'].round(2).astype(str)  
-                
+                "<br>📈 H: ₹" + df_chart['High'].round(2).astype(str) + 
+                "<br>📉 L: ₹" + df_chart['Low'].round(2).astype(str) + 
+                "<br>🔴 C: ₹" + df_chart['Close'].round(2).astype(str)
             )
             
             if show_vol:
                 fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.02, row_heights=[0.75, 0.25])
                 
-                fig.add_trace(go.Candlestick(
-                    x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
-                    increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, 
-                    hoverinfo='skip', name=""
-                ), row=1, col=1)
-                
-                fig.add_trace(go.Scatter(
-                    x=df_chart.index, y=df_chart['High'], mode='lines', line=dict(color='rgba(0,0,0,0)'), 
-                    showlegend=False, hoverinfo='text' if show_crosshair else 'skip', text=hover_data, 
-                    hovertemplate="%{text}<extra></extra>" if show_crosshair else None, name=""
-                ), row=1, col=1)
+                fig.add_trace(go.Candlestick(x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, hoverinfo='skip', name=""), row=1, col=1)
+                fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['High'], mode='lines', line=dict(color='rgba(0,0,0,0)'), showlegend=False, hoverinfo='text' if show_crosshair else 'skip', text=hover_data, hovertemplate="%{text}<extra></extra>" if show_crosshair else None, name=""), row=1, col=1)
                 
                 if timeframe == "Weekly Chart":
                     if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), showlegend=False, hoverinfo='skip'), row=1, col=1)
@@ -820,11 +811,11 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                 colors = ['#2ea043' if close >= open_p else '#da3633' for close, open_p in zip(df_chart['Close'], df_chart['Open'])]
                 fig.add_trace(go.Bar(x=df_chart.index, y=df_chart['Volume'], marker_color=colors, showlegend=False, hoverinfo='skip'), row=2, col=1)
                 
-                # 🔥 t=35 ఇచ్చి చార్ట్ పైన ఖాళీ స్థలం క్రియేట్ చేశాం
-                fig.update_layout(margin=dict(l=0, r=0, t=35, b=0), height=230, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
+                # 🔥 margin t=0 చేసాం, మళ్లీ ఖాళీ స్థలం రాకుండా!
+                fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=230, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
                 
-                # 🔥 పేరుని చార్ట్ బయట పైకి (y=1, yanchor="bottom") మరియు పిన్ బాక్స్ పక్కకి (xshift=35) జరిపాం!
-                fig.add_annotation(text=title_html, xref="paper", yref="paper", x=0, xanchor="left", xshift=35, y=1, yanchor="bottom", yshift=2, showarrow=False, font=dict(size=13, color="#ffffff"), bgcolor="rgba(0,0,0,0)", borderpad=2, borderwidth=0)
+                # 🔥 Title ని చార్ట్ లోపల టాప్ లో (y=0.98), చెక్ బాక్స్ కి పక్కన (xshift=35) పెట్టాం
+                fig.add_annotation(text=title_html, xref="paper", yref="paper", x=0, xanchor="left", xshift=35, y=0.98, yanchor="top", showarrow=False, font=dict(size=13, color="#ffffff"), bgcolor="rgba(0,0,0,0)", borderwidth=0)
 
                 if fetch_sym in st.session_state.custom_alerts:
                     alert_data = st.session_state.custom_alerts[fetch_sym]
@@ -833,39 +824,22 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8, row=1, col=1)
 
                 if show_crosshair:
-                    fig.update_layout(
-                        hovermode='closest', 
-                        dragmode=False, 
-                        margin=dict(l=0, r=45, t=0, b=0), 
-                        hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d")
-                    )
-                    
-                    fig.update_yaxes(
-                        showspikes=True, spikesnap='cursor', spikemode='across', spikethickness=1, spikedash='dot', spikecolor="rgba(255, 255, 255, 0.6)", 
-                        showspikelabels=True, spikelabelcolor="#ffffff", showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=10), showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding], row=1, col=1
-                    )
-                    
-                    fig.update_xaxes(
-                        showspikes=True, spikesnap='cursor', spikemode='across', spikethickness=1, spikedash='dot', spikecolor="rgba(255, 255, 255, 0.6)", 
-                        showspikelabels=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, row=1, col=1
-                    )
-                    
+                    fig.update_layout(hovermode='closest', dragmode=False, margin=dict(l=0, r=45, t=0, b=0), hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d"))
+                    # 🔥 range లో పైన ఖాళీ స్థలం పెంచాం: max_val + (y_padding * 2.5)
+                    fig.update_yaxes(showspikes=True, spikesnap='cursor', spikemode='across', spikethickness=1, spikedash='dot', spikecolor="rgba(255, 255, 255, 0.6)", showspikelabels=True, spikelabelcolor="#ffffff", showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=10), showline=False, fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)], row=1, col=1)
+                    fig.update_xaxes(showspikes=True, spikesnap='cursor', spikemode='across', spikethickness=1, spikedash='dot', spikecolor="rgba(255, 255, 255, 0.6)", showspikelabels=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, row=1, col=1)
+                else:
+                    fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)], row=1, col=1)
+                    fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, row=1, col=1)
+
                 if show_vol:
                     fig.update_yaxes(visible=False, fixedrange=True, row=2, col=1)
                     fig.update_xaxes(visible=False, fixedrange=True, row=2, col=1)
 
             else:
                 fig = go.Figure()
-                fig.add_trace(go.Candlestick(
-                    x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
-                    increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, hoverinfo='skip', name=""
-                ))
-                
-                fig.add_trace(go.Scatter(
-                    x=df_chart.index, y=df_chart['High'], mode='lines', line=dict(color='rgba(0,0,0,0)'), 
-                    showlegend=False, hoverinfo='text' if show_crosshair else 'skip', text=hover_data, 
-                    hovertemplate="%{text}<extra></extra>" if show_crosshair else None, name=""
-                ))
+                fig.add_trace(go.Candlestick(x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, hoverinfo='skip', name=""))
+                fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['High'], mode='lines', line=dict(color='rgba(0,0,0,0)'), showlegend=False, hoverinfo='text' if show_crosshair else 'skip', text=hover_data, hovertemplate="%{text}<extra></extra>" if show_crosshair else None, name=""))
                 
                 if timeframe == "Weekly Chart":
                     if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), hoverinfo='skip'))
@@ -874,11 +848,11 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                     if 'VWAP' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), hoverinfo='skip'))
                     if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), hoverinfo='skip'))
                     
-                # 🔥 t=35 ఇచ్చి చార్ట్ పైన ఖాళీ స్థలం క్రియేట్ చేశాం
-                fig.update_layout(margin=dict(l=0, r=0, t=35, b=0), height=190, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, xaxis_rangeslider_visible=False)
+                # 🔥 margin t=0 చేసాం
+                fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=190, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, xaxis_rangeslider_visible=False)
 
-                # 🔥 పేరుని చార్ట్ బయట పైకి (y=1, yanchor="bottom") మరియు పిన్ బాక్స్ పక్కకి (xshift=35) జరిపాం!
-                fig.add_annotation(text=title_html, xref="paper", yref="paper", x=0, xanchor="left", xshift=35, y=1, yanchor="bottom", yshift=2, showarrow=False, font=dict(size=13, color="#ffffff"), bgcolor="rgba(0,0,0,0)", borderpad=2, borderwidth=0)
+                # 🔥 Title ని చార్ట్ లోపల టాప్ లో (y=0.98), చెక్ బాక్స్ కి పక్కన (xshift=35) పెట్టాం
+                fig.add_annotation(text=title_html, xref="paper", yref="paper", x=0, xanchor="left", xshift=35, y=0.98, yanchor="top", showarrow=False, font=dict(size=13, color="#ffffff"), bgcolor="rgba(0,0,0,0)", borderwidth=0)
 
                 if fetch_sym in st.session_state.custom_alerts:
                     alert_data = st.session_state.custom_alerts[fetch_sym]
@@ -888,11 +862,12 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
 
                 if show_crosshair:
                     fig.update_layout(hovermode='x', dragmode=False, hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d"))
-                    fig.update_yaxes(showspikes=True, spikesnap='cursor', spikemode='across', spikethickness=0.2, spikedash='solid', spikecolor="rgba(255,255,255,0.4)", showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=10), showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
+                    # 🔥 range లో పైన ఖాళీ స్థలం పెంచాం: max_val + (y_padding * 2.5)
+                    fig.update_yaxes(showspikes=True, spikesnap='cursor', spikemode='across', spikethickness=0.2, spikedash='solid', spikecolor="rgba(255,255,255,0.4)", showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=10), showline=False, fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)])
                     fig.update_xaxes(showspikes=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
                 else:
                     fig.update_layout(hovermode=False, dragmode=False)
-                    fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + y_padding])
+                    fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)])
                     fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
 
         st.plotly_chart(fig, use_container_width=True, key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}")
