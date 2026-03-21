@@ -147,25 +147,24 @@ st.markdown("""
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] div[data-testid="stCheckbox"] {
         position: absolute !important; top: 10px !important; left: 10px !important; z-index: 100 !important;
     }
-    
-    /* 🔥 FIX: కేవలం చార్ట్ పిన్ బాక్స్ కి మాత్రమే అప్లై అయ్యేలా సెట్ చేశాం (పాజ్ బటన్ సేఫ్) */
+
+    /* 🔥 FIX: కేవలం చార్ట్ పిన్ బాక్స్ కి మాత్రమే అప్లై అయ్యేలా సెట్ చేశాం */
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(div[data-testid="stCheckbox"]) {
         margin-bottom: -45px !important; 
         position: relative !important;
         z-index: 50 !important;
     }
-    /* 🔥 FIX: మొబైల్ లో కూడా చార్ట్ రేడియో మరియు పాజ్ బటన్ పక్కపక్కనే ఉండటానికి */
+
+    /* 🔥 ULTRA FIX: పాజ్ బటన్ కిందికి జారకుండా మొబైల్ వ్యూ లో కూడా లాక్ చేస్తున్నాం */
     div[data-testid="stVerticalBlock"]:has(.view-pause-marker) > div[data-testid="stHorizontalBlock"] {
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
-        align-items: center !important;
     }
-    /* 🔥 ఇది మిస్ అయ్యింది: మొబైల్ లో కాలమ్స్ 100% వెడల్పు అవ్వకుండా సగం సగం పంచుకునేలా లాక్ చేశాం */
     div[data-testid="stVerticalBlock"]:has(.view-pause-marker) > div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
         width: 50% !important;
+        min-width: 0px !important;
         flex: 1 1 0px !important;
-        min-width: auto !important;
     }
     div[data-testid="stVerticalBlock"]:has(.view-pause-marker) > div[data-testid="stElementContainer"]:has(.view-pause-marker) {
         display: none !important;
