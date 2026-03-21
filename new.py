@@ -116,35 +116,22 @@ st.markdown("""
     .t-price { font-size: 17px; font-weight: normal !important; margin-bottom: 2px; }
     .t-pct { font-size: 12px; font-weight: normal !important; }
     .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal !important; }
-
-    /* 🔥 NEW FIX FOR INDIVIDUAL CHART HEADERS (PIN + TITLE + PAUSE) 🔥 */
-    div[data-testid="stVerticalBlock"]:has(> div > .chart-card-header) > div[data-testid="stHorizontalBlock"] {
-        display: flex !important;
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        align-items: center !important;
-        padding: 5px 5px 0 5px !important;
-        margin-bottom: -15px !important; /* Pulls the plotly chart up to meet the header */
-        z-index: 10;
-        position: relative;
+    
+    /* 🔥 చార్ట్ హెడర్ లో పాజ్ బటన్ సెట్టింగ్స్ */
+    .chart-header-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        position: absolute;
+        top: 5px;
+        left: 0;
+        padding: 0 10px 0 35px;
+        z-index: 100;
     }
-    /* Fixed widths for icon columns to prevent squeezing title */
-    div[data-testid="stVerticalBlock"]:has(> div > .chart-card-header) > div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(1) {
-        width: 25px !important; flex: 0 0 25px !important; min-width: 25px !important;
-    }
-    div[data-testid="stVerticalBlock"]:has(> div > .chart-card-header) > div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(2) {
-        width: auto !important; flex: 1 1 auto !important; min-width: 0 !important; overflow: hidden;
-    }
-    div[data-testid="stVerticalBlock"]:has(> div > .chart-card-header) > div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(3) {
-        width: 45px !important; flex: 0 0 45px !important; min-width: 45px !important;
-    }
-    /* Make pause toggle switch smaller to fit perfectly */
-    div[data-testid="stVerticalBlock"]:has(> div > .chart-card-header) div[data-testid="stCheckbox"] {
-        transform: scale(0.85);
-        transform-origin: right;
-    }
-    div[data-testid="stVerticalBlock"]:has(> div > .chart-card-header) div[data-testid="stCheckbox"] label {
-        padding: 0 !important; margin: 0 !important;
+    .pause-mini-toggle {
+        scale: 0.8;
+        margin-top: -10px;
     }
 
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) {
@@ -172,6 +159,17 @@ st.markdown("""
         padding: 5px !important; position: relative !important; width: 100% !important;
     }
 
+    div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] div[data-testid="stCheckbox"] {
+        position: absolute !important; top: 10px !important; left: 10px !important; z-index: 100 !important;
+    }
+
+    div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(div[data-testid="stCheckbox"]) {
+        margin-bottom: -45px !important; 
+        position: relative !important;
+        z-index: 50 !important;
+    }
+
+    div[data-testid="stCheckbox"] label { padding: 0 !important; min-height: 0 !important; }
     div.stButton > button { border-radius: 8px !important; border: 1px solid #30363d !important; background-color: #161b22 !important; height: 45px !important; }
     
     .heatmap-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 8px; padding: 5px 0; }
@@ -727,6 +725,7 @@ def render_highscore_terminal_table(df_subset):
         rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
         row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td>'
         
+        # 🔥 NEW: Sector & Points Display
         sec_name = row.get("Sector", "OTHER")
         sec_pts = int(row.get("Sector_Bonus", 0))
         if sec_pts > 0:
@@ -786,26 +785,29 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
     sign = "+" if pct_val > 0 else ""
     tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
     
-    # --- 🔥 NEW: HEADER WITH PAUSE TOGGLE INLINE 🔥 ---
-    st.markdown("<div class='chart-card-header'></div>", unsafe_allow_html=True)
-    
-    if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX", "DOW", "NSDQ"] and not row.get('Is_Commodity'):
-        hc1, hc2, hc3 = st.columns([0.15, 0.65, 0.2])
-        with hc1:
-            cb_key = f"cb_{fetch_sym}_{key_suffix}" if key_suffix else f"cb_{fetch_sym}"
-            st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=cb_key, on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
-    else:
-        # If no pin, we still use 3 columns but render an empty div to maintain alignment perfectly
-        hc1, hc2, hc3 = st.columns([0.15, 0.65, 0.2])
-        with hc1:
-            st.markdown("<div style='width:1px;'></div>", unsafe_allow_html=True)
+    # --- 🔥 NEW: HEADER WITH PAUSE TOGGLE ---
+    with st.container():
+        st.markdown("<div class='chart-header-container'>", unsafe_allow_html=True)
+        cols = st.columns([0.8, 0.2])
+        with cols[0]:
+            if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX", "DOW", "NSDQ"] and not row.get('Is_Commodity'):
+                cb_key = f"cb_{fetch_sym}_{key_suffix}" if key_suffix else f"cb_{fetch_sym}"
+                st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=cb_key, on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
             
-    with hc2:
-        st.markdown(f"<div style='line-height:1.2; margin-top:-2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'><a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none;'><b>{display_sym}</b><br><span style='font-size:11px; color:#cccccc;'>₹{row['P']:.2f} <span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span></span></a></div>", unsafe_allow_html=True)
-        
-    with hc3:
-        toggle_key = f"p_tog_{fetch_sym}_{key_suffix}_{timeframe}"
-        st.session_state.pause_refresh = st.toggle("⏸️", value=st.session_state.pause_refresh, key=toggle_key, label_visibility="collapsed")
+            st.markdown(f"""
+                <div style='margin-left: 30px; margin-top: -35px;'>
+                    <a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none;'>
+                        <b style='font-size:14px;'>{display_sym}</b>
+                        <span style='font-size:12px; color:{color_hex};'> ₹{row['P']:.2f} ({sign}{pct_val:.2f}%)</span>
+                    </a>
+                </div>
+            """, unsafe_allow_html=True)
+            
+        with cols[1]:
+            # Unique key for pause toggle to avoid duplicate id errors
+            toggle_key = f"p_tog_{fetch_sym}_{key_suffix}_{timeframe}"
+            st.session_state.pause_refresh = st.toggle("⏸️", value=st.session_state.pause_refresh, key=toggle_key, label_visibility="collapsed")
+        st.markdown("</div>", unsafe_allow_html=True)
 
     try:
         if not df_chart.empty:
@@ -844,8 +846,8 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                 colors = ['#2ea043' if close >= open_p else '#da3633' for close, open_p in zip(df_chart['Close'], df_chart['Open'])]
                 fig.add_trace(go.Bar(x=df_chart.index, y=df_chart['Volume'], marker_color=colors, showlegend=False, hoverinfo='skip'), row=2, col=1)
                 
-                # 🔥 Margin Top is exactly 0 so it aligns tightly with the header above
-                fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=240, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
+                # 🔥 Top margin added so the HTML absolute positioned container fits cleanly
+                fig.update_layout(margin=dict(l=0, r=0, t=20, b=0), height=275, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
                 
                 if fetch_sym in st.session_state.custom_alerts:
                     alert_data = st.session_state.custom_alerts[fetch_sym]
@@ -854,7 +856,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8, row=1, col=1)
 
                 if show_crosshair:
-                    fig.update_layout(hovermode='closest', dragmode=False, margin=dict(l=0, r=45, t=0, b=0), hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d"))
+                    fig.update_layout(hovermode='closest', dragmode=False, margin=dict(l=0, r=45, t=20, b=0), hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d"))
                     fig.update_yaxes(showspikes=True, spikesnap='cursor', spikemode='across', spikethickness=1, spikedash='dot', spikecolor="rgba(255, 255, 255, 0.6)", showspikelabels=True, spikelabelcolor="#ffffff", showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=10), showline=False, fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)], row=1, col=1)
                     fig.update_xaxes(showspikes=True, spikesnap='cursor', spikemode='across', spikethickness=1, spikedash='dot', spikecolor="rgba(255, 255, 255, 0.6)", showspikelabels=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, row=1, col=1)
                 else:
@@ -877,8 +879,8 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                     if 'VWAP' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), hoverinfo='skip'))
                     if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), hoverinfo='skip'))
                     
-                # 🔥 Margin Top is exactly 0 
-                fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=200, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, xaxis_rangeslider_visible=False)
+                # 🔥 Top margin added here too
+                fig.update_layout(margin=dict(l=0, r=0, t=20, b=0), height=235, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, xaxis_rangeslider_visible=False)
 
                 if fetch_sym in st.session_state.custom_alerts:
                     alert_data = st.session_state.custom_alerts[fetch_sym]
@@ -952,14 +954,13 @@ all_names = []
 if not df.empty:
     all_names = sorted(df[(~df['Is_Sector']) & (~df['Is_Index']) & (~df['Is_Commodity'])]['T'].unique().tolist())
 
-
 # =========================================================
 # --- 7. ULTRA COMPACT UI SETTINGS (MOBILE FRIENDLY) ---
 # =========================================================
 
 watchlist_mode = st.selectbox("Watchlist", ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions", "High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢"], index=0, label_visibility="collapsed")
 
-# 🔥 పాజ్ బటన్ చార్ట్ లోపలకి వెళ్ళింది కాబట్టి, ఇక్కడ రేడియో బటన్ ని మాత్రమే ఉంచాం
+# 🔥 రేడియో బటన్ ని మాత్రమే ఉంచాం (పాజ్ బటన్ చార్ట్ లోపలకి వెళ్ళింది కాబట్టి ఇక్కడ తీసేశాం)
 view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
 
 # డిఫాల్ట్ వేరియబుల్స్ (ఎర్రర్స్ రాకుండా)
@@ -1005,7 +1006,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
         with cc3:
             show_vol = st.toggle("📊 Show Vol Bars", value=False)
 
-    # ALERTS కోడ్
+    # ALERTS కోడ్ కూడా ఈ ఎక్స్‌పాండర్ లోపలే ఉంటుంది
     if not df.empty and (view_mode == "Chart 📈" or watchlist_mode == "Commodity 🛢️"):
         st.markdown("<hr style='margin:10px 0; border-color:#30363d;'>", unsafe_allow_html=True)
         st.markdown("<div style='color:#ffd700; font-size:14px; margin-bottom:5px;'>🔔 Add Custom Price Alert Line</div>", unsafe_allow_html=True)
@@ -1035,7 +1036,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
                         st.rerun()
 
 # =========================================================
-# --- 8. అసలైన చార్ట్స్ ప్రింట్ అయ్యే కోడ్ ---
+# --- 8. ఇక్కడినుండి అసలైన చార్ట్స్ ప్రింట్ అయ్యే పాత కోడ్ ---
 # =========================================================
 
 if not df.empty:
