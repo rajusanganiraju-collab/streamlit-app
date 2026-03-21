@@ -818,8 +818,8 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                 colors = ['#2ea043' if close >= open_p else '#da3633' for close, open_p in zip(df_chart['Close'], df_chart['Open'])]
                 fig.add_trace(go.Bar(x=df_chart.index, y=df_chart['Volume'], marker_color=colors, showlegend=False, hoverinfo='skip'), row=2, col=1)
                 
-                # 🔥 margin t=0 చేసాం, మళ్లీ ఖాళీ స్థలం రాకుండా!
-                fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=230, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
+                # 🔥 margin t=0 చేసాం, మళ్లీ ఖాళీ స్థలం రాకుండా! CSS మైనస్ చేసిన హైట్ ని ఇక్కడ 275 చేసి కవర్ చేశాం.
+                fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=275, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
                 
                 # 🔥 Title ని చార్ట్ లోపల టాప్ లో (y=0.98), చెక్ బాక్స్ కి పక్కన (xshift=35) పెట్టాం
                 fig.add_annotation(text=title_html, xref="paper", yref="paper", x=0, xanchor="left", xshift=35, y=0.98, yanchor="top", showarrow=False, font=dict(size=13, color="#ffffff"), bgcolor="rgba(0,0,0,0)", borderwidth=0)
@@ -855,8 +855,8 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                     if 'VWAP' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), hoverinfo='skip'))
                     if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), hoverinfo='skip'))
                     
-                # 🔥 margin t=0 చేసాం
-                fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=190, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, xaxis_rangeslider_visible=False)
+                # 🔥 margin t=0 చేసాం. CSS మైనస్ చేసిన హైట్ ని ఇక్కడ 235 చేసి కవర్ చేశాం.
+                fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=235, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, xaxis_rangeslider_visible=False)
 
                 # 🔥 Title ని చార్ట్ లోపల టాప్ లో (y=0.98), చెక్ బాక్స్ కి పక్కన (xshift=35) పెట్టాం
                 fig.add_annotation(text=title_html, xref="paper", yref="paper", x=0, xanchor="left", xshift=35, y=0.98, yanchor="top", showarrow=False, font=dict(size=13, color="#ffffff"), bgcolor="rgba(0,0,0,0)", borderwidth=0)
