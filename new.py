@@ -109,7 +109,7 @@ st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
     .stApp { background-color: #0e1117; color: #ffffff; }
-    .block-container { padding-top: 1rem !important; padding-bottom: 0rem !important; margin-top: -10px; }
+    .block-container { padding-top: 0rem !important; padding-bottom: 0rem !important; margin-top: -30px !important; }
     
     .stRadio label, .stRadio p, div[role="radiogroup"] p { color: #ffffff !important; font-weight: normal !important; }
     div.stButton > button p, div.stButton > button span { color: #ffffff !important; font-weight: normal !important; font-size: 14px !important; }
@@ -148,8 +148,8 @@ st.markdown("""
         position: absolute !important; top: 10px !important; left: 10px !important; z-index: 100 !important;
     }
     
-    /* 🔥 NEW: పిన్ బాక్స్ కి, చార్ట్ కి మధ్య ఉన్న చెత్త గ్యాప్ ని లాగేస్తున్నాం */
-    div[data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(div[data-testid="stCheckbox"]) {
+    /* 🔥 FIX: కేవలం చార్ట్ పిన్ బాక్స్ కి మాత్రమే అప్లై అయ్యేలా సెట్ చేశాం (పాజ్ బటన్ సేఫ్) */
+    div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(div[data-testid="stCheckbox"]) {
         margin-bottom: -45px !important; 
         position: relative !important;
         z-index: 50 !important;
@@ -947,16 +947,14 @@ if not df.empty:
 # --- 7. ULTRA COMPACT UI SETTINGS (MOBILE FRIENDLY) ---
 # =========================================================
 
-# 💡 మెయిన్ సెట్టింగ్స్ (మొబైల్ కి పక్కాగా సెట్ అయ్యేలా)
-# వాచ్ లిస్ట్ ని ఫుల్ లైన్ లో పెడుతున్నాం
-watchlist_mode = st.selectbox("Watchlist", ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions", "High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢"], index=0, label_visibility="collapsed")
-
-# రేడియో బటన్ మరియు పాజ్ టోగుల్ ని పక్కపక్కన పెడుతున్నాం
-c1, c2 = st.columns([0.6, 0.4])
+# 💡 మెయిన్ సెట్టింగ్స్ (ఖాళీ ప్లేస్ వాడుకుంటూ ఒకే లైన్‌లో అన్నీ సెట్ చేసాం)
+c1, c2, c3 = st.columns([1.6, 0.9, 0.8]) 
 with c1: 
+    watchlist_mode = st.selectbox("Watchlist", ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions", "High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢"], index=0, label_visibility="collapsed")
+with c2: 
     view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
-with c2:
-    st.session_state.pause_refresh = st.toggle("⏸️ Pause Refresh", value=st.session_state.pause_refresh)
+with c3:
+    st.session_state.pause_refresh = st.toggle("⏸️ Pause", value=st.session_state.pause_refresh)
 
 # డిఫాల్ట్ వేరియబుల్స్ (ఎర్రర్స్ రాకుండా)
 # 🔥 మీకు కావాల్సిన 3 స్ట్రాటజీలను ఇక్కడే డిఫాల్ట్ గా సెట్ చేసాం
