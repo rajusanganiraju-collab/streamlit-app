@@ -154,18 +154,23 @@ st.markdown("""
         position: relative !important;
         z-index: 50 !important;
     }
-    /* 🔥 NEW: రేడియో బటన్ మరియు పాజ్ బటన్ ఎంత చిన్న స్క్రీన్ అయినా ఒకే లైన్ లో ఉంచడానికి */
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .view-pause-marker) > div[data-testid="stHorizontalBlock"] {
+    /* 🔥 FIX: మొబైల్ లో కూడా చార్ట్ రేడియో మరియు పాజ్ బటన్ పక్కపక్కనే ఉండటానికి */
+    div[data-testid="stVerticalBlock"]:has(.view-pause-marker) > div[data-testid="stHorizontalBlock"] {
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
         align-items: center !important;
     }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .view-pause-marker) > div[data-testid="stElementContainer"]:has(.view-pause-marker) {
+    /* 🔥 ఇది మిస్ అయ్యింది: మొబైల్ లో కాలమ్స్ 100% వెడల్పు అవ్వకుండా సగం సగం పంచుకునేలా లాక్ చేశాం */
+    div[data-testid="stVerticalBlock"]:has(.view-pause-marker) > div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+        width: 50% !important;
+        flex: 1 1 0px !important;
+        min-width: auto !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(.view-pause-marker) > div[data-testid="stElementContainer"]:has(.view-pause-marker) {
         display: none !important;
     }
-    /* రేడియో బటన్ కి సమానంగా పాజ్ బటన్ లైన్ అవ్వడానికి */
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .view-pause-marker) div[data-testid="stCheckbox"] {
+    div[data-testid="stVerticalBlock"]:has(.view-pause-marker) div[data-testid="stCheckbox"] {
         margin-top: 4px !important;
     }
 
