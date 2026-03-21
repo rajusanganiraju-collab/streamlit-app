@@ -109,7 +109,7 @@ st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {display: none !important;}
     .stApp { background-color: #0e1117; color: #ffffff; }
-    .block-container { padding-top: 0rem !important; padding-bottom: 0rem !important; margin-top: -30px !important; }
+    .block-container { padding-top: 1rem !important; padding-bottom: 0rem !important; margin-top: -10px; }
     
     .stRadio label, .stRadio p, div[role="radiogroup"] p { color: #ffffff !important; font-weight: normal !important; }
     div.stButton > button p, div.stButton > button span { color: #ffffff !important; font-weight: normal !important; font-size: 14px !important; }
@@ -147,30 +147,12 @@ st.markdown("""
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] div[data-testid="stCheckbox"] {
         position: absolute !important; top: 10px !important; left: 10px !important; z-index: 100 !important;
     }
-
-    /* 🔥 FIX: కేవలం చార్ట్ పిన్ బాక్స్ కి మాత్రమే అప్లై అయ్యేలా సెట్ చేశాం */
-    div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(div[data-testid="stCheckbox"]) {
+    
+    /* 🔥 NEW: పిన్ బాక్స్ కి, చార్ట్ కి మధ్య ఉన్న చెత్త గ్యాప్ ని లాగేస్తున్నాం */
+    div[data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(div[data-testid="stCheckbox"]) {
         margin-bottom: -45px !important; 
         position: relative !important;
         z-index: 50 !important;
-    }
-
-    /* 🔥 ULTRA FIX: పాజ్ బటన్ కిందికి జారకుండా మొబైల్ వ్యూ లో కూడా లాక్ చేస్తున్నాం */
-    div[data-testid="stVerticalBlock"]:has(.view-pause-marker) > div[data-testid="stHorizontalBlock"] {
-        display: flex !important;
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-    }
-    div[data-testid="stVerticalBlock"]:has(.view-pause-marker) > div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-        width: 50% !important;
-        min-width: 0px !important;
-        flex: 1 1 0px !important;
-    }
-    div[data-testid="stVerticalBlock"]:has(.view-pause-marker) > div[data-testid="stElementContainer"]:has(.view-pause-marker) {
-        display: none !important;
-    }
-    div[data-testid="stVerticalBlock"]:has(.view-pause-marker) div[data-testid="stCheckbox"] {
-        margin-top: 4px !important;
     }
 
     div[data-testid="stCheckbox"] label { padding: 0 !important; min-height: 0 !important; }
