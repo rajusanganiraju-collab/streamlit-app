@@ -788,10 +788,11 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
             # 🔥 హోవర్ డేటాలో Time తో పాటు O, H, L, C అన్నీ యాడ్ చేశాం!
             hover_data = (
                 "🕒 " + chart_times.strftime('%d-%b %I:%M %p') + 
+                "<br>📈 H: ₹" + df_chart['High'].round(2).astype(str) +
                 "<br>🟢 O: ₹" + df_chart['Open'].round(2).astype(str) + 
-                "<br>📈 H: ₹" + df_chart['High'].round(2).astype(str) + 
-                "<br>📉 L: ₹" + df_chart['Low'].round(2).astype(str) + 
-                "<br>🔴 C: ₹" + df_chart['Close'].round(2).astype(str)
+                "<br>🔴 C: ₹" + df_chart['Close'].round(2).astype(str) + 
+                "<br>📉 L: ₹" + df_chart['Low'].round(2).astype(str)  
+                
             )
             
             if show_vol:
