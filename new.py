@@ -790,19 +790,20 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
     sign = "+" if pct_val > 0 else ""
     tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
     
-    # 🔥 మామూలు పిన్ & టైటిల్ (క్లీన్ గా)
+    # 🔥 పిన్ చెక్‌బాక్స్ (CSS ద్వారా చార్ట్ పైన ఎడమ మూలకి వెళ్లిపోతుంది)
     if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX", "DOW", "NSDQ"] and not row.get('Is_Commodity'):
         cb_key = f"cb_{fetch_sym}_{key_suffix}" if key_suffix else f"cb_{fetch_sym}"
         st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=cb_key, on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
     
-    title_html = f"<div style='line-height:1.2; margin-top:-25px; margin-left:35px;'><a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none;'><b>{display_sym}</b><br><span style='font-size:12px; color:#cccccc;'>₹{row['P']:.2f} <span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span></span></a></div>"
-    st.markdown(title_html, unsafe_allow_html=True)
-
+    # 🔥 మొబైల్ లో ఐకాన్స్ కి డిస్టర్బ్ కాకుండా ప్రైస్ ని <br> వాడి రెండో లైన్ లోకి పంపాం (చార్ట్ లోపల ప్రింట్ అవుతుంది)
+    title_html = f"<a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; line-height:1.2;'><b>{display_sym}</b><br><span style='font-size:12px; color:#cccccc;'>₹{row['P']:.2f} &nbsp;<span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span></span></a>"
+    
     try:
         if not df_chart.empty:
             min_val = df_chart['Low'].min()
             max_val = df_chart['High'].max()
             
+            # 🔥 y_padding పెంచాం! దీనివల్ల చార్ట్ లోపల పైభాగంలో ఖాళీ స్థలం వస్తుంది (క్యాండిల్స్ కట్ అవ్వవు)
             y_padding = (max_val - min_val) * 0.15 if (max_val - min_val) != 0 else min_val * 0.005 
             
             chart_times = pd.to_datetime(df_chart.index)
@@ -835,8 +836,12 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                 colors = ['#2ea043' if close >= open_p else '#da3633' for close, open_p in zip(df_chart['Close'], df_chart['Open'])]
                 fig.add_trace(go.Bar(x=df_chart.index, y=df_chart['Volume'], marker_color=colors, showlegend=False, hoverinfo='skip'), row=2, col=1)
                 
-                fig.update_layout(margin=dict(l=0, r=0, t=10, b=0), height=275, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
+                # 🔥 margin t=0 చేసాం. CSS మైనస్ చేసిన హైట్ ని ఇక్కడ 275 చేసి కవర్ చేశాం.
+                fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=275, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
                 
+                # 🔥 Title ని చార్ట్ లోపల టాప్ లో (y=0.98), చెక్ బాక్స్ కి పక్కన (xshift=35) పర్ఫెక్ట్‌గా పెట్టాం!
+                fig.add_annotation(text=title_html, xref="paper", yref="paper", x=0, xanchor="left", xshift=35, y=0.98, yanchor="top", showarrow=False, font=dict(size=13, color="#ffffff"), bgcolor="rgba(0,0,0,0)", borderwidth=0)
+
                 if fetch_sym in st.session_state.custom_alerts:
                     alert_data = st.session_state.custom_alerts[fetch_sym]
                     if alert_data['enabled']:
@@ -844,7 +849,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8, row=1, col=1)
 
                 if show_crosshair:
-                    fig.update_layout(hovermode='closest', dragmode=False, margin=dict(l=0, r=45, t=10, b=0), hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d"))
+                    fig.update_layout(hovermode='closest', dragmode=False, margin=dict(l=0, r=45, t=0, b=0), hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d"))
                     fig.update_yaxes(showspikes=True, spikesnap='cursor', spikemode='across', spikethickness=1, spikedash='dot', spikecolor="rgba(255, 255, 255, 0.6)", showspikelabels=True, spikelabelcolor="#ffffff", showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=10), showline=False, fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)], row=1, col=1)
                     fig.update_xaxes(showspikes=True, spikesnap='cursor', spikemode='across', spikethickness=1, spikedash='dot', spikecolor="rgba(255, 255, 255, 0.6)", showspikelabels=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, row=1, col=1)
                 else:
@@ -867,7 +872,11 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                     if 'VWAP' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), hoverinfo='skip'))
                     if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), hoverinfo='skip'))
                     
-                fig.update_layout(margin=dict(l=0, r=0, t=10, b=0), height=220, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, xaxis_rangeslider_visible=False)
+                # 🔥 margin t=0 చేసాం. CSS మైనస్ చేసిన హైట్ ని ఇక్కడ 235 చేసి కవర్ చేశాం.
+                fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=235, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, xaxis_rangeslider_visible=False)
+
+                # 🔥 Title ని చార్ట్ లోపల టాప్ లో (y=0.98), చెక్ బాక్స్ కి పక్కన (xshift=35) పర్ఫెక్ట్‌గా పెట్టాం!
+                fig.add_annotation(text=title_html, xref="paper", yref="paper", x=0, xanchor="left", xshift=35, y=0.98, yanchor="top", showarrow=False, font=dict(size=13, color="#ffffff"), bgcolor="rgba(0,0,0,0)", borderwidth=0)
 
                 if fetch_sym in st.session_state.custom_alerts:
                     alert_data = st.session_state.custom_alerts[fetch_sym]
@@ -877,6 +886,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
 
                 if show_crosshair:
                     fig.update_layout(hovermode='x', dragmode=False, hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d"))
+                    # 🔥 range లో పైన ఖాళీ స్థలం పెంచాం: max_val + (y_padding * 2.5)
                     fig.update_yaxes(showspikes=True, spikesnap='cursor', spikemode='across', spikethickness=0.2, spikedash='solid', spikecolor="rgba(255,255,255,0.4)", showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=10), showline=False, fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)])
                     fig.update_xaxes(showspikes=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
                 else:
