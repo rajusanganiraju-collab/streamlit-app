@@ -75,7 +75,6 @@ def save_closed_trades(df):
 if 'pause_refresh' not in st.session_state:
     st.session_state.pause_refresh = False
 
-# పాజ్ టోగుల్ ఆన్‌లో లేకపోతేనే రిఫ్రెష్ అవుతుంది
 if not st.session_state.pause_refresh:
     st_autorefresh(interval=60000, key="datarefresh")
 
@@ -85,7 +84,6 @@ if 'pinned_stocks' not in st.session_state:
 if 'custom_alerts' not in st.session_state:
     st.session_state.custom_alerts = {}
 
-# 🔥 NEW 1: సెక్టార్ టోగుల్ స్టేట్ & సెక్టార్ స్టాక్స్ లిస్ట్
 if 'active_sec' not in st.session_state:
     st.session_state.active_sec = None
 
@@ -119,6 +117,23 @@ st.markdown("""
     .t-pct { font-size: 12px; font-weight: normal !important; }
     .t-score { position: absolute; top: 3px; left: 3px; font-size: 10px; background: rgba(0,0,0,0.4); padding: 1px 4px; border-radius: 3px; color: #ffd700; font-weight: normal !important; }
     
+    /* 🔥 చార్ట్ హెడర్ లో పాజ్ బటన్ సెట్టింగ్స్ */
+    .chart-header-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        position: absolute;
+        top: 5px;
+        left: 0;
+        padding: 0 10px 0 35px;
+        z-index: 100;
+    }
+    .pause-mini-toggle {
+        scale: 0.8;
+        margin-top: -10px;
+    }
+
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .filter-marker) {
         display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; 
         justify-content: space-between !important; align-items: center !important; gap: 6px !important; width: 100% !important;
@@ -148,29 +163,10 @@ st.markdown("""
         position: absolute !important; top: 10px !important; left: 10px !important; z-index: 100 !important;
     }
 
-    /* 🔥 FIX: కేవలం చార్ట్ పిన్ బాక్స్ కి మాత్రమే అప్లై అయ్యేలా సెట్ చేశాం */
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(div[data-testid="stCheckbox"]) {
         margin-bottom: -45px !important; 
         position: relative !important;
         z-index: 50 !important;
-    }
-
-    /* 🔥 ULTRA FIX: పాజ్ బటన్ కిందికి జారకుండా మొబైల్ వ్యూ లో కూడా లాక్ చేస్తున్నాం */
-    div[data-testid="stVerticalBlock"]:has(.view-pause-marker) > div[data-testid="stHorizontalBlock"] {
-        display: flex !important;
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-    }
-    div[data-testid="stVerticalBlock"]:has(.view-pause-marker) > div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-        width: 50% !important;
-        min-width: 0px !important;
-        flex: 1 1 0px !important;
-    }
-    div[data-testid="stVerticalBlock"]:has(.view-pause-marker) > div[data-testid="stElementContainer"]:has(.view-pause-marker) {
-        display: none !important;
-    }
-    div[data-testid="stVerticalBlock"]:has(.view-pause-marker) div[data-testid="stCheckbox"] {
-        margin-top: 4px !important;
     }
 
     div[data-testid="stCheckbox"] label { padding: 0 !important; min-height: 0 !important; }
@@ -224,7 +220,6 @@ TV_SECTOR_URL = {
     "^CNXPHARMA": "NSE:CNXPHARMA", "^CNXFMCG": "NSE:CNXFMCG", "^CNXENERGY": "NSE:CNXENERGY", "^CNXREALTY": "NSE:CNXREALTY"
 }
 
-# --- COMMODITY MAP ---
 COMMODITY_MAP = {
     "GC=F": "GOLD", 
     "SI=F": "SILVER", 
@@ -790,19 +785,35 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
     sign = "+" if pct_val > 0 else ""
     tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
     
-    # 🔥 పిన్ చెక్‌బాక్స్
-    if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX", "DOW", "NSDQ"] and not row.get('Is_Commodity'):
-        cb_key = f"cb_{fetch_sym}_{key_suffix}" if key_suffix else f"cb_{fetch_sym}"
-        st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=cb_key, on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
-    
-    # 🔥 మొబైల్ లో ఐకాన్స్ కి డిస్టర్బ్ కాకుండా ప్రైస్ ని <br> వాడి రెండో లైన్ లోకి (కిందకి) పంపాం!
-    title_html = f"<a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; line-height:1.2;'><b>{display_sym}</b><br><span style='font-size:12px; color:#cccccc;'>₹{row['P']:.2f} &nbsp;<span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span></span></a>"
+    # --- 🔥 NEW: HEADER WITH PAUSE TOGGLE ---
+    with st.container():
+        st.markdown("<div class='chart-header-container'>", unsafe_allow_html=True)
+        cols = st.columns([0.8, 0.2])
+        with cols[0]:
+            if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX", "DOW", "NSDQ"] and not row.get('Is_Commodity'):
+                cb_key = f"cb_{fetch_sym}_{key_suffix}" if key_suffix else f"cb_{fetch_sym}"
+                st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=cb_key, on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
+            
+            st.markdown(f"""
+                <div style='margin-left: 30px; margin-top: -35px;'>
+                    <a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none;'>
+                        <b style='font-size:14px;'>{display_sym}</b>
+                        <span style='font-size:12px; color:{color_hex};'> ₹{row['P']:.2f} ({sign}{pct_val:.2f}%)</span>
+                    </a>
+                </div>
+            """, unsafe_allow_html=True)
+            
+        with cols[1]:
+            # Unique key for pause toggle to avoid duplicate id errors
+            toggle_key = f"p_tog_{fetch_sym}_{key_suffix}_{timeframe}"
+            st.session_state.pause_refresh = st.toggle("⏸️", value=st.session_state.pause_refresh, key=toggle_key, label_visibility="collapsed")
+        st.markdown("</div>", unsafe_allow_html=True)
+
     try:
         if not df_chart.empty:
             min_val = df_chart['Low'].min()
             max_val = df_chart['High'].max()
             
-            # 🔥 y_padding పెంచాం! దీనివల్ల చార్ట్ లోపల పైభాగంలో ఖాళీ స్థలం వస్తుంది (క్యాండిల్స్ కట్ అవ్వవు)
             y_padding = (max_val - min_val) * 0.15 if (max_val - min_val) != 0 else min_val * 0.005 
             
             chart_times = pd.to_datetime(df_chart.index)
@@ -835,12 +846,9 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                 colors = ['#2ea043' if close >= open_p else '#da3633' for close, open_p in zip(df_chart['Close'], df_chart['Open'])]
                 fig.add_trace(go.Bar(x=df_chart.index, y=df_chart['Volume'], marker_color=colors, showlegend=False, hoverinfo='skip'), row=2, col=1)
                 
-                # 🔥 margin t=0 చేసాం, మళ్లీ ఖాళీ స్థలం రాకుండా! CSS మైనస్ చేసిన హైట్ ని ఇక్కడ 275 చేసి కవర్ చేశాం.
-                fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=275, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
+                # 🔥 Top margin added so the HTML absolute positioned container fits cleanly
+                fig.update_layout(margin=dict(l=0, r=0, t=20, b=0), height=275, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
                 
-                # 🔥 Title ని చార్ట్ లోపల టాప్ లో (y=0.98), చెక్ బాక్స్ కి పక్కన (xshift=35) పెట్టాం
-                fig.add_annotation(text=title_html, xref="paper", yref="paper", x=0, xanchor="left", xshift=35, y=0.98, yanchor="top", showarrow=False, font=dict(size=13, color="#ffffff"), bgcolor="rgba(0,0,0,0)", borderwidth=0)
-
                 if fetch_sym in st.session_state.custom_alerts:
                     alert_data = st.session_state.custom_alerts[fetch_sym]
                     if alert_data['enabled']:
@@ -848,8 +856,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                         fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8, row=1, col=1)
 
                 if show_crosshair:
-                    fig.update_layout(hovermode='closest', dragmode=False, margin=dict(l=0, r=45, t=0, b=0), hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d"))
-                    # 🔥 range లో పైన ఖాళీ స్థలం పెంచాం: max_val + (y_padding * 2.5)
+                    fig.update_layout(hovermode='closest', dragmode=False, margin=dict(l=0, r=45, t=20, b=0), hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d"))
                     fig.update_yaxes(showspikes=True, spikesnap='cursor', spikemode='across', spikethickness=1, spikedash='dot', spikecolor="rgba(255, 255, 255, 0.6)", showspikelabels=True, spikelabelcolor="#ffffff", showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=10), showline=False, fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)], row=1, col=1)
                     fig.update_xaxes(showspikes=True, spikesnap='cursor', spikemode='across', spikethickness=1, spikedash='dot', spikecolor="rgba(255, 255, 255, 0.6)", showspikelabels=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, row=1, col=1)
                 else:
@@ -872,11 +879,8 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                     if 'VWAP' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), hoverinfo='skip'))
                     if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), hoverinfo='skip'))
                     
-                # 🔥 margin t=0 చేసాం. CSS మైనస్ చేసిన హైట్ ని ఇక్కడ 235 చేసి కవర్ చేశాం.
-                fig.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=235, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, xaxis_rangeslider_visible=False)
-
-                # 🔥 Title ని చార్ట్ లోపల టాప్ లో (y=0.98), చెక్ బాక్స్ కి పక్కన (xshift=35) పెట్టాం
-                fig.add_annotation(text=title_html, xref="paper", yref="paper", x=0, xanchor="left", xshift=35, y=0.98, yanchor="top", showarrow=False, font=dict(size=13, color="#ffffff"), bgcolor="rgba(0,0,0,0)", borderwidth=0)
+                # 🔥 Top margin added here too
+                fig.update_layout(margin=dict(l=0, r=0, t=20, b=0), height=235, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, xaxis_rangeslider_visible=False)
 
                 if fetch_sym in st.session_state.custom_alerts:
                     alert_data = st.session_state.custom_alerts[fetch_sym]
@@ -886,7 +890,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
 
                 if show_crosshair:
                     fig.update_layout(hovermode='x', dragmode=False, hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d"))
-                    # 🔥 range లో పైన ఖాళీ స్థలం పెంచాం: max_val + (y_padding * 2.5)
                     fig.update_yaxes(showspikes=True, spikesnap='cursor', spikemode='across', spikethickness=0.2, spikedash='solid', spikecolor="rgba(255,255,255,0.4)", showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=10), showline=False, fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)])
                     fig.update_xaxes(showspikes=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
                 else:
@@ -903,10 +906,8 @@ def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Day", cha
     if chart_dict is None: chart_dict = {}
     with st.container():
         st.markdown("<div class='fluid-board'></div>", unsafe_allow_html=True)
-        # 🔥 FIX: పాత కోడ్ లో ఉన్న 'enumerate' మరియు 'j' ని తీసేశాం. 
         for _, row in df_grid.iterrows():
             with st.container():
-                # 🔥 FIX: key_suffix లో 'j' ని రిమూవ్ చేసాం. దీనివల్ల ఆటోమేటిక్ టిక్స్ రావు!
                 render_chart(row, chart_dict.get(row['Fetch_T'], pd.DataFrame()), show_pin=show_pin_option, key_suffix=key_prefix, timeframe=timeframe, show_crosshair=show_crosshair, show_vol=show_vol)
                 
                 # సెక్టార్ చార్ట్స్ కింద Toggle Button
@@ -953,33 +954,16 @@ all_names = []
 if not df.empty:
     all_names = sorted(df[(~df['Is_Sector']) & (~df['Is_Index']) & (~df['Is_Commodity'])]['T'].unique().tolist())
 
-# --- 6. FETCH DATA FIRST ---
-df = fetch_all_data()
-
-all_names = []
-if not df.empty:
-    all_names = sorted(df[(~df['Is_Sector']) & (~df['Is_Index']) & (~df['Is_Commodity'])]['T'].unique().tolist())
-
-
 # =========================================================
 # --- 7. ULTRA COMPACT UI SETTINGS (MOBILE FRIENDLY) ---
 # =========================================================
 
-# 💡 మెయిన్ సెట్టింగ్స్ (మొబైల్ కి పక్కాగా సెట్ అయ్యేలా)
-# వాచ్ లిస్ట్ ని ఫుల్ లైన్ లో పెడుతున్నాం
 watchlist_mode = st.selectbox("Watchlist", ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions", "High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢"], index=0, label_visibility="collapsed")
 
-# 🔥 రేడియో బటన్ మరియు పాజ్ టోగుల్ ని ఒకే లైన్ లో లాక్ చేస్తున్నాం
-with st.container():
-    st.markdown("<div class='view-pause-marker'></div>", unsafe_allow_html=True)
-    c1, c2 = st.columns([0.6, 0.4]) 
-    with c1: 
-        view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
-    with c2:
-        st.session_state.pause_refresh = st.toggle("⏸️ Pause", value=st.session_state.pause_refresh)
+# 🔥 రేడియో బటన్ ని మాత్రమే ఉంచాం (పాజ్ బటన్ చార్ట్ లోపలకి వెళ్ళింది కాబట్టి ఇక్కడ తీసేశాం)
+view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
 
 # డిఫాల్ట్ వేరియబుల్స్ (ఎర్రర్స్ రాకుండా)
-# 🔥 మీకు కావాల్సిన 3 స్ట్రాటజీలను ఇక్కడే డిఫాల్ట్ గా సెట్ చేసాం
 move_type_filter = ["🌊 One Sided Only", "🎯 Reversals Only", "🏹 Rubber Band Stretch"] 
 fund_filter = "Top Ranked Stocks ⭐"
 sort_mode = "Custom Sort"
@@ -1051,24 +1035,17 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
                         del st.session_state.custom_alerts[s_key]
                         st.rerun()
 
-
 # =========================================================
-# --- 8. ఇక్కడినుండి అసలైన చార్ట్స్ ప్రింట్ అయ్యే పాత కోడ్ (if not df.empty:) ---
+# --- 8. ఇక్కడినుండి అసలైన చార్ట్స్ ప్రింట్ అయ్యే పాత కోడ్ ---
 # =========================================================
 
-# --- అసలైన చార్ట్స్ ప్రింట్ అయ్యే కోడ్ ఇక్కడినుండి మొదలవుతుంది ---
 if not df.empty:
     df_indices = df[df['Is_Index']].copy()
-    # (మిగతా పాత కోడ్ అంతా దీని కింద మామూలుగానే ఉంటుంది)
             
-    df_indices = df[df['Is_Index']].copy()
-    # 🔥 FIX 1: VIX ఫస్ట్ రాకుండా పాత ఆర్డర్ (Nifty -> BankNifty -> Vix) సెట్ చేసాం
     df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3, "DOW": 4, "NSDQ": 5})
     df_indices = df_indices.sort_values('Order')
     
     df_sectors = df[df['Is_Sector']].copy()
-    
-    # 🔥 FIX: సెక్టార్ చార్ట్స్ పక్కాగా హీట్‌మ్యాప్ ఆర్డర్ లో (High to Low) రావడానికి
     sec_sort_key = "W_C" if chart_timeframe == "Weekly Chart" else "Day_C"
     df_sectors = df_sectors.sort_values(by=sec_sort_key, ascending=False)
     
@@ -1123,13 +1100,11 @@ if not df.empty:
             up_prob = 0
             dn_prob = 0
             
-            # --- 🚀 AI CALCULATION FOR 'UP' TREND ---
             if row['P'] > row['VWAP']: up_prob += 25 
             if row['VolX'] >= 1.5: up_prob += 20 
             if row.get('Bull_P', 0) >= 80: up_prob += 30 
             if abs(row['O'] - row['L']) < (row['P'] * 0.002): up_prob += 25 
             
-            # --- 🩸 AI CALCULATION FOR 'DOWN' TREND ---
             if row['P'] < row['VWAP']: dn_prob += 25
             if row['VolX'] >= 1.5: dn_prob += 20
             if row.get('Bear_P', 0) >= 80: dn_prob += 30
@@ -1148,11 +1123,7 @@ if not df.empty:
         df_filtered['Strategy_Icon'] = ai_predictions
         df_filtered['AI_Prob'] = ai_probs
         
-        # 🔥 FIX: న్యూట్రల్ కానివి మరియు స్కోర్ కచ్చితంగా 11 లేదా అంతకంటే ఎక్కువ ఉన్నవి మాత్రమే కావాలి!
         df_filtered = df_filtered[(df_filtered['Strategy_Icon'] != "Neutral") & (df_filtered['S'] >= 11)]
-        
-             
-    
             
     elif watchlist_mode == "Day Trading Stocks 🚀":
         df_filtered = df_stocks[df_stocks['C'].abs() >= 1.0].copy()
@@ -1161,7 +1132,6 @@ if not df.empty:
     else:
         df_filtered = df_stocks[(df_stocks['S'] >= 11) & (df_stocks['VolX'] >= 1.5)]
 
-    # 🔥 NEW 3: సెక్టార్ క్లిక్ చేస్తే ఆ స్టాక్స్ కూడా 5-min చార్ట్ కి లోడ్ అవ్వడానికి
     all_display_tickers = list(set(df_indices['Fetch_T'].tolist() + df_sectors['Fetch_T'].tolist() + df_filtered['Fetch_T'].tolist() + st.session_state.pinned_stocks))
     
     if st.session_state.get('active_sec'):
@@ -1180,7 +1150,7 @@ if not df.empty:
     weekly_trends = {}
     alpha_tags = {}
     trend_scores = {}
-    retest_tags = {} # 🔥 కొత్తగా యాడ్ చేసిన డిక్షనరీ
+    retest_tags = {} 
 
     nifty_dist_5m = 0.1
     if "^NSEI" in five_min_data.columns.levels[0]:
@@ -1271,24 +1241,20 @@ if not df.empty:
 
             alpha_tags[sym] = f"{alpha_tag} {one_sided_tag} {trap_tag}".strip()
             trend_scores[sym] = trend_bonus + trap_bonus
-            # --- 🔥 NEW STRICT 10 EMA RETEST LOGIC 🔥 ---
+            
             retest_tag = ""
             if watchlist_mode in ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions"] and len(df_day) >= 4:
-                c1 = df_day.iloc[-1] # కరెంట్ లైవ్ క్యాండిల్
-                c2 = df_day.iloc[-2] # ముందు క్యాండిల్
+                c1 = df_day.iloc[-1] 
+                c2 = df_day.iloc[-2] 
                 
-                # BUY RETEST
                 if c1['Close'] > c1['VWAP'] and c1['EMA_10'] > c1['VWAP']:
                     if (c2['Low'] <= c2['EMA_10'] * 1.002) and (c2['Close'] >= c2['EMA_10']): 
-                        # 🔥 కొత్త లాజిక్: కరెంట్ క్యాండిల్ 10 EMA కి గరిష్టంగా 0.3% దూరంలో మాత్రమే ఉండాలి!
                         max_allowed_price = c1['EMA_10'] * 1.003
                         if c1['Close'] > c1['Open'] and (c1['EMA_10'] <= c1['Close'] <= max_allowed_price): 
                             retest_tag = "BUY_RETEST"
                             
-                # SELL RETEST
                 elif c1['Close'] < c1['VWAP'] and c1['EMA_10'] < c1['VWAP']:
                     if (c2['High'] >= c2['EMA_10'] * 0.998) and (c2['Close'] <= c2['EMA_10']):
-                        # 🔥 కొత్త లాజిక్: కరెంట్ క్యాండిల్ 10 EMA కి గరిష్టంగా 0.3% కింద మాత్రమే ఉండాలి! దాటితే వద్దు!
                         min_allowed_price = c1['EMA_10'] * 0.997
                         if c1['Close'] < c1['Open'] and (min_allowed_price <= c1['Close'] <= c1['EMA_10']):
                             retest_tag = "SELL_RETEST"
@@ -1311,14 +1277,12 @@ if not df.empty:
     if alerts_triggered_html:
         st.markdown(alerts_triggered_html, unsafe_allow_html=True)
 
-    # 👇 ఇక్కడి నుండి పక్కాగా కాపీ చేసి రీప్లేస్ చేయండి 👇
     if not df_filtered.empty:
         df_filtered['AlphaTag'] = df_filtered['Fetch_T'].map(alpha_tags).fillna("")
         df_filtered['Trend_Score'] = df_filtered['Fetch_T'].map(trend_scores).fillna(0)
         df_filtered['Retest_Tag'] = df_filtered['Fetch_T'].map(retest_tags).fillna("") 
         df_filtered['S'] = df_filtered['S'] + df_filtered['Trend_Score']
         
-        # 🔥 NEW: Sector Points Logic
         if watchlist_mode in ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions"]:
             sector_abs_perf = sector_perf.abs().sort_values(ascending=False)
             sector_bonus_map = {}
@@ -1329,7 +1293,6 @@ if not df.empty:
         else:
             df_filtered['Sector_Bonus'] = 0
             
-        # 🔥 AI Predictions లో Retest ఫిల్టర్ పనిచేయడానికి లాజిక్:
         if watchlist_mode == "🤖 Today's AI Predictions" and "🧲 10-EMA Retest (Best Entry)" in move_type_filter:
             df_filtered = df_filtered[
                 (df_filtered['Strategy_Icon'].str.contains('UP', na=False) & (df_filtered['Retest_Tag'] == 'BUY_RETEST')) |
@@ -1374,19 +1337,6 @@ if not df.empty:
                 "📉 FIB Retracement (0.382)"
             ]
             
-            strategies_list = [
-                "⚡ Intraday Pro Breakout (Top 5)",
-                "🌊 One Sided Only", 
-                "🔄 VWAP Reversal",   
-                "🎯 Reversals Only", 
-                "🏹 Rubber Band Stretch",
-                "🏄‍♂️ Momentum Ignition",
-                "💥 Narrow CPR Breakout",
-                "🧲 10-EMA Retest (Best Entry)",
-                "📉 FIB Retracement (0.382)"
-            ]
-            
-            # --- 🔥 FIB MASTER FILTER LOGIC 🔥 ---
             fib_range = (df_filtered['H'] - df_filtered['L'])
             fib_buy_0382 = df_filtered['H'] - (fib_range * 0.382)
             fib_buy_0618 = df_filtered['H'] - (fib_range * 0.618)
@@ -1460,7 +1410,6 @@ if not df.empty:
                     c_sell = base_sell & fib_sell_mask
                     icon_str = "📉 FIB"
 
-                # --- 🔥 THE CONFLUENCE MAGIC 🔥 ---
                 if apply_fib_strict and strat != "📉 FIB Retracement (0.382)":
                     c_buy = c_buy & fib_buy_mask
                     c_sell = c_sell & fib_sell_mask
@@ -1502,7 +1451,6 @@ if not df.empty:
             elif move_type_filter == "🌟 Weekly 10EMA Pro":
                 df_filtered = df_filtered[df_filtered['Is_W_Pullback'] == True]
 
-    # 🔥 STRICT DYNAMIC SORTING 🔥
     sort_key = "W_C" if chart_timeframe == "Weekly Chart" else "Day_C"
     
     if 'Sector_Bonus' not in df_filtered.columns: df_filtered['Sector_Bonus'] = 0
@@ -1692,14 +1640,13 @@ if not df.empty:
             with st.expander("📜 View Trade Book (Closed P&L Ledger)", expanded=False):
                 df_closed_view = load_closed_trades()
                 st.markdown(render_closed_trades_table(df_closed_view), unsafe_allow_html=True) 
+                
     elif view_mode == "Heat Map" and watchlist_mode != "Fundamentals 🏢":
-        # 🔥 FIX: సార్టింగ్ మరియు పర్సంటేజ్ రెండూ పక్కాగా Intraday ('Day_C') కి సింక్ చేస్తున్నాం 
         map_sort_key = "W_C" if chart_timeframe == "Weekly Chart" else "Day_C"
 
         if not df_indices.empty and watchlist_mode != "Commodity 🛢️":
             html_idx = '<div class="heatmap-grid">'
             for _, row in df_indices.iterrows():
-                # ఇక్కడ 'C' ని 'Day_C' కి మార్చాం
                 pct_val = float(row.get('W_C', row['Day_C'])) if chart_timeframe == "Weekly Chart" else float(row['Day_C'])
                 bg = "bear-card" if (row['T'] == "INDIA VIX" and pct_val > 0) else ("bull-card" if pct_val > 0 else "neut-card")
                 if row['T'] != "INDIA VIX" and pct_val < 0: bg = "bear-card"
@@ -1707,11 +1654,9 @@ if not df.empty:
             st.markdown(html_idx + '</div><hr class="custom-hr">', unsafe_allow_html=True)
         
         if not df_sectors.empty and watchlist_mode != "Commodity 🛢️":
-            # 🔥 సెక్టార్స్ ని హీట్‌మ్యాప్ ప్రింట్ అయ్యే ముందే పక్కాగా సార్ట్ చేస్తున్నాం
             df_sectors = df_sectors.sort_values(by=map_sort_key, ascending=False)
             html_sec = '<div class="heatmap-grid">'
             for _, row in df_sectors.iterrows():
-                # ఇక్కడ 'C' ని 'Day_C' కి మార్చాం
                 pct_val = float(row.get('W_C', row['Day_C'])) if chart_timeframe == "Weekly Chart" else float(row['Day_C'])
                 bg = "bull-card" if pct_val > 0 else ("bear-card" if pct_val < 0 else "neut-card")
                 html_sec += f'<a href="https://in.tradingview.com/chart/?symbol={TV_SECTOR_URL.get(row["Fetch_T"], "")}" target="_blank" class="stock-card {bg}"><div class="t-score" style="color:#00BFFF;">SEC</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if pct_val>0 else ""}{pct_val:.2f}%</div></a>'
@@ -1729,7 +1674,6 @@ if not df.empty:
                 st.markdown(f"<div style='font-size:16px; font-weight:bold; margin: 15px 0 5px 0; color:{title_color};'>{title}</div>", unsafe_allow_html=True)
                 html_stk = '<div class="heatmap-grid">'
                 for _, row in df_sec.iterrows():
-                    # ఇక్కడ 'C' ని 'Day_C' కి మార్చాం
                     pct_val = float(row.get('W_C', row['Day_C'])) if chart_timeframe == "Weekly Chart" else float(row['Day_C'])
                     bg = "bull-card" if pct_val > 0 else ("bear-card" if pct_val < 0 else "neut-card")
                     
@@ -1752,6 +1696,7 @@ if not df.empty:
                         
                     html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">{special_icon}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if pct_val>0 else ""}{pct_val:.2f}%</div></a>'
                 st.markdown(html_stk + '</div>', unsafe_allow_html=True)
+                
             if not df_buy.empty: render_heatmap_section(df_buy, f"🟢 POSITIVE / BUY ({watchlist_mode})", "#3fb950")
             if not df_sell.empty: render_heatmap_section(df_sell, f"🔴 NEGATIVE / SELL ({watchlist_mode})", "#f85149")
             
@@ -1773,7 +1718,7 @@ if not df.empty:
                 if search_stock != "-- None --": display_tkrs.append(search_fetch_t)
                 if watchlist_mode not in ["Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️"]:
                     display_tkrs.extend(df_indices['Fetch_T'].tolist())
-                    display_tkrs.extend(df_sectors['Fetch_T'].tolist()) # 🔥 సెక్టార్స్ డేటా లాగడానికి
+                    display_tkrs.extend(df_sectors['Fetch_T'].tolist())
                 display_tkrs.extend(st.session_state.pinned_stocks)
                 display_tkrs.extend(df_stocks_display['Fetch_T'].tolist())
                 
@@ -1799,26 +1744,21 @@ if not df.empty:
         
         if watchlist_mode not in ["Terminal Tables 🗃️", "My Portfolio 💼", "Fundamentals 🏢", "Commodity 🛢️"]:
             
-            # 1. మెయిన్ ఇండెక్స్ చార్ట్స్
             st.markdown("<div style='font-size:16px; font-weight:bold; margin-bottom:5px; color:#00BFFF;'>🌍 Global & Main Indices</div>", unsafe_allow_html=True)
             render_chart_grid(df_indices, show_pin_option=False, key_prefix="idx", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
             
-            # 2. 🔥 సెక్టార్ చార్ట్స్ (Toggle స్విచ్ తో దాచాం)
             if not df_sectors.empty:
                 show_sec_charts = st.toggle("📊 Show Sectoral Indices Charts", value=False)
                 if show_sec_charts:
-                    # ఇక్కడ is_sector=True పాస్ చేసాం బటన్స్ రావడానికి
                     render_chart_grid(df_sectors, show_pin_option=False, key_prefix="sec", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol, is_sector=True)
                     
-                    # 🔥 NEW 4: క్లిక్ చేసిన సెక్టార్ లో ఎక్కువ మూమెంట్ ఉన్న Top 6 స్టాక్స్
                     if st.session_state.get('active_sec'):
                         st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:10px; margin-bottom:5px; color:#ffd700;'>🌟 Top 6 Active Movers in {st.session_state.active_sec}</div>", unsafe_allow_html=True)
                         sec_stock_names = TOP_SECTOR_STOCKS.get(st.session_state.active_sec, [])
                         sec_df = df_stocks[df_stocks['T'].isin(sec_stock_names)].copy()
                         
                         if not sec_df.empty:
-                            # 🔥 ఈ రోజు ఓపెన్ ప్రైస్ (Day_C) బట్టి పక్కాగా సార్ట్ చేస్తున్నాం
                             sort_col = 'W_C' if chart_timeframe == "Weekly Chart" else 'Day_C'
                             
                             sec_trend_row = df_sectors[df_sectors['T'] == st.session_state.active_sec]
@@ -1827,9 +1767,9 @@ if not df.empty:
                                 is_sec_down = float(sec_trend_row[sort_col].iloc[0]) < 0
 
                             if is_sec_down:
-                                sec_df = sec_df.sort_values(by=sort_col, ascending=True).head(6)  # పడినవి ముందు వస్తాయి
+                                sec_df = sec_df.sort_values(by=sort_col, ascending=True).head(6)
                             else:
-                                sec_df = sec_df.sort_values(by=sort_col, ascending=False).head(6) # పెరిగినవి ముందు వస్తాయి
+                                sec_df = sec_df.sort_values(by=sort_col, ascending=False).head(6)
                             
                             render_chart_grid(sec_df, show_pin_option=True, key_prefix="sec_top6", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
                         else:
