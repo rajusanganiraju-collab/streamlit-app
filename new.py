@@ -777,9 +777,8 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
         cb_key = f"cb_{fetch_sym}_{key_suffix}" if key_suffix else f"cb_{fetch_sym}"
         st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=cb_key, on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
     
-    # 🔥 ఫుల్ స్క్రీన్‌లో వచ్చేలా చార్ట్ లోపలే టైటిల్ ఇస్తున్నాం
-    title_html = f"<a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none;'><b>{display_sym}</b> &nbsp; ₹{row['P']:.2f} &nbsp; <span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span></a>"
-    
+    # 🔥 మొబైల్ లో ఐకాన్స్ కి డిస్టర్బ్ కాకుండా ప్రైస్ ని <br> వాడి రెండో లైన్ లోకి (కిందకి) పంపాం!
+    title_html = f"<a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; line-height:1.2;'><b>{display_sym}</b><br><span style='font-size:12px; color:#cccccc;'>₹{row['P']:.2f} &nbsp;<span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span></span></a>"
     try:
         if not df_chart.empty:
             min_val = df_chart['Low'].min()
@@ -949,13 +948,13 @@ if not df.empty:
 # =========================================================
 
 # 💡 మెయిన్ సెట్టింగ్స్ (ఎప్పుడూ కనిపించేవి - కేవలం 1 లైన్)
-c1, c2, c3 = st.columns([0.45, 0.35, 0.20])
+# 🔥 మొబైల్ & హాఫ్ స్క్రీన్ కి తగ్గట్టుగా కాలమ్ రేషియో మార్చాం
+c1, c2, c3 = st.columns([1.8, 1.2, 1.2]) 
 with c1: 
     watchlist_mode = st.selectbox("Watchlist", ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions", "High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢"], index=0, label_visibility="collapsed")
 with c2: 
     view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
 with c3:
-    # 🔥 కొత్త పాజ్ బటన్. ఫుల్ స్క్రీన్ అనాలసిస్ కోసం ఇది వాడండి.
     st.session_state.pause_refresh = st.toggle("⏸️ Pause Refresh", value=st.session_state.pause_refresh)
 
 # డిఫాల్ట్ వేరియబుల్స్ (ఎర్రర్స్ రాకుండా)
