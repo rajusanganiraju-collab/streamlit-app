@@ -959,93 +959,92 @@ if not df.empty:
 # --- 7. ULTRA COMPACT UI SETTINGS (MOBILE FRIENDLY) ---
 # =========================================================
 
-# 💡 మెయిన్ సెట్టింగ్స్ (మొబైల్ కి పక్కాగా సెట్ అయ్యేలా)
-# వాచ్ లిస్ట్ ని ఫుల్ లైన్ లో పెడుతున్నాం
-watchlist_mode = st.selectbox("Watchlist", ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions", "High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢"], index=0, label_visibility="collapsed")
-
-view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
-# డిఫాల్ట్ వేరియబుల్స్ (ఎర్రర్స్ రాకుండా)
-# 🔥 మీకు కావాల్సిన 3 స్ట్రాటజీలను ఇక్కడే డిఫాల్ట్ గా సెట్ చేసాం
-move_type_filter = ["🌊 One Sided Only", "🎯 Reversals Only", "🏹 Rubber Band Stretch"] 
-fund_filter = "Top Ranked Stocks ⭐"
-sort_mode = "Custom Sort"
-chart_timeframe = "Day Chart"
-show_crosshair = False
-show_vol = False
-search_stock = "-- None --"
-
-# 💡 మిగతావన్నీ ఒకే Expander లోపల దాచేశాం! (ఇది 2వ లైన్)
-with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
-    # ఇక్కడ 3 కాలమ్స్ కి బదులు 4 తీసుకుంటున్నాం
-    sc1, sc2, sc3, sc4 = st.columns([3, 2, 2, 1.5])
+# 🔥 ఈ కంటైనర్ ని Sticky గా మారుస్తున్నాం
+with st.container():
+    st.markdown("<div class='sticky-header'></div>", unsafe_allow_html=True)
     
-    # 4వ కాలమ్ లో Pause బటన్ యాడ్ చేస్తున్నాం
-    with sc4:
-        st.session_state.pause_refresh = st.toggle("⏸️ Pause Data", value=st.session_state.pause_refresh)
+    watchlist_mode = st.selectbox("Watchlist", ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions", "High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢"], index=0, label_visibility="collapsed")
 
-    with sc1:
-        if watchlist_mode in ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions"]:
-            move_type_filter = st.multiselect("Strategy Filter", 
-                ["All Moves", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)"], 
-                default=["🌊 One Sided Only", "🎯 Reversals Only", "🏹 Rubber Band Stretch"]
-            )
-        elif watchlist_mode == "Swing Trading 📈":
-            move_type_filter = st.multiselect("Strategy Filter", 
-                ["All Swing Stocks", "🚀 Pro Breakout Strategy", "🌟 Weekly 10EMA Pro"], 
-                default=["All Swing Stocks"]
-            )
-        elif watchlist_mode == "Fundamentals 🏢":
-            fund_filter = st.selectbox("Fundamentals Filter", ["Top Ranked Stocks ⭐", "Swing Trading Candidates 📈", "Nifty 50 Stocks", "My Portfolio 💼"], index=0)
-            
-    with sc2:
-        sort_mode = st.selectbox("Sort By", ["Score Wise Up ⭐", "Custom Sort", "Sector Trending First 📊", "Score Wise Down ⬇️", "🤖 AI Prob Up ⬆️", "% Change Up 🟢", "% Change Down 🔴"], index=0)
+    view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
+
+    # డిఫాల్ట్ వేరియబుల్స్ (ఎర్రర్స్ రాకుండా)
+    move_type_filter = ["🌊 One Sided Only", "🎯 Reversals Only", "🏹 Rubber Band Stretch"] 
+    fund_filter = "Top Ranked Stocks ⭐"
+    sort_mode = "Custom Sort"
+    chart_timeframe = "Day Chart"
+    show_crosshair = False
+    show_vol = False
+    search_stock = "-- None --"
+
+    # 💡 మిగతావన్నీ ఒకే Expander లోపల దాచేశాం!
+    with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
+        sc1, sc2, sc3, sc4 = st.columns([3, 2, 2, 1.5])
         
-    with sc3:
-        search_stock = st.selectbox("Search Stock", ["-- None --"] + all_names)
+        with sc4:
+            st.session_state.pause_refresh = st.toggle("⏸️ Pause Data", value=st.session_state.pause_refresh)
 
-    if view_mode == "Chart 📈" or watchlist_mode in ["Swing Trading 📈", "My Portfolio 💼", "Commodity 🛢️"]:
-        st.markdown("<hr style='margin:10px 0; border-color:#30363d;'>", unsafe_allow_html=True)
-        cc1, cc2, cc3 = st.columns(3)
-        with cc1:
-            if watchlist_mode in ["Swing Trading 📈", "My Portfolio 💼", "Commodity 🛢️"]:
-                chart_timeframe = st.radio("Timeframe", ["Day Chart", "Weekly Chart"], horizontal=True)
-        with cc2:
-            show_crosshair = st.toggle("⌖ Show Crosshair", value=False)
-        with cc3:
-            show_vol = st.toggle("📊 Show Vol Bars", value=False)
+        with sc1:
+            if watchlist_mode in ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions"]:
+                move_type_filter = st.multiselect("Strategy Filter", 
+                    ["All Moves", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)"], 
+                    default=["🌊 One Sided Only", "🎯 Reversals Only", "🏹 Rubber Band Stretch"]
+                )
+            elif watchlist_mode == "Swing Trading 📈":
+                move_type_filter = st.multiselect("Strategy Filter", 
+                    ["All Swing Stocks", "🚀 Pro Breakout Strategy", "🌟 Weekly 10EMA Pro"], 
+                    default=["All Swing Stocks"]
+                )
+            elif watchlist_mode == "Fundamentals 🏢":
+                fund_filter = st.selectbox("Fundamentals Filter", ["Top Ranked Stocks ⭐", "Swing Trading Candidates 📈", "Nifty 50 Stocks", "My Portfolio 💼"], index=0)
+                
+        with sc2:
+            sort_mode = st.selectbox("Sort By", ["Score Wise Up ⭐", "Custom Sort", "Sector Trending First 📊", "Score Wise Down ⬇️", "🤖 AI Prob Up ⬆️", "% Change Up 🟢", "% Change Down 🔴"], index=0)
+            
+        with sc3:
+            search_stock = st.selectbox("Search Stock", ["-- None --"] + all_names)
 
-    # ALERTS కోడ్ కూడా ఈ ఎక్స్‌పాండర్ లోపలే ఉంటుంది
-    if not df.empty and (view_mode == "Chart 📈" or watchlist_mode == "Commodity 🛢️"):
-        st.markdown("<hr style='margin:10px 0; border-color:#30363d;'>", unsafe_allow_html=True)
-        st.markdown("<div style='color:#ffd700; font-size:14px; margin-bottom:5px;'>🔔 Add Custom Price Alert Line</div>", unsafe_allow_html=True)
-        ac1, ac2, ac3, ac4, ac5 = st.columns([2, 2, 2, 1, 1])
-        with ac1: alert_sym_disp = st.selectbox("Select Stock", ["-- None --"] + all_names + list(COMMODITY_MAP.values()), key="alert_sym_sel", label_visibility="collapsed")
-        with ac2: alert_price = st.number_input("Alert Price (₹ / $)", min_value=0.0, value=0.0, step=0.5, label_visibility="collapsed")
-        with ac3: alert_cond = st.selectbox("Condition", ["Price Above Line 📈", "Price Below Line 📉"], label_visibility="collapsed")
-        with ac4: alert_enable = st.toggle("Enable", value=True, key="alert_en_tog")
-        with ac5:
-            if st.button("➕ Add", use_container_width=True):
-                if alert_sym_disp != "-- None --" and alert_price > 0:
-                    f_sym = df[df['T'] == alert_sym_disp]['Fetch_T'].iloc[0]
-                    st.session_state.custom_alerts[f_sym] = {'price': alert_price, 'type': alert_cond, 'enabled': alert_enable, 'name': alert_sym_disp}
-                    st.rerun()
+        if view_mode == "Chart 📈" or watchlist_mode in ["Swing Trading 📈", "My Portfolio 💼", "Commodity 🛢️"]:
+            st.markdown("<hr style='margin:10px 0; border-color:#30363d;'>", unsafe_allow_html=True)
+            cc1, cc2, cc3 = st.columns(3)
+            with cc1:
+                if watchlist_mode in ["Swing Trading 📈", "My Portfolio 💼", "Commodity 🛢️"]:
+                    chart_timeframe = st.radio("Timeframe", ["Day Chart", "Weekly Chart"], horizontal=True)
+            with cc2:
+                show_crosshair = st.toggle("⌖ Show Crosshair", value=False)
+            with cc3:
+                show_vol = st.toggle("📊 Show Vol Bars", value=False)
 
-        if st.session_state.custom_alerts:
-            for s_key, a_data in list(st.session_state.custom_alerts.items()):
-                col_a, col_b, col_c = st.columns([4, 1, 1])
-                col_a.write(f"**{a_data['name']}** - Alert if {a_data['type']} **₹{a_data['price']}**")
-                with col_b:
-                    if st.button("Toggle", key=f"tog_{s_key}"):
-                        st.session_state.custom_alerts[s_key]['enabled'] = not st.session_state.custom_alerts[s_key]['enabled']
+        # ALERTS కోడ్
+        if not df.empty and (view_mode == "Chart 📈" or watchlist_mode == "Commodity 🛢️"):
+            st.markdown("<hr style='margin:10px 0; border-color:#30363d;'>", unsafe_allow_html=True)
+            st.markdown("<div style='color:#ffd700; font-size:14px; margin-bottom:5px;'>🔔 Add Custom Price Alert Line</div>", unsafe_allow_html=True)
+            ac1, ac2, ac3, ac4, ac5 = st.columns([2, 2, 2, 1, 1])
+            with ac1: alert_sym_disp = st.selectbox("Select Stock", ["-- None --"] + all_names + list(COMMODITY_MAP.values()), key="alert_sym_sel", label_visibility="collapsed")
+            with ac2: alert_price = st.number_input("Alert Price (₹ / $)", min_value=0.0, value=0.0, step=0.5, label_visibility="collapsed")
+            with ac3: alert_cond = st.selectbox("Condition", ["Price Above Line 📈", "Price Below Line 📉"], label_visibility="collapsed")
+            with ac4: alert_enable = st.toggle("Enable", value=True, key="alert_en_tog")
+            with ac5:
+                if st.button("➕ Add", use_container_width=True):
+                    if alert_sym_disp != "-- None --" and alert_price > 0:
+                        f_sym = df[df['T'] == alert_sym_disp]['Fetch_T'].iloc[0]
+                        st.session_state.custom_alerts[f_sym] = {'price': alert_price, 'type': alert_cond, 'enabled': alert_enable, 'name': alert_sym_disp}
                         st.rerun()
-                with col_c:
-                    if st.button("Delete", key=f"del_{s_key}"):
-                        del st.session_state.custom_alerts[s_key]
-                        st.rerun()
 
+            if st.session_state.custom_alerts:
+                for s_key, a_data in list(st.session_state.custom_alerts.items()):
+                    col_a, col_b, col_c = st.columns([4, 1, 1])
+                    col_a.write(f"**{a_data['name']}** - Alert if {a_data['type']} **₹{a_data['price']}**")
+                    with col_b:
+                        if st.button("Toggle", key=f"tog_{s_key}"):
+                            st.session_state.custom_alerts[s_key]['enabled'] = not st.session_state.custom_alerts[s_key]['enabled']
+                            st.rerun()
+                    with col_c:
+                        if st.button("Delete", key=f"del_{s_key}"):
+                            del st.session_state.custom_alerts[s_key]
+                            st.rerun()
 
 # =========================================================
-# --- 8. ఇక్కడినుండి అసలైన చార్ట్స్ ప్రింట్ అయ్యే పాత కోడ్ (if not df.empty:) ---
+# --- 8. అసలైన చార్ట్స్ ప్రింట్ అయ్యే కోడ్ ---
 # =========================================================
 
 # --- అసలైన చార్ట్స్ ప్రింట్ అయ్యే కోడ్ ఇక్కడినుండి మొదలవుతుంది ---
