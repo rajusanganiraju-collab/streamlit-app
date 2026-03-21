@@ -785,8 +785,14 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
             else:
                 chart_times = chart_times.tz_localize('UTC').tz_convert('Asia/Kolkata')
                 
-            # 🔥 హోవర్ డేటాలో పక్కా ఇండియన్ టైమ్ (AM/PM ఫార్మాట్ లో)
-            hover_data = "🕒 " + chart_times.strftime('%d-%b %I:%M %p') + "<br>📈 H: ₹" + df_chart['High'].round(2).astype(str) + "<br>📉 L: ₹" + df_chart['Low'].round(2).astype(str)
+            # 🔥 హోవర్ డేటాలో Time తో పాటు O, H, L, C అన్నీ యాడ్ చేశాం!
+            hover_data = (
+                "🕒 " + chart_times.strftime('%d-%b %I:%M %p') + 
+                "<br>🟢 O: ₹" + df_chart['Open'].round(2).astype(str) + 
+                "<br>📈 H: ₹" + df_chart['High'].round(2).astype(str) + 
+                "<br>📉 L: ₹" + df_chart['Low'].round(2).astype(str) + 
+                "<br>🔴 C: ₹" + df_chart['Close'].round(2).astype(str)
+            )
             
             if show_vol:
                 fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.02, row_heights=[0.75, 0.25])
