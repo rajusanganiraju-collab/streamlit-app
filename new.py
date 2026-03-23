@@ -985,7 +985,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                     fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)])
                     fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
 
-        st.plotly_chart(fig, use_container_width=True, key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}")
+        st.plotly_chart(fig, width="stretch", key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}")
     except Exception as e: 
         st.markdown(f"<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart error</div>", unsafe_allow_html=True)
 
@@ -1003,7 +1003,7 @@ def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Day", cha
                 # సెక్టార్ చార్ట్స్ కింద Toggle Button
                 if is_sector:
                     btn_lbl = f"🔽 View Stocks" if st.session_state.active_sec != row['T'] else f"🔼 Hide Stocks"
-                    if st.button(btn_lbl, key=f"btn_sec_{row['Fetch_T']}", use_container_width=True):
+                    if st.button(btn_lbl, key=f"btn_sec_{row['Fetch_T']}", width="stretch"):
                         if st.session_state.active_sec == row['T']:
                             st.session_state.active_sec = None
                         else:
@@ -1121,7 +1121,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
         with ac3: alert_cond = st.selectbox("Condition", ["Price Above Line 📈", "Price Below Line 📉"], label_visibility="collapsed")
         with ac4: alert_enable = st.toggle("Enable", value=True, key="alert_en_tog")
         with ac5:
-            if st.button("➕ Add", use_container_width=True):
+            if st.button("➕ Add", width="stretch"):
                 if alert_sym_disp != "-- None --" and alert_price > 0:
                     f_sym = df[df['T'] == alert_sym_disp]['Fetch_T'].iloc[0]
                     st.session_state.custom_alerts[f_sym] = {'price': alert_price, 'type': alert_cond, 'enabled': alert_enable, 'name': alert_sym_disp}
@@ -1696,7 +1696,7 @@ if not df.empty:
                 with c7: new_t2 = st.number_input("🎯 Target 2", min_value=0.0, value=0.0)
                 with c8:
                     st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-                    submit_btn = st.form_submit_button("➕ Verify & Add", use_container_width=True)
+                    submit_btn = st.form_submit_button("➕ Verify & Add", width="stretch")
 
             if submit_btn:
                 if new_sym:
@@ -1731,7 +1731,7 @@ if not df.empty:
             with st.expander("✏️ Edit Existing Holdings (Targets, Qty, Price)", expanded=False):
                 st.markdown("<p style='font-size:12px; color:#888;'><i>Modify your SL, Targets, or Buy Price directly in the table below and click Save.</i></p>", unsafe_allow_html=True)
                 edited_df = st.data_editor(
-                    df_port_saved, use_container_width=True, hide_index=True,
+                    df_port_saved, width="stretch", hide_index=True,
                     column_config={
                         "Symbol": st.column_config.TextColumn("Stock Symbol", disabled=True),
                         "Quantity": st.column_config.NumberColumn("Quantity", min_value=1, step=1),
@@ -1742,7 +1742,7 @@ if not df.empty:
                         "Date": st.column_config.TextColumn("Date")
                     }
                 )
-                if st.button("💾 Save Edited Changes", use_container_width=True): save_portfolio(edited_df); fetch_all_data.clear(); st.rerun()
+                if st.button("💾 Save Edited Changes", width="stretch"): save_portfolio(edited_df); fetch_all_data.clear(); st.rerun()
 
             with st.expander("💸 Sell Stock & Book Profit/Loss", expanded=False):
                 with st.form("portfolio_sell_form"):
@@ -1752,7 +1752,7 @@ if not df.empty:
                     with rc3: sell_price = st.number_input("Exit Price (₹)", min_value=0.0, value=0.0)
                     with rc4: 
                         st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-                        sell_btn = st.form_submit_button("💸 Confirm Sell", use_container_width=True)
+                        sell_btn = st.form_submit_button("💸 Confirm Sell", width="stretch")
                     
                     if sell_btn and sell_sym != "-- Select --" and sell_price > 0:
                         port_row = df_port_saved[df_port_saved['Symbol'] == sell_sym].iloc[0]
