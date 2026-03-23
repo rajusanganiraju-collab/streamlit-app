@@ -1315,7 +1315,7 @@ if not df.empty:
         search_fetch_t = df[df['T'] == search_stock]['Fetch_T'].iloc[0]
         if search_fetch_t not in all_display_tickers: all_display_tickers.append(search_fetch_t)
             
-    with st.spinner("Fetching Live Market Data & Validating Trends..."):
+    if True:
         five_min_data = hybrid_bulk_fetch(all_display_tickers, is_daily=False)
 
     processed_charts = {}
@@ -1686,7 +1686,7 @@ if not df.empty:
         st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#d29922;'>🏢 Core Fundamentals ({fund_filter})</div>", unsafe_allow_html=True)
         fund_tickers = df_stocks_display['Fetch_T'].tolist()[:30] if not df_stocks_display.empty else NIFTY_50[:30]
         
-        with st.spinner("Fetching Institutional Data from Exchange..."):
+        if True:
             df_fund = fetch_fundamentals_data(fund_tickers)
             if not df_fund.empty:
                 html_fund = f'<table class="term-table"><thead><tr><th colspan="9" class="term-head-fund" style="background-color: #d29922; color: #161b22;">📊 FUNDAMENTAL & TECHNICAL METRICS</th></tr><tr><th style="text-align:left;">STOCK</th><th>SECTOR</th><th>LTP (₹)</th><th>TECH SCORE</th><th>MKT CAP (Cr)</th><th>P/E RATIO</th><th>DIV YIELD</th><th>52W HIGH</th><th>52W LOW</th></tr></thead><tbody>'
@@ -1753,7 +1753,7 @@ if not df.empty:
 
             if submit_btn:
                 if new_sym:
-                    with st.spinner(f"Searching NSE for {new_sym}..."):
+                    if True:
                         chk_data = yf.download(f"{new_sym}.NS", period="1d", progress=False)
                         if chk_data.empty: st.error(f"❌ '{new_sym}' not found in NSE!")
                         else:
@@ -1910,7 +1910,7 @@ if not df.empty:
     else: 
         weekly_charts = {}
         if chart_timeframe == "Weekly Chart":
-            with st.spinner("Fetching Weekly Chart Data..."):
+            if True:
                 display_tkrs = []
                 if search_stock != "-- None --": display_tkrs.append(search_fetch_t)
                 if watchlist_mode not in ["Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️"]:
