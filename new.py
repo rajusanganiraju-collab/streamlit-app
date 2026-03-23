@@ -77,7 +77,7 @@ if 'pause_refresh' not in st.session_state:
 
 # పాజ్ టోగుల్ ఆన్‌లో లేకపోతేనే రిఫ్రెష్ అవుతుంది
 if not st.session_state.pause_refresh:
-    st_autorefresh(interval=15000, key="datarefresh")
+    st_autorefresh(interval=3000, key="datarefresh")
 
 if 'pinned_stocks' not in st.session_state:
     st.session_state.pinned_stocks = []
@@ -363,6 +363,48 @@ def hybrid_bulk_fetch(tkrs_list, is_daily=True):
                     if not df.empty: results_dict[tkr] = df
 
     return pd.concat(results_dict.values(), axis=1, keys=results_dict.keys()) if results_dict else pd.DataFrame()
+    import threading
+from dhanhq import marketfeed
+
+# --- 5.D WEBSOCKET LIVE TICKER (BACKGROUND THREAD) ---
+if 'LIVE_PRICES' not in st.session_state:
+    st.session_state.LIVE_PRICES = {}
+
+# Security ID నుండి స్టాక్ పేరు కనుక్కోవడానికి రివర్స్ మ్యాపింగ్
+rev_sec_map = {str(v): k for k, v in sec_map.items()} 
+
+@st.cache_resource
+def start_live_ticker():
+    try:
+        c_id = st.secrets["dhan"]["client_id"]
+        a_token = st.secrets["dhan"]["access_token"]
+        
+        # Dhan WebSocket format: [(ExchangeSegment, SecurityId)]
+        # మనం మ్యాప్ చేసిన మొదటి 500 స్టాక్స్ కి సబ్‌స్క్రైబ్ చేస్తున్నాం (NSE Equity = 1)
+        instruments = [(1, str(sec_id)) for sec_id in list(sec_map.values())[:500]]
+        
+        def on_connect(instance):
+            print("🚀 WebSockets Connected! Live Ticks Started.")
+            
+        def on_message(instance, message):
+            # ధన్ పంపే డేటాలో 'LTP' ఉంటే, దాన్ని మన మెమరీలో సేవ్ చేస్తాం
+            if 'LTP' in message and 'SecurityId' in message:
+                sec_id = str(message['SecurityId'])
+                if sec_id in rev_sec_map:
+                    sym = rev_sec_map[sec_id]
+                    st.session_state.LIVE_PRICES[sym] = float(message['LTP'])
+                    
+        feed = marketfeed.DhanFeed(c_id, a_token, instruments, "v2", on_connect=on_connect, on_message=on_message)
+        
+        # దీన్ని బ్యాక్‌గ్రౌండ్ లో కంటిన్యూస్ గా రన్ చేయడం కోసం Thread వాడుతున్నాం
+        t = threading.Thread(target=feed.run_forever, daemon=True)
+        t.start()
+        return True
+    except Exception as e:
+        return False
+
+# యాప్ స్టార్ట్ అవ్వగానే ఈ వెబ్‌సాకెట్ ఒక్కసారి రన్ అయ్యి బ్యాక్‌గ్రౌండ్ లో ఉండిపోతుంది
+start_live_ticker()
 
 
 @st.cache_data(ttl=150)
@@ -1037,15 +1079,26 @@ def render_closed_trades_table(df_closed):
     html += "</tbody></table>"
     return html
 
-# --- 6. FETCH DATA FIRST (For Unified UI) ---
-df = fetch_all_data()
-
-all_names = []
-if not df.empty:
-    all_names = sorted(df[(~df['Is_Sector']) & (~df['Is_Index']) & (~df['Is_Commodity'])]['T'].unique().tolist())
-
 # --- 6. FETCH DATA FIRST ---
 df = fetch_all_data()
+
+# 🔥 WEBSOCKET LIVE OVERRIDE: బ్యాక్‌గ్రౌండ్ ప్రైస్ ని అతికించడం 🔥
+if not df.empty and 'LIVE_PRICES' in st.session_state:
+    for i, row in df.iterrows():
+        clean_sym = str(row['Fetch_T']).replace(".NS", "")
+        if clean_sym in st.session_state.LIVE_PRICES:
+            new_ltp = st.session_state.LIVE_PRICES[clean_sym]
+            
+            # పాత ప్రైస్ ని కొత్త లైవ్ ప్రైస్ తో రీప్లేస్ చేస్తున్నాం
+            df.at[i, 'P'] = new_ltp
+            
+            # ప్రైస్ మారినందువల్ల పర్సంటేజ్ (Day %) కూడా ఆటోమేటిక్ గా మారాలి
+            open_p = df.at[i, 'O']
+            prev_c = df.at[i, 'Prev_C']
+            if open_p > 0:
+                df.at[i, 'Day_C'] = ((new_ltp - open_p) / open_p) * 100
+            if prev_c > 0:
+                df.at[i, 'C'] = ((new_ltp - prev_c) / prev_c) * 100
 
 all_names = []
 if not df.empty:
