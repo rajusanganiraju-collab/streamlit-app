@@ -303,21 +303,30 @@ def fetch_single_dhan_data(symbol, sec_id, is_daily=True):
     try:
         to_date = datetime.now().strftime('%Y-%m-%d')
         if is_daily:
-            from_date = (datetime.now() - pd.Timedelta(days=365)).strftime('%Y-%m-%d')
-            res = dhan.historical_daily_data(symbol=sec_id, exchange_segment='NSE_EQ', instrument_type='EQUITY', expiry_code='0', from_date=from_date, to_date=to_date)
+            from_date = (datetime.now() - pd.Timedelta(days=360)).strftime('%Y-%m-%d')
+            # 🔥 Fix: expiry_code కి string '0' కాకుండా, integer 0 ఇచ్చాం
+            res = dhan.historical_daily_data(symbol=sec_id, exchange_segment='NSE_EQ', instrument_type='EQUITY', expiry_code=0, from_date=from_date, to_date=to_date)
         else:
             from_date = (datetime.now() - pd.Timedelta(days=5)).strftime('%Y-%m-%d')
-            res = dhan.historical_minute_charts(symbol=sec_id, exchange_segment='NSE_EQ', instrument_type='EQUITY', expiry_code='0', from_date=from_date, to_date=to_date)
+            res = dhan.intraday_minute_data(symbol=sec_id, exchange_segment='NSE_EQ', instrument_type='EQUITY', from_date=from_date, to_date=to_date)
+            # లైబ్రరీలో ఫంక్షన్ పేరు మారితే పక్కాగా పనిచేయడానికి 2వ మెథడ్ కూడా యాడ్ చేశాం
+            if not isinstance(res, dict) or res.get('status') != 'success' or not res.get('data'):
+                res = dhan.historical_minute_charts(symbol=sec_id, exchange_segment='NSE_EQ', instrument_type='EQUITY', expiry_code=0, from_date=from_date, to_date=to_date)
             
-        if res.get('status') == 'success' and res.get('data'):
+        if isinstance(res, dict) and res.get('status') == 'success' and res.get('data'):
             df = pd.DataFrame(res['data'])
-            try: df['Date'] = pd.to_datetime(df['start_Time'])
-            except: df['Date'] = pd.to_datetime(df['start_Time'], unit='s')
-            
-            df.set_index('Date', inplace=True)
-            df.rename(columns={'open': 'Open', 'high': 'High', 'low': 'Low', 'close': 'Close', 'volume': 'Volume'}, inplace=True)
-            for col in ['Open', 'High', 'Low', 'Close', 'Volume']: df[col] = df[col].astype(float)
-            return symbol, df
+            if not df.empty:
+                try: df['Date'] = pd.to_datetime(df['start_Time'])
+                except: df['Date'] = pd.to_datetime(df['start_Time'], unit='s')
+                
+                # 🔥 Fix: Dhan కొన్నిసార్లు పాత epoch (1980) ఇస్తుంది, దాన్ని సరిచేసే లాజిక్
+                if df['Date'].dt.year.min() < 2010:
+                    df['Date'] = pd.to_datetime(df['start_Time'] + 315513000, unit='s') + pd.Timedelta(hours=5, minutes=30)
+                
+                df.set_index('Date', inplace=True)
+                df.rename(columns={'open': 'Open', 'high': 'High', 'low': 'Low', 'close': 'Close', 'volume': 'Volume'}, inplace=True)
+                for col in ['Open', 'High', 'Low', 'Close', 'Volume']: df[col] = pd.to_numeric(df[col], errors='coerce')
+                return symbol, df
     except: pass
     return symbol, pd.DataFrame()
 
@@ -336,7 +345,11 @@ def hybrid_bulk_fetch(tkrs_list, is_daily=True):
             futures = {executor.submit(fetch_single_dhan_data, tkr, data[1], is_daily): tkr for tkr, data in dhan_tasks.items()}
             for future in concurrent.futures.as_completed(futures):
                 tkr, df = future.result()
-                if not df.empty: results_dict[tkr] = df
+                if not df.empty: 
+                    results_dict[tkr] = df
+                else:
+                    # 🔥 THE FAILSAFE: Dhan డేటా ఇవ్వకపోతే, ఆ స్టాక్ ని సైలెంట్ గా yfinance లిస్ట్ లోకి పంపేస్తుంది!
+                    yf_tkrs.append(tkr)
 
     if yf_tkrs:
         period, interval = ("2y", "1d") if is_daily else ("5d", "5m")
