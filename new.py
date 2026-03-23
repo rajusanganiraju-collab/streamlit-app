@@ -13,7 +13,15 @@ from streamlit_autorefresh import st_autorefresh
 
 # --- 1. PAGE CONFIGURATION ---
 st.set_page_config(page_title="Market Heatmap", page_icon="📊", layout="wide")
-st.markdown("<style>div[data-testid='stNotification'] {display: none;}</style>", unsafe_allow_html=True)
+
+# 🔥 పాత CSS మొత్తం తీసేసి, ఈ సింపుల్ కోడ్ పెట్టు (ఎల్లో బాక్సులు పక్కాగా మాయం అవుతాయి)
+st.markdown("""
+    <style>
+    div[data-testid="stAlert"] { display: none !important; }
+    div[data-testid="stNotification"] { display: none !important; }
+    iframe[title="streamlit_autorefresh.st_autorefresh"] { display: none !important; }
+    </style>
+""", unsafe_allow_html=True)
 
 # --- 2. GOOGLE SHEETS CONNECTION ---
 @st.cache_resource
