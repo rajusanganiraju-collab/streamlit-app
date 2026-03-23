@@ -37,7 +37,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 2. GOOGLE SHEETS CONNECTION ---
-@st.cache_resource
+@st.cache_resource(show_spinner=False)
 def init_connection():
     creds_json = st.secrets["gcp_service_account"]
     creds_dict = json.loads(creds_json)
@@ -320,7 +320,7 @@ def fetch_single_dhan_5m(symbol, sec_id):
     except: pass
     return symbol, pd.DataFrame()
 
-@st.cache_data(ttl=60) # 60 Sec cache to prevent app slowness
+@st.cache_data(ttl=60, show_spinner=False) # 60 Sec cache to prevent app slowness
 def fetch_cached_5m_data(tkrs_list):
     dhan_tasks, yf_tkrs, results_dict = {}, [], {}
     for tkr in tkrs_list:
@@ -354,7 +354,7 @@ def fetch_cached_5m_data(tkrs_list):
     return pd.concat(results_dict.values(), axis=1, keys=results_dict.keys()) if results_dict else pd.DataFrame()
 
 # --- DAILY DATA FETCH (Fast YFinance method for Intraday Scanners) ---
-@st.cache_data(ttl=150)
+@st.cache_data(ttl=150, show_spinner=False)
 def fetch_all_data():
     port_df = load_portfolio()
     port_stocks = [str(sym).upper().strip() for sym in port_df['Symbol'].tolist() if str(sym).strip() != ""]
@@ -539,7 +539,7 @@ def generate_status(row):
     if row.get('VolX', 0) > 1.5: status += "VOL🟢 "
     return status.strip()
 
-@st.cache_data(ttl=86400)
+@st.cache_data(ttl=86400, show_spinner=False)
 def fetch_fundamentals_data(symbols_list):
     fund_data = []
     for sym in symbols_list:
