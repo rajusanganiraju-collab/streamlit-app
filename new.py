@@ -78,7 +78,7 @@ if 'pause_refresh' not in st.session_state:
 
 # పాజ్ టోగుల్ ఆన్‌లో లేకపోతేనే రిఫ్రెష్ అవుతుంది
 if not st.session_state.pause_refresh:
-    st_autorefresh(interval=3000, key="datarefresh")
+    st_autorefresh(interval=5000, key="datarefresh")
 
 if 'pinned_stocks' not in st.session_state:
     st.session_state.pinned_stocks = []
