@@ -17,12 +17,22 @@ from dhanhq import dhanhq, marketfeed
 # --- 1. PAGE CONFIGURATION ---
 st.set_page_config(page_title="Market Heatmap", page_icon="📊", layout="wide")
 
-# 🔥 ఎల్లో బాక్సులు, స్పిన్నర్లు పక్కాగా మాయం
+# 🔥 ఎల్లో బాక్సులు, స్పిన్నర్లు పక్కాగా మాయం మరియు డిమ్ అవ్వకుండా ఆపుతుంది
 st.markdown("""
     <style>
     div[data-testid="stAlert"] { display: none !important; }
     div[data-testid="stNotification"] { display: none !important; }
     iframe[title="streamlit_autorefresh.st_autorefresh"] { display: none !important; }
+    
+    /* 🔥 రిఫ్రెష్ అయినప్పుడు చార్ట్స్ బ్రైట్‌నెస్ తగ్గిపోకుండా (డిమ్ అవ్వకుండా) పక్కాగా ఆపుతుంది */
+    *[data-stale="true"] { 
+        opacity: 1 !important; 
+        filter: none !important; 
+        transition: none !important; 
+    }
+    div[data-testid="stElementContainer"] {
+        opacity: 1 !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
