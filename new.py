@@ -8,11 +8,12 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import os
-from datetime import datetime, time as dt_time
+from datetime import datetime, time as dt_time 
 from streamlit_autorefresh import st_autorefresh
 
 # --- 1. PAGE CONFIGURATION ---
 st.set_page_config(page_title="Market Heatmap", page_icon="📊", layout="wide")
+st.markdown("<style>div[data-testid='stNotification'] {display: none;}</style>", unsafe_allow_html=True)
 
 # --- 2. GOOGLE SHEETS CONNECTION ---
 @st.cache_resource
