@@ -365,10 +365,167 @@ def fetch_all_data():
     
     results = []
     minutes = get_minutes_passed()
-    
-    # (ఇక్కడి నుండి కింద స్కోరింగ్ లాజిక్ అంతా నీ పాత కోడ్ లో ఉన్నదే, ఏమీ మారలేదు. 
-    # నువ్వు నీ పాత fetch_all_data లో ఉన్న లూప్ ని ఇక్కడి నుండి కంటిన్యూ చేసుకోవచ్చు.
-    # నేను పైన `data = hybrid_bulk_fetch` వరకే మార్చాను)
+
+    nifty_dist = 0.1
+    if "^NSEI" in data.columns.levels[0]:
+        try:
+            n_df = data["^NSEI"].dropna(subset=['Close'])
+            if not n_df.empty:
+                n_ltp = float(n_df['Close'].iloc[-1])
+                n_vwap = (float(n_df['High'].iloc[-1]) + float(n_df['Low'].iloc[-1]) + n_ltp) / 3
+                if n_vwap > 0:
+                    nifty_dist = abs(n_ltp - n_vwap) / n_vwap * 100
+        except:
+            pass
+
+    for symbol in data.columns.levels[0]:
+        try:
+            df = data[symbol].dropna(subset=['Close'])
+            if len(df) < 2: continue
+            
+            ltp = float(df['Close'].iloc[-1])
+            open_p = float(df['Open'].iloc[-1])
+            prev_c = float(df['Close'].iloc[-2])
+            prev_h = float(df['High'].iloc[-2])
+            prev_l = float(df['Low'].iloc[-2])
+            low = float(df['Low'].iloc[-1])
+            high = float(df['High'].iloc[-1])
+            
+            day_chg = ((ltp - open_p) / open_p) * 100
+            net_chg = ((ltp - prev_c) / prev_c) * 100
+            
+            p_pivot = (prev_h + prev_l + prev_c) / 3
+            p_bc = (prev_h + prev_l) / 2
+            p_tc = (p_pivot - p_bc) + p_pivot
+            cpr_width_pct = abs(p_tc - p_bc) / p_pivot * 100
+            is_narrow_cpr = bool(cpr_width_pct <= 0.30) 
+            
+            high_low = df['High'] - df['Low']
+            high_prev_close = (df['High'] - df['Close'].shift(1)).abs()
+            low_prev_close = (df['Low'] - df['Close'].shift(1)).abs()
+            tr = pd.concat([high_low, high_prev_close, low_prev_close], axis=1).max(axis=1)
+            atr = tr.ewm(span=14, adjust=False).mean().iloc[-1]
+
+            if 'Volume' in df.columns and not df['Volume'].isna().all() and len(df) >= 6:
+                avg_vol_5d = df['Volume'].iloc[-6:-1].mean()
+                curr_vol = float(df['Volume'].iloc[-1])
+                vol_x = round(curr_vol / ((avg_vol_5d/375) * minutes), 1) if avg_vol_5d > 0 else 0.0
+            else: 
+                vol_x = 0.0
+                curr_vol = 0.0
+                
+            vwap = (high + low + ltp) / 3
+            
+            # --- BULLS VS BEARS POWER CALCULATION ---
+            high_low_range = high - low
+            bull_power = 0
+            bear_power = 0
+            if high_low_range > 0:
+                bull_power = ((ltp - low) / high_low_range) * 100
+                bear_power = ((high - ltp) / high_low_range) * 100
+
+            ema50_d = float(df['Close'].ewm(span=50, adjust=False).mean().iloc[-1]) if len(df) >= 50 else 0.0
+            
+            is_swing = False
+            is_w_pullback = False
+            
+            latest_w_ema10 = 0
+            latest_w_ema50 = 0
+            
+            df_w = df.resample('W').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).dropna()
+            
+            weekly_net_chg = net_chg
+            if len(df_w) >= 2: 
+                prev_w_c = float(df_w['Close'].iloc[-2])
+                if prev_w_c > 0:
+                    weekly_net_chg = ((ltp - prev_w_c) / prev_w_c) * 100
+                    
+            if len(df_w) >= 75: 
+                df_w['EMA_10'] = df_w['Close'].ewm(span=10, adjust=False).mean()
+                df_w['EMA_50'] = df_w['Close'].ewm(span=50, adjust=False).mean()
+                
+                latest_w_ema10 = float(df_w['EMA_10'].iloc[-1])
+                latest_w_ema50 = float(df_w['EMA_50'].iloc[-1])
+                
+                df_w['Trend_Up'] = np.where(df_w['EMA_10'] > df_w['EMA_50'], 1, 0)
+                continuous_4w = df_w['Trend_Up'].rolling(window=4).min().iloc[-1] == 1
+                
+                w_tr = pd.concat([df_w['High'] - df_w['Low'], (df_w['High'] - df_w['Close'].shift(1)).abs(), (df_w['Low'] - df_w['Close'].shift(1)).abs()], axis=1).max(axis=1)
+                w_atr14 = w_tr.ewm(alpha=1/14, adjust=False).mean()
+                
+                w_plus_dm = df_w['High'].diff()
+                w_minus_dm = df_w['Low'].shift(1) - df_w['Low']
+                
+                w_plus_dm = w_plus_dm.where((w_plus_dm > w_minus_dm) & (w_plus_dm > 0), 0.0)
+                w_minus_dm = w_minus_dm.where((w_minus_dm > w_plus_dm) & (w_minus_dm > 0), 0.0)
+                
+                w_plus_di = 100 * (w_plus_dm.ewm(alpha=1/14, adjust=False).mean() / w_atr14)
+                w_minus_di = 100 * (w_minus_dm.ewm(alpha=1/14, adjust=False).mean() / w_atr14)
+                
+                w_dx = (w_plus_di - w_minus_di).abs() / (w_plus_di + w_minus_di) * 100
+                w_adx = w_dx.ewm(alpha=1/14, adjust=False).mean().iloc[-1]
+                
+                recent_w_low = df_w['Low'].iloc[-2:].min()
+                touch_ema = recent_w_low <= (latest_w_ema10 * 1.002) 
+                bounce = ltp > latest_w_ema10 
+                catch_early = ltp <= (latest_w_ema10 * 1.02)
+                
+                if continuous_4w and touch_ema and bounce and catch_early and (w_adx >= 15):
+                    is_w_pullback = True
+
+            if len(df) >= 100:
+                ema20_w = latest_w_ema10 if latest_w_ema10 > 0 else 0
+                delta = df['Close'].diff()
+                gain = delta.clip(lower=0).ewm(alpha=1/14, adjust=False).mean()
+                loss = -delta.clip(upper=0).ewm(alpha=1/14, adjust=False).mean()
+                loss = loss.replace(0, np.nan)
+                rs = gain / loss
+                rsi = 100 - (100 / (1 + rs))
+                current_rsi = rsi.fillna(100).iloc[-1]
+                
+                if (ltp > ema50_d) and (ltp > ema20_w) and (current_rsi >= 55) and (net_chg > 0):
+                    is_swing = True
+
+            score = 0
+            stock_dist = abs(ltp - vwap) / vwap * 100 if vwap > 0 else 0
+            effective_nifty = max(nifty_dist, 0.25) 
+            
+            if stock_dist > (effective_nifty * 3): score += 5
+            elif stock_dist > (effective_nifty * 2): score += 3
+            
+            if abs(open_p - low) <= (ltp * 0.003) or abs(open_p - high) <= (ltp * 0.003): score += 3 
+            if vol_x > 1.0: score += 3 
+            if (ltp >= high * 0.998 and day_chg > 0.5) or (ltp <= low * 1.002 and day_chg < -0.5): score += 1
+            if (ltp > (low * 1.01) and ltp > vwap) or (ltp < (high * 0.99) and ltp < vwap): score += 1
+            
+            # Bulls & Bears స్కోర్
+            if bull_power >= 85 and day_chg > 1.0: score += 3 
+            if bear_power >= 85 and day_chg < -1.0: score += 3
+            
+            is_index = symbol in INDICES_MAP
+            is_sector = symbol in SECTOR_INDICES_MAP
+            is_commodity = symbol in COMMODITY_MAP
+            disp_name = INDICES_MAP.get(symbol, SECTOR_INDICES_MAP.get(symbol, COMMODITY_MAP.get(symbol, symbol.replace(".NS", ""))))
+            
+            stock_sector = "OTHER"
+            if not is_index and not is_sector and not is_commodity:
+                for sec, stocks in NIFTY_50_SECTORS.items():
+                    if disp_name in stocks:
+                        stock_sector = sec
+                        break
+            
+            results.append({
+                "Fetch_T": symbol, "T": disp_name, "P": ltp, "O": open_p, "H": high, "L": low, "Prev_C": prev_c,
+                "Prev_H": prev_h, "Prev_L": prev_l, "W_EMA10": latest_w_ema10, "W_EMA50": latest_w_ema50, "D_EMA50": ema50_d,
+                "Day_C": day_chg, "C": net_chg, "W_C": float(weekly_net_chg), "S": score, "VolX": vol_x, "Is_Swing": is_swing,
+                "Is_W_Pullback": is_w_pullback, "VWAP": vwap,
+                "ATR": atr, "Narrow_CPR": is_narrow_cpr,
+                "Bull_P": bull_power, "Bear_P": bear_power,
+                "Is_Index": is_index, "Is_Sector": is_sector, "Sector": stock_sector, "Is_Commodity": is_commodity
+            })
+        except: continue
+        
+    return pd.DataFrame(results) # 🔥 ఈ లైన్ మిస్ అవ్వడం వల్లే ఎర్రర్ వచ్చింది
 
 def process_5m_data(df_raw):
     try:
