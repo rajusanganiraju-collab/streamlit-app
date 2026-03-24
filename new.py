@@ -367,7 +367,7 @@ def fetch_all_data():
     tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + list(COMMODITY_MAP.keys()) + [f"{t}.NS" for t in all_stocks if t]
     
     # 🔥 YFinance Bulk is 10x faster for daily data and includes current running candle
-    data = yf.download(tkrs, period="2y", progress=False, group_by='ticker', threads=20)
+    data = yf.download(tkrs, period="2y", progress=False, group_by='ticker', threads=5)
     
     results = []
     minutes = get_minutes_passed()
