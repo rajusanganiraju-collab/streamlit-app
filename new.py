@@ -956,7 +956,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
     with sc4: st.session_state.pause_refresh = st.toggle("⏸️ Pause Data", value=st.session_state.pause_refresh)
 
     with sc1:
-        if watchlist_mode in ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions"]:
+        if watchlist_mode in ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions", "High Score Stocks 🔥"]:
             move_type_filter = st.multiselect("Strategy Filter", 
                 ["All Moves", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)"], 
                 default=["🌊 One Sided Only", "🎯 Reversals Only", "🏹 Rubber Band Stretch"]
