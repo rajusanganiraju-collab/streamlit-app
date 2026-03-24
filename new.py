@@ -957,7 +957,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
 
     with sc1:
         if watchlist_mode in ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions", "High Score Stocks 🔥"]:
-            move_type_filter = st.multiselect("Strategy Filter", 
+            move_type_filter = st.multiselect("Strategy Filter",
                 ["All Moves", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)"], 
                 default=["🌊 One Sided Only", "🎯 Reversals Only", "🏹 Rubber Band Stretch"]
             )
@@ -1225,7 +1225,7 @@ if not df.empty:
                 (df_filtered['Strategy_Icon'].str.contains('DOWN', na=False) & (df_filtered['Retest_Tag'] == 'SELL_RETEST'))
             ]
         
-        if watchlist_mode == "Day Trading Stocks 🚀":
+        if watchlist_mode in ["Day Trading Stocks 🚀", "High Score Stocks 🔥"]:
             base_buy = (df_filtered['P'] > df_filtered['W_EMA10']) & (df_filtered['P'] > df_filtered['W_EMA50']) & (df_filtered['P'] > df_filtered['VWAP'])
             base_sell = (df_filtered['P'] < df_filtered['W_EMA10']) & (df_filtered['P'] < df_filtered['W_EMA50']) & (df_filtered['P'] < df_filtered['VWAP'])
             
