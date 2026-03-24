@@ -280,6 +280,7 @@ rev_sec_map = {str(v): k for k, v in sec_map.items()}
 # --- WEBSOCKET LIVE TICKER (BACKGROUND THREAD) ---
 from dhanhq import marketfeed
 import threading
+import asyncio
 
 @st.cache_resource
 def get_live_price_store():
@@ -293,26 +294,37 @@ def start_live_ticker():
         c_id = st.secrets["dhan"]["client_id"]
         a_token = st.secrets["dhan"]["access_token"]
         
-        # మనం మ్యాప్ చేసిన మొదటి 500 స్టాక్స్ కి సబ్‌స్క్రైబ్ చేస్తున్నాం
-        instruments = [(1, str(sec_id)) for sec_id in list(sec_map.values())[:500]]
+        # సర్వర్ క్రాష్ అవ్వకుండా 250 స్టాక్స్ కే సెట్ చేశాం
+        instruments = [(1, str(sec_id)) for sec_id in list(sec_map.values())[:250]]
         
         def on_connect(instance):
             pass
             
         def on_message(instance, message):
             try:
-                # ధన్ పంపే డేటాని సేఫ్ గా లాగుతున్నాం
-                if isinstance(message, dict) and 'LTP' in message and 'SecurityId' in message:
-                    sec_id = str(message['SecurityId'])
-                    if sec_id in rev_sec_map:
-                        sym = rev_sec_map[sec_id]
-                        LIVE_PRICES[sym] = float(message['LTP'])
+                # ధన్ నుండి వచ్చే డేటాని పక్కాగా క్యాచ్ చేస్తున్నాం
+                if isinstance(message, dict):
+                    sec_id = str(message.get('security_id', message.get('SecurityId', '')))
+                    ltp = message.get('LTP', message.get('ltp', message.get('last_price', None)))
+                    
+                    if sec_id and ltp is not None:
+                        if sec_id in rev_sec_map:
+                            sym = rev_sec_map[sec_id]
+                            LIVE_PRICES[sym] = float(ltp)
             except:
                 pass
-                    
-        # 🔥 FIX 1: "v2" తీసేసి, marketfeed.Ticker అని పెట్టాం!
-        feed = marketfeed.DhanFeed(c_id, a_token, instruments, marketfeed.Ticker, on_connect=on_connect, on_message=on_message)
-        t = threading.Thread(target=feed.run_forever, daemon=True)
+        
+        # 🔥 THE MASTER BUG FIX: Thread లోపల Asyncio Event Loop ని క్రియేట్ చేయడం!
+        def run_ws():
+            # ఈ మోటార్ లేకనే ఇందాకటి నుండి మన నింజా క్రాష్ అయ్యింది
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            # 1 అంటే Ticker (లైవ్ ప్రైస్ మాత్రమే తెస్తుంది, ఫాస్ట్ గా ఉంటుంది)
+            feed = marketfeed.DhanFeed(c_id, a_token, instruments, 1, on_connect=on_connect, on_message=on_message)
+            feed.run_forever()
+
+        t = threading.Thread(target=run_ws, daemon=True)
         t.start()
         return True
     except Exception as e:
