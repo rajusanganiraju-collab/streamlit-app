@@ -56,6 +56,8 @@ except Exception as e:
     st.stop()
 
 # --- 3. DATA LOAD & SAVE FUNCTIONS ---
+
+@st.cache_data(ttl=300, show_spinner=False) # 👈 ఇది కొత్తగా యాడ్ చేశాం (ప్రతి 5 నిమిషాలకు ఒకసారే షీట్‌ని అడుగుతుంది)
 def load_portfolio():
     try:
         records = port_ws.get_all_records()
@@ -69,6 +71,7 @@ def load_portfolio():
     except:
         return pd.DataFrame(columns=['Symbol', 'Buy_Price', 'Quantity', 'Date', 'SL', 'T1', 'T2'])
 
+@st.cache_data(ttl=300, show_spinner=False) # 👈 ఇది కొత్తగా యాడ్ చేశాం
 def load_closed_trades():
     try:
         records = trade_ws.get_all_records()
@@ -85,11 +88,13 @@ def save_portfolio(df):
     port_ws.clear()
     df = df.fillna("")
     port_ws.update([df.columns.values.tolist()] + df.values.tolist())
+    load_portfolio.clear()  # 👈 కొత్త స్టాక్ యాడ్ చేసినప్పుడు, పాత మెమరీని క్లియర్ చేయడానికి ఇది వాడతాం
 
 def save_closed_trades(df):
     trade_ws.clear()
     df = df.fillna("")
     trade_ws.update([df.columns.values.tolist()] + df.values.tolist())
+    load_closed_trades.clear()  # 👈 స్టాక్ అమ్మినప్పుడు, పాత మెమరీని క్లియర్ చేయడానికి ఇది వాడతాం
 
 # --- 4. AUTO RUN & STATE MANAGEMENT ---
 if 'pause_refresh' not in st.session_state:
