@@ -116,24 +116,11 @@ TOP_SECTOR_STOCKS = {
     "NIFTY REALTY": ["DLF", "GODREJPROP", "OBEROIRLTY", "PRESTIGE", "MACROTECH", "PHOENIXLTD"]
 }
 
-# 🔥 FIX 1: క్రాష్ (TypeError) రాకుండా ఉండే బుల్లెట్ ప్రూఫ్ పిన్ లాజిక్
-def toggle_pin(symbol, cb_key=None, *args, **kwargs):
-    # చెక్‌బాక్స్ కీ వస్తే, దాన్ని బట్టి పక్కాగా సింక్ చేస్తాం (దీనివల్ల ఆటో-సెలెక్ట్ అవ్వదు)
-    if cb_key and cb_key in st.session_state:
-        is_checked = st.session_state[cb_key]
-        if is_checked and symbol not in st.session_state.pinned_stocks:
-            st.session_state.pinned_stocks.append(symbol)
-        elif not is_checked and symbol in st.session_state.pinned_stocks:
-            st.session_state.pinned_stocks.remove(symbol)
+def toggle_pin(symbol):
+    if symbol in st.session_state.pinned_stocks:
+        st.session_state.pinned_stocks.remove(symbol)
     else:
-        # బ్యాకప్ ప్లాన్: ఒకవేళ పాత కోడ్ రన్ అయినా క్రాష్ అవ్వకుండా కాపాడుతుంది
-        if symbol in st.session_state.pinned_stocks:
-            st.session_state.pinned_stocks.remove(symbol)
-        else:
-            st.session_state.pinned_stocks.append(symbol)
-            
-    # పిన్ చేసిన లిస్ట్ లో ఒకే స్టాక్ రెండుసార్లు రాకుండా లాక్ చేస్తున్నాం
-    st.session_state.pinned_stocks = list(set(st.session_state.pinned_stocks))
+        st.session_state.pinned_stocks.append(symbol)
 
 st.markdown("""
     <style>
@@ -273,7 +260,35 @@ def get_dhan_security_map():
 sec_map = get_dhan_security_map()
 rev_sec_map = {str(v): k for k, v in sec_map.items()} 
 
+# --- WEBSOCKET LIVE TICKER (BACKGROUND THREAD) ---
+if 'LIVE_PRICES' not in st.session_state:
+    st.session_state.LIVE_PRICES = {}
 
+@st.cache_resource
+def start_live_ticker():
+    try:
+        c_id = st.secrets["dhan"]["client_id"]
+        a_token = st.secrets["dhan"]["access_token"]
+        instruments = [(1, str(sec_id)) for sec_id in list(sec_map.values())[:500]]
+        
+        def on_connect(instance):
+            pass
+            
+        def on_message(instance, message):
+            if 'LTP' in message and 'SecurityId' in message:
+                sec_id = str(message['SecurityId'])
+                if sec_id in rev_sec_map:
+                    sym = rev_sec_map[sec_id]
+                    st.session_state.LIVE_PRICES[sym] = float(message['LTP'])
+                    
+        feed = marketfeed.DhanFeed(c_id, a_token, instruments, "v2", on_connect=on_connect, on_message=on_message)
+        t = threading.Thread(target=feed.run_forever, daemon=True)
+        t.start()
+        return True
+    except Exception as e:
+        return False
+
+start_live_ticker()
 
 def get_minutes_passed():
     now = datetime.now()
@@ -305,7 +320,7 @@ def fetch_single_dhan_5m(symbol, sec_id):
     except: pass
     return symbol, pd.DataFrame()
 
-@st.cache_data(ttl=60, show_spinner=False) 
+@st.cache_data(ttl=60, show_spinner=False) # 60 Sec cache to prevent app slowness
 def fetch_cached_5m_data(tkrs_list):
     dhan_tasks, yf_tkrs, results_dict = {}, [], {}
     for tkr in tkrs_list:
@@ -316,8 +331,7 @@ def fetch_cached_5m_data(tkrs_list):
             yf_tkrs.append(tkr)
             
     if dhan and dhan_tasks:
-        # 🔥 FIX 1: సర్వర్ క్రాష్ అవ్వకుండా త్రెడ్స్ 10 నుండి 4 కి తగ్గించాం
-        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             futures = {executor.submit(fetch_single_dhan_5m, tkr, data[1]): tkr for tkr, data in dhan_tasks.items()}
             for future in concurrent.futures.as_completed(futures):
                 tkr, df = future.result()
@@ -325,8 +339,7 @@ def fetch_cached_5m_data(tkrs_list):
                 else: yf_tkrs.append(tkr)
 
     if yf_tkrs:
-        # 🔥 FIX 2: యాహూ త్రెడ్స్ ని కూడా 4 కి సెట్ చేశాం
-        yf_data = yf.download(yf_tkrs, period="5d", interval="5m", progress=False, group_by='ticker', threads=False)
+        yf_data = yf.download(yf_tkrs, period="5d", interval="5m", progress=False, group_by='ticker', threads=10)
         if len(yf_tkrs) == 1:
             if not yf_data.empty: 
                 yf_data.index = yf_data.index.tz_localize(None)
@@ -348,16 +361,8 @@ def fetch_all_data():
     all_stocks = set(NIFTY_50 + FNO_STOCKS + port_stocks)
     tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + list(COMMODITY_MAP.keys()) + [f"{t}.NS" for t in all_stocks if t]
     
-    # 🔥 FIX: Yfinance బగ్ ని బైపాస్ చేస్తూ, క్రాష్ అవ్వకుండా ఫుల్ స్పీడ్ కోసం "బ్యాచింగ్" వాడుతున్నాం
-    data_frames = []
-    chunk_size = 40 # ఒకేసారి 40 స్టాక్స్ ని ఫుల్ స్పీడ్ లో లాగుతుంది (సర్వర్ సేఫ్)
-    chunks = [tkrs[i:i + chunk_size] for i in range(0, len(tkrs), chunk_size)]
-    
-    for chunk in chunks:
-        temp_data = yf.download(chunk, period="2y", progress=False, group_by='ticker', threads=False)
-        data_frames.append(temp_data)
-        
-    data = pd.concat(data_frames, axis=1) if data_frames else pd.DataFrame()
+    # 🔥 YFinance Bulk is 10x faster for daily data and includes current running candle
+    data = yf.download(tkrs, period="2y", progress=False, group_by='ticker', threads=20)
     
     results = []
     minutes = get_minutes_passed()
@@ -776,13 +781,9 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
     sign = "+" if pct_val > 0 else ""
     tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
     
-    # 🔥 FIX 2: ఎర్రర్ రాకుండా పిన్ చెక్‌బాక్స్ క్రియేట్ చేయడం
     if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX", "DOW", "NSDQ"] and not row.get('Is_Commodity'):
         cb_key = f"cb_{fetch_sym}_{key_suffix}" if key_suffix else f"cb_{fetch_sym}"
-        is_pinned = (fetch_sym in st.session_state.pinned_stocks)
-        
-        # ఇక్కడ args లో రెండు వాల్యూస్ (fetch_sym, cb_key) ని కరెక్ట్ గా పంపుతున్నాం
-        st.checkbox("pin", value=is_pinned, key=cb_key, on_change=toggle_pin, args=(fetch_sym, cb_key), label_visibility="collapsed")
+        st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=cb_key, on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
     
     title_html = f"<a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; line-height:1.2;'><b>{display_sym}</b><br><span style='font-size:12px; color:#cccccc;'>₹{row['P']:.2f} &nbsp;<span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span></span></a>"
     try:
@@ -915,43 +916,20 @@ def render_closed_trades_table(df_closed):
     html += "</tbody></table>"
     return html
 
-# --- 6. FAST LIVE PRICE OVERRIDE (SNIPER FETCH) ---
-if True: 
-    df = fetch_all_data().copy()
+# --- 6. FETCH DATA ---
+if True: # సైలెంట్ ఫెచ్
+    df = fetch_all_data()
 
-@st.cache_data(ttl=3, show_spinner=False)
-def fetch_fast_live_prices(tickers):
-    try:
-        # 🔥 కేవలం ఈరోజు (1d) లైవ్ ప్రైస్ (1m) మాత్రమే రాకెట్ స్పీడ్ తో లాగుతున్నాం
-        data = yf.download(tickers, period="1d", interval="1m", progress=False, threads=False)
-        if not data.empty and 'Close' in data.columns:
-            # స్టాక్ కి సంబంధించిన చివరి ప్రైస్ ని తీసుకుంటున్నాం
-            if isinstance(data['Close'], pd.Series):
-                return {tickers[0]: float(data['Close'].ffill().iloc[-1])}
-            return data['Close'].ffill().iloc[-1].to_dict()
-    except:
-        pass
-    return {}
-
-# 🔥 సెకను సెకనుకి అప్‌డేట్ అయ్యే లైవ్ ప్రైస్ ని అతికించడం 🔥
-if not df.empty:
-    all_tkrs = df['Fetch_T'].tolist()
-    fast_prices = fetch_fast_live_prices(all_tkrs)
-    
-    if fast_prices:
-        for i, row in df.iterrows():
-            sym = row['Fetch_T']
-            if sym in fast_prices and not pd.isna(fast_prices[sym]):
-                new_ltp = float(fast_prices[sym])
-                
-                # పాత ప్రైస్ ని కొత్త లైవ్ ప్రైస్ తో రీప్లేస్ చేస్తున్నాం
-                df.at[i, 'P'] = new_ltp
-                
-                # ప్రైస్ మారినందువల్ల పర్సంటేజ్ కూడా ఆటోమేటిక్ గా మారుతుంది
-                open_p = df.at[i, 'O']
-                prev_c = df.at[i, 'Prev_C']
-                if open_p > 0: df.at[i, 'Day_C'] = ((new_ltp - open_p) / open_p) * 100
-                if prev_c > 0: df.at[i, 'C'] = ((new_ltp - prev_c) / prev_c) * 100
+if not df.empty and 'LIVE_PRICES' in st.session_state:
+    for i, row in df.iterrows():
+        clean_sym = str(row['Fetch_T']).replace(".NS", "")
+        if clean_sym in st.session_state.LIVE_PRICES:
+            new_ltp = st.session_state.LIVE_PRICES[clean_sym]
+            df.at[i, 'P'] = new_ltp
+            open_p = df.at[i, 'O']
+            prev_c = df.at[i, 'Prev_C']
+            if open_p > 0: df.at[i, 'Day_C'] = ((new_ltp - open_p) / open_p) * 100
+            if prev_c > 0: df.at[i, 'C'] = ((new_ltp - prev_c) / prev_c) * 100
 
 all_names = []
 if not df.empty:
