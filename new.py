@@ -133,21 +133,24 @@ TOP_SECTOR_STOCKS = {
     "NIFTY REALTY": ["DLF", "GODREJPROP", "OBEROIRLTY", "PRESTIGE", "MACROTECH", "PHOENIXLTD"]
 }
 
-# 🔥 FIX 1: ఆటో-సెలెక్ట్ బగ్ ని ఆపే పక్కా సింక్ లాజిక్
-def toggle_pin(symbol, source_key):
-    if source_key in st.session_state:
-        new_state = st.session_state[source_key]
-        
-        # మెయిన్ లిస్ట్ లోకి యాడ్ లేదా రిమూవ్ చేయడం
-        if new_state and symbol not in st.session_state.pinned_stocks:
+# 🔥 FIX 1: క్రాష్ (TypeError) రాకుండా ఉండే బుల్లెట్ ప్రూఫ్ పిన్ లాజిక్
+def toggle_pin(symbol, cb_key=None, *args, **kwargs):
+    # చెక్‌బాక్స్ కీ వస్తే, దాన్ని బట్టి పక్కాగా సింక్ చేస్తాం (దీనివల్ల ఆటో-సెలెక్ట్ అవ్వదు)
+    if cb_key and cb_key in st.session_state:
+        is_checked = st.session_state[cb_key]
+        if is_checked and symbol not in st.session_state.pinned_stocks:
             st.session_state.pinned_stocks.append(symbol)
-        elif not new_state and symbol in st.session_state.pinned_stocks:
+        elif not is_checked and symbol in st.session_state.pinned_stocks:
             st.session_state.pinned_stocks.remove(symbol)
+    else:
+        # బ్యాకప్ ప్లాన్: ఒకవేళ పాత కోడ్ రన్ అయినా క్రాష్ అవ్వకుండా కాపాడుతుంది
+        if symbol in st.session_state.pinned_stocks:
+            st.session_state.pinned_stocks.remove(symbol)
+        else:
+            st.session_state.pinned_stocks.append(symbol)
             
-        # మిగతా చోట్ల ఉన్న సేమ్ స్టాక్ చెక్ బాక్సులను కూడా సింక్ చేస్తున్నాం
-        for k in list(st.session_state.keys()):
-            if k.startswith(f"cb_{symbol}") and k != source_key:
-                st.session_state[k] = new_state
+    # పిన్ చేసిన లిస్ట్ లో ఒకే స్టాక్ రెండుసార్లు రాకుండా లాక్ చేస్తున్నాం
+    st.session_state.pinned_stocks = list(set(st.session_state.pinned_stocks))
 
 st.markdown("""
     <style>
@@ -780,9 +783,13 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
     sign = "+" if pct_val > 0 else ""
     tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
     
+    # 🔥 FIX 2: ఎర్రర్ రాకుండా పిన్ చెక్‌బాక్స్ క్రియేట్ చేయడం
     if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX", "DOW", "NSDQ"] and not row.get('Is_Commodity'):
         cb_key = f"cb_{fetch_sym}_{key_suffix}" if key_suffix else f"cb_{fetch_sym}"
-        st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=cb_key, on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
+        is_pinned = (fetch_sym in st.session_state.pinned_stocks)
+        
+        # ఇక్కడ args లో రెండు వాల్యూస్ (fetch_sym, cb_key) ని కరెక్ట్ గా పంపుతున్నాం
+        st.checkbox("pin", value=is_pinned, key=cb_key, on_change=toggle_pin, args=(fetch_sym, cb_key), label_visibility="collapsed")
     
     title_html = f"<a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; line-height:1.2;'><b>{display_sym}</b><br><span style='font-size:12px; color:#cccccc;'>₹{row['P']:.2f} &nbsp;<span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span></span></a>"
     try:
