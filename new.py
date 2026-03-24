@@ -20,7 +20,7 @@ st.set_page_config(page_title="Market Heatmap", page_icon="📊", layout="wide")
 # 🔥 ఎల్లో బాక్సులు, స్పిన్నర్లు పక్కాగా మాయం మరియు డిమ్ అవ్వకుండా ఆపుతుంది
 st.markdown("""
     <style>
-    div[data-testid="stAlert"] { display: none !important; }
+    
     div[data-testid="stNotification"] { display: none !important; }
     iframe[title="streamlit_autorefresh.st_autorefresh"] { display: none !important; }
     
@@ -1644,4 +1644,10 @@ if not df.empty:
                 st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:20px; margin-bottom:5px; color:#f85149;'>🔴 NEGATIVE / SELL ({watchlist_mode})</div>", unsafe_allow_html=True)
                 render_chart_grid(df_sell_chart, show_pin_option=True, key_prefix="main_sell", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
 
-else: st.info("Loading Market Data...")
+else: 
+    st.markdown("""
+        <div style='padding:50px; text-align:center; border: 1px dashed #30363d; border-radius: 10px; background-color: #161b22; margin-top: 20px;'>
+            <h3 style='color:#ffd700;'>⏳ Fetching Market Data...</h3>
+            <p style='color:#8b949e;'>డేటా లోడ్ అవుతోంది. ఒకవేళ ఎక్కువ సమయం తీసుకుంటే, బహుశా Yahoo Finance API లిమిట్ దాటిపోయి ఉండొచ్చు. దయచేసి కొద్దిసేపు వెయిట్ చేయండి.</p>
+        </div>
+    """, unsafe_allow_html=True)
