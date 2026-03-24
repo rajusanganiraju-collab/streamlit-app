@@ -277,60 +277,7 @@ def get_dhan_security_map():
 sec_map = get_dhan_security_map()
 rev_sec_map = {str(v): k for k, v in sec_map.items()} 
 
-# --- WEBSOCKET LIVE TICKER (BACKGROUND THREAD) ---
-from dhanhq import marketfeed
-import threading
-import asyncio
 
-@st.cache_resource
-def get_live_price_store():
-    return {}
-
-LIVE_PRICES = get_live_price_store()
-
-@st.cache_resource
-def start_live_ticker():
-    try:
-        c_id = st.secrets["dhan"]["client_id"]
-        a_token = st.secrets["dhan"]["access_token"]
-        
-        # సర్వర్ క్రాష్ అవ్వకుండా 250 స్టాక్స్ కే సెట్ చేశాం
-        instruments = [(1, str(sec_id)) for sec_id in list(sec_map.values())[:250]]
-        
-        def on_connect(instance):
-            pass
-            
-        def on_message(instance, message):
-            try:
-                # ధన్ నుండి వచ్చే డేటాని పక్కాగా క్యాచ్ చేస్తున్నాం
-                if isinstance(message, dict):
-                    sec_id = str(message.get('security_id', message.get('SecurityId', '')))
-                    ltp = message.get('LTP', message.get('ltp', message.get('last_price', None)))
-                    
-                    if sec_id and ltp is not None:
-                        if sec_id in rev_sec_map:
-                            sym = rev_sec_map[sec_id]
-                            LIVE_PRICES[sym] = float(ltp)
-            except:
-                pass
-        
-        # 🔥 THE MASTER BUG FIX: Thread లోపల Asyncio Event Loop ని క్రియేట్ చేయడం!
-        def run_ws():
-            # ఈ మోటార్ లేకనే ఇందాకటి నుండి మన నింజా క్రాష్ అయ్యింది
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
-            # 1 అంటే Ticker (లైవ్ ప్రైస్ మాత్రమే తెస్తుంది, ఫాస్ట్ గా ఉంటుంది)
-            feed = marketfeed.DhanFeed(c_id, a_token, instruments, 1, on_connect=on_connect, on_message=on_message)
-            feed.run_forever()
-
-        t = threading.Thread(target=run_ws, daemon=True)
-        t.start()
-        return True
-    except Exception as e:
-        return False
-
-start_live_ticker()
 
 def get_minutes_passed():
     now = datetime.now()
@@ -958,23 +905,43 @@ def render_closed_trades_table(df_closed):
     html += "</tbody></table>"
     return html
 
-# --- 6. FETCH DATA ---
+# --- 6. FAST LIVE PRICE OVERRIDE (SNIPER FETCH) ---
 if True: 
-    # 🔥 FIX 2: .copy() పెట్టాలి! లేకపోతే స్ట్రీమ్‌లిట్ మన లైవ్ ప్రైస్ ని చార్ట్ మీదకి ఎక్కనివ్వదు
     df = fetch_all_data().copy()
 
-# 🔥 WEBSOCKET LIVE OVERRIDE 🔥 (గ్లోబల్ మెమరీ నుండి లాగుతున్నాం)
-if not df.empty and LIVE_PRICES:
-    for i, row in df.iterrows():
-        clean_sym = str(row['Fetch_T']).replace(".NS", "")
-        if clean_sym in LIVE_PRICES:
-            new_ltp = LIVE_PRICES[clean_sym]
-            
-            df.at[i, 'P'] = new_ltp
-            open_p = df.at[i, 'O']
-            prev_c = df.at[i, 'Prev_C']
-            if open_p > 0: df.at[i, 'Day_C'] = ((new_ltp - open_p) / open_p) * 100
-            if prev_c > 0: df.at[i, 'C'] = ((new_ltp - prev_c) / prev_c) * 100
+@st.cache_data(ttl=3, show_spinner=False)
+def fetch_fast_live_prices(tickers):
+    try:
+        # 🔥 కేవలం ఈరోజు (1d) లైవ్ ప్రైస్ (1m) మాత్రమే రాకెట్ స్పీడ్ తో లాగుతున్నాం
+        data = yf.download(tickers, period="1d", interval="1m", progress=False, threads=20)
+        if not data.empty and 'Close' in data.columns:
+            # స్టాక్ కి సంబంధించిన చివరి ప్రైస్ ని తీసుకుంటున్నాం
+            if isinstance(data['Close'], pd.Series):
+                return {tickers[0]: float(data['Close'].ffill().iloc[-1])}
+            return data['Close'].ffill().iloc[-1].to_dict()
+    except:
+        pass
+    return {}
+
+# 🔥 సెకను సెకనుకి అప్‌డేట్ అయ్యే లైవ్ ప్రైస్ ని అతికించడం 🔥
+if not df.empty:
+    all_tkrs = df['Fetch_T'].tolist()
+    fast_prices = fetch_fast_live_prices(all_tkrs)
+    
+    if fast_prices:
+        for i, row in df.iterrows():
+            sym = row['Fetch_T']
+            if sym in fast_prices and not pd.isna(fast_prices[sym]):
+                new_ltp = float(fast_prices[sym])
+                
+                # పాత ప్రైస్ ని కొత్త లైవ్ ప్రైస్ తో రీప్లేస్ చేస్తున్నాం
+                df.at[i, 'P'] = new_ltp
+                
+                # ప్రైస్ మారినందువల్ల పర్సంటేజ్ కూడా ఆటోమేటిక్ గా మారుతుంది
+                open_p = df.at[i, 'O']
+                prev_c = df.at[i, 'Prev_C']
+                if open_p > 0: df.at[i, 'Day_C'] = ((new_ltp - open_p) / open_p) * 100
+                if prev_c > 0: df.at[i, 'C'] = ((new_ltp - prev_c) / prev_c) * 100
 
 all_names = []
 if not df.empty:
