@@ -322,7 +322,7 @@ def fetch_single_dhan_5m(symbol, sec_id):
     except: pass
     return symbol, pd.DataFrame()
 
-@st.cache_data(ttl=60, show_spinner=False) # 60 Sec cache to prevent app slowness
+@st.cache_data(ttl=60, show_spinner=False) 
 def fetch_cached_5m_data(tkrs_list):
     dhan_tasks, yf_tkrs, results_dict = {}, [], {}
     for tkr in tkrs_list:
@@ -333,7 +333,8 @@ def fetch_cached_5m_data(tkrs_list):
             yf_tkrs.append(tkr)
             
     if dhan and dhan_tasks:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        # 🔥 FIX 1: సర్వర్ క్రాష్ అవ్వకుండా త్రెడ్స్ 10 నుండి 4 కి తగ్గించాం
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
             futures = {executor.submit(fetch_single_dhan_5m, tkr, data[1]): tkr for tkr, data in dhan_tasks.items()}
             for future in concurrent.futures.as_completed(futures):
                 tkr, df = future.result()
@@ -341,7 +342,8 @@ def fetch_cached_5m_data(tkrs_list):
                 else: yf_tkrs.append(tkr)
 
     if yf_tkrs:
-        yf_data = yf.download(yf_tkrs, period="5d", interval="5m", progress=False, group_by='ticker', threads=10)
+        # 🔥 FIX 2: యాహూ త్రెడ్స్ ని కూడా 4 కి సెట్ చేశాం
+        yf_data = yf.download(yf_tkrs, period="5d", interval="5m", progress=False, group_by='ticker', threads=4)
         if len(yf_tkrs) == 1:
             if not yf_data.empty: 
                 yf_data.index = yf_data.index.tz_localize(None)
@@ -364,7 +366,7 @@ def fetch_all_data():
     tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + list(COMMODITY_MAP.keys()) + [f"{t}.NS" for t in all_stocks if t]
     
     # 🔥 YFinance Bulk is 10x faster for daily data and includes current running candle
-    data = yf.download(tkrs, period="2y", progress=False, group_by='ticker', threads=20)
+    data = yf.download(tkrs, period="2y", progress=False, group_by='ticker', threads=4)
     
     results = []
     minutes = get_minutes_passed()
@@ -930,7 +932,7 @@ if True:
 def fetch_fast_live_prices(tickers):
     try:
         # 🔥 కేవలం ఈరోజు (1d) లైవ్ ప్రైస్ (1m) మాత్రమే రాకెట్ స్పీడ్ తో లాగుతున్నాం
-        data = yf.download(tickers, period="1d", interval="1m", progress=False, threads=20)
+        data = yf.download(tickers, period="1d", interval="1m", progress=False, threads=4)
         if not data.empty and 'Close' in data.columns:
             # స్టాక్ కి సంబంధించిన చివరి ప్రైస్ ని తీసుకుంటున్నాం
             if isinstance(data['Close'], pd.Series):
