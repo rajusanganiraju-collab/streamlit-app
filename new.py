@@ -365,8 +365,16 @@ def fetch_all_data():
     all_stocks = set(NIFTY_50 + FNO_STOCKS + port_stocks)
     tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + list(COMMODITY_MAP.keys()) + [f"{t}.NS" for t in all_stocks if t]
     
-    # 🔥 YFinance Bulk is 10x faster for daily data and includes current running candle
-    data = yf.download(tkrs, period="2y", progress=False, group_by='ticker', threads=4)
+    # 🔥 FIX: Yfinance బగ్ ని బైపాస్ చేస్తూ, క్రాష్ అవ్వకుండా ఫుల్ స్పీడ్ కోసం "బ్యాచింగ్" వాడుతున్నాం
+    data_frames = []
+    chunk_size = 40 # ఒకేసారి 40 స్టాక్స్ ని ఫుల్ స్పీడ్ లో లాగుతుంది (సర్వర్ సేఫ్)
+    chunks = [tkrs[i:i + chunk_size] for i in range(0, len(tkrs), chunk_size)]
+    
+    for chunk in chunks:
+        temp_data = yf.download(chunk, period="2y", progress=False, group_by='ticker', threads=True)
+        data_frames.append(temp_data)
+        
+    data = pd.concat(data_frames, axis=1) if data_frames else pd.DataFrame()
     
     results = []
     minutes = get_minutes_passed()
