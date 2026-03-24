@@ -261,8 +261,13 @@ sec_map = get_dhan_security_map()
 rev_sec_map = {str(v): k for k, v in sec_map.items()} 
 
 # --- WEBSOCKET LIVE TICKER (BACKGROUND THREAD) ---
-if 'LIVE_PRICES' not in st.session_state:
-    st.session_state.LIVE_PRICES = {}
+
+# 🔥 స్ట్రీమ్‌లిట్ థ్రెడ్స్ కోసం సరికొత్త గ్లోబల్ మెమరీ బాక్స్ 
+@st.cache_resource
+def get_live_price_store():
+    return {}
+
+LIVE_PRICES = get_live_price_store()
 
 @st.cache_resource
 def start_live_ticker():
@@ -275,11 +280,12 @@ def start_live_ticker():
             pass
             
         def on_message(instance, message):
+            # 'LTP' కనుక వస్తే దాన్ని డైరెక్ట్ గా గ్లోబల్ మెమరీలో సేవ్ చేస్తున్నాం!
             if 'LTP' in message and 'SecurityId' in message:
                 sec_id = str(message['SecurityId'])
                 if sec_id in rev_sec_map:
                     sym = rev_sec_map[sec_id]
-                    st.session_state.LIVE_PRICES[sym] = float(message['LTP'])
+                    LIVE_PRICES[sym] = float(message['LTP'])
                     
         feed = marketfeed.DhanFeed(c_id, a_token, instruments, "v2", on_connect=on_connect, on_message=on_message)
         t = threading.Thread(target=feed.run_forever, daemon=True)
@@ -920,11 +926,12 @@ def render_closed_trades_table(df_closed):
 if True: # సైలెంట్ ఫెచ్
     df = fetch_all_data()
 
-if not df.empty and 'LIVE_PRICES' in st.session_state:
+# 🔥 WEBSOCKET LIVE OVERRIDE 🔥 (గ్లోబల్ మెమరీ నుండి లాగుతున్నాం)
+if not df.empty and LIVE_PRICES:
     for i, row in df.iterrows():
         clean_sym = str(row['Fetch_T']).replace(".NS", "")
-        if clean_sym in st.session_state.LIVE_PRICES:
-            new_ltp = st.session_state.LIVE_PRICES[clean_sym]
+        if clean_sym in LIVE_PRICES:
+            new_ltp = LIVE_PRICES[clean_sym]
             df.at[i, 'P'] = new_ltp
             open_p = df.at[i, 'O']
             prev_c = df.at[i, 'Prev_C']
