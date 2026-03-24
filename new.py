@@ -43,14 +43,16 @@ def init_connection():
     creds_dict = json.loads(creds_json)
     scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-    return gspread.authorize(creds)
-
-client = init_connection()
+    client = gspread.authorize(creds)
+    
+    # గూగుల్ షీట్ ని ప్రతి 5 సెకన్లకు అడగకుండా, కనెక్షన్ టైమ్ లోనే షీట్స్ ని కూడా మెమరీలో స్టోర్ చేస్తున్నాం
+    db_sheet = client.open("Trading_DB")
+    p_ws = db_sheet.worksheet("Portfolio")
+    t_ws = db_sheet.worksheet("TradeBook")
+    return p_ws, t_ws
 
 try:
-    db_sheet = client.open("Trading_DB")
-    port_ws = db_sheet.worksheet("Portfolio")
-    trade_ws = db_sheet.worksheet("TradeBook")
+    port_ws, trade_ws = init_connection()
 except Exception as e:
     st.error(f"గూగుల్ షీట్ కనెక్ట్ అవ్వలేదు బాస్! Error: {e}")
     st.stop()
