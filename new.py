@@ -131,10 +131,12 @@ def toggle_pin(symbol):
 
 st.markdown("""
     <style>
-    /* ఆ MainMenu, footer లైన్ ని ఇక్కడి నుండి తీసేశాం */
+    /* MainMenu, footer, header ని హైడ్ చేసే కోడ్ పూర్తిగా తీసేశాం */
     .stApp { background-color: #0e1117; color: #ffffff; }
-    .block-container { padding-top: 3rem !important; padding-bottom: 2rem !important; }
-    /* మిగతా మీ CSS కోడ్ అంతా సేమ్ ఉంచండి... */
+    
+    /* కంటెంట్ పైకి వెళ్ళిపోయి దాక్కోకుండా ఉండటానికి ప్యాడింగ్ ఇచ్చాం */
+    .block-container { padding-top: 3.5rem !important; padding-bottom: 1rem !important; }
+    
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .sticky-header) { position: sticky !important; top: 0 !important; z-index: 9999 !important; background-color: #0e1117 !important; padding-top: 15px !important; padding-bottom: 5px !important; border-bottom: 1px solid #30363d !important; }
     .stRadio label, .stRadio p, div[role="radiogroup"] p { color: #ffffff !important; font-weight: normal !important; }
     div.stButton > button p, div.stButton > button span { color: #ffffff !important; font-weight: normal !important; font-size: 14px !important; }
