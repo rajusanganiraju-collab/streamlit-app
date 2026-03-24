@@ -37,40 +37,23 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 2. GOOGLE SHEETS CONNECTION ---
-@st.cache_resource
-def start_live_ticker():
-    try:
-        c_id = st.secrets["dhan"]["client_id"]
-        a_token = st.secrets["dhan"]["access_token"]
-        
-        # 🔥 FIX 2: లిమిట్ 500 నుండి 250 కి తగ్గించాం (సర్వర్ క్రాష్ అవ్వకుండా ఫుల్ స్పీడ్ లో డేటా వస్తుంది)
-        instruments = [(1, str(sec_id)) for sec_id in list(sec_map.values())[:250]]
-        
-        def on_connect(instance):
-            pass
-            
-        def on_message(instance, message):
-            try:
-                if isinstance(message, dict):
-                    # 🔥 THE MASTER BUG FIX: ధన్ వాళ్ళ కీస్ స్మాల్ అండ్ క్యాపిటల్ లెటర్స్ రెండూ చెక్ చేస్తున్నాం!
-                    sec_id = str(message.get('security_id', message.get('SecurityId', '')))
-                    ltp = message.get('LTP', message.get('ltp', message.get('last_price', None)))
-                    
-                    if sec_id and ltp is not None:
-                        if sec_id in rev_sec_map:
-                            sym = rev_sec_map[sec_id]
-                            LIVE_PRICES[sym] = float(ltp)
-            except Exception as e:
-                pass
-                    
-        feed = marketfeed.DhanFeed(c_id, a_token, instruments, marketfeed.Ticker, on_connect=on_connect, on_message=on_message)
-        t = threading.Thread(target=feed.run_forever, daemon=True)
-        t.start()
-        return True
-    except Exception as e:
-        return False
+@st.cache_resource(show_spinner=False)
+def init_connection():
+    creds_json = st.secrets["gcp_service_account"]
+    creds_dict = json.loads(creds_json)
+    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+    creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+    return gspread.authorize(creds)
 
-start_live_ticker()
+client = init_connection()
+
+try:
+    db_sheet = client.open("Trading_DB")
+    port_ws = db_sheet.worksheet("Portfolio")
+    trade_ws = db_sheet.worksheet("TradeBook")
+except Exception as e:
+    st.error(f"గూగుల్ షీట్ కనెక్ట్ అవ్వలేదు బాస్! Error: {e}")
+    st.stop()
 
 # --- 3. DATA LOAD & SAVE FUNCTIONS ---
 def load_portfolio():
@@ -334,7 +317,7 @@ def fetch_cached_5m_data(tkrs_list):
             
     if dhan and dhan_tasks:
         # 🔥 FIX 1: సర్వర్ క్రాష్ అవ్వకుండా త్రెడ్స్ 10 నుండి 4 కి తగ్గించాం
-        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
             futures = {executor.submit(fetch_single_dhan_5m, tkr, data[1]): tkr for tkr, data in dhan_tasks.items()}
             for future in concurrent.futures.as_completed(futures):
                 tkr, df = future.result()
@@ -343,7 +326,7 @@ def fetch_cached_5m_data(tkrs_list):
 
     if yf_tkrs:
         # 🔥 FIX 2: యాహూ త్రెడ్స్ ని కూడా 4 కి సెట్ చేశాం
-        yf_data = yf.download(yf_tkrs, period="5d", interval="5m", progress=False, group_by='ticker', threads=4)
+        yf_data = yf.download(yf_tkrs, period="5d", interval="5m", progress=False, group_by='ticker', threads=False)
         if len(yf_tkrs) == 1:
             if not yf_data.empty: 
                 yf_data.index = yf_data.index.tz_localize(None)
@@ -371,7 +354,7 @@ def fetch_all_data():
     chunks = [tkrs[i:i + chunk_size] for i in range(0, len(tkrs), chunk_size)]
     
     for chunk in chunks:
-        temp_data = yf.download(chunk, period="2y", progress=False, group_by='ticker', threads=True)
+        temp_data = yf.download(chunk, period="2y", progress=False, group_by='ticker', threads=False)
         data_frames.append(temp_data)
         
     data = pd.concat(data_frames, axis=1) if data_frames else pd.DataFrame()
@@ -940,7 +923,7 @@ if True:
 def fetch_fast_live_prices(tickers):
     try:
         # 🔥 కేవలం ఈరోజు (1d) లైవ్ ప్రైస్ (1m) మాత్రమే రాకెట్ స్పీడ్ తో లాగుతున్నాం
-        data = yf.download(tickers, period="1d", interval="1m", progress=False, threads=4)
+        data = yf.download(tickers, period="1d", interval="1m", progress=False, threads=False)
         if not data.empty and 'Close' in data.columns:
             # స్టాక్ కి సంబంధించిన చివరి ప్రైస్ ని తీసుకుంటున్నాం
             if isinstance(data['Close'], pd.Series):
