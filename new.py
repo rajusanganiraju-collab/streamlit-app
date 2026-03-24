@@ -37,23 +37,40 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 2. GOOGLE SHEETS CONNECTION ---
-@st.cache_resource(show_spinner=False)
-def init_connection():
-    creds_json = st.secrets["gcp_service_account"]
-    creds_dict = json.loads(creds_json)
-    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-    creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-    return gspread.authorize(creds)
+@st.cache_resource
+def start_live_ticker():
+    try:
+        c_id = st.secrets["dhan"]["client_id"]
+        a_token = st.secrets["dhan"]["access_token"]
+        
+        # 🔥 FIX 2: లిమిట్ 500 నుండి 250 కి తగ్గించాం (సర్వర్ క్రాష్ అవ్వకుండా ఫుల్ స్పీడ్ లో డేటా వస్తుంది)
+        instruments = [(1, str(sec_id)) for sec_id in list(sec_map.values())[:250]]
+        
+        def on_connect(instance):
+            pass
+            
+        def on_message(instance, message):
+            try:
+                if isinstance(message, dict):
+                    # 🔥 THE MASTER BUG FIX: ధన్ వాళ్ళ కీస్ స్మాల్ అండ్ క్యాపిటల్ లెటర్స్ రెండూ చెక్ చేస్తున్నాం!
+                    sec_id = str(message.get('security_id', message.get('SecurityId', '')))
+                    ltp = message.get('LTP', message.get('ltp', message.get('last_price', None)))
+                    
+                    if sec_id and ltp is not None:
+                        if sec_id in rev_sec_map:
+                            sym = rev_sec_map[sec_id]
+                            LIVE_PRICES[sym] = float(ltp)
+            except Exception as e:
+                pass
+                    
+        feed = marketfeed.DhanFeed(c_id, a_token, instruments, marketfeed.Ticker, on_connect=on_connect, on_message=on_message)
+        t = threading.Thread(target=feed.run_forever, daemon=True)
+        t.start()
+        return True
+    except Exception as e:
+        return False
 
-client = init_connection()
-
-try:
-    db_sheet = client.open("Trading_DB")
-    port_ws = db_sheet.worksheet("Portfolio")
-    trade_ws = db_sheet.worksheet("TradeBook")
-except Exception as e:
-    st.error(f"గూగుల్ షీట్ కనెక్ట్ అవ్వలేదు బాస్! Error: {e}")
-    st.stop()
+start_live_ticker()
 
 # --- 3. DATA LOAD & SAVE FUNCTIONS ---
 def load_portfolio():
