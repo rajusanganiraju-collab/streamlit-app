@@ -133,19 +133,21 @@ TOP_SECTOR_STOCKS = {
     "NIFTY REALTY": ["DLF", "GODREJPROP", "OBEROIRLTY", "PRESTIGE", "MACROTECH", "PHOENIXLTD"]
 }
 
-# 🔥 FIX 1: ఆటో-సెలెక్ట్ బగ్ ని ఆపే కొత్త పిన్ లాజిక్
+# 🔥 FIX 1: ఆటో-సెలెక్ట్ బగ్ ని ఆపే పక్కా సింక్ లాజిక్
 def toggle_pin(symbol, source_key):
-    new_state = st.session_state[source_key]
-    
-    if new_state and symbol not in st.session_state.pinned_stocks:
-        st.session_state.pinned_stocks.append(symbol)
-    elif not new_state and symbol in st.session_state.pinned_stocks:
-        st.session_state.pinned_stocks.remove(symbol)
+    if source_key in st.session_state:
+        new_state = st.session_state[source_key]
         
-    # మిగతా చోట్ల ఉన్న సేమ్ స్టాక్ చెక్ బాక్సులను కూడా సింక్ చేస్తున్నాం (దీనివల్లే ఘోస్ట్ క్లిక్స్ ఆగిపోతాయి)
-    for k in list(st.session_state.keys()):
-        if k.startswith(f"cb_{symbol}"):
-            st.session_state[k] = new_state
+        # మెయిన్ లిస్ట్ లోకి యాడ్ లేదా రిమూవ్ చేయడం
+        if new_state and symbol not in st.session_state.pinned_stocks:
+            st.session_state.pinned_stocks.append(symbol)
+        elif not new_state and symbol in st.session_state.pinned_stocks:
+            st.session_state.pinned_stocks.remove(symbol)
+            
+        # మిగతా చోట్ల ఉన్న సేమ్ స్టాక్ చెక్ బాక్సులను కూడా సింక్ చేస్తున్నాం
+        for k in list(st.session_state.keys()):
+            if k.startswith(f"cb_{symbol}") and k != source_key:
+                st.session_state[k] = new_state
 
 st.markdown("""
     <style>
