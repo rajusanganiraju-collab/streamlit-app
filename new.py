@@ -1257,7 +1257,7 @@ if not df.empty:
 
             strategies_list = [
                 "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", 
-                "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)"
+                "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)", "📈 Minervini Trend Template (VCP)"
             ]
             
             fib_range = (df_filtered['H'] - df_filtered['L'])
@@ -1322,6 +1322,17 @@ if not df.empty:
                     c_buy = base_buy & fib_buy_mask
                     c_sell = base_sell & fib_sell_mask
                     icon_str = "📉 FIB"
+                elif strat == "📈 Minervini Trend Template (VCP)":
+                    cond1 = (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['P'] > df_filtered['SMA200'])
+                    cond2 = df_filtered['SMA150'] > df_filtered['SMA200']
+                    cond3 = df_filtered['SMA200'] > df_filtered['SMA200_20D']
+                    cond4 = df_filtered['P'] > df_filtered['SMA50']
+                    cond7 = df_filtered['SMA50'] > df_filtered['SMA150'] # 👈 NEW ADDITION
+                    cond5 = df_filtered['P'] >= (df_filtered['Low52W'] * 1.30)
+                    cond6 = df_filtered['P'] >= (df_filtered['High52W'] * 0.75)
+                    c_buy = base_buy & cond1 & cond2 & cond3 & cond4 & cond7 & cond5 & cond6
+                    c_sell = pd.Series(False, index=df_filtered.index)
+                    icon_str = "📈 M-VCP"
 
                 if apply_fib_strict and strat != "📉 FIB Retracement (0.382)":
                     c_buy = c_buy & fib_buy_mask
@@ -1373,9 +1384,10 @@ if not df.empty:
                 cond2 = df_filtered['SMA150'] > df_filtered['SMA200']
                 cond3 = df_filtered['SMA200'] > df_filtered['SMA200_20D']
                 cond4 = df_filtered['P'] > df_filtered['SMA50']
+                cond7 = df_filtered['SMA50'] > df_filtered['SMA150'] # 👈 NEW ADDITION
                 cond5 = df_filtered['P'] >= (df_filtered['Low52W'] * 1.30)
                 cond6 = df_filtered['P'] >= (df_filtered['High52W'] * 0.75)
-                df_min = df_filtered[cond1 & cond2 & cond3 & cond4 & cond5 & cond6].copy()
+                df_min = df_filtered[cond1 & cond2 & cond3 & cond4 & cond7 & cond5 & cond6].copy()
                 df_min['Strategy_Icon'] = "📈 M-VCP"
                 dfs_to_concat.append(df_min)
 
