@@ -188,8 +188,8 @@ st.markdown("""
 
 # --- 5. DATA SETUP & SECTOR MAPPING ---
 # 👈 ఇక్కడే DAX మరియు DXY (DX=F) లను యాడ్ చేశాను
-INDICES_MAP = {"^NSEI": "NIFTY", "^NSEBANK": "BANKNIFTY", "^INDIAVIX": "INDIA VIX", "^DJI": "DOW", "^IXIC": "NSDQ", "^GDAXI": "DAX", "DX-Y.NYB": "DXY"}
-TV_INDICES_URL = {"^NSEI": "NSE:NIFTY", "^NSEBANK": "NSE:BANKNIFTY", "^INDIAVIX": "NSE:INDIAVIX", "^DJI": "CAPITALCOM:DOWJONES", "^IXIC": "NASDAQ:IXIC", "^GDAXI": "XETR:DAX", "DX-Y.NYB": "TVC:DXY"}
+INDICES_MAP = {"^NSEI": "NIFTY", "^NSEBANK": "BANKNIFTY", "^INDIAVIX": "INDIA VIX", "^GSPC": "SPX", "^GDAXI": "DAX", "DX-Y.NYB": "DXY"}
+TV_INDICES_URL = {"^NSEI": "NSE:NIFTY", "^NSEBANK": "NSE:BANKNIFTY", "^INDIAVIX": "NSE:INDIAVIX", "^GSPC": "SP:SPX", "^GDAXI": "XETR:DAX", "DX-Y.NYB": "TVC:DXY"}
 SECTOR_INDICES_MAP = {
     "^CNXIT": "NIFTY IT", "^CNXAUTO": "NIFTY AUTO", "^CNXMETAL": "NIFTY METAL",
     "^CNXPHARMA": "NIFTY PHARMA", "^CNXFMCG": "NIFTY FMCG", "^CNXENERGY": "NIFTY ENERGY", "^CNXREALTY": "NIFTY REALTY"
@@ -789,7 +789,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
     tv_link = f"https://tv.dhan.co/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
     
     # 👈 ఇక్కడ పిన్ ఆప్షన్ నుండి DXY మరియు DAX ని హైడ్ చేశాను
-    if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX", "DOW", "NSDQ", "DAX", "DXY"] and not row.get('Is_Commodity'):
+    if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX", "SPX", "DAX", "DXY"] and not row.get('Is_Commodity'):
         cb_key = f"cb_{fetch_sym}_{key_suffix}" if key_suffix else f"cb_{fetch_sym}"
         st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=cb_key, on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
     
@@ -1025,7 +1025,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
 if not df.empty:
     df_indices = df[df['Is_Index']].copy()
     # 👈 ఇక్కడ DAX మరియు DXY ఆర్డర్ సెట్ చేశాను
-    df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3, "DOW": 4, "NSDQ": 5, "DAX": 6, "DXY": 7})
+    df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3, "SPX": 4, "DAX": 5, "DXY": 6})
     df_indices = df_indices.sort_values('Order')
     
     df_sectors = df[df['Is_Sector']].copy()
