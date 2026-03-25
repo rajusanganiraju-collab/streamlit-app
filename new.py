@@ -188,17 +188,13 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 5. DATA SETUP & SECTOR MAPPING ---
-INDICES_MAP = {"^NSEI": "NIFTY", "^NSEBANK": "BANKNIFTY", "^INDIAVIX": "INDIA VIX", "^DJI": "DOW", "^IXIC": "NSDQ"}
-TV_INDICES_URL = {"^NSEI": "NSE:NIFTY", "^NSEBANK": "NSE:BANKNIFTY", "^INDIAVIX": "NSE:INDIAVIX", "^DJI": "CAPITALCOM:DOWJONES", "^IXIC": "NASDAQ:IXIC"}
+# 👈 ఇక్కడే DOW, DAX మరియు DXY లను యాడ్ చేశాను
+INDICES_MAP = {"^NSEI": "NIFTY", "^NSEBANK": "BANKNIFTY", "^INDIAVIX": "INDIA VIX", "^DJI": "DOW", "^IXIC": "NSDQ", "^GDAXI": "DAX", "DX-Y.NYB": "DXY"}
+TV_INDICES_URL = {"^NSEI": "NSE:NIFTY", "^NSEBANK": "NSE:BANKNIFTY", "^INDIAVIX": "NSE:INDIAVIX", "^DJI": "CAPITALCOM:DOWJONES", "^IXIC": "NASDAQ:IXIC", "^GDAXI": "XETR:DAX", "DX-Y.NYB": "TVC:DXY"}
 
 SECTOR_INDICES_MAP = {
     "^CNXIT": "NIFTY IT", "^CNXAUTO": "NIFTY AUTO", "^CNXMETAL": "NIFTY METAL",
     "^CNXPHARMA": "NIFTY PHARMA", "^CNXFMCG": "NIFTY FMCG", "^CNXENERGY": "NIFTY ENERGY", "^CNXREALTY": "NIFTY REALTY"
-}
-
-TV_SECTOR_URL = {
-    "^CNXIT": "NSE:CNXIT", "^CNXAUTO": "NSE:CNXAUTO", "^CNXMETAL": "NSE:CNXMETAL",
-    "^CNXPHARMA": "NSE:CNXPHARMA", "^CNXFMCG": "NSE:CNXFMCG", "^CNXENERGY": "NSE:CNXENERGY", "^CNXREALTY": "NSE:CNXREALTY"
 }
 
 COMMODITY_MAP = { "GC=F": "GOLD", "SI=F": "SILVER", "CL=F": "CRUDE OIL", "NG=F": "NATURAL GAS", "HG=F": "COPPER" }
@@ -329,7 +325,7 @@ def fetch_cached_5m_data(tkrs_list):
     dhan_tasks, yf_tkrs, results_dict = {}, [], {}
     for tkr in tkrs_list:
         clean_sym = tkr.replace(".NS", "")
-        if clean_sym in sec_map and not any(idx in tkr for idx in ["^", "=F"]):
+        if clean_sym in sec_map and not any(idx in tkr for idx in ["^", "=F", "DX-Y"]):
             dhan_tasks[tkr] = (clean_sym, sec_map[clean_sym])
         else:
             yf_tkrs.append(tkr)
@@ -794,11 +790,11 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
     sign = "+" if pct_val > 0 else ""
     tv_link = f"https://tv.dhan.co/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
     
-    if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX", "DOW", "NSDQ"] and not row.get('Is_Commodity'):
+    if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX", "DOW", "NSDQ", "DAX", "DXY"] and not row.get('Is_Commodity'):
         cb_key = f"cb_{fetch_sym}_{key_suffix}" if key_suffix else f"cb_{fetch_sym}"
         st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=cb_key, on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
     
-    title_html = f"<a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; line-height:1.2;'><b>{display_sym}</b><br><span style='font-size:12px; color:#cccccc;'>₹{row['P']:.2f} &nbsp;<span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span></span></a>"
+    title_html = f"<a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; line-height:1.2;'><b>{display_sym}</b><br><span style='font-size:12px; color:#cccccc;'>{row['P']:.2f} &nbsp;<span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span></span></a>"
     try:
         if not df_chart.empty:
             min_val = df_chart['Low'].min()
@@ -810,10 +806,10 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                 
             hover_data = (
                 "🕒 " + chart_times.strftime('%d-%b %I:%M %p') + 
-                "<br>🟢 O: ₹" + df_chart['Open'].round(2).astype(str) + 
-                "<br>📈 H: ₹" + df_chart['High'].round(2).astype(str) + 
-                "<br>📉 L: ₹" + df_chart['Low'].round(2).astype(str) + 
-                "<br>🔴 C: ₹" + df_chart['Close'].round(2).astype(str)
+                "<br>🟢 O: " + df_chart['Open'].round(2).astype(str) + 
+                "<br>📈 H: " + df_chart['High'].round(2).astype(str) + 
+                "<br>📉 L: " + df_chart['Low'].round(2).astype(str) + 
+                "<br>🔴 C: " + df_chart['Close'].round(2).astype(str)
             )
             
             if show_vol:
@@ -972,7 +968,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
     with sc1:
         if watchlist_mode in ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions", "High Score Stocks 🔥"]:
             move_type_filter = st.multiselect("Strategy Filter",
-                ["All Moves", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)"], 
+                ["All Moves", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)", "📈 Minervini Trend Template (VCP)", "🌅 15-Min ORB (Opening Range Breakout)"], 
                 default=["🌊 One Sided Only", "🎯 Reversals Only", "🏹 Rubber Band Stretch"]
             )
         elif watchlist_mode == "Swing Trading 📈":
@@ -1013,7 +1009,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
         if st.session_state.custom_alerts:
             for s_key, a_data in list(st.session_state.custom_alerts.items()):
                 col_a, col_b, col_c = st.columns([4, 1, 1])
-                col_a.write(f"**{a_data['name']}** - Alert if {a_data['type']} **₹{a_data['price']}**")
+                col_a.write(f"**{a_data['name']}** - Alert if {a_data['type']} **{a_data['price']}**")
                 with col_b:
                     if st.button("Toggle", key=f"tog_{s_key}"):
                         st.session_state.custom_alerts[s_key]['enabled'] = not st.session_state.custom_alerts[s_key]['enabled']
@@ -1029,7 +1025,8 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
 
 if not df.empty:
     df_indices = df[df['Is_Index']].copy()
-    df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3, "DOW": 4, "NSDQ": 5})
+    # 👈 ఇక్కడ DAX ని మరియు DXY ని యాడ్ చేశాను
+    df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3, "DOW": 4, "NSDQ": 5, "DAX": 6, "DXY": 7})
     df_indices = df_indices.sort_values('Order')
     
     df_sectors = df[df['Is_Sector']].copy()
@@ -1117,6 +1114,7 @@ if not df.empty:
     alpha_tags = {}
     trend_scores = {}
     retest_tags = {}
+    orb_tags = {}
 
     nifty_dist_5m = 0.1
     if "^NSEI" in five_min_data.columns.levels[0]:
@@ -1188,6 +1186,7 @@ if not df.empty:
             trend_scores[sym] = trend_bonus + trap_bonus
             
             retest_tag = ""
+            orb_tag = ""
             if watchlist_mode in ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions"] and len(df_day) >= 4:
                 c1 = df_day.iloc[-1] 
                 c2 = df_day.iloc[-2] 
@@ -1199,7 +1198,17 @@ if not df.empty:
                     if (c2['High'] >= c2['EMA_10'] * 0.998) and (c2['Close'] <= c2['EMA_10']):
                         min_allowed_price = c1['EMA_10'] * 0.997
                         if c1['Close'] < c1['Open'] and (min_allowed_price <= c1['Close'] <= c1['EMA_10']): retest_tag = "SELL_RETEST"
+            
+            if watchlist_mode in ["Day Trading Stocks 🚀", "High Score Stocks 🔥", "🤖 Today's AI Predictions"] and len(df_day) >= 3:
+                orb_high = df_day['High'].iloc[0:3].max()
+                orb_low = df_day['Low'].iloc[0:3].min()
+                if last_price > orb_high and last_price > last_vwap:
+                    orb_tag = "ORB_BUY"
+                elif last_price < orb_low and last_price < last_vwap:
+                    orb_tag = "ORB_SELL"
+            
             retest_tags[sym] = retest_tag
+            orb_tags[sym] = orb_tag
 
     alerts_triggered_html = ""
     for sym, a_data in st.session_state.custom_alerts.items():
@@ -1208,11 +1217,11 @@ if not df.empty:
             if not live_r.empty:
                 current_ltp = float(live_r['P'].iloc[0])
                 if "Above" in a_data['type'] and current_ltp >= a_data['price']:
-                    st.toast(f"🔔 ALERT: {a_data['name']} is ABOVE ₹{a_data['price']}! (LTP: {current_ltp})", icon="🚀")
-                    alerts_triggered_html += f"<div style='background-color:#1e5f29; color:white; padding:10px; border-radius:5px; margin-bottom:5px;'><b>🔔 ALERT:</b> {a_data['name']} crossed ABOVE ₹{a_data['price']}! (LTP: {current_ltp})</div>"
+                    st.toast(f"🔔 ALERT: {a_data['name']} is ABOVE {a_data['price']}! (LTP: {current_ltp})", icon="🚀")
+                    alerts_triggered_html += f"<div style='background-color:#1e5f29; color:white; padding:10px; border-radius:5px; margin-bottom:5px;'><b>🔔 ALERT:</b> {a_data['name']} crossed ABOVE {a_data['price']}! (LTP: {current_ltp})</div>"
                 elif "Below" in a_data['type'] and current_ltp <= a_data['price']:
-                    st.toast(f"🔔 ALERT: {a_data['name']} is BELOW ₹{a_data['price']}! (LTP: {current_ltp})", icon="🩸")
-                    alerts_triggered_html += f"<div style='background-color:#b52524; color:white; padding:10px; border-radius:5px; margin-bottom:5px;'><b>🔔 ALERT:</b> {a_data['name']} crossed BELOW ₹{a_data['price']}! (LTP: {current_ltp})</div>"
+                    st.toast(f"🔔 ALERT: {a_data['name']} is BELOW {a_data['price']}! (LTP: {current_ltp})", icon="🩸")
+                    alerts_triggered_html += f"<div style='background-color:#b52524; color:white; padding:10px; border-radius:5px; margin-bottom:5px;'><b>🔔 ALERT:</b> {a_data['name']} crossed BELOW {a_data['price']}! (LTP: {current_ltp})</div>"
 
     if alerts_triggered_html: st.markdown(alerts_triggered_html, unsafe_allow_html=True)
 
@@ -1220,6 +1229,7 @@ if not df.empty:
         df_filtered['AlphaTag'] = df_filtered['Fetch_T'].map(alpha_tags).fillna("")
         df_filtered['Trend_Score'] = df_filtered['Fetch_T'].map(trend_scores).fillna(0)
         df_filtered['Retest_Tag'] = df_filtered['Fetch_T'].map(retest_tags).fillna("") 
+        df_filtered['ORB_Tag'] = df_filtered['Fetch_T'].map(orb_tags).fillna("")
         df_filtered['S'] = df_filtered['S'] + df_filtered['Trend_Score']
         
         if watchlist_mode in ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions"]:
@@ -1257,7 +1267,7 @@ if not df.empty:
 
             strategies_list = [
                 "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", 
-                "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)", "📈 Minervini Trend Template (VCP)"
+                "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)", "📈 Minervini Trend Template (VCP)", "🌅 15-Min ORB (Opening Range Breakout)"
             ]
             
             fib_range = (df_filtered['H'] - df_filtered['L'])
@@ -1327,12 +1337,16 @@ if not df.empty:
                     cond2 = df_filtered['SMA150'] > df_filtered['SMA200']
                     cond3 = df_filtered['SMA200'] > df_filtered['SMA200_20D']
                     cond4 = df_filtered['P'] > df_filtered['SMA50']
-                    cond7 = df_filtered['SMA50'] > df_filtered['SMA150'] # 👈 NEW ADDITION
+                    cond7 = df_filtered['SMA50'] > df_filtered['SMA150']
                     cond5 = df_filtered['P'] >= (df_filtered['Low52W'] * 1.30)
                     cond6 = df_filtered['P'] >= (df_filtered['High52W'] * 0.75)
                     c_buy = base_buy & cond1 & cond2 & cond3 & cond4 & cond7 & cond5 & cond6
                     c_sell = pd.Series(False, index=df_filtered.index)
                     icon_str = "📈 M-VCP"
+                elif strat == "🌅 15-Min ORB (Opening Range Breakout)":
+                    c_buy = base_buy & (df_filtered['ORB_Tag'] == "ORB_BUY") & (df_filtered['VolX'] >= 1.2)
+                    c_sell = base_sell & (df_filtered['ORB_Tag'] == "ORB_SELL") & (df_filtered['VolX'] >= 1.2)
+                    icon_str = "🌅 ORB"
 
                 if apply_fib_strict and strat != "📉 FIB Retracement (0.382)":
                     c_buy = c_buy & fib_buy_mask
@@ -1384,7 +1398,7 @@ if not df.empty:
                 cond2 = df_filtered['SMA150'] > df_filtered['SMA200']
                 cond3 = df_filtered['SMA200'] > df_filtered['SMA200_20D']
                 cond4 = df_filtered['P'] > df_filtered['SMA50']
-                cond7 = df_filtered['SMA50'] > df_filtered['SMA150'] # 👈 NEW ADDITION
+                cond7 = df_filtered['SMA50'] > df_filtered['SMA150'] 
                 cond5 = df_filtered['P'] >= (df_filtered['Low52W'] * 1.30)
                 cond6 = df_filtered['P'] >= (df_filtered['High52W'] * 0.75)
                 df_min = df_filtered[cond1 & cond2 & cond3 & cond4 & cond7 & cond5 & cond6].copy()
