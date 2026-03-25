@@ -972,11 +972,11 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
     with sc1:
         if watchlist_mode in ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions", "High Score Stocks 🔥"]:
             move_type_filter = st.multiselect("Strategy Filter",
-                ["All Moves", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)", "📈 Minervini Trend Template (VCP)"], 
+                ["All Moves", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)"], 
                 default=["🌊 One Sided Only", "🎯 Reversals Only", "🏹 Rubber Band Stretch"]
             )
         elif watchlist_mode == "Swing Trading 📈":
-            move_type_filter = st.multiselect("Strategy Filter", ["All Swing Stocks", "🚀 Pro Breakout Strategy", "🌟 Weekly 10EMA Pro"], default=["All Swing Stocks"])
+            move_type_filter = st.multiselect("Strategy Filter", ["All Swing Stocks", "🚀 Pro Breakout Strategy", "🌟 Weekly 10EMA Pro", "📈 Minervini Trend Template (VCP)"], default=["All Swing Stocks"])
         elif watchlist_mode == "Fundamentals 🏢":
             fund_filter = st.selectbox("Fundamentals Filter", ["Top Ranked Stocks ⭐", "Swing Trading Candidates 📈", "Nifty 50 Stocks", "My Portfolio 💼"], index=0)
             
@@ -1094,7 +1094,7 @@ if not df.empty:
     elif watchlist_mode == "Day Trading Stocks 🚀":
         df_filtered = df_stocks[df_stocks['C'].abs() >= 1.0].copy()
     elif watchlist_mode == "Swing Trading 📈":
-        df_filtered = df_stocks[(df_stocks['Is_Swing'] == True) | (df_stocks['Is_W_Pullback'] == True)]
+        df_filtered = df_stocks.copy()
     else:
         df_filtered = df_stocks[(df_stocks['S'] >= 11) & (df_stocks['VolX'] >= 1.5)]
 
@@ -1257,7 +1257,7 @@ if not df.empty:
 
             strategies_list = [
                 "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", 
-                "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)", "📈 Minervini Trend Template (VCP)"
+                "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)"
             ]
             
             fib_range = (df_filtered['H'] - df_filtered['L'])
@@ -1322,16 +1322,6 @@ if not df.empty:
                     c_buy = base_buy & fib_buy_mask
                     c_sell = base_sell & fib_sell_mask
                     icon_str = "📉 FIB"
-                elif strat == "📈 Minervini Trend Template (VCP)":
-                    cond1 = (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['P'] > df_filtered['SMA200'])
-                    cond2 = df_filtered['SMA150'] > df_filtered['SMA200']
-                    cond3 = df_filtered['SMA200'] > df_filtered['SMA200_20D']
-                    cond4 = df_filtered['P'] > df_filtered['SMA50']
-                    cond5 = df_filtered['P'] >= (df_filtered['Low52W'] * 1.30)
-                    cond6 = df_filtered['P'] >= (df_filtered['High52W'] * 0.75)
-                    c_buy = base_buy & cond1 & cond2 & cond3 & cond4 & cond5 & cond6
-                    c_sell = pd.Series(False, index=df_filtered.index)
-                    icon_str = "📈 M-VCP"
 
                 if apply_fib_strict and strat != "📉 FIB Retracement (0.382)":
                     c_buy = c_buy & fib_buy_mask
@@ -1354,7 +1344,12 @@ if not df.empty:
                 df_filtered['SL'] = np.where(df_filtered['Strategy_Icon'].str.contains('BUY', na=False), round(df_filtered['P'] * 0.992, 2), round(df_filtered['P'] * 1.008, 2))
         
         elif watchlist_mode == "Swing Trading 📈":
-            if move_type_filter == "🚀 Pro Breakout Strategy":
+            dfs_to_concat = []
+            
+            if "All Swing Stocks" in move_type_filter or not move_type_filter:
+                dfs_to_concat.append(df_filtered[df_filtered['Is_Swing'] == True])
+            
+            if "🚀 Pro Breakout Strategy" in move_type_filter:
                 top_body = df_filtered['H'] - df_filtered['P']
                 total_range = df_filtered['H'] - df_filtered['L']
                 breakout_cond = (
@@ -1364,9 +1359,30 @@ if not df.empty:
                     (df_filtered['Day_C'] >= 2.0) &                    
                     (df_filtered['Is_Swing'] == True)                 
                 )
-                df_filtered = df_filtered[breakout_cond]
-            elif move_type_filter == "🌟 Weekly 10EMA Pro":
-                df_filtered = df_filtered[df_filtered['Is_W_Pullback'] == True]
+                df_brk = df_filtered[breakout_cond].copy()
+                df_brk['Strategy_Icon'] = "🚀"
+                dfs_to_concat.append(df_brk)
+                
+            if "🌟 Weekly 10EMA Pro" in move_type_filter:
+                df_ema = df_filtered[df_filtered['Is_W_Pullback'] == True].copy()
+                df_ema['Strategy_Icon'] = "🌟"
+                dfs_to_concat.append(df_ema)
+                
+            if "📈 Minervini Trend Template (VCP)" in move_type_filter:
+                cond1 = (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['P'] > df_filtered['SMA200'])
+                cond2 = df_filtered['SMA150'] > df_filtered['SMA200']
+                cond3 = df_filtered['SMA200'] > df_filtered['SMA200_20D']
+                cond4 = df_filtered['P'] > df_filtered['SMA50']
+                cond5 = df_filtered['P'] >= (df_filtered['Low52W'] * 1.30)
+                cond6 = df_filtered['P'] >= (df_filtered['High52W'] * 0.75)
+                df_min = df_filtered[cond1 & cond2 & cond3 & cond4 & cond5 & cond6].copy()
+                df_min['Strategy_Icon'] = "📈 M-VCP"
+                dfs_to_concat.append(df_min)
+
+            if dfs_to_concat:
+                df_filtered = pd.concat(dfs_to_concat).drop_duplicates(subset=['Fetch_T'])
+            else:
+                df_filtered = pd.DataFrame(columns=df_filtered.columns)
 
     sort_key = "W_C" if chart_timeframe == "Weekly Chart" else "Day_C"
     if 'Sector_Bonus' not in df_filtered.columns: df_filtered['Sector_Bonus'] = 0
@@ -1560,7 +1576,10 @@ if not df.empty:
                     if watchlist_mode == "🤖 Today's AI Predictions":
                         if sort_mode == "🤖 AI Prob Up ⬆️": special_icon = f"🤖{int(row.get('AI_Prob', 0))}%"
                         else: special_icon = f"⭐{int(row['S'])}"
-                    elif watchlist_mode == "Swing Trading 📈": special_icon = "🌟" if row.get('Is_W_Pullback', False) else "🚀"
+                    elif watchlist_mode == "Swing Trading 📈": 
+                        strat_name = str(row.get('Strategy_Icon', ''))
+                        if strat_name != "": special_icon = strat_name
+                        else: special_icon = "🌟" if row.get('Is_W_Pullback', False) else "🚀"
                     elif watchlist_mode == "Day Trading Stocks 🚀": 
                         strat_name = str(row.get('Strategy_Icon', '🚀'))
                         if 'BUY' in strat_name: special_icon = "🟢 BUY"
