@@ -20,7 +20,6 @@ st.set_page_config(page_title="Market Heatmap", page_icon="📊", layout="wide")
 # 🔥 ఎల్లో బాక్సులు, స్పిన్నర్లు పక్కాగా మాయం మరియు డిమ్ అవ్వకుండా ఆపుతుంది
 st.markdown("""
     <style>
-    
     div[data-testid="stNotification"] { display: none !important; }
     iframe[title="streamlit_autorefresh.st_autorefresh"] { display: none !important; }
     
@@ -59,7 +58,7 @@ except Exception as e:
 
 # --- 3. DATA LOAD & SAVE FUNCTIONS ---
 
-@st.cache_data(ttl=300, show_spinner=False) # 👈 ఇది కొత్తగా యాడ్ చేశాం (ప్రతి 5 నిమిషాలకు ఒకసారే షీట్‌ని అడుగుతుంది)
+@st.cache_data(ttl=300, show_spinner=False)
 def load_portfolio():
     try:
         records = port_ws.get_all_records()
@@ -73,7 +72,7 @@ def load_portfolio():
     except:
         return pd.DataFrame(columns=['Symbol', 'Buy_Price', 'Quantity', 'Date', 'SL', 'T1', 'T2'])
 
-@st.cache_data(ttl=300, show_spinner=False) # 👈 ఇది కొత్తగా యాడ్ చేశాం
+@st.cache_data(ttl=300, show_spinner=False)
 def load_closed_trades():
     try:
         records = trade_ws.get_all_records()
@@ -90,19 +89,18 @@ def save_portfolio(df):
     port_ws.clear()
     df = df.fillna("")
     port_ws.update([df.columns.values.tolist()] + df.values.tolist())
-    load_portfolio.clear()  # 👈 కొత్త స్టాక్ యాడ్ చేసినప్పుడు, పాత మెమరీని క్లియర్ చేయడానికి ఇది వాడతాం
+    load_portfolio.clear()
 
 def save_closed_trades(df):
     trade_ws.clear()
     df = df.fillna("")
     trade_ws.update([df.columns.values.tolist()] + df.values.tolist())
-    load_closed_trades.clear()  # 👈 స్టాక్ అమ్మినప్పుడు, పాత మెమరీని క్లియర్ చేయడానికి ఇది వాడతాం
+    load_closed_trades.clear()
 
 # --- 4. AUTO RUN & STATE MANAGEMENT ---
 if 'pause_refresh' not in st.session_state:
     st.session_state.pause_refresh = False
 
-# పాజ్ టోగుల్ ఆన్‌లో లేకపోతేనే 5 సెకన్లకు రిఫ్రెష్ అవుతుంది
 if not st.session_state.pause_refresh:
     st_autorefresh(interval=5000, key="datarefresh")
 
@@ -131,12 +129,8 @@ def toggle_pin(symbol):
 
 st.markdown("""
     <style>
-    /* MainMenu, footer, header ని హైడ్ చేసే కోడ్ పూర్తిగా తీసేశాం */
     .stApp { background-color: #0e1117; color: #ffffff; }
-    
-    /* కంటెంట్ పైకి వెళ్ళిపోయి దాక్కోకుండా ఉండటానికి ప్యాడింగ్ ఇచ్చాం */
     .block-container { padding-top: 3.5rem !important; padding-bottom: 1rem !important; }
-    
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .sticky-header) { position: sticky !important; top: 0 !important; z-index: 9999 !important; background-color: #0e1117 !important; padding-top: 15px !important; padding-bottom: 5px !important; border-bottom: 1px solid #30363d !important; }
     .stRadio label, .stRadio p, div[role="radiogroup"] p { color: #ffffff !important; font-weight: normal !important; }
     div.stButton > button p, div.stButton > button span { color: #ffffff !important; font-weight: normal !important; font-size: 14px !important; }
@@ -330,7 +324,7 @@ def fetch_single_dhan_5m(symbol, sec_id):
     except: pass
     return symbol, pd.DataFrame()
 
-@st.cache_data(ttl=60, show_spinner=False) # 60 Sec cache to prevent app slowness
+@st.cache_data(ttl=60, show_spinner=False)
 def fetch_cached_5m_data(tkrs_list):
     dhan_tasks, yf_tkrs, results_dict = {}, [], {}
     for tkr in tkrs_list:
@@ -371,7 +365,6 @@ def fetch_all_data():
     all_stocks = set(NIFTY_50 + FNO_STOCKS + port_stocks)
     tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + list(COMMODITY_MAP.keys()) + [f"{t}.NS" for t in all_stocks if t]
     
-    # 🔥 YFinance Bulk is 10x faster for daily data and includes current running candle
     data = yf.download(tkrs, period="2y", progress=False, group_by='ticker', threads=5)
     
     results = []
@@ -431,6 +424,15 @@ def fetch_all_data():
                 bear_power = ((high - ltp) / high_low_range) * 100
 
             ema50_d = float(df['Close'].ewm(span=50, adjust=False).mean().iloc[-1]) if len(df) >= 50 else 0.0
+            
+            # --- MINERVINI METRICS ---
+            sma50_d = float(df['Close'].rolling(window=50).mean().iloc[-1]) if len(df) >= 50 else 0.0
+            sma150_d = float(df['Close'].rolling(window=150).mean().iloc[-1]) if len(df) >= 150 else 0.0
+            sma200_d = float(df['Close'].rolling(window=200).mean().iloc[-1]) if len(df) >= 200 else 0.0
+            high_52w = float(df['High'].rolling(window=252).max().iloc[-1]) if len(df) >= 252 else float(df['High'].max())
+            low_52w = float(df['Low'].rolling(window=252).min().iloc[-1]) if len(df) >= 252 else float(df['Low'].min())
+            sma200_20d = float(df['Close'].rolling(window=200).mean().iloc[-21]) if len(df) >= 220 else 0.0
+            
             is_swing = False; is_w_pullback = False
             latest_w_ema10 = 0; latest_w_ema50 = 0
             
@@ -504,6 +506,7 @@ def fetch_all_data():
             results.append({
                 "Fetch_T": symbol, "T": disp_name, "P": ltp, "O": open_p, "H": high, "L": low, "Prev_C": prev_c,
                 "Prev_H": prev_h, "Prev_L": prev_l, "W_EMA10": latest_w_ema10, "W_EMA50": latest_w_ema50, "D_EMA50": ema50_d,
+                "SMA50": sma50_d, "SMA150": sma150_d, "SMA200": sma200_d, "High52W": high_52w, "Low52W": low_52w, "SMA200_20D": sma200_20d,
                 "Day_C": day_chg, "C": net_chg, "W_C": float(weekly_net_chg), "S": score, "VolX": vol_x, "Is_Swing": is_swing,
                 "Is_W_Pullback": is_w_pullback, "VWAP": vwap,
                 "ATR": atr, "Narrow_CPR": is_narrow_cpr,
@@ -899,6 +902,7 @@ def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Day", cha
                         else:
                             st.session_state.active_sec = row['T']
                         st.rerun()
+
 def render_closed_trades_table(df_closed):
     if df_closed.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No closed trades yet. Sell a stock to book P&L!</div>"
     
@@ -927,7 +931,7 @@ def render_closed_trades_table(df_closed):
     return html
 
 # --- 6. FETCH DATA ---
-if True: # సైలెంట్ ఫెచ్
+if True: 
     df = fetch_all_data()
 
 if not df.empty and 'LIVE_PRICES' in st.session_state:
@@ -968,7 +972,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
     with sc1:
         if watchlist_mode in ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions", "High Score Stocks 🔥"]:
             move_type_filter = st.multiselect("Strategy Filter",
-                ["All Moves", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)"], 
+                ["All Moves", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)", "📈 Minervini Trend Template (VCP)"], 
                 default=["🌊 One Sided Only", "🎯 Reversals Only", "🏹 Rubber Band Stretch"]
             )
         elif watchlist_mode == "Swing Trading 📈":
@@ -1018,7 +1022,6 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
                     if st.button("Delete", key=f"del_{s_key}"):
                         del st.session_state.custom_alerts[s_key]
                         st.rerun()
-
 
 # =========================================================
 # --- 8. RENDERING ---
@@ -1254,7 +1257,7 @@ if not df.empty:
 
             strategies_list = [
                 "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", 
-                "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)"
+                "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)", "📈 Minervini Trend Template (VCP)"
             ]
             
             fib_range = (df_filtered['H'] - df_filtered['L'])
@@ -1319,6 +1322,16 @@ if not df.empty:
                     c_buy = base_buy & fib_buy_mask
                     c_sell = base_sell & fib_sell_mask
                     icon_str = "📉 FIB"
+                elif strat == "📈 Minervini Trend Template (VCP)":
+                    cond1 = (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['P'] > df_filtered['SMA200'])
+                    cond2 = df_filtered['SMA150'] > df_filtered['SMA200']
+                    cond3 = df_filtered['SMA200'] > df_filtered['SMA200_20D']
+                    cond4 = df_filtered['P'] > df_filtered['SMA50']
+                    cond5 = df_filtered['P'] >= (df_filtered['Low52W'] * 1.30)
+                    cond6 = df_filtered['P'] >= (df_filtered['High52W'] * 0.75)
+                    c_buy = base_buy & cond1 & cond2 & cond3 & cond4 & cond5 & cond6
+                    c_sell = pd.Series(False, index=df_filtered.index)
+                    icon_str = "📈 M-VCP"
 
                 if apply_fib_strict and strat != "📉 FIB Retracement (0.382)":
                     c_buy = c_buy & fib_buy_mask
@@ -1348,7 +1361,7 @@ if not df.empty:
                     (df_filtered['P'] > df_filtered['O']) &            
                     (top_body <= (total_range * 0.25)) &             
                     (df_filtered['VolX'] >= 1.5) &                    
-                    (df_filtered['Day_C'] >= 2.0) &                   
+                    (df_filtered['Day_C'] >= 2.0) &                    
                     (df_filtered['Is_Swing'] == True)                 
                 )
                 df_filtered = df_filtered[breakout_cond]
