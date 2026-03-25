@@ -44,7 +44,6 @@ def init_connection():
     creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
     client = gspread.authorize(creds)
     
-    # గూగుల్ షీట్ ని ప్రతి 5 సెకన్లకు అడగకుండా, కనెక్షన్ టైమ్ లోనే షీట్స్ ని కూడా మెమరీలో స్టోర్ చేస్తున్నాం
     db_sheet = client.open("Trading_DB")
     p_ws = db_sheet.worksheet("Portfolio")
     t_ws = db_sheet.worksheet("TradeBook")
@@ -188,9 +187,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 5. DATA SETUP & SECTOR MAPPING ---
-# 👈 ఇక్కడే DOW, DAX మరియు DXY లను యాడ్ చేశాను
-INDICES_MAP = {"^NSEI": "NIFTY", "^NSEBANK": "BANKNIFTY", "^INDIAVIX": "INDIA VIX", "^DJI": "DOW", "^IXIC": "NSDQ", "^GDAXI": "DAX", "DX-Y.NYB": "DXY"}
-TV_INDICES_URL = {"^NSEI": "NSE:NIFTY", "^NSEBANK": "NSE:BANKNIFTY", "^INDIAVIX": "NSE:INDIAVIX", "^DJI": "CAPITALCOM:DOWJONES", "^IXIC": "NASDAQ:IXIC", "^GDAXI": "XETR:DAX", "DX-Y.NYB": "TVC:DXY"}
+# 👈 ఇక్కడే DAX మరియు DXY (DX=F) లను యాడ్ చేశాను
+INDICES_MAP = {"^NSEI": "NIFTY", "^NSEBANK": "BANKNIFTY", "^INDIAVIX": "INDIA VIX", "^DJI": "DOW", "^IXIC": "NSDQ", "^GDAXI": "DAX", "DX=F": "DXY"}
+TV_INDICES_URL = {"^NSEI": "NSE:NIFTY", "^NSEBANK": "NSE:BANKNIFTY", "^INDIAVIX": "NSE:INDIAVIX", "^DJI": "CAPITALCOM:DOWJONES", "^IXIC": "NASDAQ:IXIC", "^GDAXI": "XETR:DAX", "DX=F": "TVC:DXY"}
 
 SECTOR_INDICES_MAP = {
     "^CNXIT": "NIFTY IT", "^CNXAUTO": "NIFTY AUTO", "^CNXMETAL": "NIFTY METAL",
@@ -325,7 +324,7 @@ def fetch_cached_5m_data(tkrs_list):
     dhan_tasks, yf_tkrs, results_dict = {}, [], {}
     for tkr in tkrs_list:
         clean_sym = tkr.replace(".NS", "")
-        if clean_sym in sec_map and not any(idx in tkr for idx in ["^", "=F", "DX-Y"]):
+        if clean_sym in sec_map and not any(idx in tkr for idx in ["^", "=F"]):
             dhan_tasks[tkr] = (clean_sym, sec_map[clean_sym])
         else:
             yf_tkrs.append(tkr)
@@ -790,6 +789,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
     sign = "+" if pct_val > 0 else ""
     tv_link = f"https://tv.dhan.co/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
     
+    # 👈 ఇక్కడ పిన్ ఆప్షన్ నుండి DXY మరియు DAX ని హైడ్ చేశాను
     if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX", "DOW", "NSDQ", "DAX", "DXY"] and not row.get('Is_Commodity'):
         cb_key = f"cb_{fetch_sym}_{key_suffix}" if key_suffix else f"cb_{fetch_sym}"
         st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=cb_key, on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
@@ -1025,7 +1025,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
 
 if not df.empty:
     df_indices = df[df['Is_Index']].copy()
-    # 👈 ఇక్కడ DAX ని మరియు DXY ని యాడ్ చేశాను
+    # 👈 ఇక్కడ DAX మరియు DXY ఆర్డర్ సెట్ చేశాను
     df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3, "DOW": 4, "NSDQ": 5, "DAX": 6, "DXY": 7})
     df_indices = df_indices.sort_values('Order')
     
