@@ -953,7 +953,12 @@ if not df.empty:
 # =========================================================
 # --- 7. UI SETTINGS ---
 # =========================================================
-
+# 👈 ఇక్కడే Dhan API స్టేటస్ ఇండికేటర్ యాడ్ చేస్తున్నాం
+if dhan is not None:
+    api_status_html = "<div style='text-align: right; font-size: 12px; margin-bottom: -15px; position: relative; z-index: 100;'><span style='background-color: #1e5f29; padding: 3px 8px; border-radius: 4px; color: white;'>🟢 Dhan API: LIVE (Real-time)</span></div>"
+else:
+    api_status_html = "<div style='text-align: right; font-size: 12px; margin-bottom: -15px; position: relative; z-index: 100;'><span style='background-color: #b52524; padding: 3px 8px; border-radius: 4px; color: white;'>🔴 Dhan API: EXPIRED (YFinance Delayed)</span></div>"
+st.markdown(api_status_html, unsafe_allow_html=True)
 watchlist_mode = st.selectbox("Watchlist", ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions", "High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢"], index=0, label_visibility="collapsed")
 view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
 
