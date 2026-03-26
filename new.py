@@ -56,7 +56,6 @@ except Exception as e:
     st.stop()
 
 # --- 3. DATA LOAD & SAVE FUNCTIONS ---
-
 @st.cache_data(ttl=300, show_spinner=False)
 def load_portfolio():
     try:
@@ -187,18 +186,18 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 5. DATA SETUP & SECTOR MAPPING ---
-# 👈 ఇక్కడే DAX మరియు DXY (DX=F) లను యాడ్ చేశాను
-INDICES_MAP = {"^NSEI": "NIFTY", "^NSEBANK": "BANKNIFTY", "^INDIAVIX": "INDIA VIX", "^GSPC": "SPX", "^GDAXI": "DAX", "DX-Y.NYB": "DXY"}
-TV_INDICES_URL = {"^NSEI": "NSE:NIFTY", "^NSEBANK": "NSE:BANKNIFTY", "^INDIAVIX": "NSE:INDIAVIX", "^GSPC": "SP:SPX", "^GDAXI": "XETR:DAX", "DX-Y.NYB": "TVC:DXY"}
+INDICES_MAP = {"^NSEI": "NIFTY", "^NSEBANK": "BANKNIFTY", "^INDIAVIX": "INDIA VIX", "^DJI": "DOW", "^IXIC": "NSDQ", "^GDAXI": "DAX"}
+TV_INDICES_URL = {"^NSEI": "NSE:NIFTY", "^NSEBANK": "NSE:BANKNIFTY", "^INDIAVIX": "NSE:INDIAVIX", "^DJI": "CAPITALCOM:DOWJONES", "^IXIC": "NASDAQ:IXIC", "^GDAXI": "XETR:DAX"}
+
 SECTOR_INDICES_MAP = {
     "^CNXIT": "NIFTY IT", "^CNXAUTO": "NIFTY AUTO", "^CNXMETAL": "NIFTY METAL",
     "^CNXPHARMA": "NIFTY PHARMA", "^CNXFMCG": "NIFTY FMCG", "^CNXENERGY": "NIFTY ENERGY", "^CNXREALTY": "NIFTY REALTY"
 }
+
 TV_SECTOR_URL = {
     "^CNXIT": "NSE:CNXIT", "^CNXAUTO": "NSE:CNXAUTO", "^CNXMETAL": "NSE:CNXMETAL",
     "^CNXPHARMA": "NSE:CNXPHARMA", "^CNXFMCG": "NSE:CNXFMCG", "^CNXENERGY": "NSE:CNXENERGY", "^CNXREALTY": "NSE:CNXREALTY"
 }
-        
 
 COMMODITY_MAP = { "GC=F": "GOLD", "SI=F": "SILVER", "CL=F": "CRUDE OIL", "NG=F": "NATURAL GAS", "HG=F": "COPPER" }
 
@@ -356,7 +355,7 @@ def fetch_cached_5m_data(tkrs_list):
                         results_dict[tkr] = df
     return pd.concat(results_dict.values(), axis=1, keys=results_dict.keys()) if results_dict else pd.DataFrame()
 
-# --- DAILY DATA FETCH (Fast YFinance method for Intraday Scanners) ---
+# --- DAILY DATA FETCH ---
 @st.cache_data(ttl=150, show_spinner=False)
 def fetch_all_data():
     port_df = load_portfolio()
@@ -424,7 +423,7 @@ def fetch_all_data():
 
             ema50_d = float(df['Close'].ewm(span=50, adjust=False).mean().iloc[-1]) if len(df) >= 50 else 0.0
             
-            # --- MINERVINI METRICS ---
+            # MINERVINI METRICS
             sma50_d = float(df['Close'].rolling(window=50).mean().iloc[-1]) if len(df) >= 50 else 0.0
             sma150_d = float(df['Close'].rolling(window=150).mean().iloc[-1]) if len(df) >= 150 else 0.0
             sma200_d = float(df['Close'].rolling(window=200).mean().iloc[-1]) if len(df) >= 200 else 0.0
@@ -578,7 +577,7 @@ def render_html_table(df_subset, title, color_class):
         day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
         net_color = "text-green" if row['C'] >= 0 else "text-red"
         status = generate_status(row)
-        html += f'<tr class="{bg_class}"><td class="t-symbol {net_color}"><a href="https://in.tradingview.com/chart/?symbol={row["T"]}" target="_blank">{row["T"]}</a></td><td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td class="{net_color}">{row["C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
+        html += f'<tr class="{bg_class}"><td class="t-symbol {net_color}"><a href="https://tv.dhan.co/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td><td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td class="{net_color}">{row["C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
     html += "</tbody></table>"
     return html
 
@@ -644,7 +643,7 @@ def render_portfolio_table(df_port, df_stocks, weekly_trends, port_sort="Default
         dpnl_color = "text-green" if rd['day_pnl'] >= 0 else "text-red"
         t_sign = "+" if rd['overall_pnl'] > 0 else ""
         d_sign = "+" if rd['day_pnl'] > 0 else ""
-        html += f'<tr class="{bg_class}"><td class="t-symbol {tpnl_color}"><a href="https://in.tradingview.com/chart/?symbol={rd["sym"]}" target="_blank">{rd["sym"]}</a></td><td>{rd["date"]}</td><td>{int(rd["qty"])}</td><td>{rd["buy_p"]:.2f}</td><td>{rd["ltp"]:.2f}</td><td style="font-size:10px;">{rd["trend_html"]}</td><td>{rd["invested"]:,.0f}</td><td class="{dpnl_color}">{d_sign}{rd["day_pnl"]:,.0f}</td><td class="{tpnl_color}">{t_sign}{rd["overall_pnl"]:,.0f}</td><td class="{tpnl_color}">{t_sign}{rd["pnl_pct"]:.2f}%</td></tr>'
+        html += f'<tr class="{bg_class}"><td class="t-symbol {tpnl_color}"><a href="https://tv.dhan.co/?symbol=NSE:{rd["sym"]}" target="_blank">{rd["sym"]}</a></td><td>{rd["date"]}</td><td>{int(rd["qty"])}</td><td>{rd["buy_p"]:.2f}</td><td>{rd["ltp"]:.2f}</td><td style="font-size:10px;">{rd["trend_html"]}</td><td>{rd["invested"]:,.0f}</td><td class="{dpnl_color}">{d_sign}{rd["day_pnl"]:,.0f}</td><td class="{tpnl_color}">{t_sign}{rd["overall_pnl"]:,.0f}</td><td class="{tpnl_color}">{t_sign}{rd["pnl_pct"]:.2f}%</td></tr>'
     
     overall_total_pnl = total_current - total_invested
     overall_total_pct = (overall_total_pnl / total_invested * 100) if total_invested > 0 else 0
@@ -689,7 +688,7 @@ def render_portfolio_swing_advice_table(df_port, df_stocks, weekly_trends):
         if trend_state == 'Bullish': trend_html = "🟢 Bull"
         elif trend_state == 'Bearish': trend_html = "🔴 Bear"
         else: trend_html = "⚪ Neut"
-        row_str = f'<tr class="{bg_class}"><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol={sym}" target="_blank">{sym}</a></td>'
+        row_str = f'<tr class="{bg_class}"><td class="t-symbol"><a href="https://tv.dhan.co/?symbol=NSE:{sym}" target="_blank">{sym}</a></td>'
         row_str += f'<td>{buy_p:.2f}</td><td>{ltp:.2f}</td><td class="{pnl_color}">{t_sign}{pnl_pct:.2f}%</td><td style="font-size:10px;">{trend_html}</td>'
         row_str += f'<td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td><td style="{adv_color}">{advice}</td></tr>'
         html += row_str
@@ -720,7 +719,7 @@ def render_swing_terminal_table(df_subset):
         t1_val = row.get('T1', row["P"] - (1.5 * atr_val) if is_down else row["P"] + (1.5 * atr_val))
         t2_val = row.get('T2', row["P"] - (3.0 * atr_val) if is_down else row["P"] + (3.0 * atr_val))
         rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
-        row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol={row["T"]}" target="_blank">{row["T"]}</a></td>'
+        row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://tv.dhan.co/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td>'
         row_str += f'<td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px; cursor:help;" title="{custom_status}">{custom_status}</td>'
         row_str += f'<td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td>'
         row_str += f'<td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
@@ -747,7 +746,7 @@ def render_highscore_terminal_table(df_subset):
         t1_val = row.get('T1', row["P"] - (1.5 * atr_val) if is_down else row["P"] + (1.5 * atr_val))
         t2_val = row.get('T2', row["P"] - (3.0 * atr_val) if is_down else row["P"] + (3.0 * atr_val))
         rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
-        row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol={row["T"]}" target="_blank">{row["T"]}</a></td>'
+        row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://tv.dhan.co/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td>'
         sec_name = row.get("Sector", "OTHER")
         sec_pts = int(row.get("Sector_Bonus", 0))
         if sec_pts > 0: sec_display = f"{sec_name}<br><span style='color:#00BFFF;'>({sec_pts} Pts)</span>"
@@ -777,7 +776,7 @@ def render_levels_table(df_subset):
         t1_val = row.get('T1', row["P"] - (1.5 * atr_val) if is_down else row["P"] + (1.5 * atr_val))
         t2_val = row.get('T2', row["P"] - (3.0 * atr_val) if is_down else row["P"] + (3.0 * atr_val))
         rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
-        row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol={row["T"]}" target="_blank">{row["T"]}</a></td>'
+        row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://tv.dhan.co/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td>'
         row_str += f'<td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px; cursor:help;" title="{custom_status}">{custom_status}</td>'
         row_str += f'<td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td>'
         row_str += f'<td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
@@ -785,20 +784,19 @@ def render_levels_table(df_subset):
     html += "</tbody></table>"
     return html
 
-def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", show_crosshair=False, show_vol=False):
+def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intraday (5m)", show_crosshair=False, show_vol=False):
     display_sym = row['T']
     fetch_sym = row['Fetch_T']
     pct_val = float(row.get('W_C', row['Day_C'])) if timeframe == "Weekly Chart" else float(row['Day_C'])
     color_hex = "#da3633" if pct_val < 0 else "#2ea043"
     sign = "+" if pct_val > 0 else ""
-    tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, display_sym)}"
+    tv_link = f"https://tv.dhan.co/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
     
-    # 👈 ఇక్కడ పిన్ ఆప్షన్ నుండి DXY మరియు DAX ని హైడ్ చేశాను
-    if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX", "SPX", "DAX", "DXY"] and not row.get('Is_Commodity'):
+    if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX", "DOW", "NSDQ", "DAX"] and not row.get('Is_Commodity'):
         cb_key = f"cb_{fetch_sym}_{key_suffix}" if key_suffix else f"cb_{fetch_sym}"
         st.checkbox("pin", value=(fetch_sym in st.session_state.pinned_stocks), key=cb_key, on_change=toggle_pin, args=(fetch_sym,), label_visibility="collapsed")
     
-    title_html = f"<a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; line-height:1.2;'><b>{display_sym}</b><br><span style='font-size:12px; color:#cccccc;'>{row['P']:.2f} &nbsp;<span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span></span></a>"
+    title_html = f"<a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; line-height:1.2;'><b>{display_sym}</b><br><span style='font-size:12px; color:#cccccc;'>₹{row['P']:.2f} &nbsp;<span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span></span></a>"
     try:
         if not df_chart.empty:
             min_val = df_chart['Low'].min()
@@ -810,10 +808,10 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                 
             hover_data = (
                 "🕒 " + chart_times.strftime('%d-%b %I:%M %p') + 
-                "<br>🟢 O: " + df_chart['Open'].round(2).astype(str) + 
-                "<br>📈 H: " + df_chart['High'].round(2).astype(str) + 
-                "<br>📉 L: " + df_chart['Low'].round(2).astype(str) + 
-                "<br>🔴 C: " + df_chart['Close'].round(2).astype(str)
+                "<br>🟢 O: ₹" + df_chart['Open'].round(2).astype(str) + 
+                "<br>📈 H: ₹" + df_chart['High'].round(2).astype(str) + 
+                "<br>📉 L: ₹" + df_chart['Low'].round(2).astype(str) + 
+                "<br>🔴 C: ₹" + df_chart['Close'].round(2).astype(str)
             )
             
             if show_vol:
@@ -821,10 +819,13 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                 fig.add_trace(go.Candlestick(x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, hoverinfo='skip', name=""), row=1, col=1)
                 fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['High'], mode='lines', line=dict(color='rgba(0,0,0,0)'), showlegend=False, hoverinfo='text' if show_crosshair else 'skip', text=hover_data, hovertemplate="%{text}<extra></extra>" if show_crosshair else None, name=""), row=1, col=1)
                 
-               # 👈 (Volume unna chart ki, leni chart ki... rendu chotla ila marchandi)
-                if timeframe in ["Weekly Chart", "Daily Chart"]:
-                    if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), showlegend=False, hoverinfo='skip'), row=1, col=1)
-                    if 'EMA_50' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_50'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'), row=1, col=1)
+                if timeframe == "Daily Chart":
+                    if 'SMA_50' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_50'], mode='lines', line=dict(color='#FFD700', width=1.5), name='50 SMA', showlegend=False, hoverinfo='skip'), row=1, col=1)
+                    if 'SMA_150' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_150'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), name='150 SMA', showlegend=False, hoverinfo='skip'), row=1, col=1)
+                    if 'SMA_200' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_200'], mode='lines', line=dict(color='#FF4500', width=2), name='200 SMA', showlegend=False, hoverinfo='skip'), row=1, col=1)
+                elif timeframe == "Weekly Chart":
+                    if 'SMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), name='10 Wk SMA', showlegend=False, hoverinfo='skip'), row=1, col=1)
+                    if 'SMA_40' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_40'], mode='lines', line=dict(color='#FF4500', width=2), name='40 Wk SMA', showlegend=False, hoverinfo='skip'), row=1, col=1)
                 else:
                     if 'VWAP' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='skip'), row=1, col=1)
                     if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'), row=1, col=1)
@@ -857,9 +858,13 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                 fig.add_trace(go.Candlestick(x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, hoverinfo='skip', name=""))
                 fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['High'], mode='lines', line=dict(color='rgba(0,0,0,0)'), showlegend=False, hoverinfo='text' if show_crosshair else 'skip', text=hover_data, hovertemplate="%{text}<extra></extra>" if show_crosshair else None, name=""))
                 
-                if timeframe == "Weekly Chart":
-                    if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), hoverinfo='skip'))
-                    if 'EMA_50' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_50'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), hoverinfo='skip'))
+                if timeframe == "Daily Chart":
+                    if 'SMA_50' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_50'], mode='lines', line=dict(color='#FFD700', width=1.5), name='50 SMA', showlegend=False, hoverinfo='skip'))
+                    if 'SMA_150' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_150'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), name='150 SMA', showlegend=False, hoverinfo='skip'))
+                    if 'SMA_200' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_200'], mode='lines', line=dict(color='#FF4500', width=2), name='200 SMA', showlegend=False, hoverinfo='skip'))
+                elif timeframe == "Weekly Chart":
+                    if 'SMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), name='10 Wk SMA', showlegend=False, hoverinfo='skip'))
+                    if 'SMA_40' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_40'], mode='lines', line=dict(color='#FF4500', width=2), name='40 Wk SMA', showlegend=False, hoverinfo='skip'))
                 else:
                     if 'VWAP' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), hoverinfo='skip'))
                     if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), hoverinfo='skip'))
@@ -886,7 +891,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
     except Exception as e: 
         st.markdown(f"<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart error</div>", unsafe_allow_html=True)
 
-def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Day", chart_dict=None, show_crosshair=False, show_vol=False, is_sector=False):
+def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Intraday (5m)", chart_dict=None, show_crosshair=False, show_vol=False, is_sector=False):
     if df_grid.empty: return
     if chart_dict is None: chart_dict = {}
     with st.container():
@@ -950,23 +955,17 @@ all_names = []
 if not df.empty:
     all_names = sorted(df[(~df['Is_Sector']) & (~df['Is_Index']) & (~df['Is_Commodity'])]['T'].unique().tolist())
 
-
 # =========================================================
 # --- 7. UI SETTINGS ---
 # =========================================================
-# 👈 Dhan API స్టేటస్ ఇండికేటర్ (టాప్ రైట్ కార్నర్ లో ఫిక్స్డ్ గా ఉంటుంది)
-if dhan is not None:
-    api_status_html = "<div style='position: fixed; top: 65px; right: 25px; z-index: 99999; font-size: 11px; font-weight: bold;'><span style='background-color: #1e5f29; padding: 4px 10px; border-radius: 5px; color: #ffffff; border: 1px solid #3fb950; box-shadow: 0px 2px 5px rgba(0,0,0,0.4);'>🟢 Dhan API: LIVE (Real-time)</span></div>"
-else:
-    api_status_html = "<div style='position: fixed; top: 65px; right: 25px; z-index: 99999; font-size: 11px; font-weight: bold;'><span style='background-color: #b52524; padding: 4px 10px; border-radius: 5px; color: #ffffff; border: 1px solid #f85149; box-shadow: 0px 2px 5px rgba(0,0,0,0.4);'>🔴 API EXPIRED (YFinance Delayed)</span></div>"
-st.markdown(api_status_html, unsafe_allow_html=True)
+
 watchlist_mode = st.selectbox("Watchlist", ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions", "High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢"], index=0, label_visibility="collapsed")
 view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
 
 move_type_filter = ["🌊 One Sided Only", "🎯 Reversals Only", "🏹 Rubber Band Stretch"] 
 fund_filter = "Top Ranked Stocks ⭐"
 sort_mode = "Custom Sort"
-chart_timeframe = "Day Chart"
+chart_timeframe = "Intraday (5m)"
 show_crosshair = False
 show_vol = False
 search_stock = "-- None --"
@@ -997,7 +996,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
         cc1, cc2, cc3 = st.columns(3)
         with cc1:
             if watchlist_mode in ["Swing Trading 📈", "My Portfolio 💼", "Commodity 🛢️"]:
-                chart_timeframe = st.radio("Timeframe", ["Intraday (5m)", "Daily Chart", "Weekly Chart"], horizontal=True) # 👈 Intraday mariyu Daily add chesam
+                chart_timeframe = st.radio("Timeframe", ["Intraday (5m)", "Daily Chart", "Weekly Chart"], horizontal=True)
         with cc2: show_crosshair = st.toggle("⌖ Show Crosshair", value=False)
         with cc3: show_vol = st.toggle("📊 Show Vol Bars", value=False)
 
@@ -1019,7 +1018,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
         if st.session_state.custom_alerts:
             for s_key, a_data in list(st.session_state.custom_alerts.items()):
                 col_a, col_b, col_c = st.columns([4, 1, 1])
-                col_a.write(f"**{a_data['name']}** - Alert if {a_data['type']} **{a_data['price']}**")
+                col_a.write(f"**{a_data['name']}** - Alert if {a_data['type']} **₹{a_data['price']}**")
                 with col_b:
                     if st.button("Toggle", key=f"tog_{s_key}"):
                         st.session_state.custom_alerts[s_key]['enabled'] = not st.session_state.custom_alerts[s_key]['enabled']
@@ -1035,8 +1034,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
 
 if not df.empty:
     df_indices = df[df['Is_Index']].copy()
-    # 👈 ఇక్కడ DAX మరియు DXY ఆర్డర్ సెట్ చేశాను
-    df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3, "SPX": 4, "DAX": 5, "DXY": 6})
+    df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3, "DOW": 4, "NSDQ": 5, "DAX": 6})
     df_indices = df_indices.sort_values('Order')
     
     df_sectors = df[df['Is_Sector']].copy()
@@ -1124,7 +1122,7 @@ if not df.empty:
     alpha_tags = {}
     trend_scores = {}
     retest_tags = {}
-    orb_tags = {}
+    orb_tags = {} 
 
     nifty_dist_5m = 0.1
     if "^NSEI" in five_min_data.columns.levels[0]:
@@ -1196,7 +1194,6 @@ if not df.empty:
             trend_scores[sym] = trend_bonus + trap_bonus
             
             retest_tag = ""
-            orb_tag = ""
             if watchlist_mode in ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions"] and len(df_day) >= 4:
                 c1 = df_day.iloc[-1] 
                 c2 = df_day.iloc[-2] 
@@ -1208,7 +1205,9 @@ if not df.empty:
                     if (c2['High'] >= c2['EMA_10'] * 0.998) and (c2['Close'] <= c2['EMA_10']):
                         min_allowed_price = c1['EMA_10'] * 0.997
                         if c1['Close'] < c1['Open'] and (min_allowed_price <= c1['Close'] <= c1['EMA_10']): retest_tag = "SELL_RETEST"
-            
+            retest_tags[sym] = retest_tag
+
+            orb_tag = ""
             if watchlist_mode in ["Day Trading Stocks 🚀", "High Score Stocks 🔥", "🤖 Today's AI Predictions"] and len(df_day) >= 3:
                 orb_high = df_day['High'].iloc[0:3].max()
                 orb_low = df_day['Low'].iloc[0:3].min()
@@ -1216,8 +1215,6 @@ if not df.empty:
                     orb_tag = "ORB_BUY"
                 elif last_price < orb_low and last_price < last_vwap:
                     orb_tag = "ORB_SELL"
-            
-            retest_tags[sym] = retest_tag
             orb_tags[sym] = orb_tag
 
     alerts_triggered_html = ""
@@ -1227,11 +1224,11 @@ if not df.empty:
             if not live_r.empty:
                 current_ltp = float(live_r['P'].iloc[0])
                 if "Above" in a_data['type'] and current_ltp >= a_data['price']:
-                    st.toast(f"🔔 ALERT: {a_data['name']} is ABOVE {a_data['price']}! (LTP: {current_ltp})", icon="🚀")
-                    alerts_triggered_html += f"<div style='background-color:#1e5f29; color:white; padding:10px; border-radius:5px; margin-bottom:5px;'><b>🔔 ALERT:</b> {a_data['name']} crossed ABOVE {a_data['price']}! (LTP: {current_ltp})</div>"
+                    st.toast(f"🔔 ALERT: {a_data['name']} is ABOVE ₹{a_data['price']}! (LTP: {current_ltp})", icon="🚀")
+                    alerts_triggered_html += f"<div style='background-color:#1e5f29; color:white; padding:10px; border-radius:5px; margin-bottom:5px;'><b>🔔 ALERT:</b> {a_data['name']} crossed ABOVE ₹{a_data['price']}! (LTP: {current_ltp})</div>"
                 elif "Below" in a_data['type'] and current_ltp <= a_data['price']:
-                    st.toast(f"🔔 ALERT: {a_data['name']} is BELOW {a_data['price']}! (LTP: {current_ltp})", icon="🩸")
-                    alerts_triggered_html += f"<div style='background-color:#b52524; color:white; padding:10px; border-radius:5px; margin-bottom:5px;'><b>🔔 ALERT:</b> {a_data['name']} crossed BELOW {a_data['price']}! (LTP: {current_ltp})</div>"
+                    st.toast(f"🔔 ALERT: {a_data['name']} is BELOW ₹{a_data['price']}! (LTP: {current_ltp})", icon="🩸")
+                    alerts_triggered_html += f"<div style='background-color:#b52524; color:white; padding:10px; border-radius:5px; margin-bottom:5px;'><b>🔔 ALERT:</b> {a_data['name']} crossed BELOW ₹{a_data['price']}! (LTP: {current_ltp})</div>"
 
     if alerts_triggered_html: st.markdown(alerts_triggered_html, unsafe_allow_html=True)
 
@@ -1239,7 +1236,7 @@ if not df.empty:
         df_filtered['AlphaTag'] = df_filtered['Fetch_T'].map(alpha_tags).fillna("")
         df_filtered['Trend_Score'] = df_filtered['Fetch_T'].map(trend_scores).fillna(0)
         df_filtered['Retest_Tag'] = df_filtered['Fetch_T'].map(retest_tags).fillna("") 
-        df_filtered['ORB_Tag'] = df_filtered['Fetch_T'].map(orb_tags).fillna("")
+        df_filtered['ORB_Tag'] = df_filtered['Fetch_T'].map(orb_tags).fillna("") 
         df_filtered['S'] = df_filtered['S'] + df_filtered['Trend_Score']
         
         if watchlist_mode in ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions"]:
@@ -1347,7 +1344,7 @@ if not df.empty:
                     cond2 = df_filtered['SMA150'] > df_filtered['SMA200']
                     cond3 = df_filtered['SMA200'] > df_filtered['SMA200_20D']
                     cond4 = df_filtered['P'] > df_filtered['SMA50']
-                    cond7 = df_filtered['SMA50'] > df_filtered['SMA150']
+                    cond7 = df_filtered['SMA50'] > df_filtered['SMA150'] 
                     cond5 = df_filtered['P'] >= (df_filtered['Low52W'] * 1.30)
                     cond6 = df_filtered['P'] >= (df_filtered['High52W'] * 0.75)
                     c_buy = base_buy & cond1 & cond2 & cond3 & cond4 & cond7 & cond5 & cond6
@@ -1581,7 +1578,7 @@ if not df.empty:
                 pct_val = float(row.get('W_C', row['Day_C'])) if chart_timeframe == "Weekly Chart" else float(row['Day_C'])
                 bg = "bear-card" if (row['T'] == "INDIA VIX" and pct_val > 0) else ("bull-card" if pct_val > 0 else "neut-card")
                 if row['T'] != "INDIA VIX" and pct_val < 0: bg = "bear-card"
-                html_idx += f'<a href="https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(row["Fetch_T"])}" target="_blank" class="stock-card {bg}"><div class="t-score">IDX</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if pct_val>0 else ""}{pct_val:.2f}%</div></a>'
+                html_idx += f'<a href="https://tv.dhan.co/?symbol={TV_INDICES_URL.get(row["Fetch_T"])}" target="_blank" class="stock-card {bg}"><div class="t-score">IDX</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if pct_val>0 else ""}{pct_val:.2f}%</div></a>'
             st.markdown(html_idx + '</div><hr class="custom-hr">', unsafe_allow_html=True)
         
         if not df_sectors.empty and watchlist_mode != "Commodity 🛢️":
@@ -1590,7 +1587,7 @@ if not df.empty:
             for _, row in df_sectors.iterrows():
                 pct_val = float(row.get('W_C', row['Day_C'])) if chart_timeframe == "Weekly Chart" else float(row['Day_C'])
                 bg = "bull-card" if pct_val > 0 else ("bear-card" if pct_val < 0 else "neut-card")
-                html_sec += f'<a href="https://in.tradingview.com/chart/?symbol={TV_SECTOR_URL.get(row["Fetch_T"], "")}" target="_blank" class="stock-card {bg}"><div class="t-score" style="color:#00BFFF;">SEC</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if pct_val>0 else ""}{pct_val:.2f}%</div></a>'
+                html_sec += f'<a href="https://tv.dhan.co/?symbol={TV_SECTOR_URL.get(row["Fetch_T"], "")}" target="_blank" class="stock-card {bg}"><div class="t-score" style="color:#00BFFF;">SEC</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if pct_val>0 else ""}{pct_val:.2f}%</div></a>'
             st.markdown(html_sec + '</div><hr class="custom-hr">', unsafe_allow_html=True)
 
         if not df_stocks_display.empty:
@@ -1624,7 +1621,7 @@ if not df.empty:
                         else: special_icon = "🚀"
                     elif watchlist_mode == "Commodity 🛢️": special_icon = "🛢️"
                         
-                    html_stk += f'<a href="https://in.tradingview.com/chart/?symbol={row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">{special_icon}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if pct_val>0 else ""}{pct_val:.2f}%</div></a>'
+                    html_stk += f'<a href="https://tv.dhan.co/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">{special_icon}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if pct_val>0 else ""}{pct_val:.2f}%</div></a>'
                 st.markdown(html_stk + '</div>', unsafe_allow_html=True)
                 
             if not df_buy.empty: render_heatmap_section(df_buy, f"🟢 POSITIVE / BUY ({watchlist_mode})", "#3fb950")
@@ -1663,8 +1660,8 @@ if not df.empty:
                                 df_w = wk_data[sym] if isinstance(wk_data.columns, pd.MultiIndex) else wk_data
                                 df_w = df_w.dropna(subset=['Close']).copy()
                                 if not df_w.empty:
-                                    df_w['EMA_10'] = df_w['Close'].ewm(span=10, adjust=False).mean()
-                                    df_w['EMA_50'] = df_w['Close'].ewm(span=50, adjust=False).mean()
+                                    df_w['SMA_10'] = df_w['Close'].rolling(window=10).mean()
+                                    df_w['SMA_40'] = df_w['Close'].rolling(window=40).mean()
                                     weekly_charts[sym] = df_w
                             except: pass
                             
@@ -1675,8 +1672,9 @@ if not df.empty:
                                 df_d = dy_data[sym] if isinstance(dy_data.columns, pd.MultiIndex) else dy_data
                                 df_d = df_d.dropna(subset=['Close']).copy()
                                 if not df_d.empty:
-                                    df_d['EMA_10'] = df_d['Close'].ewm(span=10, adjust=False).mean()
-                                    df_d['EMA_50'] = df_d['Close'].ewm(span=50, adjust=False).mean()
+                                    df_d['SMA_50'] = df_d['Close'].rolling(window=50).mean()
+                                    df_d['SMA_150'] = df_d['Close'].rolling(window=150).mean()
+                                    df_d['SMA_200'] = df_d['Close'].rolling(window=200).mean()
                                     daily_charts[sym] = df_d
                             except: pass
 
