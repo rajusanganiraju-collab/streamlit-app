@@ -821,7 +821,8 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
                 fig.add_trace(go.Candlestick(x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, hoverinfo='skip', name=""), row=1, col=1)
                 fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['High'], mode='lines', line=dict(color='rgba(0,0,0,0)'), showlegend=False, hoverinfo='text' if show_crosshair else 'skip', text=hover_data, hovertemplate="%{text}<extra></extra>" if show_crosshair else None, name=""), row=1, col=1)
                 
-                if timeframe == "Weekly Chart":
+               # 👈 (Volume unna chart ki, leni chart ki... rendu chotla ila marchandi)
+                if timeframe in ["Weekly Chart", "Daily Chart"]:
                     if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), showlegend=False, hoverinfo='skip'), row=1, col=1)
                     if 'EMA_50' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_50'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'), row=1, col=1)
                 else:
@@ -996,7 +997,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
         cc1, cc2, cc3 = st.columns(3)
         with cc1:
             if watchlist_mode in ["Swing Trading 📈", "My Portfolio 💼", "Commodity 🛢️"]:
-                chart_timeframe = st.radio("Timeframe", ["Day Chart", "Weekly Chart"], horizontal=True)
+                chart_timeframe = st.radio("Timeframe", ["Intraday (5m)", "Daily Chart", "Weekly Chart"], horizontal=True) # 👈 Intraday mariyu Daily add chesam
         with cc2: show_crosshair = st.toggle("⌖ Show Crosshair", value=False)
         with cc3: show_vol = st.toggle("📊 Show Vol Bars", value=False)
 
@@ -1641,7 +1642,9 @@ if not df.empty:
             
     else: 
         weekly_charts = {}
-        if chart_timeframe == "Weekly Chart":
+        daily_charts = {}
+        
+        if chart_timeframe in ["Weekly Chart", "Daily Chart"]:
             if True:
                 display_tkrs = []
                 if search_stock != "-- None --": display_tkrs.append(search_fetch_t)
@@ -1653,18 +1656,36 @@ if not df.empty:
                 display_tkrs = list(set(display_tkrs)) 
                 
                 if display_tkrs:
-                    wk_data = yf.download(display_tkrs, period="2y", interval="1wk", progress=False, group_by='ticker', threads=20)
-                    for sym in display_tkrs:
-                        try:
-                            df_w = wk_data[sym] if isinstance(wk_data.columns, pd.MultiIndex) else wk_data
-                            df_w = df_w.dropna(subset=['Close']).copy()
-                            if not df_w.empty:
-                                df_w['EMA_10'] = df_w['Close'].ewm(span=10, adjust=False).mean()
-                                df_w['EMA_50'] = df_w['Close'].ewm(span=50, adjust=False).mean()
-                                weekly_charts[sym] = df_w
-                        except: pass
+                    if chart_timeframe == "Weekly Chart":
+                        wk_data = yf.download(display_tkrs, period="2y", interval="1wk", progress=False, group_by='ticker', threads=20)
+                        for sym in display_tkrs:
+                            try:
+                                df_w = wk_data[sym] if isinstance(wk_data.columns, pd.MultiIndex) else wk_data
+                                df_w = df_w.dropna(subset=['Close']).copy()
+                                if not df_w.empty:
+                                    df_w['EMA_10'] = df_w['Close'].ewm(span=10, adjust=False).mean()
+                                    df_w['EMA_50'] = df_w['Close'].ewm(span=50, adjust=False).mean()
+                                    weekly_charts[sym] = df_w
+                            except: pass
+                            
+                    elif chart_timeframe == "Daily Chart":
+                        dy_data = yf.download(display_tkrs, period="1y", interval="1d", progress=False, group_by='ticker', threads=20)
+                        for sym in display_tkrs:
+                            try:
+                                df_d = dy_data[sym] if isinstance(dy_data.columns, pd.MultiIndex) else dy_data
+                                df_d = df_d.dropna(subset=['Close']).copy()
+                                if not df_d.empty:
+                                    df_d['EMA_10'] = df_d['Close'].ewm(span=10, adjust=False).mean()
+                                    df_d['EMA_50'] = df_d['Close'].ewm(span=50, adjust=False).mean()
+                                    daily_charts[sym] = df_d
+                            except: pass
 
-        chart_dict_to_use = weekly_charts if chart_timeframe == "Weekly Chart" else processed_charts
+        if chart_timeframe == "Weekly Chart":
+            chart_dict_to_use = weekly_charts
+        elif chart_timeframe == "Daily Chart":
+            chart_dict_to_use = daily_charts
+        else:
+            chart_dict_to_use = processed_charts
 
         if search_stock != "-- None --":
             render_chart_grid(pd.DataFrame([df[df['T'] == search_stock].iloc[0]]), show_pin_option=True, key_prefix="search", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
