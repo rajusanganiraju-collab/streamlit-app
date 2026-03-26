@@ -953,11 +953,11 @@ if not df.empty:
 # =========================================================
 # --- 7. UI SETTINGS ---
 # =========================================================
-# 👈 ఇక్కడే Dhan API స్టేటస్ ఇండికేటర్ యాడ్ చేస్తున్నాం
+# 👈 Dhan API స్టేటస్ ఇండికేటర్ (టాప్ రైట్ కార్నర్ లో ఫిక్స్డ్ గా ఉంటుంది)
 if dhan is not None:
-    api_status_html = "<div style='text-align: right; font-size: 12px; margin-bottom: -15px; position: relative; z-index: 100;'><span style='background-color: #1e5f29; padding: 3px 8px; border-radius: 4px; color: white;'>🟢 Dhan API: LIVE (Real-time)</span></div>"
+    api_status_html = "<div style='position: fixed; top: 65px; right: 25px; z-index: 99999; font-size: 11px; font-weight: bold;'><span style='background-color: #1e5f29; padding: 4px 10px; border-radius: 5px; color: #ffffff; border: 1px solid #3fb950; box-shadow: 0px 2px 5px rgba(0,0,0,0.4);'>🟢 Dhan API: LIVE (Real-time)</span></div>"
 else:
-    api_status_html = "<div style='text-align: right; font-size: 12px; margin-bottom: -15px; position: relative; z-index: 100;'><span style='background-color: #b52524; padding: 3px 8px; border-radius: 4px; color: white;'>🔴 Dhan API: EXPIRED (YFinance Delayed)</span></div>"
+    api_status_html = "<div style='position: fixed; top: 65px; right: 25px; z-index: 99999; font-size: 11px; font-weight: bold;'><span style='background-color: #b52524; padding: 4px 10px; border-radius: 5px; color: #ffffff; border: 1px solid #f85149; box-shadow: 0px 2px 5px rgba(0,0,0,0.4);'>🔴 API EXPIRED (YFinance Delayed)</span></div>"
 st.markdown(api_status_html, unsafe_allow_html=True)
 watchlist_mode = st.selectbox("Watchlist", ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions", "High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢"], index=0, label_visibility="collapsed")
 view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
