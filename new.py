@@ -578,7 +578,7 @@ def render_html_table(df_subset, title, color_class):
         day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
         net_color = "text-green" if row['C'] >= 0 else "text-red"
         status = generate_status(row)
-        html += f'<tr class="{bg_class}"><td class="t-symbol {net_color}"><a href="https://tv.dhan.co/?symbol={row["T"]}" target="_blank">{row["T"]}</a></td><td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td class="{net_color}">{row["C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
+        html += f'<tr class="{bg_class}"><td class="t-symbol {net_color}"><a href="https://in.tradingview.com/chart/?symbol={row["T"]}" target="_blank">{row["T"]}</a></td><td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td class="{net_color}">{row["C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
     html += "</tbody></table>"
     return html
 
@@ -644,7 +644,7 @@ def render_portfolio_table(df_port, df_stocks, weekly_trends, port_sort="Default
         dpnl_color = "text-green" if rd['day_pnl'] >= 0 else "text-red"
         t_sign = "+" if rd['overall_pnl'] > 0 else ""
         d_sign = "+" if rd['day_pnl'] > 0 else ""
-        html += f'<tr class="{bg_class}"><td class="t-symbol {tpnl_color}"><a href="https://tv.dhan.co/?symbol={rd["sym"]}" target="_blank">{rd["sym"]}</a></td><td>{rd["date"]}</td><td>{int(rd["qty"])}</td><td>{rd["buy_p"]:.2f}</td><td>{rd["ltp"]:.2f}</td><td style="font-size:10px;">{rd["trend_html"]}</td><td>{rd["invested"]:,.0f}</td><td class="{dpnl_color}">{d_sign}{rd["day_pnl"]:,.0f}</td><td class="{tpnl_color}">{t_sign}{rd["overall_pnl"]:,.0f}</td><td class="{tpnl_color}">{t_sign}{rd["pnl_pct"]:.2f}%</td></tr>'
+        html += f'<tr class="{bg_class}"><td class="t-symbol {tpnl_color}"><a href="https://in.tradingview.com/chart/?symbol={rd["sym"]}" target="_blank">{rd["sym"]}</a></td><td>{rd["date"]}</td><td>{int(rd["qty"])}</td><td>{rd["buy_p"]:.2f}</td><td>{rd["ltp"]:.2f}</td><td style="font-size:10px;">{rd["trend_html"]}</td><td>{rd["invested"]:,.0f}</td><td class="{dpnl_color}">{d_sign}{rd["day_pnl"]:,.0f}</td><td class="{tpnl_color}">{t_sign}{rd["overall_pnl"]:,.0f}</td><td class="{tpnl_color}">{t_sign}{rd["pnl_pct"]:.2f}%</td></tr>'
     
     overall_total_pnl = total_current - total_invested
     overall_total_pct = (overall_total_pnl / total_invested * 100) if total_invested > 0 else 0
@@ -689,7 +689,7 @@ def render_portfolio_swing_advice_table(df_port, df_stocks, weekly_trends):
         if trend_state == 'Bullish': trend_html = "🟢 Bull"
         elif trend_state == 'Bearish': trend_html = "🔴 Bear"
         else: trend_html = "⚪ Neut"
-        row_str = f'<tr class="{bg_class}"><td class="t-symbol"><a href="https://tv.dhan.co/?symbol={sym}" target="_blank">{sym}</a></td>'
+        row_str = f'<tr class="{bg_class}"><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol={sym}" target="_blank">{sym}</a></td>'
         row_str += f'<td>{buy_p:.2f}</td><td>{ltp:.2f}</td><td class="{pnl_color}">{t_sign}{pnl_pct:.2f}%</td><td style="font-size:10px;">{trend_html}</td>'
         row_str += f'<td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td><td style="{adv_color}">{advice}</td></tr>'
         html += row_str
@@ -720,7 +720,7 @@ def render_swing_terminal_table(df_subset):
         t1_val = row.get('T1', row["P"] - (1.5 * atr_val) if is_down else row["P"] + (1.5 * atr_val))
         t2_val = row.get('T2', row["P"] - (3.0 * atr_val) if is_down else row["P"] + (3.0 * atr_val))
         rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
-        row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://tv.dhan.co/?symbol={row["T"]}" target="_blank">{row["T"]}</a></td>'
+        row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol={row["T"]}" target="_blank">{row["T"]}</a></td>'
         row_str += f'<td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px; cursor:help;" title="{custom_status}">{custom_status}</td>'
         row_str += f'<td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td>'
         row_str += f'<td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
@@ -747,7 +747,7 @@ def render_highscore_terminal_table(df_subset):
         t1_val = row.get('T1', row["P"] - (1.5 * atr_val) if is_down else row["P"] + (1.5 * atr_val))
         t2_val = row.get('T2', row["P"] - (3.0 * atr_val) if is_down else row["P"] + (3.0 * atr_val))
         rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
-        row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://tv.dhan.co/?symbol={row["T"]}" target="_blank">{row["T"]}</a></td>'
+        row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol={row["T"]}" target="_blank">{row["T"]}</a></td>'
         sec_name = row.get("Sector", "OTHER")
         sec_pts = int(row.get("Sector_Bonus", 0))
         if sec_pts > 0: sec_display = f"{sec_name}<br><span style='color:#00BFFF;'>({sec_pts} Pts)</span>"
@@ -777,7 +777,7 @@ def render_levels_table(df_subset):
         t1_val = row.get('T1', row["P"] - (1.5 * atr_val) if is_down else row["P"] + (1.5 * atr_val))
         t2_val = row.get('T2', row["P"] - (3.0 * atr_val) if is_down else row["P"] + (3.0 * atr_val))
         rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
-        row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://tv.dhan.co/?symbol={row["T"]}" target="_blank">{row["T"]}</a></td>'
+        row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol={row["T"]}" target="_blank">{row["T"]}</a></td>'
         row_str += f'<td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px; cursor:help;" title="{custom_status}">{custom_status}</td>'
         row_str += f'<td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td>'
         row_str += f'<td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
@@ -791,7 +791,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Day", s
     pct_val = float(row.get('W_C', row['Day_C'])) if timeframe == "Weekly Chart" else float(row['Day_C'])
     color_hex = "#da3633" if pct_val < 0 else "#2ea043"
     sign = "+" if pct_val > 0 else ""
-    tv_link = f"https://tv.dhan.co/?symbol={TV_INDICES_URL.get(fetch_sym, display_sym)}"
+    tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, display_sym)}"
     
     # 👈 ఇక్కడ పిన్ ఆప్షన్ నుండి DXY మరియు DAX ని హైడ్ చేశాను
     if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX", "SPX", "DAX", "DXY"] and not row.get('Is_Commodity'):
@@ -1580,7 +1580,7 @@ if not df.empty:
                 pct_val = float(row.get('W_C', row['Day_C'])) if chart_timeframe == "Weekly Chart" else float(row['Day_C'])
                 bg = "bear-card" if (row['T'] == "INDIA VIX" and pct_val > 0) else ("bull-card" if pct_val > 0 else "neut-card")
                 if row['T'] != "INDIA VIX" and pct_val < 0: bg = "bear-card"
-                html_idx += f'<a href="https://tv.dhan.co/?symbol={TV_INDICES_URL.get(row["Fetch_T"])}" target="_blank" class="stock-card {bg}"><div class="t-score">IDX</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if pct_val>0 else ""}{pct_val:.2f}%</div></a>'
+                html_idx += f'<a href="https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(row["Fetch_T"])}" target="_blank" class="stock-card {bg}"><div class="t-score">IDX</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if pct_val>0 else ""}{pct_val:.2f}%</div></a>'
             st.markdown(html_idx + '</div><hr class="custom-hr">', unsafe_allow_html=True)
         
         if not df_sectors.empty and watchlist_mode != "Commodity 🛢️":
@@ -1589,7 +1589,7 @@ if not df.empty:
             for _, row in df_sectors.iterrows():
                 pct_val = float(row.get('W_C', row['Day_C'])) if chart_timeframe == "Weekly Chart" else float(row['Day_C'])
                 bg = "bull-card" if pct_val > 0 else ("bear-card" if pct_val < 0 else "neut-card")
-                html_sec += f'<a href="https://tv.dhan.co/?symbol={TV_SECTOR_URL.get(row["Fetch_T"], "")}" target="_blank" class="stock-card {bg}"><div class="t-score" style="color:#00BFFF;">SEC</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if pct_val>0 else ""}{pct_val:.2f}%</div></a>'
+                html_sec += f'<a href="https://in.tradingview.com/chart/?symbol={TV_SECTOR_URL.get(row["Fetch_T"], "")}" target="_blank" class="stock-card {bg}"><div class="t-score" style="color:#00BFFF;">SEC</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if pct_val>0 else ""}{pct_val:.2f}%</div></a>'
             st.markdown(html_sec + '</div><hr class="custom-hr">', unsafe_allow_html=True)
 
         if not df_stocks_display.empty:
@@ -1623,7 +1623,7 @@ if not df.empty:
                         else: special_icon = "🚀"
                     elif watchlist_mode == "Commodity 🛢️": special_icon = "🛢️"
                         
-                    html_stk += f'<a href="https://tv.dhan.co/?symbol={row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">{special_icon}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if pct_val>0 else ""}{pct_val:.2f}%</div></a>'
+                    html_stk += f'<a href="https://in.tradingview.com/chart/?symbol={row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">{special_icon}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if pct_val>0 else ""}{pct_val:.2f}%</div></a>'
                 st.markdown(html_stk + '</div>', unsafe_allow_html=True)
                 
             if not df_buy.empty: render_heatmap_section(df_buy, f"🟢 POSITIVE / BUY ({watchlist_mode})", "#3fb950")
