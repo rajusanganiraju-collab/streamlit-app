@@ -852,19 +852,80 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                     def am(col, mask): return np.where(mask, df_chart[col], np.nan)
                     
                     # 1. Normal Vol Candles (Standard Green/Red)
-                    fig_obj.add_trace(go.Candlestick(x=df_chart.index, open=am('Open', mask_norm), high=am('High', mask_norm), low=am('Low', mask_norm), close=am('Close', mask_norm), increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, hoverinfo='skip'), **rc)
-                    # 2. High Vol Candles (Bright Neon Green & Red)
-                    fig_obj.add_trace(go.Candlestick(x=df_chart.index, open=am('Open', mask_hv), high=am('High', mask_hv), low=am('Low', mask_hv), close=am('Close', mask_hv), increasing_line_color='#00FF00', decreasing_line_color='#FF0000', showlegend=False, hoverinfo='skip'), **rc)
-                    # 3. Low Vol Candles (Orange & Aqua)
-                    fig_obj.add_trace(go.Candlestick(x=df_chart.index, open=am('Open', mask_lv), high=am('High', mask_lv), low=am('Low', mask_lv), close=am('Close', mask_lv), increasing_line_color='#FF9800', decreasing_line_color='#7FFFD4', showlegend=False, hoverinfo='skip'), **rc)
+                    fig_obj.add_trace(go.Candlestick(
+                        x=df_chart.index, open=am('Open', mask_norm), high=am('High', mask_norm), low=am('Low', mask_norm), close=am('Close', mask_norm), 
+                        increasing_line_color='#2ea043', increasing_fillcolor='#2ea043', increasing_line_width=1,
+                        decreasing_line_color='#da3633', decreasing_fillcolor='#da3633', decreasing_line_width=1,
+                        showlegend=False, hoverinfo='skip'
+                    ), **rc)
                     
-                    # 🚦 Exhaustion Spike Indicator (కింద వస్తుంది)
+                    # 2. 🔥 High Vol Candles (Bright Neon, Thick Borders)
+                    fig_obj.add_trace(go.Candlestick(
+                        x=df_chart.index, open=am('Open', mask_hv), high=am('High', mask_hv), low=am('Low', mask_hv), close=am('Close', mask_hv), 
+                        increasing_line_color='#00FF00', increasing_fillcolor='#00FF00', increasing_line_width=2,
+                        decreasing_line_color='#FF0000', decreasing_fillcolor='#FF0000', decreasing_line_width=2,
+                        showlegend=False, hoverinfo='skip'
+                    ), **rc)
+                    
+                    # 3. Low Vol Candles (Orange & Aqua)
+                    fig_obj.add_trace(go.Candlestick(
+                        x=df_chart.index, open=am('Open', mask_lv), high=am('High', mask_lv), low=am('Low', mask_lv), close=am('Close', mask_lv), 
+                        increasing_line_color='#FF9800', increasing_fillcolor='#FF9800', increasing_line_width=1,
+                        decreasing_line_color='#7FFFD4', decreasing_fillcolor='#7FFFD4', decreasing_line_width=1,
+                        showlegend=False, hoverinfo='skip'
+                    ), **rc)
+
+                    # 🔥 High Volume Highlight Marker (Fire Emoji below candle)
+                    if mask_hv.any():
+                        df_hv = df_chart[mask_hv]
+                        fig_obj.add_trace(go.Scatter(
+                            x=df_hv.index, 
+                            y=df_hv['Low'] - (df_hv['Close']*0.0015), 
+                            mode='text', 
+                            text=['🔥']*len(df_hv), 
+                            textposition='bottom center', 
+                            textfont=dict(size=14), 
+                            showlegend=False, 
+                            hoverinfo='skip'
+                        ), **rc)
+                    
+                    # 🚦 Exhaustion Spike Indicator (Moved to top of candle)
                     mask_exhaust = vol > (vol_sma * 4.669)
                     if mask_exhaust.any():
                         df_ex = df_chart[mask_exhaust]
-                        fig_obj.add_trace(go.Scatter(x=df_ex.index, y=df_ex['Low'] - (df_ex['Close']*0.001), mode='text', text=['🚦']*len(df_ex), textposition='bottom center', textfont=dict(size=14), showlegend=False, hoverinfo='skip'), **rc)
+                        fig_obj.add_trace(go.Scatter(
+                            x=df_ex.index, 
+                            y=df_ex['High'] + (df_ex['Close']*0.0015), 
+                            mode='text', 
+                            text=['🚦']*len(df_ex), 
+                            textposition='top center', 
+                            textfont=dict(size=14), 
+                            showlegend=False, 
+                            hoverinfo='skip'
+                        ), **rc)
                 else:
-                    fig_obj.add_trace(go.Candlestick(x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, hoverinfo='skip'), **rc)
+                    fig_obj.add_trace(go.Candlestick(
+                        x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
+                        increasing_line_color='#2ea043', increasing_fillcolor='#2ea043', 
+                        decreasing_line_color='#da3633', decreasing_fillcolor='#da3633', 
+                        showlegend=False, hoverinfo='skip'
+                    ), **rc)
+                
+                # ⚡ High Volatility Indicator
+                if 'ATR_13' in df_chart.columns:
+                    mask_vola = (df_chart['High'] - df_chart['Low']) > (df_chart['ATR_13'] * 2.718)
+                    if mask_vola.any():
+                        df_vol = df_chart[mask_vola]
+                        fig_obj.add_trace(go.Scatter(
+                            x=df_vol.index, 
+                            y=df_vol['Low'] - (df_vol['Close']*0.0035), 
+                            mode='text', 
+                            text=['⚡']*len(df_vol), 
+                            textposition='bottom center', 
+                            textfont=dict(size=14), 
+                            showlegend=False, 
+                            hoverinfo='skip'
+                        ), **rc)
                 
                 # ⚡ High Volatility Indicator (ఇంకొంచెం కింద వస్తుంది)
                 if 'ATR_13' in df_chart.columns:
