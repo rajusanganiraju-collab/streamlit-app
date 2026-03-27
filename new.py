@@ -521,10 +521,25 @@ def process_5m_data(df_raw):
         df_s['EMA_10'] = df_s['Close'].ewm(span=10, adjust=False).mean()
         df_s['EMA_20'] = df_s['Close'].ewm(span=20, adjust=False).mean()
         df_s['EMA_50'] = df_s['Close'].ewm(span=50, adjust=False).mean()
+
+        # 🔥 Volume SMA & Volatility ATR లాజిక్ ఇక్కడ యాడ్ చేశాను
+        if 'Volume' in df_s.columns:
+            df_s['Vol_SMA_89'] = df_s['Volume'].rolling(window=89, min_periods=1).mean()
+        else:
+            df_s['Vol_SMA_89'] = 0
+            
+        df_s['TR'] = pd.concat([
+            df_s['High'] - df_s['Low'],
+            (df_s['High'] - df_s['Close'].shift(1)).abs(),
+            (df_s['Low'] - df_s['Close'].shift(1)).abs()
+        ], axis=1).max(axis=1)
+        df_s['ATR_13'] = df_s['TR'].ewm(span=13, adjust=False).mean()
+
         df_s.index = pd.to_datetime(df_s.index)
         unique_dates = sorted(list(set(df_s.index.date)))
         target_date = unique_dates[-1] 
         df_day = df_s[df_s.index.date == target_date].copy()
+        
         if not df_day.empty:
             df_day['Typical_Price'] = (df_day['High'] + df_day['Low'] + df_day['Close']) / 3
             if 'Volume' in df_day.columns and df_day['Volume'].sum() > 0:
@@ -794,21 +809,17 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
     
     if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX", "SPX", "DAX", "USD/INR"] and not row.get('Is_Commodity'):
         cb_key = f"cb_{fetch_sym}_{key_suffix}" if key_suffix else f"cb_{fetch_sym}"
-        
-        # 👈 ఇక్కడ on_change తీసేసి, Ghost Trigger ని ఆపే లాజిక్ యాడ్ చేశాను
         is_pinned = fetch_sym in st.session_state.pinned_stocks
         pin_val = st.checkbox("pin", value=is_pinned, key=cb_key, label_visibility="collapsed")
-        
         if pin_val != is_pinned:
             if pin_val:
-                if fetch_sym not in st.session_state.pinned_stocks:
-                    st.session_state.pinned_stocks.append(fetch_sym)
+                if fetch_sym not in st.session_state.pinned_stocks: st.session_state.pinned_stocks.append(fetch_sym)
             else:
-                if fetch_sym in st.session_state.pinned_stocks:
-                    st.session_state.pinned_stocks.remove(fetch_sym)
+                if fetch_sym in st.session_state.pinned_stocks: st.session_state.pinned_stocks.remove(fetch_sym)
             st.rerun()
     
     title_html = f"<a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; line-height:1.2;'><b>{display_sym}</b><br><span style='font-size:12px; color:#cccccc;'>₹{row['P']:.2f} &nbsp;<span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span></span></a>"
+    
     try:
         if not df_chart.empty:
             min_val = df_chart['Low'].min()
@@ -826,9 +837,48 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 "<br>🔴 C: ₹" + df_chart['Close'].round(2).astype(str)
             )
             
+            # 🔥 Advanced Colored Candles Helper (Dark Theme Colors)
+            def apply_advanced_candles(fig_obj, is_subplot):
+                rc = dict(row=1, col=1) if is_subplot else dict()
+                
+                if 'Vol_SMA_89' in df_chart.columns:
+                    vol_sma = df_chart['Vol_SMA_89']
+                    vol = df_chart['Volume']
+                    
+                    mask_hv = vol > (vol_sma * 1.618)
+                    mask_lv = vol < (vol_sma * 0.618)
+                    mask_norm = ~(mask_hv | mask_lv)
+                    
+                    def am(col, mask): return np.where(mask, df_chart[col], np.nan)
+                    
+                    # 1. Normal Vol Candles (Standard Green/Red)
+                    fig_obj.add_trace(go.Candlestick(x=df_chart.index, open=am('Open', mask_norm), high=am('High', mask_norm), low=am('Low', mask_norm), close=am('Close', mask_norm), increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, hoverinfo='skip'), **rc)
+                    # 2. High Vol Candles (Bright Neon Green & Red)
+                    fig_obj.add_trace(go.Candlestick(x=df_chart.index, open=am('Open', mask_hv), high=am('High', mask_hv), low=am('Low', mask_hv), close=am('Close', mask_hv), increasing_line_color='#00FF00', decreasing_line_color='#FF0000', showlegend=False, hoverinfo='skip'), **rc)
+                    # 3. Low Vol Candles (Orange & Aqua)
+                    fig_obj.add_trace(go.Candlestick(x=df_chart.index, open=am('Open', mask_lv), high=am('High', mask_lv), low=am('Low', mask_lv), close=am('Close', mask_lv), increasing_line_color='#FF9800', decreasing_line_color='#7FFFD4', showlegend=False, hoverinfo='skip'), **rc)
+                    
+                    # 🚦 Exhaustion Spike Indicator (కింద వస్తుంది)
+                    mask_exhaust = vol > (vol_sma * 4.669)
+                    if mask_exhaust.any():
+                        df_ex = df_chart[mask_exhaust]
+                        fig_obj.add_trace(go.Scatter(x=df_ex.index, y=df_ex['Low'] - (df_ex['Close']*0.001), mode='text', text=['🚦']*len(df_ex), textposition='bottom center', textfont=dict(size=14), showlegend=False, hoverinfo='skip'), **rc)
+                else:
+                    fig_obj.add_trace(go.Candlestick(x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, hoverinfo='skip'), **rc)
+                
+                # ⚡ High Volatility Indicator (ఇంకొంచెం కింద వస్తుంది)
+                if 'ATR_13' in df_chart.columns:
+                    mask_vola = (df_chart['High'] - df_chart['Low']) > (df_chart['ATR_13'] * 2.718)
+                    if mask_vola.any():
+                        df_vol = df_chart[mask_vola]
+                        fig_obj.add_trace(go.Scatter(x=df_vol.index, y=df_vol['Low'] - (df_vol['Close']*0.003), mode='text', text=['⚡']*len(df_vol), textposition='bottom center', textfont=dict(size=14), showlegend=False, hoverinfo='skip'), **rc)
+
             if show_vol:
                 fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.02, row_heights=[0.75, 0.25])
-                fig.add_trace(go.Candlestick(x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, hoverinfo='skip', name=""), row=1, col=1)
+                
+                # 🔥 Apply Custom Candles & Symbols
+                apply_advanced_candles(fig, is_subplot=True)
+                
                 fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['High'], mode='lines', line=dict(color='rgba(0,0,0,0)'), showlegend=False, hoverinfo='text' if show_crosshair else 'skip', text=hover_data, hovertemplate="%{text}<extra></extra>" if show_crosshair else None, name=""), row=1, col=1)
                 
                 if timeframe == "Daily Chart":
@@ -842,8 +892,20 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                     if 'VWAP' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='skip'), row=1, col=1)
                     if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'), row=1, col=1)
                 
-                colors = ['#2ea043' if close >= open_p else '#da3633' for close, open_p in zip(df_chart['Close'], df_chart['Open'])]
-                fig.add_trace(go.Bar(x=df_chart.index, y=df_chart['Volume'], marker_color=colors, showlegend=False, hoverinfo='skip'), row=2, col=1)
+                # 🔥 Volume Bars Colors లాజిక్ కూడా సింక్ చేశాను
+                vol_colors = []
+                if 'Vol_SMA_89' in df_chart.columns:
+                    for i in range(len(df_chart)):
+                        bull = df_chart['Close'].iloc[i] >= df_chart['Open'].iloc[i]
+                        hv = df_chart['Volume'].iloc[i] > (df_chart['Vol_SMA_89'].iloc[i] * 1.618)
+                        lv = df_chart['Volume'].iloc[i] < (df_chart['Vol_SMA_89'].iloc[i] * 0.618)
+                        if hv: vol_colors.append('#00FF00' if bull else '#FF0000')
+                        elif lv: vol_colors.append('#FF9800' if bull else '#7FFFD4')
+                        else: vol_colors.append('#2ea043' if bull else '#da3633')
+                else:
+                    vol_colors = ['#2ea043' if close >= open_p else '#da3633' for close, open_p in zip(df_chart['Close'], df_chart['Open'])]
+                
+                fig.add_trace(go.Bar(x=df_chart.index, y=df_chart['Volume'], marker_color=vol_colors, showlegend=False, hoverinfo='skip'), row=2, col=1)
                 
                 fig.update_layout(margin=dict(l=0, r=45 if show_crosshair else 0, t=0, b=0), height=275, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
                 fig.add_annotation(text=title_html, xref="paper", yref="paper", x=0, xanchor="left", xshift=35, y=0.98, yanchor="top", showarrow=False, font=dict(size=13, color="#ffffff"), bgcolor="rgba(0,0,0,0)", borderwidth=0)
@@ -867,7 +929,10 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
 
             else:
                 fig = go.Figure()
-                fig.add_trace(go.Candlestick(x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], increasing_line_color='#2ea043', decreasing_line_color='#da3633', showlegend=False, hoverinfo='skip', name=""))
+                
+                # 🔥 Apply Custom Candles & Symbols (No subplots)
+                apply_advanced_candles(fig, is_subplot=False)
+                
                 fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['High'], mode='lines', line=dict(color='rgba(0,0,0,0)'), showlegend=False, hoverinfo='text' if show_crosshair else 'skip', text=hover_data, hovertemplate="%{text}<extra></extra>" if show_crosshair else None, name=""))
                 
                 if timeframe == "Daily Chart":
@@ -900,8 +965,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                     fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
 
         st.plotly_chart(fig, width="stretch", key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}")
-    except Exception as e: 
-        st.markdown(f"<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart error</div>", unsafe_allow_html=True)
     except Exception as e: 
         st.markdown(f"<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart error</div>", unsafe_allow_html=True)
 
