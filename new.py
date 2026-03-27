@@ -1402,8 +1402,13 @@ if not df.empty:
     if alerts_triggered_html: st.markdown(alerts_triggered_html, unsafe_allow_html=True)
 
     if not df_filtered.empty:
+        df_filtered = df_filtered.copy() # 👈 ఈ ఒక్క లైన్ యాడ్ చేయండి బాస్!
+        
         df_filtered['AlphaTag'] = df_filtered['Fetch_T'].map(alpha_tags).fillna("")
         df_filtered['Trend_Score'] = df_filtered['Fetch_T'].map(trend_scores).fillna(0)
+        df_filtered['Retest_Tag'] = df_filtered['Fetch_T'].map(retest_tags).fillna("") 
+        df_filtered['ORB_Tag'] = df_filtered['Fetch_T'].map(orb_tags).fillna("") 
+        df_filtered['S'] = df_filtered['S'] + df_filtered['Trend_Score']
         df_filtered['Retest_Tag'] = df_filtered['Fetch_T'].map(retest_tags).fillna("") 
         df_filtered['ORB_Tag'] = df_filtered['Fetch_T'].map(orb_tags).fillna("") 
         df_filtered['S'] = df_filtered['S'] + df_filtered['Trend_Score']
