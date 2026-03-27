@@ -840,37 +840,40 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
             # 🔥 Advanced Colored Candles Helper (Dark Theme Colors)
             def apply_advanced_candles(fig_obj, is_subplot):
                 rc = dict(row=1, col=1) if is_subplot else dict()
+                has_vol = 'Volume' in df_chart.columns and df_chart['Volume'].sum() > 0
                 
-                # వాల్యూమ్ డేటా ఉందో లేదో చెక్ చేస్తున్నాం
-                if 'Volume' in df_chart.columns and df_chart['Volume'].sum() > 0:
-                    
-                    # Daily/Weekly కోసం Vol_SMA లేకపోతే ఇక్కడే క్యాలిక్యులేట్ చేస్తుంది (20-period average)
+                if has_vol:
                     vol_sma = df_chart.get('Vol_SMA_89', df_chart['Volume'].rolling(window=20, min_periods=1).mean())
                     vol = df_chart['Volume']
-                    
                     mask_hv = vol > (vol_sma * 1.618)
                     mask_lv = vol < (vol_sma * 0.618)
-                    mask_norm = ~(mask_hv | mask_lv)
+                else:
+                    mask_hv = pd.Series(False, index=df_chart.index)
+                    mask_lv = pd.Series(False, index=df_chart.index)
                     
-                    def am(col, mask): return np.where(mask, df_chart[col], np.nan)
-                    
-                    # 1. Normal Vol Candles (Standard Green/Red)
-                    fig_obj.add_trace(go.Candlestick(
-                        x=df_chart.index, open=am('Open', mask_norm), high=am('High', mask_norm), low=am('Low', mask_norm), close=am('Close', mask_norm), 
-                        increasing_line_color='#2ea043', increasing_fillcolor='#2ea043', increasing_line_width=1,
-                        decreasing_line_color='#da3633', decreasing_fillcolor='#da3633', decreasing_line_width=1,
-                        showlegend=False, hoverinfo='skip'
-                    ), **rc)
-                    
-                    # 2. 🔥 High Vol Candles (Bright Neon, Thick Borders)
+                mask_norm = ~(mask_hv | mask_lv)
+                
+                def am(col, mask): return np.where(mask, df_chart[col], np.nan)
+                
+                # 1. Normal Vol Candles (Standard Green/Red) - WITH SOLID FILL
+                fig_obj.add_trace(go.Candlestick(
+                    x=df_chart.index, open=am('Open', mask_norm), high=am('High', mask_norm), low=am('Low', mask_norm), close=am('Close', mask_norm), 
+                    increasing_line_color='#2ea043', increasing_fillcolor='#2ea043', increasing_line_width=1,
+                    decreasing_line_color='#da3633', decreasing_fillcolor='#da3633', decreasing_line_width=1,
+                    showlegend=False, hoverinfo='skip'
+                ), **rc)
+                
+                # 2. 🔥 High Vol Candles (Bright Neon, Thick Borders)
+                if mask_hv.any():
                     fig_obj.add_trace(go.Candlestick(
                         x=df_chart.index, open=am('Open', mask_hv), high=am('High', mask_hv), low=am('Low', mask_hv), close=am('Close', mask_hv), 
                         increasing_line_color='#00FF00', increasing_fillcolor='#00FF00', increasing_line_width=2,
                         decreasing_line_color='#FF0000', decreasing_fillcolor='#FF0000', decreasing_line_width=2,
                         showlegend=False, hoverinfo='skip'
                     ), **rc)
-                    
-                    # 3. Low Vol Candles (Orange & Aqua)
+                
+                # 3. Low Vol Candles (Orange & Aqua)
+                if mask_lv.any():
                     fig_obj.add_trace(go.Candlestick(
                         x=df_chart.index, open=am('Open', mask_lv), high=am('High', mask_lv), low=am('Low', mask_lv), close=am('Close', mask_lv), 
                         increasing_line_color='#FF9800', increasing_fillcolor='#FF9800', increasing_line_width=1,
@@ -878,114 +881,52 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                         showlegend=False, hoverinfo='skip'
                     ), **rc)
 
-                    # 🔥 High Volume Highlight Marker (Dynamic Position for 5m, Daily, Weekly)
-                    if mask_hv.any():
-                        df_hv = df_chart[mask_hv].copy()
-                        
-                        # టైమ్ ఫ్రేమ్ ని బట్టి లైన్ రిఫరెన్స్ మార్చడం (EMA, SMA, VWAP)
-                        if 'EMA_10' in df_chart.columns:
-                            ref_line = df_hv['EMA_10'] # 5-Min Chart
-                        elif 'SMA_50' in df_chart.columns:
-                            ref_line = df_hv['SMA_50'] # Daily Chart
-                        elif 'SMA_10' in df_chart.columns:
-                            ref_line = df_hv['SMA_10'] # Weekly Chart
-                        elif 'VWAP' in df_chart.columns:
-                            ref_line = df_hv['VWAP']
-                        else:
-                            ref_line = df_hv['Close']
-                            
-                        mask_above = df_hv['Close'] >= ref_line
-                        mask_below = df_hv['Close'] < ref_line
-                        
-                        df_hv_above = df_hv[mask_above]
-                        df_hv_below = df_hv[mask_below]
-                        
-                        # 1. ప్రైస్ సపోర్ట్ పైన ఉంటే -> ఫైర్ సింబల్ క్యాండిల్ కింద వస్తుంది
-                        if not df_hv_above.empty:
-                            fig_obj.add_trace(go.Scatter(
-                                x=df_hv_above.index, 
-                                y=df_hv_above['Low'] - (df_hv_above['Close']*0.0015), 
-                                mode='text', 
-                                text=['🔥']*len(df_hv_above), 
-                                textposition='bottom center', 
-                                textfont=dict(size=14), 
-                                showlegend=False, 
-                                hoverinfo='skip'
-                            ), **rc)
-                            
-                        # 2. ప్రైస్ సపోర్ట్ కింద ఉంటే -> ఫైర్ సింబల్ క్యాండిల్ పైన వస్తుంది
-                        if not df_hv_below.empty:
-                            fig_obj.add_trace(go.Scatter(
-                                x=df_hv_below.index, 
-                                y=df_hv_below['High'] + (df_hv_below['Close']*0.0015), 
-                                mode='text', 
-                                text=['🔥']*len(df_hv_below), 
-                                textposition='top center', 
-                                textfont=dict(size=14), 
-                                showlegend=False, 
-                                hoverinfo='skip'
-                            ), **rc)
+                # 🔥 High Volume Highlight Marker (Dynamic Position for 5m, Daily, Weekly)
+                if mask_hv.any():
+                    df_hv = df_chart[mask_hv].copy()
                     
-                    # 🚦 Exhaustion Spike Indicator
+                    if 'EMA_10' in df_chart.columns: ref_line = df_hv['EMA_10'] # 5-Min
+                    elif 'SMA_50' in df_chart.columns: ref_line = df_hv['SMA_50'] # Daily
+                    elif 'SMA_10' in df_chart.columns: ref_line = df_hv['SMA_10'] # Weekly
+                    elif 'VWAP' in df_chart.columns: ref_line = df_hv['VWAP']
+                    else: ref_line = df_hv['Close']
+                        
+                    mask_above = df_hv['Close'] >= ref_line
+                    mask_below = df_hv['Close'] < ref_line
+                    
+                    df_hv_above = df_hv[mask_above]
+                    df_hv_below = df_hv[mask_below]
+                    
+                    # ప్రైస్ సపోర్ట్ పైన ఉంటే -> ఫైర్ సింబల్ క్యాండిల్ కింద వస్తుంది
+                    if not df_hv_above.empty:
+                        fig_obj.add_trace(go.Scatter(x=df_hv_above.index, y=df_hv_above['Low'] - (df_hv_above['Close']*0.0015), mode='text', text=['🔥']*len(df_hv_above), textposition='bottom center', textfont=dict(size=14), showlegend=False, hoverinfo='skip'), **rc)
+                        
+                    # ప్రైస్ సపోర్ట్ కింద ఉంటే -> ఫైర్ సింబల్ క్యాండిల్ పైన వస్తుంది
+                    if not df_hv_below.empty:
+                        fig_obj.add_trace(go.Scatter(x=df_hv_below.index, y=df_hv_below['High'] + (df_hv_below['Close']*0.0015), mode='text', text=['🔥']*len(df_hv_below), textposition='top center', textfont=dict(size=14), showlegend=False, hoverinfo='skip'), **rc)
+                
+                # 🚦 Exhaustion Spike Indicator
+                if has_vol:
                     mask_exhaust = vol > (vol_sma * 4.669)
                     if mask_exhaust.any():
                         df_ex = df_chart[mask_exhaust]
-                        fig_obj.add_trace(go.Scatter(
-                            x=df_ex.index, 
-                            y=df_ex['High'] + (df_ex['Close']*0.0015), 
-                            mode='text', 
-                            text=['🚦']*len(df_ex), 
-                            textposition='top center', 
-                            textfont=dict(size=14), 
-                            showlegend=False, 
-                            hoverinfo='skip'
-                        ), **rc)
-                else:
-                    # ఒకవేళ వాల్యూమ్ డేటా అందుబాటులో లేకపోతే నార్మల్ క్యాండిల్స్
-                    fig_obj.add_trace(go.Candlestick(
-                        x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
-                        increasing_line_color='#2ea043', increasing_fillcolor='#2ea043', 
-                        decreasing_line_color='#da3633', decreasing_fillcolor='#da3633', 
-                        showlegend=False, hoverinfo='skip'
-                    ), **rc)
+                        fig_obj.add_trace(go.Scatter(x=df_ex.index, y=df_ex['High'] + (df_ex['Close']*0.0015), mode='text', text=['🚦']*len(df_ex), textposition='top center', textfont=dict(size=14), showlegend=False, hoverinfo='skip'), **rc)
                 
                 # ⚡ High Volatility Indicator (ATR 13)
-                # Daily/Weekly కి ATR లేకపోతే ఇక్కడే క్యాలిక్యులేట్ చేస్తుంది
                 if 'ATR_13' in df_chart.columns:
                     atr_val = df_chart['ATR_13']
                 else:
-                    tr = pd.concat([
-                        df_chart['High'] - df_chart['Low'],
-                        (df_chart['High'] - df_chart['Close'].shift(1)).abs(),
-                        (df_chart['Low'] - df_chart['Close'].shift(1)).abs()
-                    ], axis=1).max(axis=1)
+                    tr = pd.concat([df_chart['High'] - df_chart['Low'], (df_chart['High'] - df_chart['Close'].shift(1)).abs(), (df_chart['Low'] - df_chart['Close'].shift(1)).abs()], axis=1).max(axis=1)
                     atr_val = tr.ewm(span=13, adjust=False).mean()
 
                 mask_vola = (df_chart['High'] - df_chart['Low']) > (atr_val * 2.718)
                 if mask_vola.any():
                     df_vol = df_chart[mask_vola]
-                    fig_obj.add_trace(go.Scatter(
-                        x=df_vol.index, 
-                        y=df_vol['Low'] - (df_vol['Close']*0.0035), 
-                        mode='text', 
-                        text=['⚡']*len(df_vol), 
-                        textposition='bottom center', 
-                        textfont=dict(size=14), 
-                        showlegend=False, 
-                        hoverinfo='skip'
-                    ), **rc)
-                
-                # ⚡ High Volatility Indicator (ఇంకొంచెం కింద వస్తుంది)
-                if 'ATR_13' in df_chart.columns:
-                    mask_vola = (df_chart['High'] - df_chart['Low']) > (df_chart['ATR_13'] * 2.718)
-                    if mask_vola.any():
-                        df_vol = df_chart[mask_vola]
-                        fig_obj.add_trace(go.Scatter(x=df_vol.index, y=df_vol['Low'] - (df_vol['Close']*0.003), mode='text', text=['⚡']*len(df_vol), textposition='bottom center', textfont=dict(size=14), showlegend=False, hoverinfo='skip'), **rc)
+                    fig_obj.add_trace(go.Scatter(x=df_vol.index, y=df_vol['Low'] - (df_vol['Close']*0.0035), mode='text', text=['⚡']*len(df_vol), textposition='bottom center', textfont=dict(size=14), showlegend=False, hoverinfo='skip'), **rc)
 
             if show_vol:
                 fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.02, row_heights=[0.75, 0.25])
                 
-                # 🔥 Apply Custom Candles & Symbols
                 apply_advanced_candles(fig, is_subplot=True)
                 
                 fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['High'], mode='lines', line=dict(color='rgba(0,0,0,0)'), showlegend=False, hoverinfo='text' if show_crosshair else 'skip', text=hover_data, hovertemplate="%{text}<extra></extra>" if show_crosshair else None, name=""), row=1, col=1)
@@ -1001,13 +942,13 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                     if 'VWAP' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='skip'), row=1, col=1)
                     if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'), row=1, col=1)
                 
-                # 🔥 Volume Bars Colors లాజిక్ కూడా సింక్ చేశాను
                 vol_colors = []
-                if 'Vol_SMA_89' in df_chart.columns:
+                if 'Volume' in df_chart.columns:
+                    vol_sma = df_chart.get('Vol_SMA_89', df_chart['Volume'].rolling(window=20, min_periods=1).mean())
                     for i in range(len(df_chart)):
                         bull = df_chart['Close'].iloc[i] >= df_chart['Open'].iloc[i]
-                        hv = df_chart['Volume'].iloc[i] > (df_chart['Vol_SMA_89'].iloc[i] * 1.618)
-                        lv = df_chart['Volume'].iloc[i] < (df_chart['Vol_SMA_89'].iloc[i] * 0.618)
+                        hv = df_chart['Volume'].iloc[i] > (vol_sma.iloc[i] * 1.618)
+                        lv = df_chart['Volume'].iloc[i] < (vol_sma.iloc[i] * 0.618)
                         if hv: vol_colors.append('#00FF00' if bull else '#FF0000')
                         elif lv: vol_colors.append('#FF9800' if bull else '#7FFFD4')
                         else: vol_colors.append('#2ea043' if bull else '#da3633')
@@ -1039,7 +980,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
             else:
                 fig = go.Figure()
                 
-                # 🔥 Apply Custom Candles & Symbols (No subplots)
                 apply_advanced_candles(fig, is_subplot=False)
                 
                 fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['High'], mode='lines', line=dict(color='rgba(0,0,0,0)'), showlegend=False, hoverinfo='text' if show_crosshair else 'skip', text=hover_data, hovertemplate="%{text}<extra></extra>" if show_crosshair else None, name=""))
