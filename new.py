@@ -841,8 +841,11 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
             def apply_advanced_candles(fig_obj, is_subplot):
                 rc = dict(row=1, col=1) if is_subplot else dict()
                 
-                if 'Vol_SMA_89' in df_chart.columns:
-                    vol_sma = df_chart['Vol_SMA_89']
+                # వాల్యూమ్ డేటా ఉందో లేదో చెక్ చేస్తున్నాం
+                if 'Volume' in df_chart.columns and df_chart['Volume'].sum() > 0:
+                    
+                    # Daily/Weekly కోసం Vol_SMA లేకపోతే ఇక్కడే క్యాలిక్యులేట్ చేస్తుంది (20-period average)
+                    vol_sma = df_chart.get('Vol_SMA_89', df_chart['Volume'].rolling(window=20, min_periods=1).mean())
                     vol = df_chart['Volume']
                     
                     mask_hv = vol > (vol_sma * 1.618)
@@ -875,26 +878,29 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                         showlegend=False, hoverinfo='skip'
                     ), **rc)
 
-                    # 🔥 High Volume Highlight Marker (Dynamic Position based on EMA/VWAP)
+                    # 🔥 High Volume Highlight Marker (Dynamic Position for 5m, Daily, Weekly)
                     if mask_hv.any():
                         df_hv = df_chart[mask_hv].copy()
                         
-                        # రిఫరెన్స్ కోసం లైన్ ఏంటో చూద్దాం (EMA లేదా VWAP)
+                        # టైమ్ ఫ్రేమ్ ని బట్టి లైన్ రిఫరెన్స్ మార్చడం (EMA, SMA, VWAP)
                         if 'EMA_10' in df_chart.columns:
-                            ref_line = df_hv['EMA_10']
+                            ref_line = df_hv['EMA_10'] # 5-Min Chart
+                        elif 'SMA_50' in df_chart.columns:
+                            ref_line = df_hv['SMA_50'] # Daily Chart
+                        elif 'SMA_10' in df_chart.columns:
+                            ref_line = df_hv['SMA_10'] # Weekly Chart
                         elif 'VWAP' in df_chart.columns:
                             ref_line = df_hv['VWAP']
                         else:
                             ref_line = df_hv['Close']
                             
-                        # ప్రైస్ కండిషన్స్
                         mask_above = df_hv['Close'] >= ref_line
                         mask_below = df_hv['Close'] < ref_line
                         
                         df_hv_above = df_hv[mask_above]
                         df_hv_below = df_hv[mask_below]
                         
-                        # 1. ప్రైస్ EMA పైన ఉంటే -> ఫైర్ సింబల్ క్యాండిల్ కింద వస్తుంది
+                        # 1. ప్రైస్ సపోర్ట్ పైన ఉంటే -> ఫైర్ సింబల్ క్యాండిల్ కింద వస్తుంది
                         if not df_hv_above.empty:
                             fig_obj.add_trace(go.Scatter(
                                 x=df_hv_above.index, 
@@ -907,7 +913,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                                 hoverinfo='skip'
                             ), **rc)
                             
-                        # 2. ప్రైస్ EMA కింద ఉంటే -> ఫైర్ సింబల్ క్యాండిల్ పైన వస్తుంది
+                        # 2. ప్రైస్ సపోర్ట్ కింద ఉంటే -> ఫైర్ సింబల్ క్యాండిల్ పైన వస్తుంది
                         if not df_hv_below.empty:
                             fig_obj.add_trace(go.Scatter(
                                 x=df_hv_below.index, 
@@ -920,7 +926,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                                 hoverinfo='skip'
                             ), **rc)
                     
-                    # 🚦 Exhaustion Spike Indicator (Moved to top of candle)
+                    # 🚦 Exhaustion Spike Indicator
                     mask_exhaust = vol > (vol_sma * 4.669)
                     if mask_exhaust.any():
                         df_ex = df_chart[mask_exhaust]
@@ -935,6 +941,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                             hoverinfo='skip'
                         ), **rc)
                 else:
+                    # ఒకవేళ వాల్యూమ్ డేటా అందుబాటులో లేకపోతే నార్మల్ క్యాండిల్స్
                     fig_obj.add_trace(go.Candlestick(
                         x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
                         increasing_line_color='#2ea043', increasing_fillcolor='#2ea043', 
@@ -942,21 +949,31 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                         showlegend=False, hoverinfo='skip'
                     ), **rc)
                 
-                # ⚡ High Volatility Indicator
+                # ⚡ High Volatility Indicator (ATR 13)
+                # Daily/Weekly కి ATR లేకపోతే ఇక్కడే క్యాలిక్యులేట్ చేస్తుంది
                 if 'ATR_13' in df_chart.columns:
-                    mask_vola = (df_chart['High'] - df_chart['Low']) > (df_chart['ATR_13'] * 2.718)
-                    if mask_vola.any():
-                        df_vol = df_chart[mask_vola]
-                        fig_obj.add_trace(go.Scatter(
-                            x=df_vol.index, 
-                            y=df_vol['Low'] - (df_vol['Close']*0.0035), 
-                            mode='text', 
-                            text=['⚡']*len(df_vol), 
-                            textposition='bottom center', 
-                            textfont=dict(size=14), 
-                            showlegend=False, 
-                            hoverinfo='skip'
-                        ), **rc)
+                    atr_val = df_chart['ATR_13']
+                else:
+                    tr = pd.concat([
+                        df_chart['High'] - df_chart['Low'],
+                        (df_chart['High'] - df_chart['Close'].shift(1)).abs(),
+                        (df_chart['Low'] - df_chart['Close'].shift(1)).abs()
+                    ], axis=1).max(axis=1)
+                    atr_val = tr.ewm(span=13, adjust=False).mean()
+
+                mask_vola = (df_chart['High'] - df_chart['Low']) > (atr_val * 2.718)
+                if mask_vola.any():
+                    df_vol = df_chart[mask_vola]
+                    fig_obj.add_trace(go.Scatter(
+                        x=df_vol.index, 
+                        y=df_vol['Low'] - (df_vol['Close']*0.0035), 
+                        mode='text', 
+                        text=['⚡']*len(df_vol), 
+                        textposition='bottom center', 
+                        textfont=dict(size=14), 
+                        showlegend=False, 
+                        hoverinfo='skip'
+                    ), **rc)
                 
                 # ⚡ High Volatility Indicator (ఇంకొంచెం కింద వస్తుంది)
                 if 'ATR_13' in df_chart.columns:
