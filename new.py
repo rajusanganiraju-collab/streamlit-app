@@ -875,19 +875,50 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                         showlegend=False, hoverinfo='skip'
                     ), **rc)
 
-                    # 🔥 High Volume Highlight Marker (Fire Emoji below candle)
+                    # 🔥 High Volume Highlight Marker (Dynamic Position based on EMA/VWAP)
                     if mask_hv.any():
-                        df_hv = df_chart[mask_hv]
-                        fig_obj.add_trace(go.Scatter(
-                            x=df_hv.index, 
-                            y=df_hv['Low'] - (df_hv['Close']*0.0015), 
-                            mode='text', 
-                            text=['🔥']*len(df_hv), 
-                            textposition='bottom center', 
-                            textfont=dict(size=14), 
-                            showlegend=False, 
-                            hoverinfo='skip'
-                        ), **rc)
+                        df_hv = df_chart[mask_hv].copy()
+                        
+                        # రిఫరెన్స్ కోసం లైన్ ఏంటో చూద్దాం (EMA లేదా VWAP)
+                        if 'EMA_10' in df_chart.columns:
+                            ref_line = df_hv['EMA_10']
+                        elif 'VWAP' in df_chart.columns:
+                            ref_line = df_hv['VWAP']
+                        else:
+                            ref_line = df_hv['Close']
+                            
+                        # ప్రైస్ కండిషన్స్
+                        mask_above = df_hv['Close'] >= ref_line
+                        mask_below = df_hv['Close'] < ref_line
+                        
+                        df_hv_above = df_hv[mask_above]
+                        df_hv_below = df_hv[mask_below]
+                        
+                        # 1. ప్రైస్ EMA పైన ఉంటే -> ఫైర్ సింబల్ క్యాండిల్ కింద వస్తుంది
+                        if not df_hv_above.empty:
+                            fig_obj.add_trace(go.Scatter(
+                                x=df_hv_above.index, 
+                                y=df_hv_above['Low'] - (df_hv_above['Close']*0.0015), 
+                                mode='text', 
+                                text=['🔥']*len(df_hv_above), 
+                                textposition='bottom center', 
+                                textfont=dict(size=14), 
+                                showlegend=False, 
+                                hoverinfo='skip'
+                            ), **rc)
+                            
+                        # 2. ప్రైస్ EMA కింద ఉంటే -> ఫైర్ సింబల్ క్యాండిల్ పైన వస్తుంది
+                        if not df_hv_below.empty:
+                            fig_obj.add_trace(go.Scatter(
+                                x=df_hv_below.index, 
+                                y=df_hv_below['High'] + (df_hv_below['Close']*0.0015), 
+                                mode='text', 
+                                text=['🔥']*len(df_hv_below), 
+                                textposition='top center', 
+                                textfont=dict(size=14), 
+                                showlegend=False, 
+                                hoverinfo='skip'
+                            ), **rc)
                     
                     # 🚦 Exhaustion Spike Indicator (Moved to top of candle)
                     mask_exhaust = vol > (vol_sma * 4.669)
