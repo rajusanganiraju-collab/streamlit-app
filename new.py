@@ -1406,9 +1406,13 @@ if not df.empty:
             for idx, r in df_filtered.iterrows():
                 tkr = r['Fetch_T']
                 # కనీసం 2 క్యాండిల్స్ (9:20 AM దాటితేనే) ఈ లాజిక్ పనిచేస్తుంది
-                if tkr in processed_charts and len(processed_charts[tkr]) >= 2:
-                    df_hist = processed_charts[tkr]
-                    
+                if tkr in processed_charts and len(processed_charts[tkr]) >= 3:
+                            df_hist = processed_charts[tkr]
+                            # ఇక్కడ Vol_SMA_375 అని మార్చండి
+                            if 'Volume' in df_hist.columns and 'Vol_SMA_375' in df_hist.columns and 'EMA_10' in df_hist.columns:
+                                
+                                # ఇక్కడ 1.5 తో గుణిస్తున్నాం (గత 5 రోజుల యావరేజ్ వాల్యూమ్ కన్నా 1.5 రెట్లు)
+                                vol_fire = df_hist['Volume'] > (df_hist['Vol_SMA_375'].shift(1) * 1.5)
                     # 1. పక్కాగా ఫస్ట్ క్యాండిల్ (9:15 AM) ఓపెన్ ప్రైస్ ని బేస్ గా తీసుకుంటున్నాం
                     day_open = df_hist['Open'].iloc[0]
                     
