@@ -342,12 +342,24 @@ def fetch_single_dhan_5m(symbol, sec_id):
 
 @st.cache_data(ttl=60, show_spinner=False)
 def fetch_cached_5m_data(tkrs_list):
-    results_dict = {}
-    yf_tkrs = list(tkrs_list) # 🔥 మొత్తం స్టాక్స్ అన్నీ Yahoo Finance కే పంపిస్తున్నాం (Dhan API బైపాస్)
-    
+    dhan_tasks, yf_tkrs, results_dict = {}, [], {}
+    for tkr in tkrs_list:
+        clean_sym = tkr.replace(".NS", "")
+        if clean_sym in sec_map and not any(idx in tkr for idx in ["^", "=F"]):
+            dhan_tasks[tkr] = (clean_sym, sec_map[clean_sym])
+        else:
+            yf_tkrs.append(tkr)
+            
+    if dhan and dhan_tasks:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {executor.submit(fetch_single_dhan_5m, tkr, data[1]): tkr for tkr, data in dhan_tasks.items()}
+            for future in concurrent.futures.as_completed(futures):
+                tkr, df = future.result()
+                if not df.empty: results_dict[tkr] = df
+                else: yf_tkrs.append(tkr)
+
     if yf_tkrs:
         yf_data = yf.download(yf_tkrs, period="5d", interval="5m", progress=False, group_by='ticker', threads=10)
-        
         if len(yf_tkrs) == 1:
             if not yf_data.empty: 
                 yf_data.index = yf_data.index.tz_localize(None)
@@ -359,7 +371,6 @@ def fetch_cached_5m_data(tkrs_list):
                     if not df.empty:
                         df.index = df.index.tz_localize(None)
                         results_dict[tkr] = df
-                        
     return pd.concat(results_dict.values(), axis=1, keys=results_dict.keys()) if results_dict else pd.DataFrame()
 
 # --- DAILY DATA FETCH ---
