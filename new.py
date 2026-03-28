@@ -1466,11 +1466,12 @@ if not df.empty:
                                 tot_buy = b_cond.sum()
                                 tot_sell = s_cond.sum()
                                 
-                                if tot_buy >= 2 and tot_sell <= 1: 
+                                # స్మార్ట్ లాజిక్: ఆపోజిట్ ఫైర్స్ పడినా పర్లేదు, కానీ మెయిన్ ట్రెండ్ ఫైర్స్ వాటికంటే డబుల్ (2x) ఉండాలి
+                                if tot_buy >= 2 and tot_buy >= (tot_sell * 2): 
                                     buy_mask[idx] = True
                                     df_filtered.at[idx, 'S'] = df_filtered.at[idx, 'S'] + ((tot_buy - tot_sell) * 10) 
                                     
-                                elif tot_sell >= 2 and tot_buy <= 1: 
+                                elif tot_sell >= 2 and tot_sell >= (tot_buy * 2): 
                                     sell_mask[idx] = True
                                     df_filtered.at[idx, 'S'] = df_filtered.at[idx, 'S'] + ((tot_sell - tot_buy) * 10)
                                     
