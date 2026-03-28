@@ -1199,10 +1199,28 @@ if not df.empty:
     sec_sort_key = "W_C" if chart_timeframe == "Weekly Chart" else "Day_C"
     df_sectors = df_sectors.sort_values(by=sec_sort_key, ascending=False)
     
-    df_stocks = df[(~df['Is_Index']) & (~df['Is_Sector']) & (~df['Is_Commodity'])].copy()
+    # 1. అన్ని స్టాక్స్ (Nifty 50 తో సహా) బేస్ డేటా
+    df_all_stocks = df[(~df['Is_Index']) & (~df['Is_Sector']) & (~df['Is_Commodity'])].copy()
     df_commodities = df[df['Is_Commodity']].copy()
     
-    df_nifty = df_stocks[df_stocks['T'].isin(NIFTY_50)].copy()
+    df_port_saved = load_portfolio()
+    port_tickers_raw = [str(sym).upper().strip() for sym in df_port_saved['Symbol'].tolist() if str(sym).strip() != ""]
+
+    # 2. 🔥 ఇక్కడే అసలు లాజిక్: యూజర్ సెలెక్ట్ చేసిన కేటగిరీ మాత్రమే df_stocks లో ఉండాలి!
+    if market_segment == "F&O (Top 200) 🔵":
+        allowed_stocks = set(NIFTY_50 + FNO_STOCKS + port_tickers_raw)
+    elif market_segment == "Mid Cap 🟡":
+        allowed_stocks = set(MIDCAP_STOCKS + port_tickers_raw)
+    elif market_segment == "Small Cap 🟢":
+        allowed_stocks = set(SMALLCAP_STOCKS + port_tickers_raw)
+    else: # All Combined
+        allowed_stocks = set(NIFTY_50 + FNO_STOCKS + MIDCAP_STOCKS + SMALLCAP_STOCKS + port_tickers_raw)
+
+    # యూజర్ అడిగిన కేటగిరీకి ఫిల్టర్
+    df_stocks = df_all_stocks[df_all_stocks['T'].isin(allowed_stocks)].copy()
+    
+    # 3. సెక్టార్ కాలిక్యులేషన్స్ కోసం ఎప్పుడూ Nifty 50 ని వాడాలి (అది ఫిల్టర్ కాకుండా df_all_stocks నుండి తీసుకుంటాం)
+    df_nifty = df_all_stocks[df_all_stocks['T'].isin(NIFTY_50)].copy()
     sector_perf = df_nifty.groupby('Sector')['C'].mean().sort_values(ascending=False)
     valid_sectors = [s for s in sector_perf.index if s != "OTHER"]
     
@@ -1212,27 +1230,27 @@ if not df.empty:
     df_buy_sector = df_nifty[df_nifty['Sector'] == top_buy_sector].sort_values(by=['S', 'C'], ascending=[False, False])
     df_sell_sector = df_nifty[df_nifty['Sector'] == top_sell_sector].sort_values(by=['S', 'C'], ascending=[False, True])
     df_independent = df_nifty[(~df_nifty['Sector'].isin([top_buy_sector, top_sell_sector])) & (df_nifty['S'] >= 5)].sort_values(by='S', ascending=False).head(8)
-    df_broader = df_stocks[(df_stocks['T'].isin(FNO_STOCKS)) & (~df_stocks['T'].isin(NIFTY_50)) & (df_stocks['S'] >= 5)].sort_values(by='S', ascending=False).head(8)
-
-    df_port_saved = load_portfolio()
+    
+    # Broader market లో కూడా df_all_stocks నే వాడాలి, అప్పుడే Nifty కాని టాప్ FNO వస్తాయి.
+    df_broader = df_all_stocks[(df_all_stocks['T'].isin(FNO_STOCKS)) & (~df_all_stocks['T'].isin(NIFTY_50)) & (df_all_stocks['S'] >= 5)].sort_values(by='S', ascending=False).head(8)
 
     if watchlist_mode == "Terminal Tables 🗃️":
         terminal_tickers = pd.concat([df_buy_sector, df_sell_sector, df_independent, df_broader])['Fetch_T'].unique().tolist()
-        df_filtered = df_stocks[df_stocks['Fetch_T'].isin(terminal_tickers)]
+        df_filtered = df_all_stocks[df_all_stocks['Fetch_T'].isin(terminal_tickers)]
     elif watchlist_mode == "My Portfolio 💼":
         port_tickers = [f"{str(sym).upper().strip()}.NS" for sym in df_port_saved['Symbol'].tolist() if str(sym).strip() != ""]
-        df_filtered = df_stocks[df_stocks['Fetch_T'].isin(port_tickers)]
+        df_filtered = df_all_stocks[df_all_stocks['Fetch_T'].isin(port_tickers)]
     elif watchlist_mode == "Commodity 🛢️":
         df_filtered = df_commodities.copy()
     elif watchlist_mode == "Fundamentals 🏢":
         if fund_filter == "Swing Trading Candidates 📈": df_filtered = df_stocks[(df_stocks['Is_Swing'] == True) | (df_stocks['Is_W_Pullback'] == True)]
-        elif fund_filter == "Nifty 50 Stocks": df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
+        elif fund_filter == "Nifty 50 Stocks": df_filtered = df_all_stocks[df_all_stocks['T'].isin(NIFTY_50)]
         elif fund_filter == "My Portfolio 💼":
             port_tickers = [f"{str(sym).upper().strip()}.NS" for sym in df_port_saved['Symbol'].tolist() if str(sym).strip() != ""]
-            df_filtered = df_stocks[df_stocks['Fetch_T'].isin(port_tickers)]
+            df_filtered = df_all_stocks[df_all_stocks['Fetch_T'].isin(port_tickers)]
         else: df_filtered = df_stocks[df_stocks['S'] >= 6]
     elif watchlist_mode == "Nifty 50 Heatmap":
-        df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
+        df_filtered = df_all_stocks[df_all_stocks['T'].isin(NIFTY_50)]
     elif watchlist_mode == "🤖 Today's AI Predictions":
         df_filtered = df_stocks.copy()
         ai_predictions, ai_probs = [], []
