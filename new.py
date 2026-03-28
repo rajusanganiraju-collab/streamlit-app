@@ -1476,7 +1476,7 @@ if not df.empty:
                     buy_mask = pd.Series(False, index=df_filtered.index)
                     sell_mask = pd.Series(False, index=df_filtered.index)
                     
-                    # టైమ్‌ని బట్టి పర్సంటేజ్ (మనం ముందే యాడ్ చేసింది)
+                    # టైమ్‌ని బట్టి పర్సంటేజ్ రూల్
                     curr_time = datetime.now().time()
                     if curr_time < dt_time(10, 15): req_pct = 0.75
                     elif curr_time < dt_time(11, 30): req_pct = 1.0
@@ -1495,18 +1495,38 @@ if not df.empty:
                                 tot_buy = b_cond.sum()
                                 tot_sell = s_cond.sum()
                                 
-                                # 🔥 బాస్ చెప్పిన "Price Action Bonus" 
-                                # ప్రతి 1% ప్రైస్ మూమెంట్ కి 5 పాయింట్లు ఎక్స్‌ట్రా ఇస్తున్నాం
-                                price_bonus = int(abs(r['Day_C']) * 5)
+                                # స్కోరింగ్ సిస్టమ్ స్టార్ట్
+                                fire_score = 0
                                 
+                                # 1. ఫైర్ సింబల్ స్కోర్ (Volume Points: ఒక్కో ఫైర్ కి 10 పాయింట్లు)
                                 if tot_buy >= 2 and tot_buy >= (tot_sell * 2): 
                                     buy_mask[idx] = True
-                                    # ఫైర్ స్కోర్ + ప్రైస్ స్కోర్ రెండు కలుపుతున్నాం
-                                    df_filtered.at[idx, 'S'] = df_filtered.at[idx, 'S'] + ((tot_buy - tot_sell) * 10) + price_bonus
-                                    
+                                    fire_score = (tot_buy - tot_sell) * 10
                                 elif tot_sell >= 2 and tot_sell >= (tot_buy * 2): 
                                     sell_mask[idx] = True
-                                    df_filtered.at[idx, 'S'] = df_filtered.at[idx, 'S'] + ((tot_sell - tot_buy) * 10) + price_bonus
+                                    fire_score = (tot_sell - tot_buy) * 10
+                                    
+                                # స్టాక్ ఫిల్టర్ లోకి వస్తేనే మిగతా బోనస్ పాయింట్లు ఇస్తాం
+                                if fire_score > 0:
+                                    # 2. ప్రైస్ యాక్షన్ స్కోర్ (Price Points: ప్రతి 1% మూమెంట్ కి 5 పాయింట్లు)
+                                    price_score = int(abs(r['Day_C']) * 5)
+                                    
+                                    # 3. రిలేటివ్ స్ట్రెంగ్త్ స్కోర్ (RS Points vs Nifty)
+                                    # స్టాక్ తన VWAP నుండి ఎంత దూరంలో ఉందో క్యాలిక్యులేట్ చేస్తున్నాం
+                                    s_vwap = r.get('VWAP', r['P'])
+                                    s_dist = abs(r['P'] - s_vwap) / s_vwap * 100 if s_vwap > 0 else 0
+                                    
+                                    # నిఫ్టీ మరీ సైడ్‌వేస్ లో ఉంటే (0.00 లాగా ఉంటే) ఎర్రర్ రాకుండా సేఫ్టీ బఫర్ 0.2 పెడుతున్నాం
+                                    safe_nifty = max(nifty_dist, 0.2) 
+                                    
+                                    rs_score = 0
+                                    if s_dist >= (safe_nifty * 4): rs_score = 20    # నిఫ్టీ కంటే 4 రెట్లు స్ట్రాంగ్ (ఎక్స్‌ట్రీమ్ బుల్లిష్)
+                                    elif s_dist >= (safe_nifty * 3): rs_score = 15  # నిఫ్టీ కంటే 3 రెట్లు స్ట్రాంగ్
+                                    elif s_dist >= (safe_nifty * 2): rs_score = 10  # నిఫ్టీ కంటే 2 రెట్లు స్ట్రాంగ్
+                                    elif s_dist >= (safe_nifty * 1.5): rs_score = 5 # నిఫ్టీ కంటే 1.5 రెట్లు స్ట్రాంగ్
+                                    
+                                    # ఫైనల్ గా ఈ 3 పాయింట్స్ ని బేస్ స్కోర్ కి యాడ్ చేస్తున్నాం
+                                    df_filtered.at[idx, 'S'] = df_filtered.at[idx, 'S'] + fire_score + price_score + rs_score
                                     
                     c_buy = base_buy & buy_mask & (df_filtered['Day_C'] >= req_pct)
                     c_sell = base_sell & sell_mask & (df_filtered['Day_C'] <= -req_pct)
