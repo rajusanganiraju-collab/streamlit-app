@@ -1481,7 +1481,55 @@ if not df.empty:
 
                 elif strat == "⚡ Intraday Pro Breakout (Top 5)":
 
-                if strat == "⚡ Intraday Pro Breakout (Top 5)":
+                if strat == "🔥 Live Power Mover (Last 2 Candles)":
+                    buy_mask = pd.Series(False, index=df_filtered.index)
+                    sell_mask = pd.Series(False, index=df_filtered.index)
+                    
+                    for idx, r in df_filtered.iterrows():
+                        tkr = r['Fetch_T']
+                        if tkr in processed_charts and len(processed_charts[tkr]) >= 2:
+                            df_hist = processed_charts[tkr]
+                            if 'Volume' in df_hist.columns and 'Vol_SMA_89' in df_hist.columns and 'EMA_10' in df_hist.columns:
+                                vol_fire = df_hist['Volume'] > (df_hist['Vol_SMA_89'] * 1.618)
+                                b_cond = vol_fire & (df_hist['Close'] > df_hist['EMA_10']) & (df_hist['Close'] >= df_hist['Open'])
+                                s_cond = vol_fire & (df_hist['Close'] < df_hist['EMA_10']) & (df_hist['Close'] < df_hist['Open'])
+                                
+                                if b_cond.iloc[-2:].sum() >= 1: buy_mask[idx] = True
+                                if s_cond.iloc[-2:].sum() >= 1: sell_mask[idx] = True
+                                
+                    c_buy = base_buy & buy_mask
+                    c_sell = base_sell & sell_mask
+                    icon_str = "🔥 Live Breakout"
+
+                elif strat == "🚀 All-Day Volume Spikes (Max Fire)":
+                    buy_mask = pd.Series(False, index=df_filtered.index)
+                    sell_mask = pd.Series(False, index=df_filtered.index)
+                    
+                    for idx, r in df_filtered.iterrows():
+                        tkr = r['Fetch_T']
+                        if tkr in processed_charts and len(processed_charts[tkr]) >= 2:
+                            df_hist = processed_charts[tkr]
+                            if 'Volume' in df_hist.columns and 'Vol_SMA_89' in df_hist.columns and 'EMA_10' in df_hist.columns:
+                                vol_fire = df_hist['Volume'] > (df_hist['Vol_SMA_89'] * 1.618)
+                                b_cond = vol_fire & (df_hist['Close'] > df_hist['EMA_10']) & (df_hist['Close'] >= df_hist['Open'])
+                                s_cond = vol_fire & (df_hist['Close'] < df_hist['EMA_10']) & (df_hist['Close'] < df_hist['Open'])
+                                
+                                tot_buy = b_cond.sum()
+                                tot_sell = s_cond.sum()
+                                
+                                if tot_buy >= 2 and tot_sell <= 1: 
+                                    buy_mask[idx] = True
+                                    df_filtered.at[idx, 'S'] = df_filtered.at[idx, 'S'] + ((tot_buy - tot_sell) * 10) 
+                                    
+                                elif tot_sell >= 2 and tot_buy <= 1: 
+                                    sell_mask[idx] = True
+                                    df_filtered.at[idx, 'S'] = df_filtered.at[idx, 'S'] + ((tot_sell - tot_buy) * 10)
+                                    
+                    c_buy = base_buy & buy_mask
+                    c_sell = base_sell & sell_mask
+                    icon_str = "🚀 Max Fire"
+
+                elif strat == "⚡ Intraday Pro Breakout (Top 5)":
                     c_buy = base_buy & (df_filtered['P'] > df_filtered['O']) & ((df_filtered['H'] - df_filtered['P']) <= (df_filtered['H'] - df_filtered['L']) * 0.30)
                     c_sell = base_sell & (df_filtered['P'] < df_filtered['O']) & ((df_filtered['P'] - df_filtered['L']) <= (df_filtered['H'] - df_filtered['L']) * 0.30)
                     icon_str = "⚡"
