@@ -1405,27 +1405,22 @@ if not df.empty:
             
             for idx, r in df_filtered.iterrows():
                 tkr = r['Fetch_T']
-                # కనీసం 2 క్యాండిల్స్ (9:20 AM దాటితేనే) ఈ లాజిక్ పనిచేస్తుంది
-                if tkr in processed_charts and len(processed_charts[tkr]) >= 3:
-                            df_hist = processed_charts[tkr]
-                            # ఇక్కడ Vol_SMA_375 అని మార్చండి
-                            if 'Volume' in df_hist.columns and 'Vol_SMA_375' in df_hist.columns and 'EMA_10' in df_hist.columns:
-                                
-                                # ఇక్కడ 1.5 తో గుణిస్తున్నాం (గత 5 రోజుల యావరేజ్ వాల్యూమ్ కన్నా 1.5 రెట్లు)
-                                vol_fire = df_hist['Volume'] > (df_hist['Vol_SMA_375'].shift(1) * 1.5)
-                    # 1. పక్కాగా ఫస్ట్ క్యాండిల్ (9:15 AM) ఓపెన్ ప్రైస్ ని బేస్ గా తీసుకుంటున్నాం
-                    day_open = df_hist['Open'].iloc[0]
+                if tkr in processed_charts and len(processed_charts[tkr]) >= 2:
+                    df_hist = processed_charts[tkr]
                     
-                    # 2. బాస్ చెప్పినట్లు: ఫస్ట్ క్యాండిల్ తోకని వదిలేసి, 9:20 తర్వాత పడిన Low/High మాత్రమే తీసుకుంటున్నాం
+                    day_open = df_hist['Open'].iloc[0]
                     low_after_1st = df_hist['Low'].iloc[1:].min()
                     high_after_1st = df_hist['High'].iloc[1:].max()
                     
-                    if (day_open - low_after_1st) <= (r['P'] * 0.003): open_drive_bull[idx] = True
-                    if (high_after_1st - day_open) <= (r['P'] * 0.003): open_drive_bear[idx] = True
+                    if (day_open - low_after_1st) <= (r['P'] * 0.003):
+                        open_drive_bull[idx] = True
+                    if (high_after_1st - day_open) <= (r['P'] * 0.003):
+                        open_drive_bear[idx] = True
                 else:
-                    # ఒకవేళ మార్కెట్ ఓపెన్ అయిన ఫస్ట్ 5 నిమిషాల్లోనే ఉంటే (Fallback)
-                    if (r['O'] - r['L']) <= (r['P'] * 0.003): open_drive_bull[idx] = True
-                    if (r['H'] - r['O']) <= (r['P'] * 0.003): open_drive_bear[idx] = True
+                    if (r['O'] - r['L']) <= (r['P'] * 0.003):
+                        open_drive_bull[idx] = True
+                    if (r['H'] - r['O']) <= (r['P'] * 0.003):
+                        open_drive_bear[idx] = True
 
             strategies_list = [
                 "🔥 Live Power Mover (Last 2 Candles)", "🚀 All-Day Volume Spikes (Max Fire)", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", 
@@ -1480,72 +1475,37 @@ if not df.empty:
                     buy_mask = pd.Series(False, index=df_filtered.index)
                     sell_mask = pd.Series(False, index=df_filtered.index)
                     
-                    # 1. కేవలం FNO స్టాక్స్ ఫిల్టర్
+                    # 1. కేవలం FNO (Nifty Futures) స్టాక్స్ ఫిల్టర్
                     df_fno = df_filtered[df_filtered['T'].isin(FNO_STOCKS)]
                     
                     for idx, r in df_fno.iterrows():
                         tkr = r['Fetch_T']
-                        if tkr in processed_charts and len(processed_charts[tkr]) >= 3:
+                        if tkr in processed_charts and len(processed_charts[tkr]) >= 2:
                             df_hist = processed_charts[tkr]
-                            # ఇక్కడ Vol_SMA_375 అని మార్చండి
+                            
+                            # ఎగ్జాక్ట్ చార్ట్ లాజిక్ (1.5x Vol + 10 EMA కండిషన్)
                             if 'Volume' in df_hist.columns and 'Vol_SMA_375' in df_hist.columns and 'EMA_10' in df_hist.columns:
                                 
-                                # ఇక్కడ 1.5 తో గుణిస్తున్నాం (గత 5 రోజుల యావరేజ్ వాల్యూమ్ కన్నా 1.5 రెట్లు)
+                                # వాల్యూమ్ కండిషన్ (ముందు క్యాండిల్ 375 SMA కి 1.5 రెట్లు)
                                 vol_fire = df_hist['Volume'] > (df_hist['Vol_SMA_375'].shift(1) * 1.5)
                                 
-                                ltp = df_hist['Close'].iloc[-1]
-                                vwap = df_hist['VWAP'].iloc[-1]
-                                ema10 = df_hist['EMA_10'].iloc[-1]
+                                # చార్ట్ లో ఉన్న పక్కా కండిషన్ (Previous close దాటాల్సిన పనిలేదు)
+                                valid_buy_fire = vol_fire & (df_hist['Close'] >= df_hist['EMA_10'])
+                                valid_sell_fire = vol_fire & (df_hist['Close'] < df_hist['EMA_10'])
                                 
-                                is_buy_trend = (ltp > vwap) and (ltp > ema10)
-                                is_sell_trend = (ltp < vwap) and (ltp < ema10)
-                                
-                                # 2. Trend Break Logic (పాత ట్రెండ్ ఎక్కడ బ్రేక్ అయ్యిందో పట్టుకోవడం)
-                                # Bearish Break (Buy Trend కిందకి బ్రేక్ అవ్వడం)
-                                crossed_below = (df_hist['Close'].shift(1) >= df_hist['EMA_10'].shift(1)) & (df_hist['Close'] < df_hist['EMA_10'])
-                                confirmed_bearish = crossed_below.shift(1).fillna(False) & (df_hist['Close'] < df_hist['Close'].shift(1))
-                                
-                                # Bullish Break (Sell Trend పైకి బ్రేక్ అవ్వడం)
-                                crossed_above = (df_hist['Close'].shift(1) <= df_hist['EMA_10'].shift(1)) & (df_hist['Close'] > df_hist['EMA_10'])
-                                confirmed_bullish = crossed_above.shift(1).fillna(False) & (df_hist['Close'] > df_hist['Close'].shift(1))
+                                tot_buy = valid_buy_fire.sum()
+                                tot_sell = valid_sell_fire.sum()
                                 
                                 fire_score = 0
                                 
-                                # 3. పాత Fires ని ఇగ్నోర్ చేసి, కరెంట్ ట్రెండ్ Fires మాత్రమే లెక్కించడం
-                                if is_buy_trend:
-                                    last_bearish_idx = confirmed_bearish[confirmed_bearish].index.max()
+                                # నెట్ స్కోర్ లెక్కించడం
+                                if tot_buy >= 1 and tot_buy > tot_sell: 
+                                    buy_mask[idx] = True
+                                    fire_score = (tot_buy - tot_sell) * 10
+                                elif tot_sell >= 1 and tot_sell > tot_buy: 
+                                    sell_mask[idx] = True
+                                    fire_score = (tot_sell - tot_buy) * 10
                                     
-                                    # కన్ఫర్మ్డ్ బ్రేక్ డౌన్ ఉంటే, అక్కడి నుండే (Fresh గా) డేటా తీసుకుంటాం లేదంటే రోజంతా తీసుకుంటాం
-                                    if pd.isna(last_bearish_idx):
-                                        df_valid = df_hist
-                                    else:
-                                        df_valid = df_hist.loc[last_bearish_idx:]
-                                        
-                                    vol_fire = df_valid['Volume'] > (df_valid['Vol_SMA_89'] * 1.618)
-                                    valid_buy_fires = vol_fire & (df_valid['Close'] > df_valid['EMA_10'])
-                                    tot_buy = valid_buy_fires.sum()
-                                    
-                                    if tot_buy >= 1:
-                                        buy_mask[idx] = True
-                                        fire_score = tot_buy * 10
-                                        
-                                elif is_sell_trend:
-                                    last_bullish_idx = confirmed_bullish[confirmed_bullish].index.max()
-                                    
-                                    # కన్ఫర్మ్డ్ బ్రేక్ అవుట్ ఉంటే, అక్కడి నుండే (Fresh గా) డేటా తీసుకుంటాం
-                                    if pd.isna(last_bullish_idx):
-                                        df_valid = df_hist
-                                    else:
-                                        df_valid = df_hist.loc[last_bullish_idx:]
-                                        
-                                    vol_fire = df_valid['Volume'] > (df_valid['Vol_SMA_89'] * 1.618)
-                                    valid_sell_fires = vol_fire & (df_valid['Close'] < df_valid['EMA_10'])
-                                    tot_sell = valid_sell_fires.sum()
-                                    
-                                    if tot_sell >= 1:
-                                        sell_mask[idx] = True
-                                        fire_score = tot_sell * 10
-                                        
                                 if fire_score > 0:
                                     price_score = int(abs(r['Day_C']) * 5)
                                     s_vwap = r.get('VWAP', r['P'])
