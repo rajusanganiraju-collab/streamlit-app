@@ -1471,6 +1471,31 @@ if not df.empty:
                     c_sell = base_sell & sell_mask
                     icon_str = "🔥 Live Breakout"
 
+                if strat == "🔥 Live Power Mover (Last 2 Candles)":
+                    buy_mask = pd.Series(False, index=df_filtered.index)
+                    sell_mask = pd.Series(False, index=df_filtered.index)
+                    
+                    for idx, r in df_filtered.iterrows():
+                        tkr = r['Fetch_T']
+                        if tkr in processed_charts and len(processed_charts[tkr]) >= 2:
+                            df_hist = processed_charts[tkr]
+                            if 'Volume' in df_hist.columns and 'Vol_SMA_375' in df_hist.columns and 'EMA_10' in df_hist.columns:
+                                
+                                # 375 SMA కన్నా 1.5 రెట్లు వాల్యూమ్
+                                vol_fire = df_hist['Volume'] > (df_hist['Vol_SMA_375'].shift(1) * 1.5)
+                                
+                                # Buy: ముందు క్యాండిల్ పైన క్లోజ్ అవ్వాలి + 10 EMA పైన క్లోజ్ అవ్వాలి
+                                b_cond = vol_fire & (df_hist['Close'] > df_hist['Close'].shift(1)) & (df_hist['Close'] >= df_hist['EMA_10'])
+                                # Sell: ముందు క్యాండిల్ కింద క్లోజ్ అవ్వాలి + 10 EMA కింద క్లోజ్ అవ్వాలి
+                                s_cond = vol_fire & (df_hist['Close'] < df_hist['Close'].shift(1)) & (df_hist['Close'] <= df_hist['EMA_10'])
+                                
+                                if b_cond.iloc[-2:].sum() >= 1: buy_mask[idx] = True
+                                if s_cond.iloc[-2:].sum() >= 1: sell_mask[idx] = True
+                                
+                    c_buy = base_buy & buy_mask
+                    c_sell = base_sell & sell_mask
+                    icon_str = "🔥 Live Breakout"
+
                 elif strat == "🚀 All-Day Volume Spikes (Max Fire)":
                     buy_mask = pd.Series(False, index=df_filtered.index)
                     sell_mask = pd.Series(False, index=df_filtered.index)
@@ -1483,15 +1508,21 @@ if not df.empty:
                         if tkr in processed_charts and len(processed_charts[tkr]) >= 2:
                             df_hist = processed_charts[tkr]
                             
-                            # ఎగ్జాక్ట్ చార్ట్ లాజిక్ (1.5x Vol + 10 EMA కండిషన్)
                             if 'Volume' in df_hist.columns and 'Vol_SMA_375' in df_hist.columns and 'EMA_10' in df_hist.columns:
+                                ltp = df_hist['Close'].iloc[-1]
+                                vwap = df_hist['VWAP'].iloc[-1]
+                                ema10 = df_hist['EMA_10'].iloc[-1]
                                 
-                                # వాల్యూమ్ కండిషన్ (ముందు క్యాండిల్ 375 SMA కి 1.5 రెట్లు)
+                                # కరెంట్ ప్రైస్ డైరెక్షన్
+                                is_buy_trend = (ltp > vwap) and (ltp > ema10)
+                                is_sell_trend = (ltp < vwap) and (ltp < ema10)
+                                
+                                # వాల్యూమ్ కండిషన్ (375 SMA * 1.5)
                                 vol_fire = df_hist['Volume'] > (df_hist['Vol_SMA_375'].shift(1) * 1.5)
                                 
-                                # చార్ట్ లో ఉన్న పక్కా కండిషన్ (Previous close దాటాల్సిన పనిలేదు)
-                                valid_buy_fire = vol_fire & (df_hist['Close'] >= df_hist['EMA_10'])
-                                valid_sell_fire = vol_fire & (df_hist['Close'] < df_hist['EMA_10'])
+                                # 🔥 పక్కా ఫైర్ రూల్స్ (Previous Close Break + 10 EMA Alignment)
+                                valid_buy_fire = vol_fire & (df_hist['Close'] > df_hist['Close'].shift(1)) & (df_hist['Close'] >= df_hist['EMA_10'])
+                                valid_sell_fire = vol_fire & (df_hist['Close'] < df_hist['Close'].shift(1)) & (df_hist['Close'] <= df_hist['EMA_10'])
                                 
                                 tot_buy = valid_buy_fire.sum()
                                 tot_sell = valid_sell_fire.sum()
@@ -1499,10 +1530,10 @@ if not df.empty:
                                 fire_score = 0
                                 
                                 # నెట్ స్కోర్ లెక్కించడం
-                                if tot_buy >= 1 and tot_buy > tot_sell: 
+                                if is_buy_trend and tot_buy >= 1 and tot_buy > tot_sell: 
                                     buy_mask[idx] = True
                                     fire_score = (tot_buy - tot_sell) * 10
-                                elif tot_sell >= 1 and tot_sell > tot_buy: 
+                                elif is_sell_trend and tot_sell >= 1 and tot_sell > tot_buy: 
                                     sell_mask[idx] = True
                                     fire_score = (tot_sell - tot_buy) * 10
                                     
