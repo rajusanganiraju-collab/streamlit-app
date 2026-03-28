@@ -1199,45 +1199,26 @@ if not df.empty:
     sec_sort_key = "W_C" if chart_timeframe == "Weekly Chart" else "Day_C"
     df_sectors = df_sectors.sort_values(by=sec_sort_key, ascending=False)
     
+    # 1. Base Data (All Fetched Stocks)
     df_all_stocks = df[(~df['Is_Index']) & (~df['Is_Sector']) & (~df['Is_Commodity'])].copy()
     df_commodities = df[df['Is_Commodity']].copy()
     
     df_port_saved = load_portfolio()
 
-    # 🔥 PORTFOLIO STOCKS STRICTLY BLOCKED FROM SCREENER
+    # 2. 🔥 STRICT SEGMENT FILTERING (IRON WALL) 🔥
     if market_segment == "F&O (Top 200) 🔵":
-        allowed_stocks = set(NIFTY_50 + FNO_STOCKS)
+        strict_allowed = set(NIFTY_50 + FNO_STOCKS)
     elif market_segment == "Mid Cap 🟡":
-        allowed_stocks = set(MIDCAP_STOCKS)
+        strict_allowed = set(MIDCAP_STOCKS)
     elif market_segment == "Small Cap 🟢":
-        allowed_stocks = set(SMALLCAP_STOCKS)
+        strict_allowed = set(SMALLCAP_STOCKS)
     else: # All Combined
-        allowed_stocks = set(NIFTY_50 + FNO_STOCKS + MIDCAP_STOCKS + SMALLCAP_STOCKS)
+        strict_allowed = set(NIFTY_50 + FNO_STOCKS + MIDCAP_STOCKS + SMALLCAP_STOCKS)
 
-    # మీరు సెలెక్ట్ చేసిన సెగ్మెంట్ మాత్రమే ఇక్కడకు వస్తుంది
-    df_stocks = df_all_stocks[df_all_stocks['T'].isin(allowed_stocks)].copy()
+    # ఈ ఒక్క లైన్ దెబ్బతో పోర్ట్‌ఫోలియో స్టాక్స్ బైపాస్ అవ్వడం పర్మినెంట్ గా ఆగిపోతుంది!
+    df_stocks = df_all_stocks[df_all_stocks['T'].isin(strict_allowed)].copy()
     
-    # 1. అన్ని స్టాక్స్ (Nifty 50 తో సహా) బేస్ డేటా
-    df_all_stocks = df[(~df['Is_Index']) & (~df['Is_Sector']) & (~df['Is_Commodity'])].copy()
-    df_commodities = df[df['Is_Commodity']].copy()
-    
-    df_port_saved = load_portfolio()
-    port_tickers_raw = [str(sym).upper().strip() for sym in df_port_saved['Symbol'].tolist() if str(sym).strip() != ""]
-
-    # 2. 🔥 ఇక్కడే అసలు లాజిక్: యూజర్ సెలెక్ట్ చేసిన కేటగిరీ మాత్రమే df_stocks లో ఉండాలి!
-    if market_segment == "F&O (Top 200) 🔵":
-        allowed_stocks = set(NIFTY_50 + FNO_STOCKS + port_tickers_raw)
-    elif market_segment == "Mid Cap 🟡":
-        allowed_stocks = set(MIDCAP_STOCKS + port_tickers_raw)
-    elif market_segment == "Small Cap 🟢":
-        allowed_stocks = set(SMALLCAP_STOCKS + port_tickers_raw)
-    else: # All Combined
-        allowed_stocks = set(NIFTY_50 + FNO_STOCKS + MIDCAP_STOCKS + SMALLCAP_STOCKS + port_tickers_raw)
-
-    # యూజర్ అడిగిన కేటగిరీకి ఫిల్టర్
-    df_stocks = df_all_stocks[df_all_stocks['T'].isin(allowed_stocks)].copy()
-    
-    # 3. సెక్టార్ కాలిక్యులేషన్స్ కోసం ఎప్పుడూ Nifty 50 ని వాడాలి (అది ఫిల్టర్ కాకుండా df_all_stocks నుండి తీసుకుంటాం)
+    # 3. Sector Calcs (దీనికి ఎప్పుడూ df_all_stocks వాడాలి)
     df_nifty = df_all_stocks[df_all_stocks['T'].isin(NIFTY_50)].copy()
     sector_perf = df_nifty.groupby('Sector')['C'].mean().sort_values(ascending=False)
     valid_sectors = [s for s in sector_perf.index if s != "OTHER"]
@@ -1248,10 +1229,9 @@ if not df.empty:
     df_buy_sector = df_nifty[df_nifty['Sector'] == top_buy_sector].sort_values(by=['S', 'C'], ascending=[False, False])
     df_sell_sector = df_nifty[df_nifty['Sector'] == top_sell_sector].sort_values(by=['S', 'C'], ascending=[False, True])
     df_independent = df_nifty[(~df_nifty['Sector'].isin([top_buy_sector, top_sell_sector])) & (df_nifty['S'] >= 5)].sort_values(by='S', ascending=False).head(8)
-    
-    # Broader market లో కూడా df_all_stocks నే వాడాలి, అప్పుడే Nifty కాని టాప్ FNO వస్తాయి.
     df_broader = df_all_stocks[(df_all_stocks['T'].isin(FNO_STOCKS)) & (~df_all_stocks['T'].isin(NIFTY_50)) & (df_all_stocks['S'] >= 5)].sort_values(by='S', ascending=False).head(8)
 
+    if watchlist_mode == "Terminal Tables 🗃️":
     if watchlist_mode == "Terminal Tables 🗃️":
         terminal_tickers = pd.concat([df_buy_sector, df_sell_sector, df_independent, df_broader])['Fetch_T'].unique().tolist()
         df_filtered = df_all_stocks[df_all_stocks['Fetch_T'].isin(terminal_tickers)]
