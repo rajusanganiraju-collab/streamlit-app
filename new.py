@@ -1784,12 +1784,17 @@ if not df.empty:
     elif watchlist_mode == "My Portfolio 💼" and view_mode == "Heat Map":
         sc1, sc2 = st.columns([0.7, 0.3])
         with sc2: port_sort = st.selectbox("↕️ Sort Portfolio:", ["Default", "Day P&L ⬆️", "Day P&L ⬇️", "Total P&L ⬆️", "Total P&L ⬇️", "P&L % ⬆️", "P&L % ⬇️"], label_visibility="collapsed")
-        st.markdown(render_portfolio_table(df_port_saved, df_stocks, weekly_trends, port_sort), unsafe_allow_html=True)
+        
+        # 🔥 FIX: ఇక్కడ df_stocks కి బదులు df_all_stocks ని వాడాలి! అప్పుడే పోర్ట్‌ఫోలియో కి కరెక్ట్ గా లైవ్ డేటా వస్తుంది!
+        st.markdown(render_portfolio_table(df_port_saved, df_all_stocks, weekly_trends, port_sort), unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
+        
         with st.expander("🤖 View Portfolio Swing Advisor (Action & Levels)", expanded=False):
-            st.markdown(render_portfolio_swing_advice_table(df_port_saved, df_stocks, weekly_trends), unsafe_allow_html=True)
+            # 🔥 FIX: ఇక్కడ కూడా df_all_stocks వాడాలి
+            st.markdown(render_portfolio_swing_advice_table(df_port_saved, df_all_stocks, weekly_trends), unsafe_allow_html=True)
+            
         with st.expander("➕ Search & Add Stock to Portfolio", expanded=False):
-            with st.form("portfolio_add_form", clear_on_submit=True):
+            with st.form("portfolio_add_form", clear_on_submit=True)::
                 c1, c2, c3, c4 = st.columns(4)
                 with c1: new_sym = st.text_input("🔍 NSE Symbol", placeholder="e.g. ITC").upper().strip()
                 with c2: new_qty = st.number_input("📦 Quantity", min_value=1, value=10)
