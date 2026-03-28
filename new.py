@@ -1400,8 +1400,28 @@ if not df.empty:
             s_vwap = (df_filtered['H'] + df_filtered['L'] + df_filtered['P']) / 3
             stock_vwap_dist = (df_filtered['P'] - s_vwap).abs() / s_vwap * 100
             
-            open_drive_bull = (df_filtered['O'] - df_filtered['L'] <= df_filtered['P'] * 0.003)
-            open_drive_bear = (df_filtered['H'] - df_filtered['O'] <= df_filtered['P'] * 0.003)
+            open_drive_bull = pd.Series(False, index=df_filtered.index)
+            open_drive_bear = pd.Series(False, index=df_filtered.index)
+            
+            for idx, r in df_filtered.iterrows():
+                tkr = r['Fetch_T']
+                # కనీసం 2 క్యాండిల్స్ (9:20 AM దాటితేనే) ఈ లాజిక్ పనిచేస్తుంది
+                if tkr in processed_charts and len(processed_charts[tkr]) >= 2:
+                    df_hist = processed_charts[tkr]
+                    
+                    # 1. పక్కాగా ఫస్ట్ క్యాండిల్ (9:15 AM) ఓపెన్ ప్రైస్ ని బేస్ గా తీసుకుంటున్నాం
+                    day_open = df_hist['Open'].iloc[0]
+                    
+                    # 2. బాస్ చెప్పినట్లు: ఫస్ట్ క్యాండిల్ తోకని వదిలేసి, 9:20 తర్వాత పడిన Low/High మాత్రమే తీసుకుంటున్నాం
+                    low_after_1st = df_hist['Low'].iloc[1:].min()
+                    high_after_1st = df_hist['High'].iloc[1:].max()
+                    
+                    if (day_open - low_after_1st) <= (r['P'] * 0.003): open_drive_bull[idx] = True
+                    if (high_after_1st - day_open) <= (r['P'] * 0.003): open_drive_bear[idx] = True
+                else:
+                    # ఒకవేళ మార్కెట్ ఓపెన్ అయిన ఫస్ట్ 5 నిమిషాల్లోనే ఉంటే (Fallback)
+                    if (r['O'] - r['L']) <= (r['P'] * 0.003): open_drive_bull[idx] = True
+                    if (r['H'] - r['O']) <= (r['P'] * 0.003): open_drive_bear[idx] = True
 
             strategies_list = [
                 "🔥 Live Power Mover (Last 2 Candles)", "🚀 All-Day Volume Spikes (Max Fire)", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", 
