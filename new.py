@@ -845,8 +845,8 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 if has_vol:
                     vol_sma = df_chart.get('Vol_SMA_375', df_chart['Volume'].rolling(window=375, min_periods=1).mean())
                     vol = df_chart['Volume']
-                    mask_hv = vol > (vol_sma * 1.618)
-                    mask_lv = vol < (vol_sma * 0.618)
+                    mask_hv = vol > (vol_sma.shift(1) * 1.5)  # 1.5 రెట్లు
+                    mask_lv = vol < (vol_sma.shift(1) * 0.618)
                 else:
                     mask_hv = pd.Series(False, index=df_chart.index)
                     mask_lv = pd.Series(False, index=df_chart.index)
