@@ -1489,16 +1489,23 @@ if not df.empty:
                             if 'Volume' in df_hist.columns and 'Vol_SMA_89' in df_hist.columns and 'EMA_10' in df_hist.columns:
                                 vol_fire = df_hist['Volume'] > (df_hist['Vol_SMA_89'] * 1.618)
                                 
-                                b_cond = vol_fire & (df_hist['Close'] >= df_hist['EMA_10'])
-                                s_cond = vol_fire & (df_hist['Close'] < df_hist['EMA_10'])
+                                # 🔥 1. బాస్ చెప్పినట్లు: ప్రీవియస్ క్యాండిల్ High/Low ని పట్టుకుంటున్నాం
+                                prev_high = df_hist['High'].shift(1)
+                                prev_low = df_hist['Low'].shift(1)
                                 
-                                tot_buy = b_cond.sum()
-                                tot_sell = s_cond.sum()
+                                # 🔥 2. అల్టిమేట్ వాలిడ్ ఫైర్ (Valid Fire) లాజిక్:
+                                # వాల్యూమ్ ఉండాలి + ప్రీవియస్ క్యాండిల్ హై ని బ్రేక్ చేసి క్లోజ్ అవ్వాలి 
+                                # + (VWAP & 10EMA) పైన క్లోజ్ అవ్వాలి. వ్యతిరేకంగా పడితే పాయింట్స్ రావు!
+                                valid_buy_fire = vol_fire & (df_hist['Close'] > prev_high) & (df_hist['Close'] >= df_hist['EMA_10']) & (df_hist['Close'] >= df_hist['VWAP'])
                                 
-                                # స్కోరింగ్ సిస్టమ్ స్టార్ట్
+                                valid_sell_fire = vol_fire & (df_hist['Close'] < prev_low) & (df_hist['Close'] <= df_hist['EMA_10']) & (df_hist['Close'] <= df_hist['VWAP'])
+                                
+                                tot_buy = valid_buy_fire.sum()
+                                tot_sell = valid_sell_fire.sum()
+                                
                                 fire_score = 0
                                 
-                                # 1. ఫైర్ సింబల్ స్కోర్ (Volume Points: ఒక్కో ఫైర్ కి 10 పాయింట్లు)
+                                # 3. ఫైర్ సింబల్స్ స్కోర్
                                 if tot_buy >= 2 and tot_buy >= (tot_sell * 2): 
                                     buy_mask[idx] = True
                                     fire_score = (tot_buy - tot_sell) * 10
@@ -1508,24 +1515,21 @@ if not df.empty:
                                     
                                 # స్టాక్ ఫిల్టర్ లోకి వస్తేనే మిగతా బోనస్ పాయింట్లు ఇస్తాం
                                 if fire_score > 0:
-                                    # 2. ప్రైస్ యాక్షన్ స్కోర్ (Price Points: ప్రతి 1% మూమెంట్ కి 5 పాయింట్లు)
+                                    # 4. ప్రైస్ యాక్షన్ స్కోర్ (ప్రతి 1% మూమెంట్ కి 5 పాయింట్లు)
                                     price_score = int(abs(r['Day_C']) * 5)
                                     
-                                    # 3. రిలేటివ్ స్ట్రెంగ్త్ స్కోర్ (RS Points vs Nifty)
-                                    # స్టాక్ తన VWAP నుండి ఎంత దూరంలో ఉందో క్యాలిక్యులేట్ చేస్తున్నాం
+                                    # 5. రిలేటివ్ స్ట్రెంగ్త్ స్కోర్ (Nifty RS Points)
                                     s_vwap = r.get('VWAP', r['P'])
                                     s_dist = abs(r['P'] - s_vwap) / s_vwap * 100 if s_vwap > 0 else 0
-                                    
-                                    # నిఫ్టీ మరీ సైడ్‌వేస్ లో ఉంటే (0.00 లాగా ఉంటే) ఎర్రర్ రాకుండా సేఫ్టీ బఫర్ 0.2 పెడుతున్నాం
                                     safe_nifty = max(nifty_dist, 0.2) 
                                     
                                     rs_score = 0
-                                    if s_dist >= (safe_nifty * 4): rs_score = 20    # నిఫ్టీ కంటే 4 రెట్లు స్ట్రాంగ్ (ఎక్స్‌ట్రీమ్ బుల్లిష్)
-                                    elif s_dist >= (safe_nifty * 3): rs_score = 15  # నిఫ్టీ కంటే 3 రెట్లు స్ట్రాంగ్
-                                    elif s_dist >= (safe_nifty * 2): rs_score = 10  # నిఫ్టీ కంటే 2 రెట్లు స్ట్రాంగ్
-                                    elif s_dist >= (safe_nifty * 1.5): rs_score = 5 # నిఫ్టీ కంటే 1.5 రెట్లు స్ట్రాంగ్
+                                    if s_dist >= (safe_nifty * 4): rs_score = 20
+                                    elif s_dist >= (safe_nifty * 3): rs_score = 15
+                                    elif s_dist >= (safe_nifty * 2): rs_score = 10
+                                    elif s_dist >= (safe_nifty * 1.5): rs_score = 5
                                     
-                                    # ఫైనల్ గా ఈ 3 పాయింట్స్ ని బేస్ స్కోర్ కి యాడ్ చేస్తున్నాం
+                                    # ఫైనల్ గా మొత్తం పాయింట్స్ యాడ్ చేస్తున్నాం
                                     df_filtered.at[idx, 'S'] = df_filtered.at[idx, 'S'] + fire_score + price_score + rs_score
                                     
                     c_buy = base_buy & buy_mask & (df_filtered['Day_C'] >= req_pct)
