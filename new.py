@@ -936,12 +936,15 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                             y_vals_below = df_hv_below['High'] + (df_hv_below['Close'] * 0.0025) # క్యాండిల్ పైన గ్యాప్
                             fig_obj.add_trace(go.Scatter(x=df_hv_below.index, y=y_vals_below, mode='text', text=['🔥']*len(df_hv_below), textposition='top center', textfont=dict(size=10), showlegend=False, hoverinfo='skip'), **rc)
                 
-                # 🚦 Exhaustion Spike Indicator
-                if has_vol:
-                    mask_exhaust = vol > (vol_sma * 4.669)
-                    if mask_exhaust.any():
-                        df_ex = df_chart[mask_exhaust]
-                        fig_obj.add_trace(go.Scatter(x=df_ex.index, y=df_ex['High'] + (df_ex['Close']*0.0015), mode='text', text=['🚦']*len(df_ex), textposition='top center', textfont=dict(size=14), showlegend=False, hoverinfo='skip'), **rc)
+                # === దీన్ని రీప్లేస్ చేయండి ===
+                    # 🚦 Exhaustion Spike Indicator
+                    if has_vol:
+                        mask_exhaust = vol > (vol_sma * 4.669)
+                        if mask_exhaust.any():
+                            df_ex = df_chart[mask_exhaust]
+                            # 🔥 FIX: Increased gap (0.0035) and increased size (18) for better visibility in dark theme
+                            y_vals_exhaust = df_ex['High'] + (df_ex['Close'] * 0.0035) 
+                            fig_obj.add_trace(go.Scatter(x=df_ex.index, y=y_vals_exhaust, mode='text', text=['🚦']*len(df_ex), textposition='top center', textfont=dict(size=18), showlegend=False, hoverinfo='skip'), **rc)
                 
                 # ⚡ High Volatility Indicator (ATR 13)
                 if 'ATR_13' in df_chart.columns:
