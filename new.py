@@ -910,29 +910,30 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                         showlegend=False, hoverinfo='skip'
                     ), **rc)
 
-                # 🔥 High Volume Highlight Marker (Dynamic Position for 5m, Daily, Weekly)
-                if mask_hv.any():
-                    df_hv = df_chart[mask_hv].copy()
-                    
-                    if 'EMA_10' in df_chart.columns: ref_line = df_hv['EMA_10'] # 5-Min
-                    elif 'SMA_50' in df_chart.columns: ref_line = df_hv['SMA_50'] # Daily
-                    elif 'SMA_10' in df_chart.columns: ref_line = df_hv['SMA_10'] # Weekly
-                    elif 'VWAP' in df_chart.columns: ref_line = df_hv['VWAP']
-                    else: ref_line = df_hv['Close']
+                # === దీన్ని రీప్లేస్ చేయండి ===
+                    # 🔥 High Volume Highlight Marker (Dynamic Position for 5m, Daily, Weekly)
+                    if mask_hv.any():
+                        df_hv = df_chart[mask_hv].copy()
                         
-                    mask_above = df_hv['Close'] >= ref_line
-                    mask_below = df_hv['Close'] < ref_line
-                    
-                    df_hv_above = df_hv[mask_above]
-                    df_hv_below = df_hv[mask_below]
-                    
-                    # ప్రైస్ సపోర్ట్ పైన ఉంటే -> ఫైర్ సింబల్ క్యాండిల్ కింద వస్తుంది
-                    if not df_hv_above.empty:
-                        fig_obj.add_trace(go.Scatter(x=df_hv_above.index, y=df_hv_above['Low'] - (df_hv_above['Close']*0.0015), mode='text', text=['🔥']*len(df_hv_above), textposition='bottom center', textfont=dict(size=14), showlegend=False, hoverinfo='skip'), **rc)
+                        if 'EMA_10' in df_chart.columns: ref_line = df_hv['EMA_10'] # 5-Min
+                        elif 'SMA_50' in df_chart.columns: ref_line = df_hv['SMA_50'] # Daily
+                        elif 'SMA_10' in df_chart.columns: ref_line = df_hv['SMA_10'] # Weekly
+                        elif 'VWAP' in df_chart.columns: ref_line = df_hv['VWAP']
+                        else: ref_line = df_hv['Close']
+                            
+                        mask_above = df_hv['Close'] >= ref_line
+                        mask_below = df_hv['Close'] < ref_line
                         
-                    # ప్రైస్ సపోర్ట్ కింద ఉంటే -> ఫైర్ సింబల్ క్యాండిల్ పైన వస్తుంది
-                    if not df_hv_below.empty:
-                        fig_obj.add_trace(go.Scatter(x=df_hv_below.index, y=df_hv_below['High'] + (df_hv_below['Close']*0.0015), mode='text', text=['🔥']*len(df_hv_below), textposition='top center', textfont=dict(size=14), showlegend=False, hoverinfo='skip'), **rc)
+                        df_hv_above = df_hv[mask_above]
+                        df_hv_below = df_hv[mask_below]
+                        
+                        # 🔥 బుల్లిష్/సపోర్ట్ పైన ఉంటే -> ఫైర్ సింబల్ క్యాండిల్ కింద వస్తుంది (సైజ్ 9)
+                        if not df_hv_above.empty:
+                            fig_obj.add_trace(go.Scatter(x=df_hv_above.index, y=df_hv_above['Low'], mode='text', text=['🔥']*len(df_hv_above), textposition='top center', textfont=dict(size=9), showlegend=False, hoverinfo='skip'), **rc)
+                            
+                        # 🩸 బేరిష్/సపోర్ట్ కింద ఉంటే -> ఫైర్ సింబల్ క్యాండిల్ పైన వస్తుంది (సైజ్ 9)
+                        if not df_hv_below.empty:
+                            fig_obj.add_trace(go.Scatter(x=df_hv_below.index, y=df_hv_below['High'], mode='text', text=['🔥']*len(df_hv_below), textposition='bottom center', textfont=dict(size=9), showlegend=False, hoverinfo='skip'), **rc)
                 
                 # 🚦 Exhaustion Spike Indicator
                 if has_vol:
