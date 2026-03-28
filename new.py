@@ -1476,59 +1476,68 @@ if not df.empty:
                     buy_mask = pd.Series(False, index=df_filtered.index)
                     sell_mask = pd.Series(False, index=df_filtered.index)
                     
-                    for idx, r in df_filtered.iterrows():
+                    # 1. కేవలం FNO స్టాక్స్ ఫిల్టర్
+                    df_fno = df_filtered[df_filtered['T'].isin(FNO_STOCKS)]
+                    
+                    for idx, r in df_fno.iterrows():
                         tkr = r['Fetch_T']
-                        sym_name = r['T']
-                        
-                        # 1. కేవలం FNO (Nifty Futures) స్టాక్స్ మాత్రమే ఫిల్టర్ చేయాలి
-                        if sym_name not in FNO_STOCKS:
-                            continue
-                            
                         if tkr in processed_charts and len(processed_charts[tkr]) >= 3:
                             df_hist = processed_charts[tkr]
                             if 'Volume' in df_hist.columns and 'Vol_SMA_89' in df_hist.columns and 'EMA_10' in df_hist.columns:
-                                
-                                vol_fire = df_hist['Volume'] > (df_hist['Vol_SMA_89'] * 1.618)
                                 
                                 ltp = df_hist['Close'].iloc[-1]
                                 vwap = df_hist['VWAP'].iloc[-1]
                                 ema10 = df_hist['EMA_10'].iloc[-1]
                                 
-                                # 2. ప్రైస్ VWAP మరియు 10EMA పైన లేదా కింద ఉండాలి
                                 is_buy_trend = (ltp > vwap) and (ltp > ema10)
                                 is_sell_trend = (ltp < vwap) and (ltp < ema10)
                                 
-                                # 3. Trend Broken Confirmation Logic (10EMA క్రాస్ ఓవర్ కన్ఫర్మేషన్)
-                                # Bullish Cross: కింద ఉన్న ప్రైస్ 10EMA పైకి వచ్చి క్లోజ్ అవ్వడం
-                                bullish_cross = (df_hist['Close'].shift(1) < df_hist['EMA_10'].shift(1)) & (df_hist['Close'] > df_hist['EMA_10'])
-                                # Bearish Cross: పైన ఉన్న ప్రైస్ 10EMA కిందకి వచ్చి క్లోజ్ అవ్వడం
-                                bearish_cross = (df_hist['Close'].shift(1) > df_hist['EMA_10'].shift(1)) & (df_hist['Close'] < df_hist['EMA_10'])
+                                # 2. Trend Break Logic (పాత ట్రెండ్ ఎక్కడ బ్రేక్ అయ్యిందో పట్టుకోవడం)
+                                # Bearish Break (Buy Trend కిందకి బ్రేక్ అవ్వడం)
+                                crossed_below = (df_hist['Close'].shift(1) >= df_hist['EMA_10'].shift(1)) & (df_hist['Close'] < df_hist['EMA_10'])
+                                confirmed_bearish = crossed_below.shift(1).fillna(False) & (df_hist['Close'] < df_hist['Close'].shift(1))
                                 
-                                # Next candle కన్ఫర్మేషన్ (క్రాస్ అయిన క్యాండిల్ పైన/కింద క్లోజ్ అవ్వడం)
-                                confirmed_breakup = bullish_cross.shift(1).fillna(False) & (df_hist['Close'] > df_hist['Close'].shift(1))
-                                confirmed_breakdown = bearish_cross.shift(1).fillna(False) & (df_hist['Close'] < df_hist['Close'].shift(1))
-                                
-                                has_confirmed_breakup = confirmed_breakup.any() # సెల్ ట్రెండ్ బ్రేక్ అయింది
-                                has_confirmed_breakdown = confirmed_breakdown.any() # బై ట్రెండ్ బ్రేక్ అయింది
-                                
-                                # Fire Score Calculation
-                                valid_buy_fire = vol_fire & (df_hist['Close'] > df_hist['EMA_10'])
-                                valid_sell_fire = vol_fire & (df_hist['Close'] < df_hist['EMA_10'])
-                                tot_buy = valid_buy_fire.sum()
-                                tot_sell = valid_sell_fire.sum()
+                                # Bullish Break (Sell Trend పైకి బ్రేక్ అవ్వడం)
+                                crossed_above = (df_hist['Close'].shift(1) <= df_hist['EMA_10'].shift(1)) & (df_hist['Close'] > df_hist['EMA_10'])
+                                confirmed_bullish = crossed_above.shift(1).fillna(False) & (df_hist['Close'] > df_hist['Close'].shift(1))
                                 
                                 fire_score = 0
                                 
-                                # ఫైనల్ చెకింగ్: ట్రెండ్ ఉండాలి + బ్రేక్‌డౌన్ అవ్వకూడదు + ఫైర్ స్కోర్ ఎక్కువ ఉండాలి
-                                if is_buy_trend and not has_confirmed_breakdown and (tot_buy >= 1) and (tot_buy > tot_sell):
-                                    buy_mask[idx] = True
-                                    fire_score = (tot_buy - tot_sell) * 10
+                                # 3. పాత Fires ని ఇగ్నోర్ చేసి, కరెంట్ ట్రెండ్ Fires మాత్రమే లెక్కించడం
+                                if is_buy_trend:
+                                    last_bearish_idx = confirmed_bearish[confirmed_bearish].index.max()
                                     
-                                elif is_sell_trend and not has_confirmed_breakup and (tot_sell >= 1) and (tot_sell > tot_buy):
-                                    sell_mask[idx] = True
-                                    fire_score = (tot_sell - tot_buy) * 10
+                                    # కన్ఫర్మ్డ్ బ్రేక్ డౌన్ ఉంటే, అక్కడి నుండే (Fresh గా) డేటా తీసుకుంటాం లేదంటే రోజంతా తీసుకుంటాం
+                                    if pd.isna(last_bearish_idx):
+                                        df_valid = df_hist
+                                    else:
+                                        df_valid = df_hist.loc[last_bearish_idx:]
+                                        
+                                    vol_fire = df_valid['Volume'] > (df_valid['Vol_SMA_89'] * 1.618)
+                                    valid_buy_fires = vol_fire & (df_valid['Close'] > df_valid['EMA_10'])
+                                    tot_buy = valid_buy_fires.sum()
                                     
-                                # నెట్ స్కోర్ పాజిటివ్ గా వస్తేనే ర్యాంకింగ్ పాయింట్లు యాడ్ అవుతాయి
+                                    if tot_buy >= 1:
+                                        buy_mask[idx] = True
+                                        fire_score = tot_buy * 10
+                                        
+                                elif is_sell_trend:
+                                    last_bullish_idx = confirmed_bullish[confirmed_bullish].index.max()
+                                    
+                                    # కన్ఫర్మ్డ్ బ్రేక్ అవుట్ ఉంటే, అక్కడి నుండే (Fresh గా) డేటా తీసుకుంటాం
+                                    if pd.isna(last_bullish_idx):
+                                        df_valid = df_hist
+                                    else:
+                                        df_valid = df_hist.loc[last_bullish_idx:]
+                                        
+                                    vol_fire = df_valid['Volume'] > (df_valid['Vol_SMA_89'] * 1.618)
+                                    valid_sell_fires = vol_fire & (df_valid['Close'] < df_valid['EMA_10'])
+                                    tot_sell = valid_sell_fires.sum()
+                                    
+                                    if tot_sell >= 1:
+                                        sell_mask[idx] = True
+                                        fire_score = tot_sell * 10
+                                        
                                 if fire_score > 0:
                                     price_score = int(abs(r['Day_C']) * 5)
                                     s_vwap = r.get('VWAP', r['P'])
@@ -1543,7 +1552,6 @@ if not df.empty:
                                     
                                     df_filtered.at[idx, 'S'] = df_filtered.at[idx, 'S'] + fire_score + price_score + rs_score
 
-                    # ఫైనల్ గా మాస్క్ అప్లై చేయడం
                     c_buy = base_buy & buy_mask
                     c_sell = base_sell & sell_mask
                     icon_str = "🚀 Max Fire"
