@@ -1199,6 +1199,24 @@ if not df.empty:
     sec_sort_key = "W_C" if chart_timeframe == "Weekly Chart" else "Day_C"
     df_sectors = df_sectors.sort_values(by=sec_sort_key, ascending=False)
     
+    df_all_stocks = df[(~df['Is_Index']) & (~df['Is_Sector']) & (~df['Is_Commodity'])].copy()
+    df_commodities = df[df['Is_Commodity']].copy()
+    
+    df_port_saved = load_portfolio()
+
+    # 🔥 PORTFOLIO STOCKS STRICTLY BLOCKED FROM SCREENER
+    if market_segment == "F&O (Top 200) 🔵":
+        allowed_stocks = set(NIFTY_50 + FNO_STOCKS)
+    elif market_segment == "Mid Cap 🟡":
+        allowed_stocks = set(MIDCAP_STOCKS)
+    elif market_segment == "Small Cap 🟢":
+        allowed_stocks = set(SMALLCAP_STOCKS)
+    else: # All Combined
+        allowed_stocks = set(NIFTY_50 + FNO_STOCKS + MIDCAP_STOCKS + SMALLCAP_STOCKS)
+
+    # మీరు సెలెక్ట్ చేసిన సెగ్మెంట్ మాత్రమే ఇక్కడకు వస్తుంది
+    df_stocks = df_all_stocks[df_all_stocks['T'].isin(allowed_stocks)].copy()
+    
     # 1. అన్ని స్టాక్స్ (Nifty 50 తో సహా) బేస్ డేటా
     df_all_stocks = df[(~df['Is_Index']) & (~df['Is_Sector']) & (~df['Is_Commodity'])].copy()
     df_commodities = df[df['Is_Commodity']].copy()
