@@ -1103,8 +1103,8 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
     with sc1:
         if watchlist_mode in ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions", "High Score Stocks 🔥"]:
             move_type_filter = st.multiselect("Strategy Filter",
-                ["All Moves", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)", "📈 Minervini Trend Template (VCP)", "🌅 15-Min ORB (Opening Range Breakout)"], 
-                default=["🌊 One Sided Only", "🎯 Reversals Only", "🏹 Rubber Band Stretch"]
+                ["All Moves", "🔥 Live Power Mover (Last 2 Candles)", "🚀 All-Day Volume Spikes (Max Fire)", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)", "📈 Minervini Trend Template (VCP)", "🌅 15-Min ORB (Opening Range Breakout)"], 
+                default=["🔥 Live Power Mover (Last 2 Candles)", "🚀 All-Day Volume Spikes (Max Fire)", "🌊 One Sided Only"]
             )
         elif watchlist_mode == "Swing Trading 📈":
             move_type_filter = st.multiselect("Strategy Filter", ["All Swing Stocks", "🚀 Pro Breakout Strategy", "🌟 Weekly 10EMA Pro", "📈 Minervini Trend Template (VCP)"], default=["All Swing Stocks"])
@@ -1404,7 +1404,7 @@ if not df.empty:
             open_drive_bear = (df_filtered['H'] - df_filtered['O'] <= df_filtered['P'] * 0.003)
 
             strategies_list = [
-                "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", 
+                "🔥 Live Power Mover (Last 2 Candles)", "🚀 All-Day Volume Spikes (Max Fire)", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", 
                 "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)", "📈 Minervini Trend Template (VCP)", "🌅 15-Min ORB (Opening Range Breakout)"
             ]
             
@@ -1429,6 +1429,57 @@ if not df.empty:
                 c_buy = pd.Series(False, index=df_filtered.index)
                 c_sell = pd.Series(False, index=df_filtered.index)
                 icon_str = ""
+                if strat == "🔥 Live Power Mover (Last 2 Candles)":
+                    buy_mask = pd.Series(False, index=df_filtered.index)
+                    sell_mask = pd.Series(False, index=df_filtered.index)
+                    
+                    for idx, r in df_filtered.iterrows():
+                        tkr = r['Fetch_T']
+                        if tkr in processed_charts and len(processed_charts[tkr]) >= 2:
+                            df_hist = processed_charts[tkr]
+                            if 'Volume' in df_hist.columns and 'Vol_SMA_89' in df_hist.columns and 'EMA_10' in df_hist.columns:
+                                vol_fire = df_hist['Volume'] > (df_hist['Vol_SMA_89'] * 1.618)
+                                b_cond = vol_fire & (df_hist['Close'] > df_hist['EMA_10']) & (df_hist['Close'] >= df_hist['Open'])
+                                s_cond = vol_fire & (df_hist['Close'] < df_hist['EMA_10']) & (df_hist['Close'] < df_hist['Open'])
+                                
+                                # లాస్ట్ 2 క్యాండిల్స్ లో ఏదో ఒకదానిలో ఫైర్ ఉండాలి
+                                if b_cond.iloc[-2:].sum() >= 1: buy_mask[idx] = True
+                                if s_cond.iloc[-2:].sum() >= 1: sell_mask[idx] = True
+                                
+                    c_buy = base_buy & buy_mask
+                    c_sell = base_sell & sell_mask
+                    icon_str = "🔥 Live Breakout"
+
+                elif strat == "🚀 All-Day Volume Spikes (Max Fire)":
+                    buy_mask = pd.Series(False, index=df_filtered.index)
+                    sell_mask = pd.Series(False, index=df_filtered.index)
+                    
+                    for idx, r in df_filtered.iterrows():
+                        tkr = r['Fetch_T']
+                        if tkr in processed_charts and len(processed_charts[tkr]) >= 2:
+                            df_hist = processed_charts[tkr]
+                            if 'Volume' in df_hist.columns and 'Vol_SMA_89' in df_hist.columns and 'EMA_10' in df_hist.columns:
+                                vol_fire = df_hist['Volume'] > (df_hist['Vol_SMA_89'] * 1.618)
+                                b_cond = vol_fire & (df_hist['Close'] > df_hist['EMA_10']) & (df_hist['Close'] >= df_hist['Open'])
+                                s_cond = vol_fire & (df_hist['Close'] < df_hist['EMA_10']) & (df_hist['Close'] < df_hist['Open'])
+                                
+                                tot_buy = b_cond.sum()
+                                tot_sell = s_cond.sum()
+                                
+                                # Forgiving Trend: మెయిన్ డైరెక్షన్ లో 2+, ఆపోజిట్ లో మాక్స్ 1
+                                if tot_buy >= 2 and tot_sell <= 1: 
+                                    buy_mask[idx] = True
+                                    df_filtered.at[idx, 'S'] = df_filtered.at[idx, 'S'] + ((tot_buy - tot_sell) * 10) 
+                                    
+                                elif tot_sell >= 2 and tot_buy <= 1: 
+                                    sell_mask[idx] = True
+                                    df_filtered.at[idx, 'S'] = df_filtered.at[idx, 'S'] + ((tot_sell - tot_buy) * 10)
+                                    
+                    c_buy = base_buy & buy_mask
+                    c_sell = base_sell & sell_mask
+                    icon_str = "🚀 Max Fire"
+
+                elif strat == "⚡ Intraday Pro Breakout (Top 5)":
 
                 if strat == "⚡ Intraday Pro Breakout (Top 5)":
                     c_buy = base_buy & (df_filtered['P'] > df_filtered['O']) & ((df_filtered['H'] - df_filtered['P']) <= (df_filtered['H'] - df_filtered['L']) * 0.30)
