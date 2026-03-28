@@ -843,7 +843,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 has_vol = 'Volume' in df_chart.columns and df_chart['Volume'].sum() > 0
                 
                 if has_vol:
-                    vol_sma = df_chart.get('Vol_SMA_89', df_chart['Volume'].rolling(window=20, min_periods=1).mean())
+                    vol_sma = df_chart.get('Vol_SMA_375', df_chart['Volume'].rolling(window=375, min_periods=1).mean())
                     vol = df_chart['Volume']
                     mask_hv = vol > (vol_sma * 1.618)
                     mask_lv = vol < (vol_sma * 0.618)
