@@ -237,7 +237,24 @@ FNO_STOCKS = [
     "TATACONSUM", "TATAMOTORS", "TATAPOWER", "TATASTEEL", "TCS", "TECHM", "TITAN", "TORNTPHARM", "TRENT", "TVSMOTOR",
     "UBL", "ULTRACEMCO", "UPL", "VEDL", "VOLTAS", "WIPRO", "ZEEL", "ZOMATO", "ZYDUSLIFE"
 ]
+MIDCAP_STOCKS = [
+    "SUZLON", "IREDA", "RVNL", "NHPC", "SJVN", "BSE", "CDSL", "KPITTECH",
+    "COCHINSHIP", "MAZDOCK", "RAILTEL", "HUDCO", "ANGELONE", "CAMS", "TATAINVEST",
+    "IRB", "NCC", "MANAPPURAM", "J&KBANK", "UCOBANK", "CENTRALBK", "MAHABANK",
+    "SUVENPHAR", "NATCOPHARM", "AJANTPHARM", "PRAJIND", "RENUKA", "EIDPARRY",
+    "TRIVENI", "TEJASNET", "ITI", "MTNL", "HEG", "GRAPHITE", "CEATLTD",
+    "APOLLOTYRE", "JKTYRE", "AMBER", "DIXON", "KAYNES", "CGPOWER", "AIAENG",
+    "SONACOMS", "OLECTRA", "JBMAUTO", "CHALET", "LEMONTREE", "EASEMYTRIP"
+]
 
+SMALLCAP_STOCKS = [
+    "KALYANKJIL", "TRIDENT", "HFCL", "HCC", "JPPOWER", "RPOWER", "SOUTHBANK",
+    "YESBANK", "ZOMATO", "PAYTM", "NYKAA", "PBFINTECH", "DELHIVERY", "MAPMYINDIA",
+    "RATEGAIN", "LATENTVIEW", "CEINFO", "DATAATTNS", "KFINTECH", "PRINCEPIPE",
+    "FINCABLES", "KEI", "POLYCAB", "RRKABEL", "HBLPOWER", "AMARAJABAT", "EXIDEIND",
+    "EQUITASBNK", "UJJIVANSFB", "CSBBANK", "DCBBANK", "KARURVYSYA", "CITYUNION",
+    "RBLBANK", "IDFCFIRSTB", "BANDHANBNK", "BANKINDIA", "UNIONBANK"
+]
 # --- DHAN API INITIALIZATION ---
 @st.cache_resource
 def init_dhan_client():
@@ -357,10 +374,21 @@ def fetch_cached_5m_data(tkrs_list):
 
 # --- DAILY DATA FETCH ---
 @st.cache_data(ttl=150, show_spinner=False)
-def fetch_all_data():
+def fetch_all_data(market_segment="F&O (Top 200) 🔵"):
     port_df = load_portfolio()
     port_stocks = [str(sym).upper().strip() for sym in port_df['Symbol'].tolist() if str(sym).strip() != ""]
-    all_stocks = set(NIFTY_50 + FNO_STOCKS + port_stocks)
+    
+    base_stocks = NIFTY_50.copy()
+    if market_segment == "F&O (Top 200) 🔵":
+        base_stocks += FNO_STOCKS
+    elif market_segment == "Mid Cap 🟡":
+        base_stocks += MIDCAP_STOCKS
+    elif market_segment == "Small Cap 🟢":
+        base_stocks += SMALLCAP_STOCKS
+    else: # All Combined
+        base_stocks += FNO_STOCKS + MIDCAP_STOCKS + SMALLCAP_STOCKS
+        
+    all_stocks = set(base_stocks + port_stocks)
     tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + list(COMMODITY_MAP.keys()) + [f"{t}.NS" for t in all_stocks if t]
     
     data = yf.download(tkrs, period="2y", progress=False, group_by='ticker', threads=5)
@@ -1063,8 +1091,11 @@ def render_closed_trades_table(df_closed):
     return html
 
 # --- 6. FETCH DATA ---
+st.markdown("<hr style='margin:10px 0; border-color:#30363d;'>", unsafe_allow_html=True)
+market_segment = st.radio("🏢 Select Market Segment (To Reduce Load)", ["F&O (Top 200) 🔵", "Mid Cap 🟡", "Small Cap 🟢", "All Combined 🌐"], horizontal=True)
+
 if True: 
-    df = fetch_all_data()
+    df = fetch_all_data(market_segment)
 
 if not df.empty and 'LIVE_PRICES' in st.session_state:
     for i, row in df.iterrows():
