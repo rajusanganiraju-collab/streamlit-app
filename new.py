@@ -1476,40 +1476,59 @@ if not df.empty:
                     buy_mask = pd.Series(False, index=df_filtered.index)
                     sell_mask = pd.Series(False, index=df_filtered.index)
                     
-                    curr_time = datetime.now().time()
-                    if curr_time < dt_time(10, 15): req_pct = 0.75
-                    elif curr_time < dt_time(11, 30): req_pct = 1.0
-                    else: req_pct = 1.5
-                    
                     for idx, r in df_filtered.iterrows():
                         tkr = r['Fetch_T']
-                        if tkr in processed_charts and len(processed_charts[tkr]) >= 2:
+                        sym_name = r['T']
+                        
+                        # 1. కేవలం FNO (Nifty Futures) స్టాక్స్ మాత్రమే ఫిల్టర్ చేయాలి
+                        if sym_name not in FNO_STOCKS:
+                            continue
+                            
+                        if tkr in processed_charts and len(processed_charts[tkr]) >= 3:
                             df_hist = processed_charts[tkr]
                             if 'Volume' in df_hist.columns and 'Vol_SMA_89' in df_hist.columns and 'EMA_10' in df_hist.columns:
+                                
                                 vol_fire = df_hist['Volume'] > (df_hist['Vol_SMA_89'] * 1.618)
                                 
-                                # ఇందాకటి లాజిక్: ప్రీవియస్ హై/లో బ్రేక్ అయ్యి పక్కాగా క్లోజ్ అవ్వాలి
-                                prev_high = df_hist['High'].shift(1)
-                                prev_low = df_hist['Low'].shift(1)
+                                ltp = df_hist['Close'].iloc[-1]
+                                vwap = df_hist['VWAP'].iloc[-1]
+                                ema10 = df_hist['EMA_10'].iloc[-1]
                                 
-                                valid_buy_fire = vol_fire & (df_hist['Close'] > prev_high) & (df_hist['Close'] >= df_hist['EMA_10']) & (df_hist['Close'] >= df_hist['VWAP'])
-                                valid_sell_fire = vol_fire & (df_hist['Close'] < prev_low) & (df_hist['Close'] <= df_hist['EMA_10']) & (df_hist['Close'] <= df_hist['VWAP'])
+                                # 2. ప్రైస్ VWAP మరియు 10EMA పైన లేదా కింద ఉండాలి
+                                is_buy_trend = (ltp > vwap) and (ltp > ema10)
+                                is_sell_trend = (ltp < vwap) and (ltp < ema10)
                                 
+                                # 3. Trend Broken Confirmation Logic (10EMA క్రాస్ ఓవర్ కన్ఫర్మేషన్)
+                                # Bullish Cross: కింద ఉన్న ప్రైస్ 10EMA పైకి వచ్చి క్లోజ్ అవ్వడం
+                                bullish_cross = (df_hist['Close'].shift(1) < df_hist['EMA_10'].shift(1)) & (df_hist['Close'] > df_hist['EMA_10'])
+                                # Bearish Cross: పైన ఉన్న ప్రైస్ 10EMA కిందకి వచ్చి క్లోజ్ అవ్వడం
+                                bearish_cross = (df_hist['Close'].shift(1) > df_hist['EMA_10'].shift(1)) & (df_hist['Close'] < df_hist['EMA_10'])
+                                
+                                # Next candle కన్ఫర్మేషన్ (క్రాస్ అయిన క్యాండిల్ పైన/కింద క్లోజ్ అవ్వడం)
+                                confirmed_breakup = bullish_cross.shift(1).fillna(False) & (df_hist['Close'] > df_hist['Close'].shift(1))
+                                confirmed_breakdown = bearish_cross.shift(1).fillna(False) & (df_hist['Close'] < df_hist['Close'].shift(1))
+                                
+                                has_confirmed_breakup = confirmed_breakup.any() # సెల్ ట్రెండ్ బ్రేక్ అయింది
+                                has_confirmed_breakdown = confirmed_breakdown.any() # బై ట్రెండ్ బ్రేక్ అయింది
+                                
+                                # Fire Score Calculation
+                                valid_buy_fire = vol_fire & (df_hist['Close'] > df_hist['EMA_10'])
+                                valid_sell_fire = vol_fire & (df_hist['Close'] < df_hist['EMA_10'])
                                 tot_buy = valid_buy_fire.sum()
                                 tot_sell = valid_sell_fire.sum()
                                 
                                 fire_score = 0
                                 
-                                # 🔥 బాస్ చెప్పిన "నెట్ స్కోర్" (Net Score) లాజిక్:
-                                # Buy ఫైర్స్ సెల్ ఫైర్స్ కన్నా ఎక్కువ ఉంటే.. అందులోంచి సెల్ ఫైర్స్ ని తీసేసి (నెట్ వాల్యూ) స్కోర్ ఇస్తాం!
-                                if tot_buy >= 2 and tot_buy > tot_sell: 
+                                # ఫైనల్ చెకింగ్: ట్రెండ్ ఉండాలి + బ్రేక్‌డౌన్ అవ్వకూడదు + ఫైర్ స్కోర్ ఎక్కువ ఉండాలి
+                                if is_buy_trend and not has_confirmed_breakdown and (tot_buy >= 1) and (tot_buy > tot_sell):
                                     buy_mask[idx] = True
                                     fire_score = (tot_buy - tot_sell) * 10
-                                elif tot_sell >= 2 and tot_sell > tot_buy: 
+                                    
+                                elif is_sell_trend and not has_confirmed_breakup and (tot_sell >= 1) and (tot_sell > tot_buy):
                                     sell_mask[idx] = True
                                     fire_score = (tot_sell - tot_buy) * 10
-                                        
-                                # నెట్ స్కోర్ పాజిటివ్ గా వస్తేనే మిగతా పాయింట్లు యాడ్ అవుతాయి
+                                    
+                                # నెట్ స్కోర్ పాజిటివ్ గా వస్తేనే ర్యాంకింగ్ పాయింట్లు యాడ్ అవుతాయి
                                 if fire_score > 0:
                                     price_score = int(abs(r['Day_C']) * 5)
                                     s_vwap = r.get('VWAP', r['P'])
@@ -1522,11 +1541,11 @@ if not df.empty:
                                     elif s_dist >= (safe_nifty * 2): rs_score = 10
                                     elif s_dist >= (safe_nifty * 1.5): rs_score = 5
                                     
-                                    # ఫైనల్ గా: (Net Fire Score) + (Price Score) + (RS Score) 
                                     df_filtered.at[idx, 'S'] = df_filtered.at[idx, 'S'] + fire_score + price_score + rs_score
-                                    
-                    c_buy = base_buy & buy_mask & (df_filtered['Day_C'] >= req_pct)
-                    c_sell = base_sell & sell_mask & (df_filtered['Day_C'] <= -req_pct)
+
+                    # ఫైనల్ గా మాస్క్ అప్లై చేయడం
+                    c_buy = base_buy & buy_mask
+                    c_sell = base_sell & sell_mask
                     icon_str = "🚀 Max Fire"
                 elif strat == "⚡ Intraday Pro Breakout (Top 5)":
                     c_buy = base_buy & (df_filtered['P'] > df_filtered['O']) & ((df_filtered['H'] - df_filtered['P']) <= (df_filtered['H'] - df_filtered['L']) * 0.30)
