@@ -255,7 +255,6 @@ SMALLCAP_STOCKS = [
     "KARURVYSYA", "CITYUNION", "BANKINDIA", "UNIONBANK", "ZENSARTECH", 
     "NBCC", "MARKSANS", "JWL", "NETWEB", "TITAGARH", "TEXRAIL", "KIRLOSENG"
 ]
-]
 # --- DHAN API INITIALIZATION ---
 @st.cache_resource
 def init_dhan_client():
