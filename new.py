@@ -1794,7 +1794,7 @@ if not df.empty:
             st.markdown(render_portfolio_swing_advice_table(df_port_saved, df_all_stocks, weekly_trends), unsafe_allow_html=True)
             
         with st.expander("➕ Search & Add Stock to Portfolio", expanded=False):
-            with st.form("portfolio_add_form", clear_on_submit=True)::
+            with st.form("portfolio_add_form", clear_on_submit=True):
                 c1, c2, c3, c4 = st.columns(4)
                 with c1: new_sym = st.text_input("🔍 NSE Symbol", placeholder="e.g. ITC").upper().strip()
                 with c2: new_qty = st.number_input("📦 Quantity", min_value=1, value=10)
