@@ -1232,10 +1232,11 @@ if not df.empty:
     df_broader = df_all_stocks[(df_all_stocks['T'].isin(FNO_STOCKS)) & (~df_all_stocks['T'].isin(NIFTY_50)) & (df_all_stocks['S'] >= 5)].sort_values(by='S', ascending=False).head(8)
 
     if watchlist_mode == "Terminal Tables 🗃️":
-    if watchlist_mode == "Terminal Tables 🗃️":
         terminal_tickers = pd.concat([df_buy_sector, df_sell_sector, df_independent, df_broader])['Fetch_T'].unique().tolist()
         df_filtered = df_all_stocks[df_all_stocks['Fetch_T'].isin(terminal_tickers)]
     elif watchlist_mode == "My Portfolio 💼":
+        port_tickers = [f"{str(sym).upper().strip()}.NS" for sym in df_port_saved['Symbol'].tolist() if str(sym).strip() != ""]
+        df_filtered = df_all_stocks[df_all_stocks['Fetch_T'].isin(port_tickers)]
         port_tickers = [f"{str(sym).upper().strip()}.NS" for sym in df_port_saved['Symbol'].tolist() if str(sym).strip() != ""]
         df_filtered = df_all_stocks[df_all_stocks['Fetch_T'].isin(port_tickers)]
     elif watchlist_mode == "Commodity 🛢️":
