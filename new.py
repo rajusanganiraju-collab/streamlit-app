@@ -1121,8 +1121,8 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
         st.markdown("<hr style='margin:10px 0; border-color:#30363d;'>", unsafe_allow_html=True)
         cc1, cc2, cc3 = st.columns(3)
         with cc1:
-            if watchlist_mode in ["Swing Trading 📈", "My Portfolio 💼", "Commodity 🛢️"]:
-                chart_timeframe = st.radio("Timeframe", ["Intraday (5m)", "Daily Chart", "Weekly Chart"], horizontal=True)
+            # ✅ ఇప్పుడు అన్ని మోడ్స్ కి టైమ్‌ఫ్రేమ్ ఆప్షన్ కనిపిస్తుంది
+            chart_timeframe = st.radio("Timeframe", ["Intraday (5m)", "Daily Chart", "Weekly Chart"], horizontal=True)
         with cc2: show_crosshair = st.toggle("⌖ Show Crosshair", value=False)
         with cc3: show_vol = st.toggle("📊 Show Vol Bars", value=False)
 
