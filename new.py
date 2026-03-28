@@ -1520,8 +1520,9 @@ if not df.empty:
                                     
                                     df_filtered.at[idx, 'S'] = df_filtered.at[idx, 'S'] + fire_score + price_score + rs_score
 
-                    c_buy = base_buy & buy_mask
-                    c_sell = base_sell & sell_mask
+                    # కనీసం 1% మూమెంట్ (Day Change) ఉంటేనే లిస్ట్‌లోకి రావాలి
+                    c_buy = base_buy & buy_mask & (df_filtered['Day_C'] >= 1.0)
+                    c_sell = base_sell & sell_mask & (df_filtered['Day_C'] <= -1.0)
                     icon_str = "🚀 Max Fire"
                 elif strat == "⚡ Intraday Pro Breakout (Top 5)":
                     c_buy = base_buy & (df_filtered['P'] > df_filtered['O']) & ((df_filtered['H'] - df_filtered['P']) <= (df_filtered['H'] - df_filtered['L']) * 0.30)
