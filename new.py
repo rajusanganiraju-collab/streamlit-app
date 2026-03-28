@@ -1476,7 +1476,7 @@ if not df.empty:
                     buy_mask = pd.Series(False, index=df_filtered.index)
                     sell_mask = pd.Series(False, index=df_filtered.index)
                     
-                    # 🔥 బాస్ అడిగిన డైనమిక్ లాజిక్: టైమ్‌ని బట్టి పర్సంటేజ్ ఆటోమేటిక్ గా మారుతుంది!
+                    # టైమ్‌ని బట్టి పర్సంటేజ్ (మనం ముందే యాడ్ చేసింది)
                     curr_time = datetime.now().time()
                     if curr_time < dt_time(10, 15): req_pct = 0.75
                     elif curr_time < dt_time(11, 30): req_pct = 1.0
@@ -1495,15 +1495,19 @@ if not df.empty:
                                 tot_buy = b_cond.sum()
                                 tot_sell = s_cond.sum()
                                 
+                                # 🔥 బాస్ చెప్పిన "Price Action Bonus" 
+                                # ప్రతి 1% ప్రైస్ మూమెంట్ కి 5 పాయింట్లు ఎక్స్‌ట్రా ఇస్తున్నాం
+                                price_bonus = int(abs(r['Day_C']) * 5)
+                                
                                 if tot_buy >= 2 and tot_buy >= (tot_sell * 2): 
                                     buy_mask[idx] = True
-                                    df_filtered.at[idx, 'S'] = df_filtered.at[idx, 'S'] + ((tot_buy - tot_sell) * 10) 
+                                    # ఫైర్ స్కోర్ + ప్రైస్ స్కోర్ రెండు కలుపుతున్నాం
+                                    df_filtered.at[idx, 'S'] = df_filtered.at[idx, 'S'] + ((tot_buy - tot_sell) * 10) + price_bonus
                                     
                                 elif tot_sell >= 2 and tot_sell >= (tot_buy * 2): 
                                     sell_mask[idx] = True
-                                    df_filtered.at[idx, 'S'] = df_filtered.at[idx, 'S'] + ((tot_sell - tot_buy) * 10)
+                                    df_filtered.at[idx, 'S'] = df_filtered.at[idx, 'S'] + ((tot_sell - tot_buy) * 10) + price_bonus
                                     
-                    # ఇక్కడ ఫిక్స్‌డ్ 1.5 బదులు, పైన మనం క్రియేట్ చేసిన 'req_pct' వాడాము
                     c_buy = base_buy & buy_mask & (df_filtered['Day_C'] >= req_pct)
                     c_sell = base_sell & sell_mask & (df_filtered['Day_C'] <= -req_pct)
                     icon_str = "🚀 Max Fire"
