@@ -1476,6 +1476,12 @@ if not df.empty:
                     buy_mask = pd.Series(False, index=df_filtered.index)
                     sell_mask = pd.Series(False, index=df_filtered.index)
                     
+                    # 🔥 బాస్ అడిగిన డైనమిక్ లాజిక్: టైమ్‌ని బట్టి పర్సంటేజ్ ఆటోమేటిక్ గా మారుతుంది!
+                    curr_time = datetime.now().time()
+                    if curr_time < dt_time(10, 15): req_pct = 0.75
+                    elif curr_time < dt_time(11, 30): req_pct = 1.0
+                    else: req_pct = 1.5
+                    
                     for idx, r in df_filtered.iterrows():
                         tkr = r['Fetch_T']
                         if tkr in processed_charts and len(processed_charts[tkr]) >= 2:
@@ -1483,7 +1489,6 @@ if not df.empty:
                             if 'Volume' in df_hist.columns and 'Vol_SMA_89' in df_hist.columns and 'EMA_10' in df_hist.columns:
                                 vol_fire = df_hist['Volume'] > (df_hist['Vol_SMA_89'] * 1.618)
                                 
-                                # ఇక్కడ కూడా గ్రీన్/రెడ్ రూల్ తీసేశాను. డైరెక్ట్ ఫైర్ కౌంట్.
                                 b_cond = vol_fire & (df_hist['Close'] >= df_hist['EMA_10'])
                                 s_cond = vol_fire & (df_hist['Close'] < df_hist['EMA_10'])
                                 
@@ -1498,10 +1503,10 @@ if not df.empty:
                                     sell_mask[idx] = True
                                     df_filtered.at[idx, 'S'] = df_filtered.at[idx, 'S'] + ((tot_sell - tot_buy) * 10)
                                     
-                    c_buy = base_buy & buy_mask
-                    c_sell = base_sell & sell_mask
+                    # ఇక్కడ ఫిక్స్‌డ్ 1.5 బదులు, పైన మనం క్రియేట్ చేసిన 'req_pct' వాడాము
+                    c_buy = base_buy & buy_mask & (df_filtered['Day_C'] >= req_pct)
+                    c_sell = base_sell & sell_mask & (df_filtered['Day_C'] <= -req_pct)
                     icon_str = "🚀 Max Fire"
-
                 elif strat == "⚡ Intraday Pro Breakout (Top 5)":
                     c_buy = base_buy & (df_filtered['P'] > df_filtered['O']) & ((df_filtered['H'] - df_filtered['P']) <= (df_filtered['H'] - df_filtered['L']) * 0.30)
                     c_sell = base_sell & (df_filtered['P'] < df_filtered['O']) & ((df_filtered['P'] - df_filtered['L']) <= (df_filtered['H'] - df_filtered['L']) * 0.30)
