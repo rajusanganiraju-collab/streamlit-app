@@ -524,9 +524,9 @@ def process_5m_data(df_raw):
 
         # 🔥 Volume SMA & Volatility ATR లాజిక్ ఇక్కడ యాడ్ చేశాను
         if 'Volume' in df_s.columns:
-            df_s['Vol_SMA_89'] = df_s['Volume'].rolling(window=89, min_periods=1).mean()
+            df_s['Vol_SMA_375'] = df_s['Volume'].rolling(window=375, min_periods=1).mean()
         else:
-            df_s['Vol_SMA_89'] = 0
+            df_s['Vol_SMA_375'] = 0
             
         df_s['TR'] = pd.concat([
             df_s['High'] - df_s['Low'],
@@ -1483,7 +1483,11 @@ if not df.empty:
                         tkr = r['Fetch_T']
                         if tkr in processed_charts and len(processed_charts[tkr]) >= 3:
                             df_hist = processed_charts[tkr]
-                            if 'Volume' in df_hist.columns and 'Vol_SMA_89' in df_hist.columns and 'EMA_10' in df_hist.columns:
+                            # ఇక్కడ Vol_SMA_375 అని మార్చండి
+                            if 'Volume' in df_hist.columns and 'Vol_SMA_375' in df_hist.columns and 'EMA_10' in df_hist.columns:
+                                
+                                # ఇక్కడ 1.5 తో గుణిస్తున్నాం (గత 5 రోజుల యావరేజ్ వాల్యూమ్ కన్నా 1.5 రెట్లు)
+                                vol_fire = df_hist['Volume'] > (df_hist['Vol_SMA_375'].shift(1) * 1.5)
                                 
                                 ltp = df_hist['Close'].iloc[-1]
                                 vwap = df_hist['VWAP'].iloc[-1]
