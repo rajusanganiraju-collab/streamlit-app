@@ -522,7 +522,7 @@ def process_5m_data(df_raw):
         df_s['EMA_20'] = df_s['Close'].ewm(span=20, adjust=False).mean()
         df_s['EMA_50'] = df_s['Close'].ewm(span=50, adjust=False).mean()
 
-        # 🔥 Volume SMA & Volatility ATR లాజిక్ ఇక్కడ యాడ్ చేశాను
+        # ఇక్కడ మార్చండి:
         if 'Volume' in df_s.columns:
             df_s['Vol_SMA_375'] = df_s['Volume'].rolling(window=375, min_periods=1).mean()
         else:
