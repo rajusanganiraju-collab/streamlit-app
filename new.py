@@ -910,8 +910,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                         showlegend=False, hoverinfo='skip'
                     ), **rc)
 
-                # === దీన్ని రీప్లేస్ చేయండి ===
-                    # 🔥 High Volume Highlight Marker (Dynamic Position for 5m, Daily, Weekly)
+                # 🔥 High Volume Highlight Marker (Dynamic Position for 5m, Daily, Weekly)
                     if mask_hv.any():
                         df_hv = df_chart[mask_hv].copy()
                         
@@ -927,13 +926,15 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                         df_hv_above = df_hv[mask_above]
                         df_hv_below = df_hv[mask_below]
                         
-                        # 🔥 బుల్లిష్/సపోర్ట్ పైన ఉంటే -> ఫైర్ సింబల్ క్యాండిల్ కింద వస్తుంది (సైజ్ 9)
+                        # 🔥 బుల్లిష్/సపోర్ట్ పైన ఉంటే -> ఫైర్ సింబల్ క్యాండిల్ కింద వస్తుంది (గ్యాప్ తో)
                         if not df_hv_above.empty:
-                            fig_obj.add_trace(go.Scatter(x=df_hv_above.index, y=df_hv_above['Low'], mode='text', text=['🔥']*len(df_hv_above), textposition='top center', textfont=dict(size=9), showlegend=False, hoverinfo='skip'), **rc)
+                            y_vals_above = df_hv_above['Low'] - (df_hv_above['Close'] * 0.0025) # క్యాండిల్ కింద గ్యాప్
+                            fig_obj.add_trace(go.Scatter(x=df_hv_above.index, y=y_vals_above, mode='text', text=['🔥']*len(df_hv_above), textposition='bottom center', textfont=dict(size=10), showlegend=False, hoverinfo='skip'), **rc)
                             
-                        # 🩸 బేరిష్/సపోర్ట్ కింద ఉంటే -> ఫైర్ సింబల్ క్యాండిల్ పైన వస్తుంది (సైజ్ 9)
+                        # 🩸 బేరిష్/సపోర్ట్ కింద ఉంటే -> ఫైర్ సింబల్ క్యాండిల్ పైన వస్తుంది (గ్యాప్ తో)
                         if not df_hv_below.empty:
-                            fig_obj.add_trace(go.Scatter(x=df_hv_below.index, y=df_hv_below['High'], mode='text', text=['🔥']*len(df_hv_below), textposition='bottom center', textfont=dict(size=9), showlegend=False, hoverinfo='skip'), **rc)
+                            y_vals_below = df_hv_below['High'] + (df_hv_below['Close'] * 0.0025) # క్యాండిల్ పైన గ్యాప్
+                            fig_obj.add_trace(go.Scatter(x=df_hv_below.index, y=y_vals_below, mode='text', text=['🔥']*len(df_hv_below), textposition='top center', textfont=dict(size=10), showlegend=False, hoverinfo='skip'), **rc)
                 
                 # 🚦 Exhaustion Spike Indicator
                 if has_vol:
