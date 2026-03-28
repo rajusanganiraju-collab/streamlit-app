@@ -1476,7 +1476,6 @@ if not df.empty:
                     buy_mask = pd.Series(False, index=df_filtered.index)
                     sell_mask = pd.Series(False, index=df_filtered.index)
                     
-                    # టైమ్‌ని బట్టి పర్సంటేజ్ రూల్
                     curr_time = datetime.now().time()
                     if curr_time < dt_time(10, 15): req_pct = 0.75
                     elif curr_time < dt_time(11, 30): req_pct = 1.0
@@ -1489,15 +1488,11 @@ if not df.empty:
                             if 'Volume' in df_hist.columns and 'Vol_SMA_89' in df_hist.columns and 'EMA_10' in df_hist.columns:
                                 vol_fire = df_hist['Volume'] > (df_hist['Vol_SMA_89'] * 1.618)
                                 
-                                # 🔥 1. బాస్ చెప్పినట్లు: ప్రీవియస్ క్యాండిల్ High/Low ని పట్టుకుంటున్నాం
+                                # ఇందాకటి లాజిక్: ప్రీవియస్ హై/లో బ్రేక్ అయ్యి పక్కాగా క్లోజ్ అవ్వాలి
                                 prev_high = df_hist['High'].shift(1)
                                 prev_low = df_hist['Low'].shift(1)
                                 
-                                # 🔥 2. అల్టిమేట్ వాలిడ్ ఫైర్ (Valid Fire) లాజిక్:
-                                # వాల్యూమ్ ఉండాలి + ప్రీవియస్ క్యాండిల్ హై ని బ్రేక్ చేసి క్లోజ్ అవ్వాలి 
-                                # + (VWAP & 10EMA) పైన క్లోజ్ అవ్వాలి. వ్యతిరేకంగా పడితే పాయింట్స్ రావు!
                                 valid_buy_fire = vol_fire & (df_hist['Close'] > prev_high) & (df_hist['Close'] >= df_hist['EMA_10']) & (df_hist['Close'] >= df_hist['VWAP'])
-                                
                                 valid_sell_fire = vol_fire & (df_hist['Close'] < prev_low) & (df_hist['Close'] <= df_hist['EMA_10']) & (df_hist['Close'] <= df_hist['VWAP'])
                                 
                                 tot_buy = valid_buy_fire.sum()
@@ -1505,20 +1500,18 @@ if not df.empty:
                                 
                                 fire_score = 0
                                 
-                                # 3. ఫైర్ సింబల్స్ స్కోర్
-                                if tot_buy >= 2 and tot_buy >= (tot_sell * 2): 
+                                # 🔥 బాస్ చెప్పిన "నెట్ స్కోర్" (Net Score) లాజిక్:
+                                # Buy ఫైర్స్ సెల్ ఫైర్స్ కన్నా ఎక్కువ ఉంటే.. అందులోంచి సెల్ ఫైర్స్ ని తీసేసి (నెట్ వాల్యూ) స్కోర్ ఇస్తాం!
+                                if tot_buy >= 2 and tot_buy > tot_sell: 
                                     buy_mask[idx] = True
                                     fire_score = (tot_buy - tot_sell) * 10
-                                elif tot_sell >= 2 and tot_sell >= (tot_buy * 2): 
+                                elif tot_sell >= 2 and tot_sell > tot_buy: 
                                     sell_mask[idx] = True
                                     fire_score = (tot_sell - tot_buy) * 10
-                                    
-                                # స్టాక్ ఫిల్టర్ లోకి వస్తేనే మిగతా బోనస్ పాయింట్లు ఇస్తాం
+                                        
+                                # నెట్ స్కోర్ పాజిటివ్ గా వస్తేనే మిగతా పాయింట్లు యాడ్ అవుతాయి
                                 if fire_score > 0:
-                                    # 4. ప్రైస్ యాక్షన్ స్కోర్ (ప్రతి 1% మూమెంట్ కి 5 పాయింట్లు)
                                     price_score = int(abs(r['Day_C']) * 5)
-                                    
-                                    # 5. రిలేటివ్ స్ట్రెంగ్త్ స్కోర్ (Nifty RS Points)
                                     s_vwap = r.get('VWAP', r['P'])
                                     s_dist = abs(r['P'] - s_vwap) / s_vwap * 100 if s_vwap > 0 else 0
                                     safe_nifty = max(nifty_dist, 0.2) 
@@ -1529,7 +1522,7 @@ if not df.empty:
                                     elif s_dist >= (safe_nifty * 2): rs_score = 10
                                     elif s_dist >= (safe_nifty * 1.5): rs_score = 5
                                     
-                                    # ఫైనల్ గా మొత్తం పాయింట్స్ యాడ్ చేస్తున్నాం
+                                    # ఫైనల్ గా: (Net Fire Score) + (Price Score) + (RS Score) 
                                     df_filtered.at[idx, 'S'] = df_filtered.at[idx, 'S'] + fire_score + price_score + rs_score
                                     
                     c_buy = base_buy & buy_mask & (df_filtered['Day_C'] >= req_pct)
