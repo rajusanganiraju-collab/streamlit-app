@@ -1440,8 +1440,10 @@ if not df.empty:
                             df_hist = processed_charts[tkr]
                             if 'Volume' in df_hist.columns and 'Vol_SMA_89' in df_hist.columns and 'EMA_10' in df_hist.columns:
                                 vol_fire = df_hist['Volume'] > (df_hist['Vol_SMA_89'] * 1.618)
-                                b_cond = vol_fire & (df_hist['Close'] > df_hist['EMA_10']) & (df_hist['Close'] >= df_hist['Open'])
-                                s_cond = vol_fire & (df_hist['Close'] < df_hist['EMA_10']) & (df_hist['Close'] < df_hist['Open'])
+                                
+                                # బాస్ చెప్పినట్లు: గ్రీన్/రెడ్ రూల్ తీసేశాను. చార్ట్‌లో ఫైర్ పడితే ఇక్కడ కౌంట్ అవుతుంది!
+                                b_cond = vol_fire & (df_hist['Close'] >= df_hist['EMA_10'])
+                                s_cond = vol_fire & (df_hist['Close'] < df_hist['EMA_10'])
                                 
                                 if b_cond.iloc[-2:].sum() >= 1: buy_mask[idx] = True
                                 if s_cond.iloc[-2:].sum() >= 1: sell_mask[idx] = True
@@ -1460,13 +1462,14 @@ if not df.empty:
                             df_hist = processed_charts[tkr]
                             if 'Volume' in df_hist.columns and 'Vol_SMA_89' in df_hist.columns and 'EMA_10' in df_hist.columns:
                                 vol_fire = df_hist['Volume'] > (df_hist['Vol_SMA_89'] * 1.618)
-                                b_cond = vol_fire & (df_hist['Close'] > df_hist['EMA_10']) & (df_hist['Close'] >= df_hist['Open'])
-                                s_cond = vol_fire & (df_hist['Close'] < df_hist['EMA_10']) & (df_hist['Close'] < df_hist['Open'])
+                                
+                                # ఇక్కడ కూడా గ్రీన్/రెడ్ రూల్ తీసేశాను. డైరెక్ట్ ఫైర్ కౌంట్.
+                                b_cond = vol_fire & (df_hist['Close'] >= df_hist['EMA_10'])
+                                s_cond = vol_fire & (df_hist['Close'] < df_hist['EMA_10'])
                                 
                                 tot_buy = b_cond.sum()
                                 tot_sell = s_cond.sum()
                                 
-                                # స్మార్ట్ లాజిక్: ఆపోజిట్ ఫైర్స్ పడినా పర్లేదు, కానీ మెయిన్ ట్రెండ్ ఫైర్స్ వాటికంటే డబుల్ (2x) ఉండాలి
                                 if tot_buy >= 2 and tot_buy >= (tot_sell * 2): 
                                     buy_mask[idx] = True
                                     df_filtered.at[idx, 'S'] = df_filtered.at[idx, 'S'] + ((tot_buy - tot_sell) * 10) 
