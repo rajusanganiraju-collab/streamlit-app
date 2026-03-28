@@ -1507,8 +1507,36 @@ if not df.empty:
                     c_sell = base_sell & (df_filtered['P'] < df_filtered['O']) & ((df_filtered['P'] - df_filtered['L']) <= (df_filtered['H'] - df_filtered['L']) * 0.30)
                     icon_str = "⚡"
                 elif strat == "🌊 One Sided Only":
-                    c_buy = base_buy & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['Day_C'] >= 1.5) & (stock_vwap_dist >= (nifty_dist * 1.5)) & (df_filtered['Trend_Score'] >= 3) & open_drive_bull
-                    c_sell = base_sell & (~df_filtered['AlphaTag'].str.contains("Reversal", na=False)) & (df_filtered['Day_C'] <= -1.5) & (stock_vwap_dist >= (nifty_dist * 1.5)) & (df_filtered['Trend_Score'] >= 3) & open_drive_bear
+                    buy_mask = pd.Series(False, index=df_filtered.index)
+                    sell_mask = pd.Series(False, index=df_filtered.index)
+                    
+                    for idx, r in df_filtered.iterrows():
+                        tkr = r['Fetch_T']
+                        # కనీసం అరగంట (6 క్యాండిల్స్) డేటా పడితేనే ట్రెండ్ కన్ఫర్మ్ అవుతుంది
+                        if tkr in processed_charts and len(processed_charts[tkr]) >= 6:
+                            df_hist = processed_charts[tkr]
+                            total_candles = len(df_hist)
+                            
+                            # 🔥 బాస్ లాజిక్: క్యాండిల్ Low తో సంబంధం లేదు, క్యాండిల్ "Close" VWAP పైన ఉందా లేదా చూస్తాం!
+                            # రోజు మొత్తంలో కనీసం 80% క్యాండిల్స్ VWAP పైన క్లోజ్ అయితే అది పక్కా వన్-సైడ్ ట్రెండ్.
+                            if r['Day_C'] > 0:
+                                vwap_above_count = (df_hist['Close'] >= df_hist['VWAP']).sum()
+                                if (vwap_above_count / total_candles) >= 0.80:
+                                    buy_mask[idx] = True
+                            else:
+                                vwap_below_count = (df_hist['Close'] <= df_hist['VWAP']).sum()
+                                if (vwap_below_count / total_candles) >= 0.80:
+                                    sell_mask[idx] = True
+
+                    # 2. రిలేటివ్ స్ట్రెంగ్త్ (RS): నిఫ్టీ కన్నా స్ట్రాంగ్ ఉండాలి (1.2 రెట్లు)
+                    rs_buy_cond = stock_vwap_dist >= (nifty_dist * 1.2)
+                    rs_sell_cond = stock_vwap_dist >= (nifty_dist * 1.2)
+                    
+                    # అన్ని రూల్స్ కలిపి: (VWAP & 10EMA పైన + 80% VWAP Close + RS + No Reversal)
+                    c_buy = base_buy & buy_mask & rs_buy_cond & (df_filtered['Day_C'] >= 1.0) & (~df_filtered['AlphaTag'].str.contains("Reversal Sell", na=False))
+                    
+                    c_sell = base_sell & sell_mask & rs_sell_cond & (df_filtered['Day_C'] <= -1.0) & (~df_filtered['AlphaTag'].str.contains("Reversal Buy", na=False))
+                    
                     icon_str = "🌊"
                 elif strat == "🔄 VWAP Reversal":
                     c_buy = base_buy & (df_filtered['AlphaTag'].str.contains("Reversal Buy", na=False)) & (df_filtered['Day_C'] >= 1.5) & (stock_vwap_dist >= (nifty_dist * 1.5))
