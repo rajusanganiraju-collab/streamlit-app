@@ -1214,12 +1214,20 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                     if 'VWAP' in df_chart.columns: 
                         fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='skip'), row=1, col=1)
                         last_vwap = df_chart['VWAP'].iloc[-1]
-                        fig.add_annotation(x=df_chart.index[-1], y=last_vwap, text=f"V:{last_vwap:.1f}", showarrow=False, xanchor="right", yanchor="bottom", yshift=5, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#FFD700", borderpad=2, row=1, col=1)
+                        # 🔥 xanchor="left", xshift=15 వాడి క్యాండిల్ కి కుడివైపుకి జరిపాం
+                        fig.add_annotation(x=df_chart.index[-1], y=last_vwap, text=f"V:{last_vwap:.1f}", showarrow=False, xanchor="left", yanchor="middle", xshift=15, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#FFD700", borderpad=2, row=1, col=1)
                         
                     if 'EMA_10' in df_chart.columns: 
                         fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'), row=1, col=1)
                         last_ema = df_chart['EMA_10'].iloc[-1]
-                        fig.add_annotation(x=df_chart.index[-1], y=last_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="right", yanchor="top", yshift=-5, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=2, row=1, col=1)
+                        # 🔥 xanchor="left", xshift=15 వాడి క్యాండిల్ కి కుడివైపుకి జరిపాం
+                        fig.add_annotation(x=df_chart.index[-1], y=last_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="left", yanchor="middle", xshift=15, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=2, row=1, col=1)
+                
+                vol_colors = []
+                # ... (Volume బార్స్ కోడ్ అలాగే ఉంటుంది) ...
+                
+                # 🔥 ఇక్కడ r=45 అని ఫిక్స్ చేశాం (ట్యాగ్ కట్ అవ్వకుండా కుడివైపు జాగా కోసం)
+                fig.update_layout(margin=dict(l=0, r=45, t=0, b=0), height=275, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
                 
                 vol_colors = []
                 if 'Volume' in df_chart.columns:
