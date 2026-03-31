@@ -662,10 +662,17 @@ def get_max_oi_strikes(symbol, spot_price):
         if symbol not in FNO_STOCKS and symbol not in ["NIFTY", "BANKNIFTY"]:
             return 0, 0
             
-        # Dhan API ద్వారా కరెంట్ ఆప్షన్ చైన్ లాగడానికి లాజిక్ (మీ Dhan API డాక్యుమెంటేషన్ ప్రకారం దీన్ని అడ్జస్ట్ చేయొచ్చు)
-        # ప్రస్తుతానికి సెక్యూరిటీ ఐడీ కనుక్కోవడం:
         sec_id = sec_map.get(symbol)
         if not sec_id: return 0, 0
+        
+        # MOCK LOGIC (API కనెక్ట్ చేసే వరకు ఎర్రర్ రాకుండా):
+        # స్పాట్ ప్రైస్ కి కాస్త పైన Call OI, కాస్త కింద Put OI ఉన్నట్టు డమ్మీగా పంపుతున్నాను.
+        mock_call = round(spot_price * 1.02, -1) # 2% పైన
+        mock_put = round(spot_price * 0.98, -1)  # 2% కింద
+        return mock_call, mock_put
+
+    except Exception as e:
+        return 0, 0
         
         # ఇక్కడ మీరు Dhan Option Chain API ని కాల్ చేయాలి. ఉదాహరణకు:
         # res = dhan.option_chain(symbol=sec_id, exchange_segment='NSE_FNO')
