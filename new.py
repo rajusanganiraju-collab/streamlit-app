@@ -1202,38 +1202,40 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                     if 'SMA_40' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_40'], mode='lines', line=dict(color='#FF4500', width=2), name='40 Wk SMA', showlegend=False, hoverinfo='skip'), row=1, col=1)
                 else:
                     # 🔥 SMART ANCHOR & ANTI-COLLISION LOGIC 🔥
+                    offset = -4 if len(df_chart) >= 4 else -1
+                    tag_idx = df_chart.index[offset]
+                    
                     last_close = float(df_chart['Close'].iloc[-1])
                     has_vwap = 'VWAP' in df_chart.columns
                     has_ema = 'EMA_10' in df_chart.columns
                     
                     last_vwap = float(df_chart['VWAP'].iloc[-1]) if has_vwap else 0
                     last_ema = float(df_chart['EMA_10'].iloc[-1]) if has_ema else 0
+                    
+                    # 🔥 గాల్లో తేలకుండా ఉండటానికి ఆ లైన్ యొక్క కరెక్ట్ (పాత) ప్రైస్ తీసుకుంటున్నాం
+                    tag_y_vwap = float(df_chart['VWAP'].iloc[offset]) if has_vwap else 0
+                    tag_y_ema = float(df_chart['EMA_10'].iloc[offset]) if has_ema else 0
 
                     v_anchor = "bottom" if last_close <= last_vwap else "top"
                     e_anchor = "bottom" if last_close <= last_ema else "top"
                     v_shift = 6 if v_anchor == "bottom" else -6
                     e_shift = 6 if e_anchor == "bottom" else -6
 
-                    if has_vwap and has_ema and abs(last_vwap - last_ema) / (last_vwap + 0.001) < 0.005:
-                        if last_vwap >= last_ema:
+                    if has_vwap and has_ema and abs(tag_y_vwap - tag_y_ema) / (tag_y_vwap + 0.001) < 0.005:
+                        if tag_y_vwap >= tag_y_ema:
                             v_anchor, v_shift = "bottom", 6
                             e_anchor, e_shift = "top", -6
                         else:
                             v_anchor, v_shift = "top", -6
                             e_anchor, e_shift = "bottom", 6
 
-                    # 🔥 ట్యాగ్ ని లాస్ట్ క్యాండిల్ కి ముందే (4 క్యాండిల్స్ వెనక్కి) ప్రింట్ చేస్తున్నాం
-                    tag_idx = df_chart.index[-4] if len(df_chart) >= 4 else df_chart.index[-1]
-
                     if has_vwap: 
                         fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='skip'), row=1, col=1)
-                        # xanchor="right" వాడి ఎడమవైపుకి జరిపాం
-                        fig.add_annotation(x=tag_idx, y=last_vwap, text=f"V:{last_vwap:.1f}", showarrow=False, xanchor="right", yanchor=v_anchor, xshift=-5, yshift=v_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#FFD700", borderpad=2, row=1, col=1)
+                        fig.add_annotation(x=tag_idx, y=tag_y_vwap, text=f"V:{last_vwap:.1f}", showarrow=False, xanchor="right", yanchor=v_anchor, xshift=-5, yshift=v_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#FFD700", borderpad=2, row=1, col=1)
                         
                     if has_ema: 
                         fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'), row=1, col=1)
-                        # xanchor="right" వాడి ఎడమవైపుకి జరిపాం
-                        fig.add_annotation(x=tag_idx, y=last_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="right", yanchor=e_anchor, xshift=-5, yshift=e_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=2, row=1, col=1)
+                        fig.add_annotation(x=tag_idx, y=tag_y_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="right", yanchor=e_anchor, xshift=-5, yshift=e_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=2, row=1, col=1)
                 
                 vol_colors = []
                 if 'Volume' in df_chart.columns:
@@ -1285,38 +1287,40 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                     if 'SMA_40' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_40'], mode='lines', line=dict(color='#FF4500', width=2), name='40 Wk SMA', showlegend=False, hoverinfo='skip'))
                 else:
                     # 🔥 SMART ANCHOR & ANTI-COLLISION LOGIC 🔥
+                    offset = -4 if len(df_chart) >= 4 else -1
+                    tag_idx = df_chart.index[offset]
+                    
                     last_close = float(df_chart['Close'].iloc[-1])
                     has_vwap = 'VWAP' in df_chart.columns
                     has_ema = 'EMA_10' in df_chart.columns
                     
                     last_vwap = float(df_chart['VWAP'].iloc[-1]) if has_vwap else 0
                     last_ema = float(df_chart['EMA_10'].iloc[-1]) if has_ema else 0
+                    
+                    # 🔥 గాల్లో తేలకుండా ఉండటానికి ఆ లైన్ యొక్క కరెక్ట్ (పాత) ప్రైస్ తీసుకుంటున్నాం
+                    tag_y_vwap = float(df_chart['VWAP'].iloc[offset]) if has_vwap else 0
+                    tag_y_ema = float(df_chart['EMA_10'].iloc[offset]) if has_ema else 0
 
                     v_anchor = "bottom" if last_close <= last_vwap else "top"
                     e_anchor = "bottom" if last_close <= last_ema else "top"
                     v_shift = 6 if v_anchor == "bottom" else -6
                     e_shift = 6 if e_anchor == "bottom" else -6
 
-                    if has_vwap and has_ema and abs(last_vwap - last_ema) / (last_vwap + 0.001) < 0.005:
-                        if last_vwap >= last_ema:
+                    if has_vwap and has_ema and abs(tag_y_vwap - tag_y_ema) / (tag_y_vwap + 0.001) < 0.005:
+                        if tag_y_vwap >= tag_y_ema:
                             v_anchor, v_shift = "bottom", 6
                             e_anchor, e_shift = "top", -6
                         else:
                             v_anchor, v_shift = "top", -6
                             e_anchor, e_shift = "bottom", 6
 
-                    # 🔥 ట్యాగ్ ని లాస్ట్ క్యాండిల్ కి ముందే (4 క్యాండిల్స్ వెనక్కి) ప్రింట్ చేస్తున్నాం
-                    tag_idx = df_chart.index[-4] if len(df_chart) >= 4 else df_chart.index[-1]
-
                     if has_vwap: 
                         fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='skip'))
-                        # xanchor="right" వాడి ఎడమవైపుకి జరిపాం
-                        fig.add_annotation(x=tag_idx, y=last_vwap, text=f"V:{last_vwap:.1f}", showarrow=False, xanchor="right", yanchor=v_anchor, xshift=-5, yshift=v_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#FFD700", borderpad=2)
+                        fig.add_annotation(x=tag_idx, y=tag_y_vwap, text=f"V:{last_vwap:.1f}", showarrow=False, xanchor="right", yanchor=v_anchor, xshift=-5, yshift=v_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#FFD700", borderpad=2)
                         
                     if has_ema: 
                         fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'))
-                        # xanchor="right" వాడి ఎడమవైపుకి జరిపాం
-                        fig.add_annotation(x=tag_idx, y=last_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="right", yanchor=e_anchor, xshift=-5, yshift=e_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=2)
+                        fig.add_annotation(x=tag_idx, y=tag_y_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="right", yanchor=e_anchor, xshift=-5, yshift=e_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=2)
                 
                 # 🔥 Margin 'r' పీకేశాం (r=45 if show_crosshair else 5) అప్పుడు చార్ట్ ఫుల్ స్పేస్ తీసుకుంటుంది
                 fig.update_layout(margin=dict(l=0, r=45 if show_crosshair else 5, t=0, b=0), height=235, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, xaxis_rangeslider_visible=False)
