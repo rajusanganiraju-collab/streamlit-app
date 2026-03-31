@@ -1990,7 +1990,7 @@ if not df.empty:
         st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#00BFFF;'>📈 Top 10 Mutual Funds Screener (Auto-Scanned)</div>", unsafe_allow_html=True)
         
         mf_categories = ["All Categories"] + list(MUTUAL_FUNDS.keys())
-        selected_mf_cat = st.selectbox("Filter by Market Cap / Sector", mf_categories, horizontal=True)
+        selected_mf_cat = st.selectbox("Filter by Market Cap / Sector", mf_categories)
         
         with st.spinner("Scanning Mega Database & Ranking Top Funds..."):
             df_mf_data = fetch_mf_performance()
