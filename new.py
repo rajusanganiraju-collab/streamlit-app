@@ -3,7 +3,7 @@ import yfinance as yf
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
-import json
+import json 
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -655,70 +655,60 @@ def fetch_all_data(market_segment="F&O (Top 200) 🔵"):
             })
         except: continue
     return pd.DataFrame(results)
-import requests
-
-# --- LIVE NSE OPTION CHAIN FETCHER (SMART CACHED) ---
-# 🔥 ప్రతి 5 నిమిషాలకు ఒకసారి మాత్రమే కాల్ అవుతుంది (NSE వాడు బ్లాక్ చేయకుండా ఉండటానికి)
-@st.cache_data(ttl=300, show_spinner=False)
-def fetch_nse_option_chain(symbol):
-    try:
-        session = requests.Session()
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept-Encoding": "gzip, deflate, br",
-            "Accept-Language": "en-US,en;q=0.9"
-        }
-        # కుకీస్ (Cookies) జనరేట్ చేయడానికి ఫస్ట్ హోమ్ పేజ్ ని కాల్ చేస్తాం
-        session.get("https://www.nseindia.com", headers=headers, timeout=5)
-        
-        is_idx = symbol in ["NIFTY", "BANKNIFTY"]
-        url_type = "indices" if is_idx else "equities"
-        # సింబల్ మధ్యలో స్పేస్ ఉంటే (ఉదా: M&M) దాన్ని కరెక్ట్ గా పాస్ చేయడానికి
-        clean_symbol = symbol.replace(" ", "%20").replace("&", "%26")
-        
-        url = f"https://www.nseindia.com/api/option-chain-{url_type}?symbol={clean_symbol}"
-        
-        res = session.get(url, headers=headers, timeout=5)
-        if res.status_code == 200:
-            return res.json()
-    except Exception as e: 
-        pass
-    return None
-
+# --- OPTION CHAIN MAX OI FETCHER ---
 def get_max_oi_strikes(symbol, spot_price):
     try:
         # కేవలం Nifty, BankNifty మరియు FNO స్టాక్స్ కి మాత్రమే OI వస్తుంది
         if symbol not in FNO_STOCKS and symbol not in ["NIFTY", "BANKNIFTY"]:
             return 0, 0
             
-        data = fetch_nse_option_chain(symbol)
+        sec_id = sec_map.get(symbol)
+        if not sec_id: return 0, 0
         
-        # డేటా రాలేకపోతే (లేదా NSE సర్వర్ బిజీ ఉంటే) డీఫాల్ట్ గా 0 ఇస్తాం
-        if not data or 'records' not in data:
-            return 0, 0
+        # డైనమిక్ స్ట్రైక్ గ్యాప్ (స్టాక్ ప్రైస్ ని బట్టి రియల్ ఆప్షన్ చైన్ లాగా)
+        if spot_price < 250: gap = 1
+        elif spot_price < 1000: gap = 5
+        elif spot_price < 3000: gap = 10
+        else: gap = 50
+        
+        # MOCK LOGIC (API కనెక్ట్ చేసే వరకు రియలిస్టిక్ డమ్మీ డేటా):
+        # స్పాట్ ప్రైస్ కి 3% పైన Call OI, 3% కింద Put OI ఉండేలా సెట్ చేస్తున్నాం
+        mock_call = round((spot_price * 1.03) / gap) * gap
+        mock_put = round((spot_price * 0.97) / gap) * gap
+        
+        # ఒకవేళ ప్రైస్ మరీ దగ్గరగా ఉండి రెండు ఒకటే అయితే (Clash అయితే)...
+        if mock_call <= mock_put:
+            mock_call += gap
+            mock_put -= gap
             
-        # కరెంట్ మంత్ / కరెంట్ వీక్ ఎక్స్‌పైరీ డేట్ తీసుకుంటున్నాం
-        curr_expiry = data['records']['expiryDates'][0]
+        return mock_call, mock_put
+
+    except Exception as e:
+        return 0, 0
         
-        max_call_oi = 0
-        max_call_strike = 0
-        max_put_oi = 0
-        max_put_strike = 0
+        # ఇక్కడ మీరు Dhan Option Chain API ని కాల్ చేయాలి. ఉదాహరణకు:
+        # res = dhan.option_chain(symbol=sec_id, exchange_segment='NSE_FNO')
+        # df_chain = pd.DataFrame(res['data'])
         
-        # ఆప్షన్ చైన్ లో ఉన్న ప్రతీ స్ట్రైక్ ని చెక్ చేసి, ఎక్కడ ఎక్కువ OI ఉందో ఫిల్టర్ చేస్తున్నాం
-        for item in data['records']['data']:
-            if item['expiryDate'] == curr_expiry:
-                strike = item['strikePrice']
-                
-                if 'CE' in item and item['CE']['openInterest'] > max_call_oi:
-                    max_call_oi = item['CE']['openInterest']
-                    max_call_strike = strike
-                    
-                if 'PE' in item and item['PE']['openInterest'] > max_put_oi:
-                    max_put_oi = item['PE']['openInterest']
-                    max_put_strike = strike
-                    
-        return max_call_strike, max_put_strike
+        # ప్రస్తుతానికి, చార్ట్ కోడ్ పర్ఫెక్ట్ గా రన్ అవ్వడానికి ఒక "డిఫాల్ట్ / మాక్" లాజిక్ పెడుతున్నాను.
+        # మీరు మీ ధన్ API రెస్పాన్స్ ని బట్టి ఈ కింద కామెంట్స్ లో ఉన్న లాజిక్ వాడొచ్చు:
+        
+        """
+        # API రెస్పాన్స్ వచ్చాక...
+        df_calls = df_chain[df_chain['option_type'] == 'CE']
+        df_puts = df_chain[df_chain['option_type'] == 'PE']
+        
+        highest_call_strike = df_calls.loc[df_calls['oi'].idxmax()]['strike_price']
+        highest_put_strike = df_puts.loc[df_puts['oi'].idxmax()]['strike_price']
+        return highest_call_strike, highest_put_strike
+        """
+        
+        # MOCK LOGIC (API కనెక్ట్ చేసే వరకు ఎర్రర్ రాకుండా):
+        # స్పాట్ ప్రైస్ కి కాస్త పైన Call OI, కాస్త కింద Put OI ఉన్నట్టు డమ్మీగా పంపుతున్నాను. 
+        # మీరు Dhan API లింక్ చేయగానే పైన ఉన్న రియల్ కోడ్ ని వాడుకోండి.
+        mock_call = round(spot_price * 1.02, -1) # 2% పైన
+        mock_put = round(spot_price * 0.98, -1)  # 2% కింద
+        return mock_call, mock_put
 
     except Exception as e:
         return 0, 0
