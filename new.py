@@ -1222,13 +1222,18 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                             v_anchor, v_shift = "top", -6
                             e_anchor, e_shift = "bottom", 6
 
+                    # 🔥 ట్యాగ్ ని లాస్ట్ క్యాండిల్ కి ముందే (4 క్యాండిల్స్ వెనక్కి) ప్రింట్ చేస్తున్నాం
+                    tag_idx = df_chart.index[-4] if len(df_chart) >= 4 else df_chart.index[-1]
+
                     if has_vwap: 
                         fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='skip'), row=1, col=1)
-                        fig.add_annotation(x=df_chart.index[-1], y=last_vwap, text=f"V:{last_vwap:.1f}", showarrow=False, xanchor="left", yanchor=v_anchor, xshift=15, yshift=v_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#FFD700", borderpad=2, row=1, col=1)
+                        # xanchor="right" వాడి ఎడమవైపుకి జరిపాం
+                        fig.add_annotation(x=tag_idx, y=last_vwap, text=f"V:{last_vwap:.1f}", showarrow=False, xanchor="right", yanchor=v_anchor, xshift=-5, yshift=v_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#FFD700", borderpad=2, row=1, col=1)
                         
                     if has_ema: 
                         fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'), row=1, col=1)
-                        fig.add_annotation(x=df_chart.index[-1], y=last_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="left", yanchor=e_anchor, xshift=15, yshift=e_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=2, row=1, col=1)
+                        # xanchor="right" వాడి ఎడమవైపుకి జరిపాం
+                        fig.add_annotation(x=tag_idx, y=last_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="right", yanchor=e_anchor, xshift=-5, yshift=e_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=2, row=1, col=1)
                 
                 vol_colors = []
                 if 'Volume' in df_chart.columns:
@@ -1245,8 +1250,8 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 
                 fig.add_trace(go.Bar(x=df_chart.index, y=df_chart['Volume'], marker_color=vol_colors, showlegend=False, hoverinfo='skip'), row=2, col=1)
                 
-                # 🔥 Margin 'r=50' Added to perfectly fit the tags on the right!
-                fig.update_layout(margin=dict(l=0, r=50, t=0, b=0), height=275, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
+                # 🔥 Margin 'r' పీకేశాం (r=45 if show_crosshair else 5) అప్పుడు చార్ట్ ఫుల్ స్పేస్ తీసుకుంటుంది
+                fig.update_layout(margin=dict(l=0, r=45 if show_crosshair else 5, t=0, b=0), height=275, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
                 fig.add_annotation(text=title_html, xref="paper", yref="paper", x=0, xanchor="left", xshift=35, y=0.98, yanchor="top", showarrow=False, font=dict(size=13, color="#ffffff"), bgcolor="rgba(0,0,0,0)", borderwidth=0)
 
                 if fetch_sym in st.session_state.custom_alerts:
@@ -1300,16 +1305,21 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                             v_anchor, v_shift = "top", -6
                             e_anchor, e_shift = "bottom", 6
 
+                    # 🔥 ట్యాగ్ ని లాస్ట్ క్యాండిల్ కి ముందే (4 క్యాండిల్స్ వెనక్కి) ప్రింట్ చేస్తున్నాం
+                    tag_idx = df_chart.index[-4] if len(df_chart) >= 4 else df_chart.index[-1]
+
                     if has_vwap: 
                         fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='skip'))
-                        fig.add_annotation(x=df_chart.index[-1], y=last_vwap, text=f"V:{last_vwap:.1f}", showarrow=False, xanchor="left", yanchor=v_anchor, xshift=15, yshift=v_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#FFD700", borderpad=2)
+                        # xanchor="right" వాడి ఎడమవైపుకి జరిపాం
+                        fig.add_annotation(x=tag_idx, y=last_vwap, text=f"V:{last_vwap:.1f}", showarrow=False, xanchor="right", yanchor=v_anchor, xshift=-5, yshift=v_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#FFD700", borderpad=2)
                         
                     if has_ema: 
                         fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'))
-                        fig.add_annotation(x=df_chart.index[-1], y=last_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="left", yanchor=e_anchor, xshift=15, yshift=e_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=2)
+                        # xanchor="right" వాడి ఎడమవైపుకి జరిపాం
+                        fig.add_annotation(x=tag_idx, y=last_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="right", yanchor=e_anchor, xshift=-5, yshift=e_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=2)
                 
-                # 🔥 Margin 'r=50' Added to perfectly fit the tags on the right!
-                fig.update_layout(margin=dict(l=0, r=50, t=0, b=0), height=235, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, xaxis_rangeslider_visible=False)
+                # 🔥 Margin 'r' పీకేశాం (r=45 if show_crosshair else 5) అప్పుడు చార్ట్ ఫుల్ స్పేస్ తీసుకుంటుంది
+                fig.update_layout(margin=dict(l=0, r=45 if show_crosshair else 5, t=0, b=0), height=235, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, xaxis_rangeslider_visible=False)
                 fig.add_annotation(text=title_html, xref="paper", yref="paper", x=0, xanchor="left", xshift=35, y=0.98, yanchor="top", showarrow=False, font=dict(size=13, color="#ffffff"), bgcolor="rgba(0,0,0,0)", borderwidth=0)
 
                 if fetch_sym in st.session_state.custom_alerts:
