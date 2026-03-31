@@ -655,9 +655,10 @@ def fetch_all_data(market_segment="F&O (Top 200) 🔵"):
             })
         except: continue
     return pd.DataFrame(results)
-# --- OPTION CHAIN MAX OI FETCHER (DEBUG VERSION) ---
+# --- OPTION CHAIN MAX OI FETCHER (REAL DHAN API - FIXED) ---
 def get_max_oi_strikes(symbol, spot_price):
     try:
+        # కేవలం Nifty, BankNifty మరియు FNO స్టాక్స్ కి మాత్రమే OI వస్తుంది
         if symbol not in FNO_STOCKS and symbol not in ["NIFTY", "BANKNIFTY"]:
             return 0, 0
             
@@ -666,11 +667,8 @@ def get_max_oi_strikes(symbol, spot_price):
         
         segment = 'IDX_I' if symbol in ["NIFTY", "BANKNIFTY"] else 'NSE_EQ'
         
-        # ధన్ API కాల్
-        res = dhan.option_chain(underlying_security_id=str(sec_id), underlying_exchange_segment=segment)
-        
-        # 🛑 డీబగ్గింగ్: API అసలు ఏం పంపుతుందో సైడ్‌బార్ లో చూద్దాం
-        st.sidebar.write(f"🔍 {symbol} OI API Response:", res)
+        # 🔥 ఎర్రర్ ఫిక్స్: under_security_id మరియు under_exchange_segment అని వాడాలి
+        res = dhan.option_chain(under_security_id=str(sec_id), under_exchange_segment=segment)
         
         if isinstance(res, dict) and res.get('status') == 'success' and res.get('data'):
             df_chain = pd.DataFrame(res['data'])
@@ -685,16 +683,13 @@ def get_max_oi_strikes(symbol, spot_price):
                 if max_call_strike > 0 and max_put_strike > 0:
                     return float(max_call_strike), float(max_put_strike)
         
-        # API రెస్పాన్స్ ఫెయిల్ అయితే... చార్ట్ మీద లైన్స్ మాయం కాకుండా 
-        # తాత్కాలికంగా పాత డమ్మీ లైన్స్ చూపిద్దాం.
+        # డేటా రాకపోతే టెంపరరీగా డమ్మీ లైన్స్ (చార్ట్ ఖాళీగా ఉండకుండా)
         gap = 50 if spot_price > 3000 else (10 if spot_price > 1000 else 5)
         mock_call = round((spot_price * 1.02) / gap) * gap
         mock_put = round((spot_price * 0.98) / gap) * gap
         return mock_call, mock_put
         
     except Exception as e:
-        # కోడ్ ఎక్కడైనా బ్రేక్ అయితే ఇక్కడ ఎర్రర్ చూపిస్తుంది
-        st.sidebar.error(f"❌ {symbol} OI Code Error: {e}")
         return 0, 0
 def process_5m_data(df_raw):
     try:
