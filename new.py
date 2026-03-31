@@ -1684,7 +1684,7 @@ if not df.empty:
                     c_buy = base_buy & cond1 & cond2 & cond3 & cond4 & cond7 & cond5 & cond6
                     c_sell = pd.Series(False, index=df_filtered.index)
                     icon_str = "📈 M-VCP"
-                    elif strat == "📉 Strict VCP (Price & Vol Contraction)":
+                elif strat == "📉 Strict VCP (Price & Vol Contraction)":
                     # బేసిక్ Minervini అప్‌ట్రెండ్ రూల్స్
                     cond1 = (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['P'] > df_filtered['SMA200'])
                     cond2 = df_filtered['SMA150'] > df_filtered['SMA200']
