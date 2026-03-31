@@ -459,6 +459,29 @@ def fetch_all_data(market_segment="F&O (Top 200) 🔵"):
             high_52w = float(df['High'].rolling(window=252).max().iloc[-1]) if len(df) >= 252 else float(df['High'].max())
             low_52w = float(df['Low'].rolling(window=252).min().iloc[-1]) if len(df) >= 252 else float(df['Low'].min())
             sma200_20d = float(df['Close'].rolling(window=200).mean().iloc[-21]) if len(df) >= 220 else 0.0
+            # VCP CONTRACTION & VOLUME DRY-UP LOGIC
+            vcp_price_contraction = False
+            vcp_vol_dry = False
+            if len(df) >= 60:
+                max_60 = float(df['High'].iloc[-60:].max()); min_60 = float(df['Low'].iloc[-60:].min())
+                range_60 = (max_60 - min_60) / min_60 if min_60 > 0 else 0
+                
+                max_20 = float(df['High'].iloc[-20:].max()); min_20 = float(df['Low'].iloc[-20:].min())
+                range_20 = (max_20 - min_20) / min_20 if min_20 > 0 else 0
+                
+                max_5 = float(df['High'].iloc[-5:].max()); min_5 = float(df['Low'].iloc[-5:].min())
+                range_5 = (max_5 - min_5) / min_5 if min_5 > 0 else 0
+                
+                # 3 నెలల రేంజ్ > 1 నెల రేంజ్ > వారం రేంజ్ (అంటే ప్రైస్ టైట్ అవుతోంది)
+                if (range_60 > 0) and (range_5 < range_20 < range_60) and (range_5 <= 0.08):
+                    vcp_price_contraction = True
+                    
+                if 'Volume' in df.columns and len(df) >= 50:
+                    vol_avg_10 = float(df['Volume'].iloc[-10:].mean())
+                    vol_avg_50 = float(df['Volume'].iloc[-50:].mean())
+                    # లాస్ట్ 10 రోజుల వాల్యూమ్, 50 రోజుల యావరేజ్ కంటే కనీసం 25% తక్కువ ఉండాలి
+                    if vol_avg_10 < (vol_avg_50 * 0.75):
+                        vcp_vol_dry = True
             
             is_swing = False; is_w_pullback = False
             latest_w_ema10 = 0; latest_w_ema50 = 0
@@ -531,6 +554,7 @@ def fetch_all_data(market_segment="F&O (Top 200) 🔵"):
                         break
             
             results.append({
+                "VCP_Contract": vcp_price_contraction, "VCP_Vol_Dry": vcp_vol_dry,
                 "Fetch_T": symbol, "T": disp_name, "P": ltp, "O": open_p, "H": high, "L": low, "Prev_C": prev_c,
                 "Prev_H": prev_h, "Prev_L": prev_l, "W_EMA10": latest_w_ema10, "W_EMA50": latest_w_ema50, "D_EMA50": ema50_d,
                 "SMA50": sma50_d, "SMA150": sma150_d, "SMA200": sma200_d, "High52W": high_52w, "Low52W": low_52w, "SMA200_20D": sma200_20d,
@@ -1144,7 +1168,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
                 default=["🔥 Live Power Mover (Last 2 Candles)", "🚀 All-Day Volume Spikes (Max Fire)", "🌊 One Sided Only"]
             )
         elif watchlist_mode == "Swing Trading 📈":
-            move_type_filter = st.multiselect("Strategy Filter", ["All Swing Stocks", "🚀 Pro Breakout Strategy", "🌟 Weekly 10EMA Pro", "📈 Minervini Trend Template (VCP)"], default=["All Swing Stocks"])
+            move_type_filter = st.multiselect("Strategy Filter", ["All Swing Stocks", "🚀 Pro Breakout Strategy", "🌟 Weekly 10EMA Pro", "📈 Minervini Trend Template (VCP)", "📉 Strict VCP (Price & Vol Contraction)"], default=["All Swing Stocks"])
         elif watchlist_mode == "Fundamentals 🏢":
             fund_filter = st.selectbox("Fundamentals Filter", ["Top Ranked Stocks ⭐", "Swing Trading Candidates 📈", "Nifty 50 Stocks", "My Portfolio 💼"], index=0)
             
@@ -1660,6 +1684,20 @@ if not df.empty:
                     c_buy = base_buy & cond1 & cond2 & cond3 & cond4 & cond7 & cond5 & cond6
                     c_sell = pd.Series(False, index=df_filtered.index)
                     icon_str = "📈 M-VCP"
+                    elif strat == "📉 Strict VCP (Price & Vol Contraction)":
+                    # బేసిక్ Minervini అప్‌ట్రెండ్ రూల్స్
+                    cond1 = (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['P'] > df_filtered['SMA200'])
+                    cond2 = df_filtered['SMA150'] > df_filtered['SMA200']
+                    cond4 = df_filtered['P'] > df_filtered['SMA50']
+                    cond5 = df_filtered['P'] >= (df_filtered['Low52W'] * 1.30)
+                    cond6 = df_filtered['P'] >= (df_filtered['High52W'] * 0.75)
+                    
+                    # 🔥 మనం కొత్తగా కనిపెట్టిన VCP రూల్స్
+                    vcp_cond = (df_filtered['VCP_Contract'] == True) & (df_filtered['VCP_Vol_Dry'] == True)
+                    
+                    c_buy = base_buy & cond1 & cond2 & cond4 & cond5 & cond6 & vcp_cond
+                    c_sell = pd.Series(False, index=df_filtered.index)
+                    icon_str = "📉 VCP"
                 elif strat == "🌅 15-Min ORB (Opening Range Breakout)":
                     c_buy = base_buy & (df_filtered['ORB_Tag'] == "ORB_BUY") & (df_filtered['VolX'] >= 1.2)
                     c_sell = base_sell & (df_filtered['ORB_Tag'] == "ORB_SELL") & (df_filtered['VolX'] >= 1.2)
@@ -1687,6 +1725,17 @@ if not df.empty:
         
         elif watchlist_mode == "Swing Trading 📈":
             dfs_to_concat = []
+            if "📉 Strict VCP (Price & Vol Contraction)" in move_type_filter:
+                cond1 = (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['P'] > df_filtered['SMA200'])
+                cond2 = df_filtered['SMA150'] > df_filtered['SMA200']
+                cond4 = df_filtered['P'] > df_filtered['SMA50']
+                cond5 = df_filtered['P'] >= (df_filtered['Low52W'] * 1.30)
+                cond6 = df_filtered['P'] >= (df_filtered['High52W'] * 0.75)
+                vcp_cond = (df_filtered['VCP_Contract'] == True) & (df_filtered['VCP_Vol_Dry'] == True)
+                
+                df_vcp = df_filtered[cond1 & cond2 & cond4 & cond5 & cond6 & vcp_cond].copy()
+                df_vcp['Strategy_Icon'] = "📉 VCP"
+                dfs_to_concat.append(df_vcp)
             
             if "All Swing Stocks" in move_type_filter or not move_type_filter:
                 dfs_to_concat.append(df_filtered[df_filtered['Is_Swing'] == True])
