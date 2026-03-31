@@ -1986,7 +1986,23 @@ if not df.empty:
                 html_fund += '</tbody></table>'
                 st.markdown(html_fund, unsafe_allow_html=True)
             else: st.info("Fundamentals data not available at the moment.")
+    elif watchlist_mode == "Mutual Funds 📈":
+        st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#00BFFF;'>📈 Top 10 Mutual Funds Screener (Auto-Scanned)</div>", unsafe_allow_html=True)
+        
+        mf_categories = ["All Categories"] + list(MUTUAL_FUNDS.keys())
+        selected_mf_cat = st.selectbox("Filter by Market Cap / Sector", mf_categories, horizontal=True)
+        
+        with st.spinner("Scanning Mega Database & Ranking Top Funds..."):
+            df_mf_data = fetch_mf_performance()
+            
+        if not df_mf_data.empty:
+            if selected_mf_cat != "All Categories":
+                df_mf_data = df_mf_data[df_mf_data['Category'] == selected_mf_cat]
                 
+            st.markdown(render_mf_table(df_mf_data), unsafe_allow_html=True)
+            st.markdown("<p style='font-size:11px; color:#888;'><i>*Note: Funds are auto-ranked based on 5-Year CAGR. Returns > 20% are highlighted in Bright Green. N/A means the fund hasn't completed that many years.</i></p>", unsafe_allow_html=True)
+        else:
+            st.error("Failed to fetch Mutual Fund data. Yahoo Finance API might be rate-limited.")            
     elif watchlist_mode == "Terminal Tables 🗃️" and view_mode == "Heat Map":
         st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>🗃️ Professional Terminal View</div>", unsafe_allow_html=True)
         for df_temp in [df_buy_sector, df_sell_sector, df_independent, df_broader]:
