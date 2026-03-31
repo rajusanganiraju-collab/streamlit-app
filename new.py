@@ -655,7 +655,7 @@ def fetch_all_data(market_segment="F&O (Top 200) 🔵"):
             })
         except: continue
     return pd.DataFrame(results)
-# --- OPTION CHAIN MAX OI FETCHER ---
+# --- OPTION CHAIN MAX OI FETCHER (REAL DHAN API) ---
 def get_max_oi_strikes(symbol, spot_price):
     try:
         # కేవలం Nifty, BankNifty మరియు FNO స్టాక్స్ కి మాత్రమే OI వస్తుంది
@@ -665,25 +665,39 @@ def get_max_oi_strikes(symbol, spot_price):
         sec_id = sec_map.get(symbol)
         if not sec_id: return 0, 0
         
-        # డైనమిక్ స్ట్రైక్ గ్యాప్ (స్టాక్ ప్రైస్ ని బట్టి రియల్ ఆప్షన్ చైన్ లాగా)
-        if spot_price < 250: gap = 1
-        elif spot_price < 1000: gap = 5
-        elif spot_price < 3000: gap = 10
-        else: gap = 50
+        # ఇండెక్స్ అయితే 'IDX_I', స్టాక్ అయితే 'NSE_EQ' సెగ్మెంట్ వాడాలి
+        segment = 'IDX_I' if symbol in ["NIFTY", "BANKNIFTY"] else 'NSE_EQ'
         
-        # MOCK LOGIC (API కనెక్ట్ చేసే వరకు రియలిస్టిక్ డమ్మీ డేటా):
-        # స్పాట్ ప్రైస్ కి 3% పైన Call OI, 3% కింద Put OI ఉండేలా సెట్ చేస్తున్నాం
-        mock_call = round((spot_price * 1.03) / gap) * gap
-        mock_put = round((spot_price * 0.97) / gap) * gap
+        # ధన్ API నుండి లైవ్ ఆప్షన్ చైన్ డేటా తెప్పించడం
+        res = dhan.option_chain(underlying_security_id=str(sec_id), underlying_exchange_segment=segment)
         
-        # ఒకవేళ ప్రైస్ మరీ దగ్గరగా ఉండి రెండు ఒకటే అయితే (Clash అయితే)...
-        if mock_call <= mock_put:
-            mock_call += gap
-            mock_put -= gap
+        if isinstance(res, dict) and res.get('status') == 'success' and res.get('data'):
+            df_chain = pd.DataFrame(res['data'])
             
-        return mock_call, mock_put
-
+            # డేటా ఖాళీగా లేకపోతేనే ప్రాసెస్ చేయాలి
+            if not df_chain.empty and 'option_type' in df_chain.columns and 'oi' in df_chain.columns:
+                
+                # కాల్స్ (CE) మరియు పుట్స్ (PE) డేటా ఫిల్టర్ చేయడం
+                df_calls = df_chain[df_chain['option_type'] == 'CE']
+                df_puts = df_chain[df_chain['option_type'] == 'PE']
+                
+                max_call_strike = 0
+                max_put_strike = 0
+                
+                # Highest OI (ఓపెన్ ఇంట్రెస్ట్) ఉన్న స్ట్రైక్ ప్రైస్ ని కనుక్కోవడం
+                if not df_calls.empty:
+                    max_call_strike = df_calls.loc[df_calls['oi'].idxmax()]['strike_price']
+                    
+                if not df_puts.empty:
+                    max_put_strike = df_puts.loc[df_puts['oi'].idxmax()]['strike_price']
+                    
+                return float(max_call_strike), float(max_put_strike)
+        
+        # డేటా రాకపోతే లైన్స్ డ్రా అవ్వకుండా 0 పంపుతున్నాం
+        return 0, 0
+        
     except Exception as e:
+        # ఏదైనా ఎర్రర్ వస్తే చార్ట్ క్రాష్ అవ్వకుండా సేఫ్టీ కి 0, 0
         return 0, 0
         
         # ఇక్కడ మీరు Dhan Option Chain API ని కాల్ చేయాలి. ఉదాహరణకు:
