@@ -1115,7 +1115,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 "<br>🔴 C: ₹" + df_chart['Close'].round(2).astype(str)
             )
             
-            # 🔥 Advanced Colored Candles Helper (Dark Theme Colors)
             def apply_advanced_candles(fig_obj, is_subplot):
                 rc = dict(row=1, col=1) if is_subplot else dict()
                 has_vol = 'Volume' in df_chart.columns and df_chart['Volume'].sum() > 0
@@ -1133,7 +1132,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 
                 def am(col, mask): return np.where(mask, df_chart[col], np.nan)
                 
-                # 1. Normal Vol Candles (Standard Green/Red) - WITH SOLID FILL
+                # 1. Normal Vol Candles
                 fig_obj.add_trace(go.Candlestick(
                     x=df_chart.index, open=am('Open', mask_norm), high=am('High', mask_norm), low=am('Low', mask_norm), close=am('Close', mask_norm), 
                     increasing_line_color='#2ea043', increasing_fillcolor='#2ea043', increasing_line_width=1,
@@ -1141,7 +1140,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                     showlegend=False, hoverinfo='skip'
                 ), **rc)
                 
-                # 2. 🔥 High Vol Candles (Bright Neon, Thick Borders)
+                # 2. 🔥 High Vol Candles
                 if mask_hv.any():
                     fig_obj.add_trace(go.Candlestick(
                         x=df_chart.index, open=am('Open', mask_hv), high=am('High', mask_hv), low=am('Low', mask_hv), close=am('Close', mask_hv), 
@@ -1150,7 +1149,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                         showlegend=False, hoverinfo='skip'
                     ), **rc)
                 
-                # 3. Low Vol Candles (Orange & Aqua)
+                # 3. Low Vol Candles
                 if mask_lv.any():
                     fig_obj.add_trace(go.Candlestick(
                         x=df_chart.index, open=am('Open', mask_lv), high=am('High', mask_lv), low=am('Low', mask_lv), close=am('Close', mask_lv), 
@@ -1159,43 +1158,35 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                         showlegend=False, hoverinfo='skip'
                     ), **rc)
 
-                # 🔥 High Volume Highlight Marker (Dynamic Position for 5m, Daily, Weekly)
-                    if mask_hv.any():
-                        df_hv = df_chart[mask_hv].copy()
+                if mask_hv.any():
+                    df_hv = df_chart[mask_hv].copy()
+                    if 'EMA_10' in df_chart.columns: ref_line = df_hv['EMA_10']
+                    elif 'SMA_50' in df_chart.columns: ref_line = df_hv['SMA_50']
+                    elif 'SMA_10' in df_chart.columns: ref_line = df_hv['SMA_10']
+                    elif 'VWAP' in df_chart.columns: ref_line = df_hv['VWAP']
+                    else: ref_line = df_hv['Close']
                         
-                        if 'EMA_10' in df_chart.columns: ref_line = df_hv['EMA_10'] # 5-Min
-                        elif 'SMA_50' in df_chart.columns: ref_line = df_hv['SMA_50'] # Daily
-                        elif 'SMA_10' in df_chart.columns: ref_line = df_hv['SMA_10'] # Weekly
-                        elif 'VWAP' in df_chart.columns: ref_line = df_hv['VWAP']
-                        else: ref_line = df_hv['Close']
-                            
-                        mask_above = df_hv['Close'] >= ref_line
-                        mask_below = df_hv['Close'] < ref_line
+                    mask_above = df_hv['Close'] >= ref_line
+                    mask_below = df_hv['Close'] < ref_line
+                    
+                    df_hv_above = df_hv[mask_above]
+                    df_hv_below = df_hv[mask_below]
+                    
+                    if not df_hv_above.empty:
+                        y_vals_above = df_hv_above['Low'] - (df_hv_above['Close'] * 0.0025)
+                        fig_obj.add_trace(go.Scatter(x=df_hv_above.index, y=y_vals_above, mode='text', text=['🔥']*len(df_hv_above), textposition='bottom center', textfont=dict(size=10), showlegend=False, hoverinfo='skip'), **rc)
                         
-                        df_hv_above = df_hv[mask_above]
-                        df_hv_below = df_hv[mask_below]
-                        
-                        # 🔥 బుల్లిష్/సపోర్ట్ పైన ఉంటే -> ఫైర్ సింబల్ క్యాండిల్ కింద వస్తుంది (గ్యాప్ తో)
-                        if not df_hv_above.empty:
-                            y_vals_above = df_hv_above['Low'] - (df_hv_above['Close'] * 0.0025) # క్యాండిల్ కింద గ్యాప్
-                            fig_obj.add_trace(go.Scatter(x=df_hv_above.index, y=y_vals_above, mode='text', text=['🔥']*len(df_hv_above), textposition='bottom center', textfont=dict(size=10), showlegend=False, hoverinfo='skip'), **rc)
-                            
-                        # 🩸 బేరిష్/సపోర్ట్ కింద ఉంటే -> ఫైర్ సింబల్ క్యాండిల్ పైన వస్తుంది (గ్యాప్ తో)
-                        if not df_hv_below.empty:
-                            y_vals_below = df_hv_below['High'] + (df_hv_below['Close'] * 0.0025) # క్యాండిల్ పైన గ్యాప్
-                            fig_obj.add_trace(go.Scatter(x=df_hv_below.index, y=y_vals_below, mode='text', text=['🔥']*len(df_hv_below), textposition='top center', textfont=dict(size=10), showlegend=False, hoverinfo='skip'), **rc)
+                    if not df_hv_below.empty:
+                        y_vals_below = df_hv_below['High'] + (df_hv_below['Close'] * 0.0025)
+                        fig_obj.add_trace(go.Scatter(x=df_hv_below.index, y=y_vals_below, mode='text', text=['🔥']*len(df_hv_below), textposition='top center', textfont=dict(size=10), showlegend=False, hoverinfo='skip'), **rc)
                 
-                # === దీన్ని రీప్లేస్ చేయండి ===
-                    # 🚦 Exhaustion Spike Indicator
-                    if has_vol:
-                        mask_exhaust = vol > (vol_sma * 4.669)
-                        if mask_exhaust.any():
-                            df_ex = df_chart[mask_exhaust]
-                            # 🔥 FIX: Increased gap (0.0035) and increased size (18) for better visibility in dark theme
-                            y_vals_exhaust = df_ex['High'] + (df_ex['Close'] * 0.0035) 
-                            fig_obj.add_trace(go.Scatter(x=df_ex.index, y=y_vals_exhaust, mode='text', text=['🚦']*len(df_ex), textposition='top center', textfont=dict(size=18), showlegend=False, hoverinfo='skip'), **rc)
+                if has_vol:
+                    mask_exhaust = vol > (vol_sma * 4.669)
+                    if mask_exhaust.any():
+                        df_ex = df_chart[mask_exhaust]
+                        y_vals_exhaust = df_ex['High'] + (df_ex['Close'] * 0.0035) 
+                        fig_obj.add_trace(go.Scatter(x=df_ex.index, y=y_vals_exhaust, mode='text', text=['🚦']*len(df_ex), textposition='top center', textfont=dict(size=18), showlegend=False, hoverinfo='skip'), **rc)
                 
-                # ⚡ High Volatility Indicator (ATR 13)
                 if 'ATR_13' in df_chart.columns:
                     atr_val = df_chart['ATR_13']
                 else:
@@ -1209,9 +1200,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
 
             if show_vol:
                 fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.02, row_heights=[0.75, 0.25])
-                
                 apply_advanced_candles(fig, is_subplot=True)
-                
                 fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['High'], mode='lines', line=dict(color='rgba(0,0,0,0)'), showlegend=False, hoverinfo='text' if show_crosshair else 'skip', text=hover_data, hovertemplate="%{text}<extra></extra>" if show_crosshair else None, name=""), row=1, col=1)
                 
                 if timeframe == "Daily Chart":
@@ -1269,9 +1258,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
 
             else:
                 fig = go.Figure()
-                
                 apply_advanced_candles(fig, is_subplot=False)
-                
                 fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['High'], mode='lines', line=dict(color='rgba(0,0,0,0)'), showlegend=False, hoverinfo='text' if show_crosshair else 'skip', text=hover_data, hovertemplate="%{text}<extra></extra>" if show_crosshair else None, name=""))
                 
                 if timeframe == "Daily Chart":
@@ -1281,7 +1268,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 elif timeframe == "Weekly Chart":
                     if 'SMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), name='10 Wk SMA', showlegend=False, hoverinfo='skip'))
                     if 'SMA_40' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_40'], mode='lines', line=dict(color='#FF4500', width=2), name='40 Wk SMA', showlegend=False, hoverinfo='skip'))
-               else:
+                else:
                     if 'VWAP' in df_chart.columns: 
                         fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='skip'))
                         last_vwap = df_chart['VWAP'].iloc[-1]
@@ -1291,7 +1278,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                         fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'))
                         last_ema = df_chart['EMA_10'].iloc[-1]
                         fig.add_annotation(x=df_chart.index[-1], y=last_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="right", yanchor="top", yshift=-5, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=2)
-                    
+                
                 fig.update_layout(margin=dict(l=0, r=45 if show_crosshair else 0, t=0, b=0), height=235, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, xaxis_rangeslider_visible=False)
                 fig.add_annotation(text=title_html, xref="paper", yref="paper", x=0, xanchor="left", xshift=35, y=0.98, yanchor="top", showarrow=False, font=dict(size=13, color="#ffffff"), bgcolor="rgba(0,0,0,0)", borderwidth=0)
 
@@ -1309,47 +1296,46 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                     fig.update_layout(hovermode=False, dragmode=False)
                     fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)])
                     fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
-# ==========================================
-                # 🔥 OPTION CHAIN OI LEVELS (Support & Resistance)
-                # ==========================================
-                if display_sym in FNO_STOCKS or display_sym in ["NIFTY", "BANKNIFTY"]:
-                    current_spot = float(row['P'])
+
+            # ==========================================
+            # 🔥 OPTION CHAIN OI LEVELS (Support & Resistance)
+            # ==========================================
+            if display_sym in FNO_STOCKS or display_sym in ["NIFTY", "BANKNIFTY"]:
+                current_spot = float(row['P'])
+                
+                max_call_strike, max_put_strike = get_max_oi_strikes(display_sym, current_spot)
+                
+                if max_call_strike > 0:
+                    fig.add_hline(
+                        y=max_call_strike, 
+                        line_dash="dash", 
+                        line_color="#f85149", 
+                        line_width=1.5, 
+                        opacity=0.8,
+                        annotation_text=f"🛑 Max Call OI: ₹{max_call_strike}", 
+                        annotation_position="top right",
+                        annotation_font=dict(color="#f85149", size=10),
+                        annotation_bgcolor="#161b22", 
+                        row=1 if show_vol else None, col=1 if show_vol else None
+                    )
                     
-                    # Step 1 లో రాసిన ఫంక్షన్ ని ఇక్కడ కాల్ చేస్తున్నాం
-                    max_call_strike, max_put_strike = get_max_oi_strikes(display_sym, current_spot)
-                    
-                    if max_call_strike > 0:
-                        # 🛑 Max Call OI (గట్టి Resistance) - Red Line
-                        fig.add_hline(
-                            y=max_call_strike, 
-                            line_dash="dash", 
-                            line_color="#f85149", 
-                            line_width=1.5, 
-                            opacity=0.8,
-                            annotation_text=f"🛑 Max Call OI: ₹{max_call_strike}", 
-                            annotation_position="top right",
-                            annotation_font=dict(color="#f85149", size=10),
-                            annotation_bgcolor="#161b22", 
-                            row=1, col=1
-                        )
-                        
-                    if max_put_strike > 0:
-                        # 🟢 Max Put OI (గట్టి Support) - Green Line
-                        fig.add_hline(
-                            y=max_put_strike, 
-                            line_dash="dash", 
-                            line_color="#3fb950", 
-                            line_width=1.5, 
-                            opacity=0.8,
-                            annotation_text=f"🟢 Max Put OI: ₹{max_put_strike}", 
-                            annotation_position="bottom right",
-                            annotation_font=dict(color="#3fb950", size=10),
-                            annotation_bgcolor="#161b22",
-                            row=1, col=1
-                        )
+                if max_put_strike > 0:
+                    fig.add_hline(
+                        y=max_put_strike, 
+                        line_dash="dash", 
+                        line_color="#3fb950", 
+                        line_width=1.5, 
+                        opacity=0.8,
+                        annotation_text=f"🟢 Max Put OI: ₹{max_put_strike}", 
+                        annotation_position="bottom right",
+                        annotation_font=dict(color="#3fb950", size=10),
+                        annotation_bgcolor="#161b22",
+                        row=1 if show_vol else None, col=1 if show_vol else None
+                    )
+            
         st.plotly_chart(fig, width="stretch", key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}")
     except Exception as e: 
-        st.markdown(f"<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart error</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart error: {e}</div>", unsafe_allow_html=True)
 
 def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Intraday (5m)", chart_dict=None, show_crosshair=False, show_vol=False, is_sector=False):
     if df_grid.empty: return
