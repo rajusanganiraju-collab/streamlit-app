@@ -1211,23 +1211,22 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                     if 'SMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), name='10 Wk SMA', showlegend=False, hoverinfo='skip'), row=1, col=1)
                     if 'SMA_40' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_40'], mode='lines', line=dict(color='#FF4500', width=2), name='40 Wk SMA', showlegend=False, hoverinfo='skip'), row=1, col=1)
                 else:
+                    last_close = df_chart['Close'].iloc[-1]
                     if 'VWAP' in df_chart.columns: 
                         fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='skip'), row=1, col=1)
-                        last_vwap = df_chart['VWAP'].iloc[-1]
-                        # 🔥 xanchor="left", xshift=15 వాడి క్యాండిల్ కి కుడివైపుకి జరిపాం
-                        fig.add_annotation(x=df_chart.index[-1], y=last_vwap, text=f"V:{last_vwap:.1f}", showarrow=False, xanchor="left", yanchor="middle", xshift=15, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#FFD700", borderpad=2, row=1, col=1)
+                        if show_crosshair:
+                            last_vwap = df_chart['VWAP'].iloc[-1]
+                            v_anchor = "bottom" if last_close < last_vwap else "top"
+                            v_shift = 5 if last_close < last_vwap else -5
+                            fig.add_annotation(x=df_chart.index[-1], y=last_vwap, text=f"V:{last_vwap:.1f}", showarrow=False, xanchor="left", yanchor=v_anchor, xshift=15, yshift=v_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#FFD700", borderpad=2, row=1, col=1)
                         
                     if 'EMA_10' in df_chart.columns: 
                         fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'), row=1, col=1)
-                        last_ema = df_chart['EMA_10'].iloc[-1]
-                        # 🔥 xanchor="left", xshift=15 వాడి క్యాండిల్ కి కుడివైపుకి జరిపాం
-                        fig.add_annotation(x=df_chart.index[-1], y=last_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="left", yanchor="middle", xshift=15, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=2, row=1, col=1)
-                
-                vol_colors = []
-                # ... (Volume బార్స్ కోడ్ అలాగే ఉంటుంది) ...
-                
-                # 🔥 ఇక్కడ r=45 అని ఫిక్స్ చేశాం (ట్యాగ్ కట్ అవ్వకుండా కుడివైపు జాగా కోసం)
-                fig.update_layout(margin=dict(l=0, r=45, t=0, b=0), height=275, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
+                        if show_crosshair:
+                            last_ema = df_chart['EMA_10'].iloc[-1]
+                            e_anchor = "bottom" if last_close < last_ema else "top"
+                            e_shift = 5 if last_close < last_ema else -5
+                            fig.add_annotation(x=df_chart.index[-1], y=last_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="left", yanchor=e_anchor, xshift=15, yshift=e_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=2, row=1, col=1)
                 
                 vol_colors = []
                 if 'Volume' in df_chart.columns:
@@ -1244,7 +1243,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 
                 fig.add_trace(go.Bar(x=df_chart.index, y=df_chart['Volume'], marker_color=vol_colors, showlegend=False, hoverinfo='skip'), row=2, col=1)
                 
-                fig.update_layout(margin=dict(l=0, r=45 if show_crosshair else 0, t=0, b=0), height=275, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
+                fig.update_layout(margin=dict(l=0, r=45, t=0, b=0), height=275, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
                 fig.add_annotation(text=title_html, xref="paper", yref="paper", x=0, xanchor="left", xshift=35, y=0.98, yanchor="top", showarrow=False, font=dict(size=13, color="#ffffff"), bgcolor="rgba(0,0,0,0)", borderwidth=0)
 
                 if fetch_sym in st.session_state.custom_alerts:
@@ -1265,27 +1264,36 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                     fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, row=2, col=1)
 
             else:
-                    last_close = df_chart['Close'].iloc[-1] # 🔥 లాస్ట్ క్యాండిల్ ప్రైస్ తీసుకుంటున్నాం
-                    
+                fig = go.Figure()
+                apply_advanced_candles(fig, is_subplot=False)
+                fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['High'], mode='lines', line=dict(color='rgba(0,0,0,0)'), showlegend=False, hoverinfo='text' if show_crosshair else 'skip', text=hover_data, hovertemplate="%{text}<extra></extra>" if show_crosshair else None, name=""))
+                
+                if timeframe == "Daily Chart":
+                    if 'SMA_50' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_50'], mode='lines', line=dict(color='#FFD700', width=1.5), name='50 SMA', showlegend=False, hoverinfo='skip'))
+                    if 'SMA_150' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_150'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), name='150 SMA', showlegend=False, hoverinfo='skip'))
+                    if 'SMA_200' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_200'], mode='lines', line=dict(color='#FF4500', width=2), name='200 SMA', showlegend=False, hoverinfo='skip'))
+                elif timeframe == "Weekly Chart":
+                    if 'SMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), name='10 Wk SMA', showlegend=False, hoverinfo='skip'))
+                    if 'SMA_40' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_40'], mode='lines', line=dict(color='#FF4500', width=2), name='40 Wk SMA', showlegend=False, hoverinfo='skip'))
+                else:
+                    last_close = df_chart['Close'].iloc[-1]
                     if 'VWAP' in df_chart.columns: 
                         fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='skip'))
-                        last_vwap = df_chart['VWAP'].iloc[-1]
-                        
-                        # 🔥 Price ని బట్టి ట్యాగ్ పైకి/కిందకి షిఫ్ట్ చేసే ఆటోమెటిక్ లాజిక్
-                        v_anchor = "bottom" if last_close < last_vwap else "top"
-                        v_shift = 5 if last_close < last_vwap else -5
-                        
-                        fig.add_annotation(x=df_chart.index[-1], y=last_vwap, text=f"V:{last_vwap:.1f}", showarrow=False, xanchor="left", yanchor=v_anchor, xshift=15, yshift=v_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#FFD700", borderpad=2)
+                        if show_crosshair:
+                            last_vwap = df_chart['VWAP'].iloc[-1]
+                            v_anchor = "bottom" if last_close < last_vwap else "top"
+                            v_shift = 5 if last_close < last_vwap else -5
+                            fig.add_annotation(x=df_chart.index[-1], y=last_vwap, text=f"V:{last_vwap:.1f}", showarrow=False, xanchor="left", yanchor=v_anchor, xshift=15, yshift=v_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#FFD700", borderpad=2)
                         
                     if 'EMA_10' in df_chart.columns: 
                         fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'))
-                        last_ema = df_chart['EMA_10'].iloc[-1]
-                        
-                        # 🔥 Price ని బట్టి ట్యాగ్ పైకి/కిందకి షిఫ్ట్ చేసే ఆటోమెటిక్ లాజిక్
-                        e_anchor = "bottom" if last_close < last_ema else "top"
-                        e_shift = 5 if last_close < last_ema else -5
-                        
-                        fig.add_annotation(x=df_chart.index[-1], y=last_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="left", yanchor=e_anchor, xshift=15, yshift=e_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=2)
+                        if show_crosshair:
+                            last_ema = df_chart['EMA_10'].iloc[-1]
+                            e_anchor = "bottom" if last_close < last_ema else "top"
+                            e_shift = 5 if last_close < last_ema else -5
+                            fig.add_annotation(x=df_chart.index[-1], y=last_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="left", yanchor=e_anchor, xshift=15, yshift=e_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=2)
+                
+                fig.update_layout(margin=dict(l=0, r=45, t=0, b=0), height=235, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, xaxis_rangeslider_visible=False)
                 fig.add_annotation(text=title_html, xref="paper", yref="paper", x=0, xanchor="left", xshift=35, y=0.98, yanchor="top", showarrow=False, font=dict(size=13, color="#ffffff"), bgcolor="rgba(0,0,0,0)", borderwidth=0)
 
                 if fetch_sym in st.session_state.custom_alerts:
