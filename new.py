@@ -686,15 +686,6 @@ def get_max_oi_strikes(symbol, spot_price):
     except Exception as e:
         return 0, 0
         
-        # MOCK LOGIC (API కనెక్ట్ చేసే వరకు ఎర్రర్ రాకుండా):
-        # స్పాట్ ప్రైస్ కి కాస్త పైన Call OI, కాస్త కింద Put OI ఉన్నట్టు డమ్మీగా పంపుతున్నాను.
-        mock_call = round(spot_price * 1.02, -1) # 2% పైన
-        mock_put = round(spot_price * 0.98, -1)  # 2% కింద
-        return mock_call, mock_put
-
-    except Exception as e:
-        return 0, 0
-        
         # ఇక్కడ మీరు Dhan Option Chain API ని కాల్ చేయాలి. ఉదాహరణకు:
         # res = dhan.option_chain(symbol=sec_id, exchange_segment='NSE_FNO')
         # df_chain = pd.DataFrame(res['data'])
