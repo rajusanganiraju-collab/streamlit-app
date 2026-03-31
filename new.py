@@ -665,6 +665,27 @@ def get_max_oi_strikes(symbol, spot_price):
         sec_id = sec_map.get(symbol)
         if not sec_id: return 0, 0
         
+        # డైనమిక్ స్ట్రైక్ గ్యాప్ (స్టాక్ ప్రైస్ ని బట్టి రియల్ ఆప్షన్ చైన్ లాగా)
+        if spot_price < 250: gap = 1
+        elif spot_price < 1000: gap = 5
+        elif spot_price < 3000: gap = 10
+        else: gap = 50
+        
+        # MOCK LOGIC (API కనెక్ట్ చేసే వరకు రియలిస్టిక్ డమ్మీ డేటా):
+        # స్పాట్ ప్రైస్ కి 3% పైన Call OI, 3% కింద Put OI ఉండేలా సెట్ చేస్తున్నాం
+        mock_call = round((spot_price * 1.03) / gap) * gap
+        mock_put = round((spot_price * 0.97) / gap) * gap
+        
+        # ఒకవేళ ప్రైస్ మరీ దగ్గరగా ఉండి రెండు ఒకటే అయితే (Clash అయితే)...
+        if mock_call <= mock_put:
+            mock_call += gap
+            mock_put -= gap
+            
+        return mock_call, mock_put
+
+    except Exception as e:
+        return 0, 0
+        
         # MOCK LOGIC (API కనెక్ట్ చేసే వరకు ఎర్రర్ రాకుండా):
         # స్పాట్ ప్రైస్ కి కాస్త పైన Call OI, కాస్త కింద Put OI ఉన్నట్టు డమ్మీగా పంపుతున్నాను.
         mock_call = round(spot_price * 1.02, -1) # 2% పైన
