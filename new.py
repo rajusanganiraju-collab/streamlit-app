@@ -1122,17 +1122,16 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 if has_vol:
                     vol_sma = df_chart.get('Vol_SMA_375', df_chart['Volume'].rolling(window=375, min_periods=1).mean())
                     vol = df_chart['Volume']
-                    mask_hv = vol > (vol_sma.shift(1) * 1.5)  # 1.5 రెట్లు
+                    mask_hv = vol > (vol_sma.shift(1) * 1.5)  
                     mask_lv = vol < (vol_sma.shift(1) * 0.618)
                 else:
                     mask_hv = pd.Series(False, index=df_chart.index)
                     mask_lv = pd.Series(False, index=df_chart.index)
                     
                 mask_norm = ~(mask_hv | mask_lv)
-                
                 def am(col, mask): return np.where(mask, df_chart[col], np.nan)
                 
-                # 1. Normal Vol Candles
+                # Normal Vol Candles
                 fig_obj.add_trace(go.Candlestick(
                     x=df_chart.index, open=am('Open', mask_norm), high=am('High', mask_norm), low=am('Low', mask_norm), close=am('Close', mask_norm), 
                     increasing_line_color='#2ea043', increasing_fillcolor='#2ea043', increasing_line_width=1,
@@ -1140,7 +1139,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                     showlegend=False, hoverinfo='skip'
                 ), **rc)
                 
-                # 2. 🔥 High Vol Candles
+                # 🔥 High Vol Candles
                 if mask_hv.any():
                     fig_obj.add_trace(go.Candlestick(
                         x=df_chart.index, open=am('Open', mask_hv), high=am('High', mask_hv), low=am('Low', mask_hv), close=am('Close', mask_hv), 
@@ -1149,7 +1148,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                         showlegend=False, hoverinfo='skip'
                     ), **rc)
                 
-                # 3. Low Vol Candles
+                # Low Vol Candles
                 if mask_lv.any():
                     fig_obj.add_trace(go.Candlestick(
                         x=df_chart.index, open=am('Open', mask_lv), high=am('High', mask_lv), low=am('Low', mask_lv), close=am('Close', mask_lv), 
@@ -1169,30 +1168,21 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                     mask_above = df_hv['Close'] >= ref_line
                     mask_below = df_hv['Close'] < ref_line
                     
-                    df_hv_above = df_hv[mask_above]
-                    df_hv_below = df_hv[mask_below]
-                    
-                    if not df_hv_above.empty:
-                        y_vals_above = df_hv_above['Low'] - (df_hv_above['Close'] * 0.0025)
-                        fig_obj.add_trace(go.Scatter(x=df_hv_above.index, y=y_vals_above, mode='text', text=['🔥']*len(df_hv_above), textposition='bottom center', textfont=dict(size=10), showlegend=False, hoverinfo='skip'), **rc)
+                    if not df_hv[mask_above].empty:
+                        y_above = df_hv[mask_above]['Low'] - (df_hv[mask_above]['Close'] * 0.0025)
+                        fig_obj.add_trace(go.Scatter(x=df_hv[mask_above].index, y=y_above, mode='text', text=['🔥']*len(y_above), textposition='bottom center', textfont=dict(size=10), showlegend=False, hoverinfo='skip'), **rc)
                         
-                    if not df_hv_below.empty:
-                        y_vals_below = df_hv_below['High'] + (df_hv_below['Close'] * 0.0025)
-                        fig_obj.add_trace(go.Scatter(x=df_hv_below.index, y=y_vals_below, mode='text', text=['🔥']*len(df_hv_below), textposition='top center', textfont=dict(size=10), showlegend=False, hoverinfo='skip'), **rc)
+                    if not df_hv[mask_below].empty:
+                        y_below = df_hv[mask_below]['High'] + (df_hv[mask_below]['Close'] * 0.0025)
+                        fig_obj.add_trace(go.Scatter(x=df_hv[mask_below].index, y=y_below, mode='text', text=['🔥']*len(y_below), textposition='top center', textfont=dict(size=10), showlegend=False, hoverinfo='skip'), **rc)
                 
                 if has_vol:
                     mask_exhaust = vol > (vol_sma * 4.669)
                     if mask_exhaust.any():
                         df_ex = df_chart[mask_exhaust]
-                        y_vals_exhaust = df_ex['High'] + (df_ex['Close'] * 0.0035) 
-                        fig_obj.add_trace(go.Scatter(x=df_ex.index, y=y_vals_exhaust, mode='text', text=['🚦']*len(df_ex), textposition='top center', textfont=dict(size=18), showlegend=False, hoverinfo='skip'), **rc)
+                        fig_obj.add_trace(go.Scatter(x=df_ex.index, y=df_ex['High'] + (df_ex['Close'] * 0.0035), mode='text', text=['🚦']*len(df_ex), textposition='top center', textfont=dict(size=18), showlegend=False, hoverinfo='skip'), **rc)
                 
-                if 'ATR_13' in df_chart.columns:
-                    atr_val = df_chart['ATR_13']
-                else:
-                    tr = pd.concat([df_chart['High'] - df_chart['Low'], (df_chart['High'] - df_chart['Close'].shift(1)).abs(), (df_chart['Low'] - df_chart['Close'].shift(1)).abs()], axis=1).max(axis=1)
-                    atr_val = tr.ewm(span=13, adjust=False).mean()
-
+                atr_val = df_chart['ATR_13'] if 'ATR_13' in df_chart.columns else pd.concat([df_chart['High'] - df_chart['Low'], (df_chart['High'] - df_chart['Close'].shift(1)).abs(), (df_chart['Low'] - df_chart['Close'].shift(1)).abs()], axis=1).max(axis=1).ewm(span=13, adjust=False).mean()
                 mask_vola = (df_chart['High'] - df_chart['Low']) > (atr_val * 2.718)
                 if mask_vola.any():
                     df_vol = df_chart[mask_vola]
@@ -1211,22 +1201,34 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                     if 'SMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), name='10 Wk SMA', showlegend=False, hoverinfo='skip'), row=1, col=1)
                     if 'SMA_40' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_40'], mode='lines', line=dict(color='#FF4500', width=2), name='40 Wk SMA', showlegend=False, hoverinfo='skip'), row=1, col=1)
                 else:
-                    last_close = df_chart['Close'].iloc[-1]
-                    if 'VWAP' in df_chart.columns: 
+                    # 🔥 SMART ANCHOR & ANTI-COLLISION LOGIC 🔥
+                    last_close = float(df_chart['Close'].iloc[-1])
+                    has_vwap = 'VWAP' in df_chart.columns
+                    has_ema = 'EMA_10' in df_chart.columns
+                    
+                    last_vwap = float(df_chart['VWAP'].iloc[-1]) if has_vwap else 0
+                    last_ema = float(df_chart['EMA_10'].iloc[-1]) if has_ema else 0
+
+                    v_anchor = "bottom" if last_close <= last_vwap else "top"
+                    e_anchor = "bottom" if last_close <= last_ema else "top"
+                    v_shift = 6 if v_anchor == "bottom" else -6
+                    e_shift = 6 if e_anchor == "bottom" else -6
+
+                    if has_vwap and has_ema and abs(last_vwap - last_ema) / (last_vwap + 0.001) < 0.005:
+                        if last_vwap >= last_ema:
+                            v_anchor, v_shift = "bottom", 6
+                            e_anchor, e_shift = "top", -6
+                        else:
+                            v_anchor, v_shift = "top", -6
+                            e_anchor, e_shift = "bottom", 6
+
+                    if has_vwap: 
                         fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='skip'), row=1, col=1)
-                        if show_crosshair:
-                            last_vwap = df_chart['VWAP'].iloc[-1]
-                            v_anchor = "bottom" if last_close < last_vwap else "top"
-                            v_shift = 5 if last_close < last_vwap else -5
-                            fig.add_annotation(x=df_chart.index[-1], y=last_vwap, text=f"V:{last_vwap:.1f}", showarrow=False, xanchor="left", yanchor=v_anchor, xshift=15, yshift=v_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#FFD700", borderpad=2, row=1, col=1)
+                        fig.add_annotation(x=df_chart.index[-1], y=last_vwap, text=f"V:{last_vwap:.1f}", showarrow=False, xanchor="left", yanchor=v_anchor, xshift=15, yshift=v_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#FFD700", borderpad=2, row=1, col=1)
                         
-                    if 'EMA_10' in df_chart.columns: 
+                    if has_ema: 
                         fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'), row=1, col=1)
-                        if show_crosshair:
-                            last_ema = df_chart['EMA_10'].iloc[-1]
-                            e_anchor = "bottom" if last_close < last_ema else "top"
-                            e_shift = 5 if last_close < last_ema else -5
-                            fig.add_annotation(x=df_chart.index[-1], y=last_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="left", yanchor=e_anchor, xshift=15, yshift=e_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=2, row=1, col=1)
+                        fig.add_annotation(x=df_chart.index[-1], y=last_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="left", yanchor=e_anchor, xshift=15, yshift=e_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=2, row=1, col=1)
                 
                 vol_colors = []
                 if 'Volume' in df_chart.columns:
@@ -1243,7 +1245,8 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 
                 fig.add_trace(go.Bar(x=df_chart.index, y=df_chart['Volume'], marker_color=vol_colors, showlegend=False, hoverinfo='skip'), row=2, col=1)
                 
-                fig.update_layout(margin=dict(l=0, r=45, t=0, b=0), height=275, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
+                # 🔥 Margin 'r=50' Added to perfectly fit the tags on the right!
+                fig.update_layout(margin=dict(l=0, r=50, t=0, b=0), height=275, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
                 fig.add_annotation(text=title_html, xref="paper", yref="paper", x=0, xanchor="left", xshift=35, y=0.98, yanchor="top", showarrow=False, font=dict(size=13, color="#ffffff"), bgcolor="rgba(0,0,0,0)", borderwidth=0)
 
                 if fetch_sym in st.session_state.custom_alerts:
@@ -1276,24 +1279,37 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                     if 'SMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), name='10 Wk SMA', showlegend=False, hoverinfo='skip'))
                     if 'SMA_40' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_40'], mode='lines', line=dict(color='#FF4500', width=2), name='40 Wk SMA', showlegend=False, hoverinfo='skip'))
                 else:
-                    last_close = df_chart['Close'].iloc[-1]
-                    if 'VWAP' in df_chart.columns: 
+                    # 🔥 SMART ANCHOR & ANTI-COLLISION LOGIC 🔥
+                    last_close = float(df_chart['Close'].iloc[-1])
+                    has_vwap = 'VWAP' in df_chart.columns
+                    has_ema = 'EMA_10' in df_chart.columns
+                    
+                    last_vwap = float(df_chart['VWAP'].iloc[-1]) if has_vwap else 0
+                    last_ema = float(df_chart['EMA_10'].iloc[-1]) if has_ema else 0
+
+                    v_anchor = "bottom" if last_close <= last_vwap else "top"
+                    e_anchor = "bottom" if last_close <= last_ema else "top"
+                    v_shift = 6 if v_anchor == "bottom" else -6
+                    e_shift = 6 if e_anchor == "bottom" else -6
+
+                    if has_vwap and has_ema and abs(last_vwap - last_ema) / (last_vwap + 0.001) < 0.005:
+                        if last_vwap >= last_ema:
+                            v_anchor, v_shift = "bottom", 6
+                            e_anchor, e_shift = "top", -6
+                        else:
+                            v_anchor, v_shift = "top", -6
+                            e_anchor, e_shift = "bottom", 6
+
+                    if has_vwap: 
                         fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='skip'))
-                        if show_crosshair:
-                            last_vwap = df_chart['VWAP'].iloc[-1]
-                            v_anchor = "bottom" if last_close < last_vwap else "top"
-                            v_shift = 5 if last_close < last_vwap else -5
-                            fig.add_annotation(x=df_chart.index[-1], y=last_vwap, text=f"V:{last_vwap:.1f}", showarrow=False, xanchor="left", yanchor=v_anchor, xshift=15, yshift=v_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#FFD700", borderpad=2)
+                        fig.add_annotation(x=df_chart.index[-1], y=last_vwap, text=f"V:{last_vwap:.1f}", showarrow=False, xanchor="left", yanchor=v_anchor, xshift=15, yshift=v_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#FFD700", borderpad=2)
                         
-                    if 'EMA_10' in df_chart.columns: 
+                    if has_ema: 
                         fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'))
-                        if show_crosshair:
-                            last_ema = df_chart['EMA_10'].iloc[-1]
-                            e_anchor = "bottom" if last_close < last_ema else "top"
-                            e_shift = 5 if last_close < last_ema else -5
-                            fig.add_annotation(x=df_chart.index[-1], y=last_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="left", yanchor=e_anchor, xshift=15, yshift=e_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=2)
+                        fig.add_annotation(x=df_chart.index[-1], y=last_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="left", yanchor=e_anchor, xshift=15, yshift=e_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=2)
                 
-                fig.update_layout(margin=dict(l=0, r=45, t=0, b=0), height=235, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, xaxis_rangeslider_visible=False)
+                # 🔥 Margin 'r=50' Added to perfectly fit the tags on the right!
+                fig.update_layout(margin=dict(l=0, r=50, t=0, b=0), height=235, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, xaxis_rangeslider_visible=False)
                 fig.add_annotation(text=title_html, xref="paper", yref="paper", x=0, xanchor="left", xshift=35, y=0.98, yanchor="top", showarrow=False, font=dict(size=13, color="#ffffff"), bgcolor="rgba(0,0,0,0)", borderwidth=0)
 
                 if fetch_sym in st.session_state.custom_alerts:
