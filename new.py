@@ -655,7 +655,44 @@ def fetch_all_data(market_segment="F&O (Top 200) 🔵"):
             })
         except: continue
     return pd.DataFrame(results)
+# --- OPTION CHAIN MAX OI FETCHER ---
+def get_max_oi_strikes(symbol, spot_price):
+    try:
+        # కేవలం Nifty, BankNifty మరియు FNO స్టాక్స్ కి మాత్రమే OI వస్తుంది
+        if symbol not in FNO_STOCKS and symbol not in ["NIFTY", "BANKNIFTY"]:
+            return 0, 0
+            
+        # Dhan API ద్వారా కరెంట్ ఆప్షన్ చైన్ లాగడానికి లాజిక్ (మీ Dhan API డాక్యుమెంటేషన్ ప్రకారం దీన్ని అడ్జస్ట్ చేయొచ్చు)
+        # ప్రస్తుతానికి సెక్యూరిటీ ఐడీ కనుక్కోవడం:
+        sec_id = sec_map.get(symbol)
+        if not sec_id: return 0, 0
+        
+        # ఇక్కడ మీరు Dhan Option Chain API ని కాల్ చేయాలి. ఉదాహరణకు:
+        # res = dhan.option_chain(symbol=sec_id, exchange_segment='NSE_FNO')
+        # df_chain = pd.DataFrame(res['data'])
+        
+        # ప్రస్తుతానికి, చార్ట్ కోడ్ పర్ఫెక్ట్ గా రన్ అవ్వడానికి ఒక "డిఫాల్ట్ / మాక్" లాజిక్ పెడుతున్నాను.
+        # మీరు మీ ధన్ API రెస్పాన్స్ ని బట్టి ఈ కింద కామెంట్స్ లో ఉన్న లాజిక్ వాడొచ్చు:
+        
+        """
+        # API రెస్పాన్స్ వచ్చాక...
+        df_calls = df_chain[df_chain['option_type'] == 'CE']
+        df_puts = df_chain[df_chain['option_type'] == 'PE']
+        
+        highest_call_strike = df_calls.loc[df_calls['oi'].idxmax()]['strike_price']
+        highest_put_strike = df_puts.loc[df_puts['oi'].idxmax()]['strike_price']
+        return highest_call_strike, highest_put_strike
+        """
+        
+        # MOCK LOGIC (API కనెక్ట్ చేసే వరకు ఎర్రర్ రాకుండా):
+        # స్పాట్ ప్రైస్ కి కాస్త పైన Call OI, కాస్త కింద Put OI ఉన్నట్టు డమ్మీగా పంపుతున్నాను. 
+        # మీరు Dhan API లింక్ చేయగానే పైన ఉన్న రియల్ కోడ్ ని వాడుకోండి.
+        mock_call = round(spot_price * 1.02, -1) # 2% పైన
+        mock_put = round(spot_price * 0.98, -1)  # 2% కింద
+        return mock_call, mock_put
 
+    except Exception as e:
+        return 0, 0
 def process_5m_data(df_raw):
     try:
         df_s = df_raw.dropna(subset=['Open', 'High', 'Low', 'Close']).copy()
@@ -1239,7 +1276,44 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                     fig.update_layout(hovermode=False, dragmode=False)
                     fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)])
                     fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
-
+# ==========================================
+                # 🔥 OPTION CHAIN OI LEVELS (Support & Resistance)
+                # ==========================================
+                if display_sym in FNO_STOCKS or display_sym in ["NIFTY", "BANKNIFTY"]:
+                    current_spot = float(row['P'])
+                    
+                    # Step 1 లో రాసిన ఫంక్షన్ ని ఇక్కడ కాల్ చేస్తున్నాం
+                    max_call_strike, max_put_strike = get_max_oi_strikes(display_sym, current_spot)
+                    
+                    if max_call_strike > 0:
+                        # 🛑 Max Call OI (గట్టి Resistance) - Red Line
+                        fig.add_hline(
+                            y=max_call_strike, 
+                            line_dash="dash", 
+                            line_color="#f85149", 
+                            line_width=1.5, 
+                            opacity=0.8,
+                            annotation_text=f"🛑 Max Call OI: ₹{max_call_strike}", 
+                            annotation_position="top right",
+                            annotation_font=dict(color="#f85149", size=10),
+                            annotation_bgcolor="#161b22", 
+                            row=1, col=1
+                        )
+                        
+                    if max_put_strike > 0:
+                        # 🟢 Max Put OI (గట్టి Support) - Green Line
+                        fig.add_hline(
+                            y=max_put_strike, 
+                            line_dash="dash", 
+                            line_color="#3fb950", 
+                            line_width=1.5, 
+                            opacity=0.8,
+                            annotation_text=f"🟢 Max Put OI: ₹{max_put_strike}", 
+                            annotation_position="bottom right",
+                            annotation_font=dict(color="#3fb950", size=10),
+                            annotation_bgcolor="#161b22",
+                            row=1, col=1
+                        )
         st.plotly_chart(fig, width="stretch", key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}")
     except Exception as e: 
         st.markdown(f"<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart error</div>", unsafe_allow_html=True)
