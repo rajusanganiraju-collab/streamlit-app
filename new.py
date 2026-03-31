@@ -655,7 +655,7 @@ def fetch_all_data(market_segment="F&O (Top 200) 🔵"):
             })
         except: continue
     return pd.DataFrame(results)
-# --- OPTION CHAIN MAX OI FETCHER (REAL DHAN API - FIXED) ---
+# --- OPTION CHAIN MAX OI FETCHER (DEBUG VERSION 2) ---
 def get_max_oi_strikes(symbol, spot_price):
     try:
         # కేవలం Nifty, BankNifty మరియు FNO స్టాక్స్ కి మాత్రమే OI వస్తుంది
@@ -667,8 +667,12 @@ def get_max_oi_strikes(symbol, spot_price):
         
         segment = 'IDX_I' if symbol in ["NIFTY", "BANKNIFTY"] else 'NSE_EQ'
         
-        # 🔥 ఎర్రర్ ఫిక్స్: under_security_id మరియు under_exchange_segment అని వాడాలి
+        # ధన్ API కాల్
         res = dhan.option_chain(under_security_id=str(sec_id), under_exchange_segment=segment)
+        
+        # 🔍 NIFTY కి మాత్రమే రెస్పాన్స్ సైడ్‌బార్ లో ప్రింట్ చేద్దాం
+        if symbol == "NIFTY":
+            st.sidebar.write(f"🔍 NIFTY API Response:", res)
         
         if isinstance(res, dict) and res.get('status') == 'success' and res.get('data'):
             df_chain = pd.DataFrame(res['data'])
@@ -683,7 +687,18 @@ def get_max_oi_strikes(symbol, spot_price):
                 if max_call_strike > 0 and max_put_strike > 0:
                     return float(max_call_strike), float(max_put_strike)
         
-        # డేటా రాకపోతే టెంపరరీగా డమ్మీ లైన్స్ (చార్ట్ ఖాళీగా ఉండకుండా)
+        # డేటా రాకపోయినా, చార్ట్ పైన టెంపరరీ లైన్స్ కనిపించేలా చేద్దాం (చార్ట్ అందంగా ఉండటానికి)
+        gap = 50 if spot_price > 3000 else (10 if spot_price > 1000 else 5)
+        mock_call = round((spot_price * 1.02) / gap) * gap
+        mock_put = round((spot_price * 0.98) / gap) * gap
+        return mock_call, mock_put
+        
+    except Exception as e:
+        # ❌ ఎర్రర్ వస్తే కేవలం NIFTY ఎర్రర్ మాత్రమే ప్రింట్ చేద్దాం
+        if symbol == "NIFTY":
+            st.sidebar.error(f"❌ NIFTY Option Chain Error: {e}")
+            
+        # ఎర్రర్ వచ్చినా సరే డమ్మీ లైన్స్ పంపుదాం, అప్పుడు లైన్స్ రాకపోవడం అనే సమస్య ఉండదు
         gap = 50 if spot_price > 3000 else (10 if spot_price > 1000 else 5)
         mock_call = round((spot_price * 1.02) / gap) * gap
         mock_put = round((spot_price * 0.98) / gap) * gap
