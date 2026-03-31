@@ -200,7 +200,97 @@ TV_SECTOR_URL = {
 }
 
 COMMODITY_MAP = { "GC=F": "GOLD", "SI=F": "SILVER", "CL=F": "CRUDE OIL", "NG=F": "NATURAL GAS", "HG=F": "COPPER" }
-
+# --- MEGA MUTUAL FUNDS DATABASE (Scanning Universe) ---
+MUTUAL_FUNDS = {
+    "LARGE CAP": {
+        "SBI Bluechip Fund": "0P00005WLZ.BO",
+        "ICICI Pru Bluechip Fund": "0P00005V15.BO",
+        "Nippon India Large Cap": "0P00005WMT.BO",
+        "HDFC Top 100 Fund": "0P00005V17.BO",
+        "Axis Bluechip Fund": "0P0000XVUF.BO",
+        "Mirae Asset Large Cap": "0P0000XVUK.BO",
+        "Kotak Bluechip Fund": "0P00005WZV.BO",
+        "DSP Top 100 Equity": "0P00005W5A.BO",
+        "Tata Large Cap Fund": "0P00005WZJ.BO",
+        "UTI Mastershare Unit": "0P00005WZT.BO",
+        "Aditya Birla SL Frontline": "0P00005WZK.BO",
+        "Edelweiss Large Cap": "0P00005WZQ.BO",
+        "Franklin India Bluechip": "0P00005WZU.BO",
+        "Canara Robeco Bluechip": "0P00005WZY.BO",
+        "Invesco India Largecap": "0P00005WXX.BO"
+    },
+    "MID CAP": {
+        "HDFC Mid-Cap Opportunities": "0P00005V23.BO",
+        "Nippon India Growth Fund": "0P00005WLY.BO",
+        "Kotak Emerging Equity": "0P00005WZW.BO",
+        "DSP Midcap Fund": "0P00005W5C.BO",
+        "Axis Midcap Fund": "0P0000XVUO.BO",
+        "SBI Magnum Midcap": "0P00005WMX.BO",
+        "Tata Mid Cap Growth": "0P00005WZL.BO",
+        "UTI Mid Cap Fund": "0P00005WZM.BO",
+        "Motilal Oswal Midcap": "0P0000XVW4.BO",
+        "Edelweiss Mid Cap": "0P00005WZR.BO",
+        "PGIM India Midcap": "0P0000YWA6.BO",
+        "Invesco India Midcap": "0P00005WXY.BO",
+        "Sundaram Mid Cap": "0P00005WXZ.BO"
+    },
+    "SMALL CAP": {
+        "Nippon India Small Cap": "0P0000XVW5.BO",
+        "SBI Small Cap Fund": "0P0000XW8F.BO",
+        "Axis Small Cap Fund": "0P0000YWA5.BO",
+        "Kotak Small Cap Fund": "0P00005WZX.BO",
+        "DSP Small Cap Fund": "0P00005WZN.BO",
+        "HDFC Small Cap Fund": "0P00005WZO.BO",
+        "ICICI Pru Smallcap": "0P00005WZP.BO",
+        "Tata Small Cap Fund": "0P0000XVU6.BO",
+        "UTI Small Cap Fund": "0P00005WZS.BO",
+        "Quant Small Cap Fund": "0P00005X00.BO",
+        "Franklin India Smaller Cos": "0P00005WZV.BO",
+        "Canara Robeco Small Cap": "0P0000XW8G.BO",
+        "Edelweiss Small Cap": "0P0000YWA7.BO"
+    },
+    "FLEXI CAP / MULTI CAP": {
+        "Parag Parikh Flexi Cap": "0P0000XVU7.BO",
+        "HDFC Flexi Cap Fund": "0P00005V25.BO",
+        "Kotak Flexicap Fund": "0P00005V19.BO",
+        "UTI Flexi Cap Fund": "0P00005WZU.BO",
+        "SBI Flexicap Fund": "0P00005WMA.BO",
+        "DSP Flexi Cap Fund": "0P00005W5B.BO",
+        "Axis Flexi Cap Fund": "0P0000XVUG.BO",
+        "Nippon India Multi Cap": "0P00005WMB.BO",
+        "Aditya Birla SL Flexi Cap": "0P00005WZC.BO",
+        "Franklin India Flexi Cap": "0P00005WZD.BO"
+    },
+    "ELSS (TAX SAVER)": {
+        "Mirae Asset Tax Saver": "0P0000XVUL.BO",
+        "Axis Long Term Equity": "0P0000XVUP.BO",
+        "DSP Tax Saver Fund": "0P00005W5E.BO",
+        "SBI Long Term Equity": "0P00005WMC.BO",
+        "HDFC TaxSaver": "0P00005V24.BO",
+        "Kotak Tax Saver": "0P00005WZE.BO",
+        "Nippon India Tax Saver": "0P00005WMD.BO",
+        "Tata India Tax Savings": "0P00005WZF.BO"
+    },
+    "SECTORAL (IT / TECH)": {
+        "ICICI Pru Technology Fund": "0P00005UZD.BO",
+        "SBI Technology Opp Fund": "0P00005WMI.BO",
+        "Tata Digital India Fund": "0P0000XVU6.BO",
+        "Aditya Birla SL Digital": "0P00005WZK.BO",
+        "Franklin India Technology": "0P00005WZU.BO"
+    },
+    "SECTORAL (PHARMA)": {
+        "Nippon India Pharma Fund": "0P00005WMJ.BO",
+        "SBI Healthcare Opp Fund": "0P00005WMG.BO",
+        "Mirae Asset Healthcare": "0P0000YWA7.BO",
+        "DSP Healthcare Fund": "0P0000YWA8.BO"
+    },
+    "SECTORAL (BANKING)": {
+        "Nippon India Banking Fund": "0P00005WLX.BO",
+        "ICICI Pru Banking & Fin": "0P00005V13.BO",
+        "SBI Banking & Financial": "0P00005WMK.BO",
+        "HDFC Banking & Financial": "0P0000YWA9.BO"
+    }
+}
 NIFTY_50_SECTORS = {
     "PHARMA": ["SUNPHARMA", "CIPLA", "DRREDDY", "APOLLOHOSP"],
     "IT": ["TCS", "INFY", "HCLTECH", "WIPRO", "TECHM"],
@@ -635,7 +725,87 @@ def fetch_fundamentals_data(symbols_list):
             })
         except: continue
     return pd.DataFrame(fund_data)
+@st.cache_data(ttl=86400, show_spinner=False)
+def fetch_mf_performance():
+    mf_dict = {}
+    for cat, funds in MUTUAL_FUNDS.items():
+        for name, tkr in funds.items():
+            mf_dict[tkr] = {"Name": name, "Category": cat}
+    
+    tkrs = list(mf_dict.keys())
+    data = yf.download(tkrs, period="20y", progress=False, group_by='ticker', threads=15)
+    
+    results = []
+    for tkr in tkrs:
+        try:
+            df_t = data[tkr]['Close'].dropna() if isinstance(data.columns, pd.MultiIndex) else data['Close'].dropna()
+            if df_t.empty: continue
+            
+            last_price = float(df_t.iloc[-1])
+            
+            def get_cagr(years):
+                try:
+                    past_date = df_t.index[-1] - pd.DateOffset(years=years)
+                    closest_date = df_t.index[df_t.index <= past_date].max()
+                    if pd.isna(closest_date): return "N/A"
+                    past_price = float(df_t.loc[closest_date])
+                    cagr = ((last_price / past_price) ** (1 / years)) - 1
+                    return round(cagr * 100, 2)
+                except: return "N/A"
+                
+            results.append({
+                "Category": mf_dict[tkr]["Category"],
+                "Fund Name": mf_dict[tkr]["Name"],
+                "NAV (₹)": round(last_price, 2),
+                "1Y (%)": get_cagr(1),
+                "3Y CAGR (%)": get_cagr(3),
+                "5Y CAGR (%)": get_cagr(5),
+                "10Y CAGR (%)": get_cagr(10),
+                "20Y CAGR (%)": get_cagr(20)
+            })
+        except: continue
+        
+    df_results = pd.DataFrame(results)
+    if not df_results.empty:
+        # 🔥 ఫిల్టర్ ఆటోమేటిక్‌గా 5 ఏళ్ల పర్ఫార్మెన్స్ (5Y CAGR) ని బట్టి ర్యాంక్ ఇస్తుంది
+        df_results['Sort_Key'] = pd.to_numeric(df_results['5Y CAGR (%)'].replace('N/A', -999))
+        df_results = df_results.sort_values(by='Sort_Key', ascending=False)
+        
+        # 🔥 ఏ కేటగిరీకి ఆ కేటగిరీ టాప్ 10 మాత్రమే తీసుకుంటుంది!
+        top_10_dfs = []
+        for cat in MUTUAL_FUNDS.keys():
+            top_10_dfs.append(df_results[df_results['Category'] == cat].head(10))
+            
+        df_results = pd.concat(top_10_dfs)
+        df_results = df_results.drop(columns=['Sort_Key'])
+        
+    return df_results
 
+def render_mf_table(df_mf):
+    if df_mf.empty: return "<div style='padding:20px; text-align:center;'>No Mutual Fund data available.</div>"
+    html = f'<table class="term-table"><thead><tr><th colspan="9" class="term-head-swing" style="background-color: #005a9e; color: white;">🏆 TOP 10 MUTUAL FUNDS SCREEENER (AUTO-RANKED BY 5Y CAGR)</th></tr><tr style="background-color: #21262d;"><th style="width:5%;">RANK</th><th style="text-align:left; width:20%;">FUND NAME</th><th style="width:12%; color:#ffd700;">CATEGORY</th><th style="width:10%;">NAV (₹)</th><th style="width:10%;">1Y RETURN</th><th style="width:10%;">3Y CAGR</th><th style="width:10%;">5Y CAGR</th><th style="width:10%;">10Y CAGR</th><th style="width:10%;">20Y CAGR</th></tr></thead><tbody>'
+    
+    current_cat = ""
+    rank = 1
+    for i, (_, row) in enumerate(df_mf.iterrows()):
+        if row["Category"] != current_cat:
+            current_cat = row["Category"]
+            rank = 1 # కేటగిరీ మారగానే ర్యాంక్ మళ్లీ 1 కి వస్తుంది
+            
+        bg_class = "row-dark" if i % 2 == 0 else "row-light"
+        
+        def colorize(val):
+            if val == "N/A": return "<span style='color:#8b949e;'>N/A</span>"
+            val_f = float(val)
+            if val_f > 20: return f"<span style='color:#00FF00; font-weight:bold;'>{val}%</span>" 
+            elif val_f > 12: return f"<span style='color:#3fb950;'>{val}%</span>" 
+            elif val_f < 0: return f"<span style='color:#f85149;'>{val}%</span>" 
+            return f"{val}%"
+
+        html += f'<tr class="{bg_class}"><td><b>{rank}</b></td><td class="t-symbol">{row["Fund Name"]}</td><td style="font-size:11px; color:#c9d1d9; font-weight:bold;">{row["Category"]}</td><td>₹{row["NAV (₹)"]}</td><td>{colorize(row["1Y (%)"])}</td><td>{colorize(row["3Y CAGR (%)"])}</td><td>{colorize(row["5Y CAGR (%)"])}</td><td>{colorize(row["10Y CAGR (%)"])}</td><td>{colorize(row["20Y CAGR (%)"])}</td></tr>'
+        rank += 1
+    html += "</tbody></table>"
+    return html
 def render_html_table(df_subset, title, color_class):
     if df_subset.empty: return ""
     html = f'<table class="term-table"><thead><tr><th colspan="7" class="{color_class}">{title}</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:20%;">STOCK</th><th style="width:12%;">PRICE</th><th style="width:12%;">DAY%</th><th style="width:12%;">NET%</th><th style="width:10%;">VOL</th><th style="width:26%;">STATUS</th><th style="width:8%;">SCORE</th></tr></thead><tbody>'
@@ -1145,7 +1315,7 @@ if not df.empty:
 # --- 7. UI SETTINGS ---
 # =========================================================
 
-watchlist_mode = st.selectbox("Watchlist", ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions", "High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢"], index=0, label_visibility="collapsed")
+watchlist_mode = st.selectbox("Watchlist", ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions", "High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢", "Mutual Funds 📈"], index=0, label_visibility="collapsed")
 view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
 
 move_type_filter = ["🌊 One Sided Only", "🎯 Reversals Only", "🏹 Rubber Band Stretch"] 
