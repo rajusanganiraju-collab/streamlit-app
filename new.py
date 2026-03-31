@@ -655,76 +655,46 @@ def fetch_all_data(market_segment="F&O (Top 200) 🔵"):
             })
         except: continue
     return pd.DataFrame(results)
-# --- OPTION CHAIN MAX OI FETCHER (REAL DHAN API) ---
+# --- OPTION CHAIN MAX OI FETCHER (DEBUG VERSION) ---
 def get_max_oi_strikes(symbol, spot_price):
     try:
-        # కేవలం Nifty, BankNifty మరియు FNO స్టాక్స్ కి మాత్రమే OI వస్తుంది
         if symbol not in FNO_STOCKS and symbol not in ["NIFTY", "BANKNIFTY"]:
             return 0, 0
             
         sec_id = sec_map.get(symbol)
         if not sec_id: return 0, 0
         
-        # ఇండెక్స్ అయితే 'IDX_I', స్టాక్ అయితే 'NSE_EQ' సెగ్మెంట్ వాడాలి
         segment = 'IDX_I' if symbol in ["NIFTY", "BANKNIFTY"] else 'NSE_EQ'
         
-        # ధన్ API నుండి లైవ్ ఆప్షన్ చైన్ డేటా తెప్పించడం
+        # ధన్ API కాల్
         res = dhan.option_chain(underlying_security_id=str(sec_id), underlying_exchange_segment=segment)
+        
+        # 🛑 డీబగ్గింగ్: API అసలు ఏం పంపుతుందో సైడ్‌బార్ లో చూద్దాం
+        st.sidebar.write(f"🔍 {symbol} OI API Response:", res)
         
         if isinstance(res, dict) and res.get('status') == 'success' and res.get('data'):
             df_chain = pd.DataFrame(res['data'])
             
-            # డేటా ఖాళీగా లేకపోతేనే ప్రాసెస్ చేయాలి
             if not df_chain.empty and 'option_type' in df_chain.columns and 'oi' in df_chain.columns:
-                
-                # కాల్స్ (CE) మరియు పుట్స్ (PE) డేటా ఫిల్టర్ చేయడం
                 df_calls = df_chain[df_chain['option_type'] == 'CE']
                 df_puts = df_chain[df_chain['option_type'] == 'PE']
                 
-                max_call_strike = 0
-                max_put_strike = 0
-                
-                # Highest OI (ఓపెన్ ఇంట్రెస్ట్) ఉన్న స్ట్రైక్ ప్రైస్ ని కనుక్కోవడం
-                if not df_calls.empty:
-                    max_call_strike = df_calls.loc[df_calls['oi'].idxmax()]['strike_price']
+                max_call_strike = df_calls.loc[df_calls['oi'].idxmax()]['strike_price'] if not df_calls.empty else 0
+                max_put_strike = df_puts.loc[df_puts['oi'].idxmax()]['strike_price'] if not df_puts.empty else 0
                     
-                if not df_puts.empty:
-                    max_put_strike = df_puts.loc[df_puts['oi'].idxmax()]['strike_price']
-                    
-                return float(max_call_strike), float(max_put_strike)
+                if max_call_strike > 0 and max_put_strike > 0:
+                    return float(max_call_strike), float(max_put_strike)
         
-        # డేటా రాకపోతే లైన్స్ డ్రా అవ్వకుండా 0 పంపుతున్నాం
-        return 0, 0
-        
-    except Exception as e:
-        # ఏదైనా ఎర్రర్ వస్తే చార్ట్ క్రాష్ అవ్వకుండా సేఫ్టీ కి 0, 0
-        return 0, 0
-        
-        # ఇక్కడ మీరు Dhan Option Chain API ని కాల్ చేయాలి. ఉదాహరణకు:
-        # res = dhan.option_chain(symbol=sec_id, exchange_segment='NSE_FNO')
-        # df_chain = pd.DataFrame(res['data'])
-        
-        # ప్రస్తుతానికి, చార్ట్ కోడ్ పర్ఫెక్ట్ గా రన్ అవ్వడానికి ఒక "డిఫాల్ట్ / మాక్" లాజిక్ పెడుతున్నాను.
-        # మీరు మీ ధన్ API రెస్పాన్స్ ని బట్టి ఈ కింద కామెంట్స్ లో ఉన్న లాజిక్ వాడొచ్చు:
-        
-        """
-        # API రెస్పాన్స్ వచ్చాక...
-        df_calls = df_chain[df_chain['option_type'] == 'CE']
-        df_puts = df_chain[df_chain['option_type'] == 'PE']
-        
-        highest_call_strike = df_calls.loc[df_calls['oi'].idxmax()]['strike_price']
-        highest_put_strike = df_puts.loc[df_puts['oi'].idxmax()]['strike_price']
-        return highest_call_strike, highest_put_strike
-        """
-        
-        # MOCK LOGIC (API కనెక్ట్ చేసే వరకు ఎర్రర్ రాకుండా):
-        # స్పాట్ ప్రైస్ కి కాస్త పైన Call OI, కాస్త కింద Put OI ఉన్నట్టు డమ్మీగా పంపుతున్నాను. 
-        # మీరు Dhan API లింక్ చేయగానే పైన ఉన్న రియల్ కోడ్ ని వాడుకోండి.
-        mock_call = round(spot_price * 1.02, -1) # 2% పైన
-        mock_put = round(spot_price * 0.98, -1)  # 2% కింద
+        # API రెస్పాన్స్ ఫెయిల్ అయితే... చార్ట్ మీద లైన్స్ మాయం కాకుండా 
+        # తాత్కాలికంగా పాత డమ్మీ లైన్స్ చూపిద్దాం.
+        gap = 50 if spot_price > 3000 else (10 if spot_price > 1000 else 5)
+        mock_call = round((spot_price * 1.02) / gap) * gap
+        mock_put = round((spot_price * 0.98) / gap) * gap
         return mock_call, mock_put
-
+        
     except Exception as e:
+        # కోడ్ ఎక్కడైనా బ్రేక్ అయితే ఇక్కడ ఎర్రర్ చూపిస్తుంది
+        st.sidebar.error(f"❌ {symbol} OI Code Error: {e}")
         return 0, 0
 def process_5m_data(df_raw):
     try:
