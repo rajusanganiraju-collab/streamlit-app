@@ -1224,15 +1224,13 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 else:
                     if 'VWAP' in df_chart.columns: 
                         fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='skip'), row=1, col=1)
-                        # 🔥 VWAP Price Tag
                         last_vwap = df_chart['VWAP'].iloc[-1]
-                        fig.add_annotation(x=df_chart.index[-1], y=last_vwap, text=f"V: {last_vwap:.1f}", showarrow=False, xanchor="right", yanchor="bottom", yshift=5, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#FFD700", borderpad=2, row=1, col=1)
+                        fig.add_annotation(x=df_chart.index[-1], y=last_vwap, text=f"V:{last_vwap:.1f}", showarrow=False, xanchor="right", yanchor="bottom", yshift=5, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#FFD700", borderpad=2, row=1, col=1)
                         
                     if 'EMA_10' in df_chart.columns: 
                         fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'), row=1, col=1)
-                        # 🔥 EMA10 Price Tag
                         last_ema = df_chart['EMA_10'].iloc[-1]
-                        fig.add_annotation(x=df_chart.index[-1], y=last_ema, text=f"E: {last_ema:.1f}", showarrow=False, xanchor="right", yanchor="top", yshift=-5, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=2, row=1, col=1)
+                        fig.add_annotation(x=df_chart.index[-1], y=last_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="right", yanchor="top", yshift=-5, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=2, row=1, col=1)
                 
                 vol_colors = []
                 if 'Volume' in df_chart.columns:
@@ -1284,8 +1282,15 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                     if 'SMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), name='10 Wk SMA', showlegend=False, hoverinfo='skip'))
                     if 'SMA_40' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_40'], mode='lines', line=dict(color='#FF4500', width=2), name='40 Wk SMA', showlegend=False, hoverinfo='skip'))
                 else:
-                    if 'VWAP' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), hoverinfo='skip'))
-                    if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), hoverinfo='skip'))
+                    if 'VWAP' in df_chart.columns: 
+                        fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='skip'))
+                        last_vwap = df_chart['VWAP'].iloc[-1]
+                        fig.add_annotation(x=df_chart.index[-1], y=last_vwap, text=f"V:{last_vwap:.1f}", showarrow=False, xanchor="right", yanchor="bottom", yshift=5, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#FFD700", borderpad=2)
+                        
+                    if 'EMA_10' in df_chart.columns: 
+                        fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'))
+                        last_ema = df_chart['EMA_10'].iloc[-1]
+                        fig.add_annotation(x=df_chart.index[-1], y=last_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="right", yanchor="top", yshift=-5, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=2)'skip'))
                     
                 fig.update_layout(margin=dict(l=0, r=45 if show_crosshair else 0, t=0, b=0), height=235, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, xaxis_rangeslider_visible=False)
                 fig.add_annotation(text=title_html, xref="paper", yref="paper", x=0, xanchor="left", xshift=35, y=0.98, yanchor="top", showarrow=False, font=dict(size=13, color="#ffffff"), bgcolor="rgba(0,0,0,0)", borderwidth=0)
