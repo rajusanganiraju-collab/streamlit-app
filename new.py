@@ -655,8 +655,9 @@ def fetch_all_data(market_segment="F&O (Top 200) 🔵"):
             })
         except: continue
     return pd.DataFrame(results)
-# --- OPTION CHAIN MAX OI FETCHER (DEBUG VERSION 2) ---
-def get_max_oi_strikes(symbol, spot_price):
+# --- OPTION CHAIN MAX OI FETCHER (CACHED & FAST) ---
+@st.cache_data(ttl=300, show_spinner=False)
+def get_max_oi_strikes(symbol, _spot_price):
     try:
         # కేవలం Nifty, BankNifty మరియు FNO స్టాక్స్ కి మాత్రమే OI వస్తుంది
         if symbol not in FNO_STOCKS and symbol not in ["NIFTY", "BANKNIFTY"]:
@@ -670,9 +671,6 @@ def get_max_oi_strikes(symbol, spot_price):
         # ధన్ API కాల్
         res = dhan.option_chain(under_security_id=str(sec_id), under_exchange_segment=segment)
         
-        if symbol == "NIFTY":
-            st.sidebar.write(f"🔍 NIFTY API Response:", res)
-        
         if isinstance(res, dict) and res.get('status') == 'success' and res.get('data'):
             df_chain = pd.DataFrame(res['data'])
             
@@ -684,23 +682,18 @@ def get_max_oi_strikes(symbol, spot_price):
                 max_put_strike = df_puts.loc[df_puts['oi'].idxmax()]['strike_price'] if not df_puts.empty else 0
                     
                 if max_call_strike > 0 and max_put_strike > 0:
-                    # ఇక్కడ రియల్ డేటా కాబట్టి చివరన 'True' పంపుతున్నాం
                     return float(max_call_strike), float(max_put_strike), True
         
         # డేటా రాకపోయినా, చార్ట్ పైన టెంపరరీ లైన్స్ కనిపించేలా చేద్దాం 
-        gap = 50 if spot_price > 3000 else (10 if spot_price > 1000 else 5)
-        mock_call = round((spot_price * 1.02) / gap) * gap
-        mock_put = round((spot_price * 0.98) / gap) * gap
-        # ఇక్కడ డమ్మీ డేటా కాబట్టి 'False' పంపుతున్నాం
+        gap = 50 if _spot_price > 3000 else (10 if _spot_price > 1000 else 5)
+        mock_call = round((_spot_price * 1.02) / gap) * gap
+        mock_put = round((_spot_price * 0.98) / gap) * gap
         return mock_call, mock_put, False
         
     except Exception as e:
-        if symbol == "NIFTY":
-            st.sidebar.error(f"❌ NIFTY Option Chain Error: {e}")
-            
-        gap = 50 if spot_price > 3000 else (10 if spot_price > 1000 else 5)
-        mock_call = round((spot_price * 1.02) / gap) * gap
-        mock_put = round((spot_price * 0.98) / gap) * gap
+        gap = 50 if _spot_price > 3000 else (10 if _spot_price > 1000 else 5)
+        mock_call = round((_spot_price * 1.02) / gap) * gap
+        mock_put = round((_spot_price * 0.98) / gap) * gap
         return mock_call, mock_put, False
         
     except Exception as e:
