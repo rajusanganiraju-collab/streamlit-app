@@ -657,9 +657,9 @@ def fetch_all_data(market_segment="F&O (Top 200) 🔵"):
     return pd.DataFrame(results)
 # --- OPTION CHAIN MAX OI FETCHER (CACHED & FAST) ---
 @st.cache_data(ttl=300, show_spinner=False)
-def get_max_oi_strikes(symbol, _spot_price):
+def fetch_real_oi(symbol):
+    # ఈ ఫంక్షన్ కేవలం స్టాక్ పేరు మీద మాత్రమే రన్ అవుతుంది, కాబట్టి 5 నిమిషాలు పక్కాగా క్యాచ్ అవుతుంది!
     try:
-        # కేవలం Nifty, BankNifty మరియు FNO స్టాక్స్ కి మాత్రమే OI వస్తుంది
         if symbol not in FNO_STOCKS and symbol not in ["NIFTY", "BANKNIFTY"]:
             return 0, 0, False
             
@@ -683,32 +683,27 @@ def get_max_oi_strikes(symbol, _spot_price):
                     
                 if max_call_strike > 0 and max_put_strike > 0:
                     return float(max_call_strike), float(max_put_strike), True
-        
-        # డేటా రాకపోయినా, చార్ట్ పైన టెంపరరీ లైన్స్ కనిపించేలా చేద్దాం 
-        gap = 50 if _spot_price > 3000 else (10 if _spot_price > 1000 else 5)
-        mock_call = round((_spot_price * 1.02) / gap) * gap
-        mock_put = round((_spot_price * 0.98) / gap) * gap
-        return mock_call, mock_put, False
-        
+                    
+        return 0, 0, False
     except Exception as e:
-        gap = 50 if _spot_price > 3000 else (10 if _spot_price > 1000 else 5)
-        mock_call = round((_spot_price * 1.02) / gap) * gap
-        mock_put = round((_spot_price * 0.98) / gap) * gap
-        return mock_call, mock_put, False
+        return 0, 0, False
+
+def get_max_oi_strikes(symbol, spot_price):
+    # 1. ముందుగా రియల్ డేటా కోసం క్యాచ్డ్ ఫంక్షన్‌ని పిలుస్తాం (లాగ్ అస్సలు ఉండదు)
+    call_strike, put_strike, is_real = fetch_real_oi(symbol)
+    
+    # 2. రియల్ డేటా సక్సెస్ అయితే అదే పంపుతాం
+    if is_real:
+        return call_strike, put_strike, True
         
-    except Exception as e:
-        # ❌ ఎర్రర్ వస్తే కేవలం NIFTY ఎర్రర్ మాత్రమే ప్రింట్ చేద్దాం
-        if symbol == "NIFTY":
-            st.sidebar.error(f"❌ NIFTY Option Chain Error: {e}")
-            
-        # ఎర్రర్ వచ్చినా సరే డమ్మీ లైన్స్ పంపుదాం, అప్పుడు లైన్స్ రాకపోవడం అనే సమస్య ఉండదు
-        gap = 50 if spot_price > 3000 else (10 if spot_price > 1000 else 5)
-        mock_call = round((spot_price * 1.02) / gap) * gap
-        mock_put = round((spot_price * 0.98) / gap) * gap
-        return mock_call, mock_put
-        
-    except Exception as e:
-        return 0, 0
+    # 3. రియల్ డేటా రాకపోతే అప్పుడు డమ్మీ లైన్స్ వేస్తాం
+    gap = 50 if spot_price > 3000 else (10 if spot_price > 1000 else 5)
+    mock_call = round((spot_price * 1.02) / gap) * gap
+    mock_put = round((spot_price * 0.98) / gap) * gap
+    return mock_call, mock_put, False
+
+# --- కింద ప్రాసెస్ 5m డేటా ఫంక్షన్ మామూలే... ---
+def process_5m_data(df_raw):
 def process_5m_data(df_raw):
     try:
         df_s = df_raw.dropna(subset=['Open', 'High', 'Low', 'Close']).copy()
