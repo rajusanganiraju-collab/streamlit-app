@@ -666,53 +666,6 @@ def fetch_all_data(market_segment="F&O (Top 200) 🔵"):
             })
         except: continue
     return pd.DataFrame(results)
-# --- OPTION CHAIN MAX OI FETCHER (CACHED & FAST) ---
-@st.cache_data(ttl=300, show_spinner=False)
-def fetch_real_oi(symbol):
-    # ఈ ఫంక్షన్ కేవలం స్టాక్ పేరు మీద మాత్రమే రన్ అవుతుంది, కాబట్టి 5 నిమిషాలు పక్కాగా క్యాచ్ అవుతుంది!
-    try:
-        if symbol not in FNO_STOCKS and symbol not in ["NIFTY", "BANKNIFTY"]:
-            return 0, 0, False
-            
-        sec_id = sec_map.get(symbol)
-        if not sec_id: return 0, 0, False
-        
-        segment = 'IDX_I' if symbol in ["NIFTY", "BANKNIFTY"] else 'NSE_EQ'
-        
-        # ధన్ API కాల్
-        res = dhan.option_chain(under_security_id=str(sec_id), under_exchange_segment=segment)
-        
-        if isinstance(res, dict) and res.get('status') == 'success' and res.get('data'):
-            df_chain = pd.DataFrame(res['data'])
-            
-            if not df_chain.empty and 'option_type' in df_chain.columns and 'oi' in df_chain.columns:
-                df_calls = df_chain[df_chain['option_type'] == 'CE']
-                df_puts = df_chain[df_chain['option_type'] == 'PE']
-                
-                max_call_strike = df_calls.loc[df_calls['oi'].idxmax()]['strike_price'] if not df_calls.empty else 0
-                max_put_strike = df_puts.loc[df_puts['oi'].idxmax()]['strike_price'] if not df_puts.empty else 0
-                    
-                if max_call_strike > 0 and max_put_strike > 0:
-                    return float(max_call_strike), float(max_put_strike), True
-                    
-        return 0, 0, False
-    except Exception as e:
-        return 0, 0, False
-
-def get_max_oi_strikes(symbol, spot_price):
-    # 1. ముందుగా రియల్ డేటా కోసం క్యాచ్డ్ ఫంక్షన్‌ని పిలుస్తాం (లాగ్ అస్సలు ఉండదు)
-    call_strike, put_strike, is_real = fetch_real_oi(symbol)
-    
-    # 2. రియల్ డేటా సక్సెస్ అయితే అదే పంపుతాం
-    if is_real:
-        return call_strike, put_strike, True
-        
-    # 3. రియల్ డేటా రాకపోతే అప్పుడు డమ్మీ లైన్స్ వేస్తాం
-    gap = 50 if spot_price > 3000 else (10 if spot_price > 1000 else 5)
-    mock_call = round((spot_price * 1.02) / gap) * gap
-    mock_put = round((spot_price * 0.98) / gap) * gap
-    return mock_call, mock_put, False
-
 def process_5m_data(df_raw):
     try:
         df_s = df_raw.dropna(subset=['Open', 'High', 'Low', 'Close']).copy()
@@ -1342,47 +1295,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                     fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)])
                     fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
 
-            # ==========================================
-            # 🔥 OPTION CHAIN OI LEVELS (Support & Resistance)
-            # ==========================================
-            if display_sym in FNO_STOCKS or display_sym in ["NIFTY", "BANKNIFTY"]:
-                current_spot = float(row['P'])
-                
-                # ఫంక్షన్ నుంచి మూడవ వేరియబుల్ 'is_real' ని తీసుకుంటున్నాం
-                max_call_strike, max_put_strike, is_real = get_max_oi_strikes(display_sym, current_spot)
-                
-                # 🔥 రియల్ అయితే Dhan OI అని, డమ్మీ అయితే ⚠️ Dummy అని నేమ్ మారుస్తున్నాం
-                call_label = f"🛑 Dhan Call OI: ₹{max_call_strike}" if is_real else f"⚠️ Dummy Call: ₹{max_call_strike}"
-                put_label = f"🟢 Dhan Put OI: ₹{max_put_strike}" if is_real else f"⚠️ Dummy Put: ₹{max_put_strike}"
-                
-                if max_call_strike > 0:
-                    fig.add_hline(
-                        y=max_call_strike, 
-                        line_dash="dash", 
-                        line_color="#f85149", 
-                        line_width=1.5, 
-                        opacity=0.8,
-                        annotation_text=call_label, 
-                        annotation_position="top right",
-                        annotation_font=dict(color="#f85149", size=10),
-                        annotation_bgcolor="#161b22", 
-                        row=1 if show_vol else None, col=1 if show_vol else None
-                    )
-                    
-                if max_put_strike > 0:
-                    fig.add_hline(
-                        y=max_put_strike, 
-                        line_dash="dash", 
-                        line_color="#3fb950", 
-                        line_width=1.5, 
-                        opacity=0.8,
-                        annotation_text=put_label, 
-                        annotation_position="bottom right",
-                        annotation_font=dict(color="#3fb950", size=10),
-                        annotation_bgcolor="#161b22",
-                        row=1 if show_vol else None, col=1 if show_vol else None
-                    )
-            
+                                 
         st.plotly_chart(fig, width="stretch", key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}")
     except Exception as e: 
         st.markdown(f"<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart error: {e}</div>", unsafe_allow_html=True)
