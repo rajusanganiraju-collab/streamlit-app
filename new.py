@@ -1407,10 +1407,15 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
         if watchlist_mode in ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions", "High Score Stocks 🔥"]:
             move_type_filter = st.multiselect("Strategy Filter",
                 ["All Moves", "🔥 Live Power Mover (Last 2 Candles)", "🚀 All-Day Volume Spikes (Max Fire)", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)", "📈 Minervini Trend Template (VCP)", "🌅 15-Min ORB (Opening Range Breakout)"], 
-                default=["🔥 Live Power Mover (Last 2 Candles)", "🚀 All-Day Volume Spikes (Max Fire)", "🌊 One Sided Only"]
+                default=["🔥 Live Power Mover (Last 2 Candles)", "🚀 All-Day Volume Spikes (Max Fire)", "🌊 One Sided Only"],
+                key="day_trading_filter_key" # 🔥 ఈ KEY యాడ్ చేయడం వల్లే బగ్ సాల్వ్ అవుతుంది!
             )
         elif watchlist_mode == "Swing Trading 📈":
-            move_type_filter = st.multiselect("Strategy Filter", ["All Swing Stocks", "🚀 Pro Breakout Strategy", "🌟 Weekly 10EMA Pro", "📈 Minervini Trend Template (VCP)", "📉 Strict VCP (Price & Vol Contraction)"], default=["All Swing Stocks"])
+            move_type_filter = st.multiselect("Strategy Filter", 
+                ["All Swing Stocks", "🚀 Pro Breakout Strategy", "🌟 Weekly 10EMA Pro", "📈 Minervini Trend Template (VCP)", "📉 Strict VCP (Price & Vol Contraction)"], 
+                default=["All Swing Stocks"],
+                key="swing_trading_filter_key" # 🔥 ఈ KEY యాడ్ చేయడం వల్లే బగ్ సాల్వ్ అవుతుంది!
+            )
         elif watchlist_mode == "Fundamentals 🏢":
             fund_filter = st.selectbox("Fundamentals Filter", ["Top Ranked Stocks ⭐", "Swing Trading Candidates 📈", "Nifty 50 Stocks", "My Portfolio 💼"], index=0)
             
