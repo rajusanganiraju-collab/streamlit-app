@@ -702,8 +702,6 @@ def get_max_oi_strikes(symbol, spot_price):
     mock_put = round((spot_price * 0.98) / gap) * gap
     return mock_call, mock_put, False
 
-# --- కింద ప్రాసెస్ 5m డేటా ఫంక్షన్ మామూలే... ---
-def process_5m_data(df_raw):
 def process_5m_data(df_raw):
     try:
         df_s = df_raw.dropna(subset=['Open', 'High', 'Low', 'Close']).copy()
