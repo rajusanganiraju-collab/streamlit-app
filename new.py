@@ -238,24 +238,6 @@ FNO_STOCKS = [
     "UBL", "ULTRACEMCO", "UPL", "VEDL", "VOLTAS", "WIPRO", "ZEEL", "ZOMATO", "ZYDUSLIFE"
 ]
 
-MIDCAP_STOCKS = [
-    "SUZLON", "IREDA", "RVNL", "NHPC", "SJVN", "KPITTECH", "COCHINSHIP", 
-    "MAZDOCK", "RAILTEL", "CAMS", "TATAINVEST", "IRB", "J&KBANK", "UCOBANK", 
-    "CENTRALBK", "MAHABANK", "SUVENPHAR", "NATCOPHARM", "AJANTPHARM", 
-    "PRAJIND", "RENUKA", "EIDPARRY", "TRIVENI", "TEJASNET", "ITI", "MTNL", 
-    "HEG", "GRAPHITE", "CEATLTD", "JKTYRE", "AMBER", "KAYNES", "CGPOWER", 
-    "AIAENG", "SONACOMS", "OLECTRA", "JBMAUTO", "CHALET", "LEMONTREE", 
-    "EASEMYTRIP", "PAYTM", "NYKAA", "PBFINTECH", "DELHIVERY"
-]
-
-SMALLCAP_STOCKS = [
-    "KALYANKJIL", "TRIDENT", "HFCL", "HCC", "JPPOWER", "RPOWER", "SOUTHBANK",
-    "YESBANK", "MAPMYINDIA", "RATEGAIN", "LATENTVIEW", "CEINFO", "DATAATTNS", 
-    "KFINTECH", "PRINCEPIPE", "FINCABLES", "KEI", "RRKABEL", "HBLPOWER", 
-    "ARE&M", "EQUITASBNK", "UJJIVANSFB", "CSBBANK", "DCBBANK", 
-    "KARURVYSYA", "BANKINDIA", "UNIONBANK", "ZENSARTECH", 
-    "NBCC", "MARKSANS", "JWL", "NETWEB", "TITAGARH", "TEXRAIL", "KIRLOSENG"
-]
 # --- DHAN API INITIALIZATION ---
 @st.cache_resource
 def init_dhan_client():
@@ -375,21 +357,10 @@ def fetch_cached_5m_data(tkrs_list):
 
 # --- DAILY DATA FETCH ---
 @st.cache_data(ttl=150, show_spinner=False)
-def fetch_all_data(market_segment="F&O (Top 200) 🔵"):
+def fetch_all_data():
     port_df = load_portfolio()
     port_stocks = [str(sym).upper().strip() for sym in port_df['Symbol'].tolist() if str(sym).strip() != ""]
-    
-    base_stocks = NIFTY_50.copy()
-    if market_segment == "F&O (Top 200) 🔵":
-        base_stocks += FNO_STOCKS
-    elif market_segment == "Mid Cap 🟡":
-        base_stocks += MIDCAP_STOCKS
-    elif market_segment == "Small Cap 🟢":
-        base_stocks += SMALLCAP_STOCKS
-    else: # All Combined
-        base_stocks += FNO_STOCKS + MIDCAP_STOCKS + SMALLCAP_STOCKS
-        
-    all_stocks = set(base_stocks + port_stocks)
+    all_stocks = set(NIFTY_50 + FNO_STOCKS + port_stocks)
     tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + list(COMMODITY_MAP.keys()) + [f"{t}.NS" for t in all_stocks if t]
     
     data = yf.download(tkrs, period="2y", progress=False, group_by='ticker', threads=5)
@@ -551,11 +522,11 @@ def process_5m_data(df_raw):
         df_s['EMA_20'] = df_s['Close'].ewm(span=20, adjust=False).mean()
         df_s['EMA_50'] = df_s['Close'].ewm(span=50, adjust=False).mean()
 
-        # ఇక్కడ మార్చండి:
+        # 🔥 Volume SMA & Volatility ATR లాజిక్ ఇక్కడ యాడ్ చేశాను
         if 'Volume' in df_s.columns:
-            df_s['Vol_SMA_375'] = df_s['Volume'].rolling(window=375, min_periods=1).mean()
+            df_s['Vol_SMA_89'] = df_s['Volume'].rolling(window=89, min_periods=1).mean()
         else:
-            df_s['Vol_SMA_375'] = 0
+            df_s['Vol_SMA_89'] = 0
             
         df_s['TR'] = pd.concat([
             df_s['High'] - df_s['Low'],
@@ -869,40 +840,34 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
             # 🔥 Advanced Colored Candles Helper (Dark Theme Colors)
             def apply_advanced_candles(fig_obj, is_subplot):
                 rc = dict(row=1, col=1) if is_subplot else dict()
-                has_vol = 'Volume' in df_chart.columns and df_chart['Volume'].sum() > 0
                 
-                if has_vol:
-                    vol_sma = df_chart.get('Vol_SMA_375', df_chart['Volume'].rolling(window=375, min_periods=1).mean())
+                if 'Vol_SMA_89' in df_chart.columns:
+                    vol_sma = df_chart['Vol_SMA_89']
                     vol = df_chart['Volume']
-                    mask_hv = vol > (vol_sma.shift(1) * 1.5)  # 1.5 రెట్లు
-                    mask_lv = vol < (vol_sma.shift(1) * 0.618)
-                else:
-                    mask_hv = pd.Series(False, index=df_chart.index)
-                    mask_lv = pd.Series(False, index=df_chart.index)
                     
-                mask_norm = ~(mask_hv | mask_lv)
-                
-                def am(col, mask): return np.where(mask, df_chart[col], np.nan)
-                
-                # 1. Normal Vol Candles (Standard Green/Red) - WITH SOLID FILL
-                fig_obj.add_trace(go.Candlestick(
-                    x=df_chart.index, open=am('Open', mask_norm), high=am('High', mask_norm), low=am('Low', mask_norm), close=am('Close', mask_norm), 
-                    increasing_line_color='#2ea043', increasing_fillcolor='#2ea043', increasing_line_width=1,
-                    decreasing_line_color='#da3633', decreasing_fillcolor='#da3633', decreasing_line_width=1,
-                    showlegend=False, hoverinfo='skip'
-                ), **rc)
-                
-                # 2. 🔥 High Vol Candles (Bright Neon, Thick Borders)
-                if mask_hv.any():
+                    mask_hv = vol > (vol_sma * 1.618)
+                    mask_lv = vol < (vol_sma * 0.618)
+                    mask_norm = ~(mask_hv | mask_lv)
+                    
+                    def am(col, mask): return np.where(mask, df_chart[col], np.nan)
+                    
+                    # 1. Normal Vol Candles (Standard Green/Red)
+                    fig_obj.add_trace(go.Candlestick(
+                        x=df_chart.index, open=am('Open', mask_norm), high=am('High', mask_norm), low=am('Low', mask_norm), close=am('Close', mask_norm), 
+                        increasing_line_color='#2ea043', increasing_fillcolor='#2ea043', increasing_line_width=1,
+                        decreasing_line_color='#da3633', decreasing_fillcolor='#da3633', decreasing_line_width=1,
+                        showlegend=False, hoverinfo='skip'
+                    ), **rc)
+                    
+                    # 2. 🔥 High Vol Candles (Bright Neon, Thick Borders)
                     fig_obj.add_trace(go.Candlestick(
                         x=df_chart.index, open=am('Open', mask_hv), high=am('High', mask_hv), low=am('Low', mask_hv), close=am('Close', mask_hv), 
                         increasing_line_color='#00FF00', increasing_fillcolor='#00FF00', increasing_line_width=2,
                         decreasing_line_color='#FF0000', decreasing_fillcolor='#FF0000', decreasing_line_width=2,
                         showlegend=False, hoverinfo='skip'
                     ), **rc)
-                
-                # 3. Low Vol Candles (Orange & Aqua)
-                if mask_lv.any():
+                    
+                    # 3. Low Vol Candles (Orange & Aqua)
                     fig_obj.add_trace(go.Candlestick(
                         x=df_chart.index, open=am('Open', mask_lv), high=am('High', mask_lv), low=am('Low', mask_lv), close=am('Close', mask_lv), 
                         increasing_line_color='#FF9800', increasing_fillcolor='#FF9800', increasing_line_width=1,
@@ -910,57 +875,100 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                         showlegend=False, hoverinfo='skip'
                     ), **rc)
 
-                # 🔥 High Volume Highlight Marker (Dynamic Position for 5m, Daily, Weekly)
+                    # 🔥 High Volume Highlight Marker (Dynamic Position based on EMA/VWAP)
                     if mask_hv.any():
                         df_hv = df_chart[mask_hv].copy()
                         
-                        if 'EMA_10' in df_chart.columns: ref_line = df_hv['EMA_10'] # 5-Min
-                        elif 'SMA_50' in df_chart.columns: ref_line = df_hv['SMA_50'] # Daily
-                        elif 'SMA_10' in df_chart.columns: ref_line = df_hv['SMA_10'] # Weekly
-                        elif 'VWAP' in df_chart.columns: ref_line = df_hv['VWAP']
-                        else: ref_line = df_hv['Close']
+                        # రిఫరెన్స్ కోసం లైన్ ఏంటో చూద్దాం (EMA లేదా VWAP)
+                        if 'EMA_10' in df_chart.columns:
+                            ref_line = df_hv['EMA_10']
+                        elif 'VWAP' in df_chart.columns:
+                            ref_line = df_hv['VWAP']
+                        else:
+                            ref_line = df_hv['Close']
                             
+                        # ప్రైస్ కండిషన్స్
                         mask_above = df_hv['Close'] >= ref_line
                         mask_below = df_hv['Close'] < ref_line
                         
                         df_hv_above = df_hv[mask_above]
                         df_hv_below = df_hv[mask_below]
                         
-                        # 🔥 బుల్లిష్/సపోర్ట్ పైన ఉంటే -> ఫైర్ సింబల్ క్యాండిల్ కింద వస్తుంది (గ్యాప్ తో)
+                        # 1. ప్రైస్ EMA పైన ఉంటే -> ఫైర్ సింబల్ క్యాండిల్ కింద వస్తుంది
                         if not df_hv_above.empty:
-                            y_vals_above = df_hv_above['Low'] - (df_hv_above['Close'] * 0.0025) # క్యాండిల్ కింద గ్యాప్
-                            fig_obj.add_trace(go.Scatter(x=df_hv_above.index, y=y_vals_above, mode='text', text=['🔥']*len(df_hv_above), textposition='bottom center', textfont=dict(size=10), showlegend=False, hoverinfo='skip'), **rc)
+                            fig_obj.add_trace(go.Scatter(
+                                x=df_hv_above.index, 
+                                y=df_hv_above['Low'] - (df_hv_above['Close']*0.0015), 
+                                mode='text', 
+                                text=['🔥']*len(df_hv_above), 
+                                textposition='bottom center', 
+                                textfont=dict(size=14), 
+                                showlegend=False, 
+                                hoverinfo='skip'
+                            ), **rc)
                             
-                        # 🩸 బేరిష్/సపోర్ట్ కింద ఉంటే -> ఫైర్ సింబల్ క్యాండిల్ పైన వస్తుంది (గ్యాప్ తో)
+                        # 2. ప్రైస్ EMA కింద ఉంటే -> ఫైర్ సింబల్ క్యాండిల్ పైన వస్తుంది
                         if not df_hv_below.empty:
-                            y_vals_below = df_hv_below['High'] + (df_hv_below['Close'] * 0.0025) # క్యాండిల్ పైన గ్యాప్
-                            fig_obj.add_trace(go.Scatter(x=df_hv_below.index, y=y_vals_below, mode='text', text=['🔥']*len(df_hv_below), textposition='top center', textfont=dict(size=10), showlegend=False, hoverinfo='skip'), **rc)
-                
-                # === దీన్ని రీప్లేస్ చేయండి ===
-                    # 🚦 Exhaustion Spike Indicator
-                    if has_vol:
-                        mask_exhaust = vol > (vol_sma * 4.669)
-                        if mask_exhaust.any():
-                            df_ex = df_chart[mask_exhaust]
-                            # 🔥 FIX: Increased gap (0.0035) and increased size (18) for better visibility in dark theme
-                            y_vals_exhaust = df_ex['High'] + (df_ex['Close'] * 0.0035) 
-                            fig_obj.add_trace(go.Scatter(x=df_ex.index, y=y_vals_exhaust, mode='text', text=['🚦']*len(df_ex), textposition='top center', textfont=dict(size=18), showlegend=False, hoverinfo='skip'), **rc)
-                
-                # ⚡ High Volatility Indicator (ATR 13)
-                if 'ATR_13' in df_chart.columns:
-                    atr_val = df_chart['ATR_13']
+                            fig_obj.add_trace(go.Scatter(
+                                x=df_hv_below.index, 
+                                y=df_hv_below['High'] + (df_hv_below['Close']*0.0015), 
+                                mode='text', 
+                                text=['🔥']*len(df_hv_below), 
+                                textposition='top center', 
+                                textfont=dict(size=14), 
+                                showlegend=False, 
+                                hoverinfo='skip'
+                            ), **rc)
+                    
+                    # 🚦 Exhaustion Spike Indicator (Moved to top of candle)
+                    mask_exhaust = vol > (vol_sma * 4.669)
+                    if mask_exhaust.any():
+                        df_ex = df_chart[mask_exhaust]
+                        fig_obj.add_trace(go.Scatter(
+                            x=df_ex.index, 
+                            y=df_ex['High'] + (df_ex['Close']*0.0015), 
+                            mode='text', 
+                            text=['🚦']*len(df_ex), 
+                            textposition='top center', 
+                            textfont=dict(size=14), 
+                            showlegend=False, 
+                            hoverinfo='skip'
+                        ), **rc)
                 else:
-                    tr = pd.concat([df_chart['High'] - df_chart['Low'], (df_chart['High'] - df_chart['Close'].shift(1)).abs(), (df_chart['Low'] - df_chart['Close'].shift(1)).abs()], axis=1).max(axis=1)
-                    atr_val = tr.ewm(span=13, adjust=False).mean()
-
-                mask_vola = (df_chart['High'] - df_chart['Low']) > (atr_val * 2.718)
-                if mask_vola.any():
-                    df_vol = df_chart[mask_vola]
-                    fig_obj.add_trace(go.Scatter(x=df_vol.index, y=df_vol['Low'] - (df_vol['Close']*0.0035), mode='text', text=['⚡']*len(df_vol), textposition='bottom center', textfont=dict(size=14), showlegend=False, hoverinfo='skip'), **rc)
+                    fig_obj.add_trace(go.Candlestick(
+                        x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
+                        increasing_line_color='#2ea043', increasing_fillcolor='#2ea043', 
+                        decreasing_line_color='#da3633', decreasing_fillcolor='#da3633', 
+                        showlegend=False, hoverinfo='skip'
+                    ), **rc)
+                
+                # ⚡ High Volatility Indicator
+                if 'ATR_13' in df_chart.columns:
+                    mask_vola = (df_chart['High'] - df_chart['Low']) > (df_chart['ATR_13'] * 2.718)
+                    if mask_vola.any():
+                        df_vol = df_chart[mask_vola]
+                        fig_obj.add_trace(go.Scatter(
+                            x=df_vol.index, 
+                            y=df_vol['Low'] - (df_vol['Close']*0.0035), 
+                            mode='text', 
+                            text=['⚡']*len(df_vol), 
+                            textposition='bottom center', 
+                            textfont=dict(size=14), 
+                            showlegend=False, 
+                            hoverinfo='skip'
+                        ), **rc)
+                
+                # ⚡ High Volatility Indicator (ఇంకొంచెం కింద వస్తుంది)
+                if 'ATR_13' in df_chart.columns:
+                    mask_vola = (df_chart['High'] - df_chart['Low']) > (df_chart['ATR_13'] * 2.718)
+                    if mask_vola.any():
+                        df_vol = df_chart[mask_vola]
+                        fig_obj.add_trace(go.Scatter(x=df_vol.index, y=df_vol['Low'] - (df_vol['Close']*0.003), mode='text', text=['⚡']*len(df_vol), textposition='bottom center', textfont=dict(size=14), showlegend=False, hoverinfo='skip'), **rc)
 
             if show_vol:
                 fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.02, row_heights=[0.75, 0.25])
                 
+                # 🔥 Apply Custom Candles & Symbols
                 apply_advanced_candles(fig, is_subplot=True)
                 
                 fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['High'], mode='lines', line=dict(color='rgba(0,0,0,0)'), showlegend=False, hoverinfo='text' if show_crosshair else 'skip', text=hover_data, hovertemplate="%{text}<extra></extra>" if show_crosshair else None, name=""), row=1, col=1)
@@ -976,13 +984,13 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                     if 'VWAP' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='skip'), row=1, col=1)
                     if 'EMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'), row=1, col=1)
                 
+                # 🔥 Volume Bars Colors లాజిక్ కూడా సింక్ చేశాను
                 vol_colors = []
-                if 'Volume' in df_chart.columns:
-                    vol_sma = df_chart.get('Vol_SMA_89', df_chart['Volume'].rolling(window=20, min_periods=1).mean())
+                if 'Vol_SMA_89' in df_chart.columns:
                     for i in range(len(df_chart)):
                         bull = df_chart['Close'].iloc[i] >= df_chart['Open'].iloc[i]
-                        hv = df_chart['Volume'].iloc[i] > (vol_sma.iloc[i] * 1.618)
-                        lv = df_chart['Volume'].iloc[i] < (vol_sma.iloc[i] * 0.618)
+                        hv = df_chart['Volume'].iloc[i] > (df_chart['Vol_SMA_89'].iloc[i] * 1.618)
+                        lv = df_chart['Volume'].iloc[i] < (df_chart['Vol_SMA_89'].iloc[i] * 0.618)
                         if hv: vol_colors.append('#00FF00' if bull else '#FF0000')
                         elif lv: vol_colors.append('#FF9800' if bull else '#7FFFD4')
                         else: vol_colors.append('#2ea043' if bull else '#da3633')
@@ -1014,6 +1022,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
             else:
                 fig = go.Figure()
                 
+                # 🔥 Apply Custom Candles & Symbols (No subplots)
                 apply_advanced_candles(fig, is_subplot=False)
                 
                 fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['High'], mode='lines', line=dict(color='rgba(0,0,0,0)'), showlegend=False, hoverinfo='text' if show_crosshair else 'skip', text=hover_data, hovertemplate="%{text}<extra></extra>" if show_crosshair else None, name=""))
@@ -1097,11 +1106,8 @@ def render_closed_trades_table(df_closed):
     return html
 
 # --- 6. FETCH DATA ---
-st.markdown("<hr style='margin:10px 0; border-color:#30363d;'>", unsafe_allow_html=True)
-market_segment = st.radio("🏢 Select Market Segment (To Reduce Load)", ["F&O (Top 200) 🔵", "Mid Cap 🟡", "Small Cap 🟢", "All Combined 🌐"], horizontal=True)
-
 if True: 
-    df = fetch_all_data(market_segment)
+    df = fetch_all_data()
 
 if not df.empty and 'LIVE_PRICES' in st.session_state:
     for i, row in df.iterrows():
@@ -1140,8 +1146,8 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
     with sc1:
         if watchlist_mode in ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions", "High Score Stocks 🔥"]:
             move_type_filter = st.multiselect("Strategy Filter",
-                ["All Moves", "🔥 Live Power Mover (Last 2 Candles)", "🚀 All-Day Volume Spikes (Max Fire)", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)", "📈 Minervini Trend Template (VCP)", "🌅 15-Min ORB (Opening Range Breakout)"], 
-                default=["🔥 Live Power Mover (Last 2 Candles)", "🚀 All-Day Volume Spikes (Max Fire)", "🌊 One Sided Only"]
+                ["All Moves", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)", "📈 Minervini Trend Template (VCP)", "🌅 15-Min ORB (Opening Range Breakout)"], 
+                default=["🌊 One Sided Only", "🎯 Reversals Only", "🏹 Rubber Band Stretch"]
             )
         elif watchlist_mode == "Swing Trading 📈":
             move_type_filter = st.multiselect("Strategy Filter", ["All Swing Stocks", "🚀 Pro Breakout Strategy", "🌟 Weekly 10EMA Pro", "📈 Minervini Trend Template (VCP)"], default=["All Swing Stocks"])
@@ -1158,8 +1164,8 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
         st.markdown("<hr style='margin:10px 0; border-color:#30363d;'>", unsafe_allow_html=True)
         cc1, cc2, cc3 = st.columns(3)
         with cc1:
-            # ✅ ఇప్పుడు అన్ని మోడ్స్ కి టైమ్‌ఫ్రేమ్ ఆప్షన్ కనిపిస్తుంది
-            chart_timeframe = st.radio("Timeframe", ["Intraday (5m)", "Daily Chart", "Weekly Chart"], horizontal=True)
+            if watchlist_mode in ["Swing Trading 📈", "My Portfolio 💼", "Commodity 🛢️"]:
+                chart_timeframe = st.radio("Timeframe", ["Intraday (5m)", "Daily Chart", "Weekly Chart"], horizontal=True)
         with cc2: show_crosshair = st.toggle("⌖ Show Crosshair", value=False)
         with cc3: show_vol = st.toggle("📊 Show Vol Bars", value=False)
 
@@ -1204,27 +1210,10 @@ if not df.empty:
     sec_sort_key = "W_C" if chart_timeframe == "Weekly Chart" else "Day_C"
     df_sectors = df_sectors.sort_values(by=sec_sort_key, ascending=False)
     
-    # 1. Base Data (All Fetched Stocks)
-    df_all_stocks = df[(~df['Is_Index']) & (~df['Is_Sector']) & (~df['Is_Commodity'])].copy()
+    df_stocks = df[(~df['Is_Index']) & (~df['Is_Sector']) & (~df['Is_Commodity'])].copy()
     df_commodities = df[df['Is_Commodity']].copy()
     
-    df_port_saved = load_portfolio()
-
-    # 2. 🔥 STRICT SEGMENT FILTERING (IRON WALL) 🔥
-    if market_segment == "F&O (Top 200) 🔵":
-        strict_allowed = set(NIFTY_50 + FNO_STOCKS)
-    elif market_segment == "Mid Cap 🟡":
-        strict_allowed = set(MIDCAP_STOCKS)
-    elif market_segment == "Small Cap 🟢":
-        strict_allowed = set(SMALLCAP_STOCKS)
-    else: # All Combined
-        strict_allowed = set(NIFTY_50 + FNO_STOCKS + MIDCAP_STOCKS + SMALLCAP_STOCKS)
-
-    # ఈ ఒక్క లైన్ దెబ్బతో పోర్ట్‌ఫోలియో స్టాక్స్ బైపాస్ అవ్వడం పర్మినెంట్ గా ఆగిపోతుంది!
-    df_stocks = df_all_stocks[df_all_stocks['T'].isin(strict_allowed)].copy()
-    
-    # 3. Sector Calcs (దీనికి ఎప్పుడూ df_all_stocks వాడాలి)
-    df_nifty = df_all_stocks[df_all_stocks['T'].isin(NIFTY_50)].copy()
+    df_nifty = df_stocks[df_stocks['T'].isin(NIFTY_50)].copy()
     sector_perf = df_nifty.groupby('Sector')['C'].mean().sort_values(ascending=False)
     valid_sectors = [s for s in sector_perf.index if s != "OTHER"]
     
@@ -1234,27 +1223,27 @@ if not df.empty:
     df_buy_sector = df_nifty[df_nifty['Sector'] == top_buy_sector].sort_values(by=['S', 'C'], ascending=[False, False])
     df_sell_sector = df_nifty[df_nifty['Sector'] == top_sell_sector].sort_values(by=['S', 'C'], ascending=[False, True])
     df_independent = df_nifty[(~df_nifty['Sector'].isin([top_buy_sector, top_sell_sector])) & (df_nifty['S'] >= 5)].sort_values(by='S', ascending=False).head(8)
-    df_broader = df_all_stocks[(df_all_stocks['T'].isin(FNO_STOCKS)) & (~df_all_stocks['T'].isin(NIFTY_50)) & (df_all_stocks['S'] >= 5)].sort_values(by='S', ascending=False).head(8)
+    df_broader = df_stocks[(df_stocks['T'].isin(FNO_STOCKS)) & (~df_stocks['T'].isin(NIFTY_50)) & (df_stocks['S'] >= 5)].sort_values(by='S', ascending=False).head(8)
+
+    df_port_saved = load_portfolio()
 
     if watchlist_mode == "Terminal Tables 🗃️":
         terminal_tickers = pd.concat([df_buy_sector, df_sell_sector, df_independent, df_broader])['Fetch_T'].unique().tolist()
-        df_filtered = df_all_stocks[df_all_stocks['Fetch_T'].isin(terminal_tickers)]
+        df_filtered = df_stocks[df_stocks['Fetch_T'].isin(terminal_tickers)]
     elif watchlist_mode == "My Portfolio 💼":
         port_tickers = [f"{str(sym).upper().strip()}.NS" for sym in df_port_saved['Symbol'].tolist() if str(sym).strip() != ""]
-        df_filtered = df_all_stocks[df_all_stocks['Fetch_T'].isin(port_tickers)]
-        port_tickers = [f"{str(sym).upper().strip()}.NS" for sym in df_port_saved['Symbol'].tolist() if str(sym).strip() != ""]
-        df_filtered = df_all_stocks[df_all_stocks['Fetch_T'].isin(port_tickers)]
+        df_filtered = df_stocks[df_stocks['Fetch_T'].isin(port_tickers)]
     elif watchlist_mode == "Commodity 🛢️":
         df_filtered = df_commodities.copy()
     elif watchlist_mode == "Fundamentals 🏢":
         if fund_filter == "Swing Trading Candidates 📈": df_filtered = df_stocks[(df_stocks['Is_Swing'] == True) | (df_stocks['Is_W_Pullback'] == True)]
-        elif fund_filter == "Nifty 50 Stocks": df_filtered = df_all_stocks[df_all_stocks['T'].isin(NIFTY_50)]
+        elif fund_filter == "Nifty 50 Stocks": df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
         elif fund_filter == "My Portfolio 💼":
             port_tickers = [f"{str(sym).upper().strip()}.NS" for sym in df_port_saved['Symbol'].tolist() if str(sym).strip() != ""]
-            df_filtered = df_all_stocks[df_all_stocks['Fetch_T'].isin(port_tickers)]
+            df_filtered = df_stocks[df_stocks['Fetch_T'].isin(port_tickers)]
         else: df_filtered = df_stocks[df_stocks['S'] >= 6]
     elif watchlist_mode == "Nifty 50 Heatmap":
-        df_filtered = df_all_stocks[df_all_stocks['T'].isin(NIFTY_50)]
+        df_filtered = df_stocks[df_stocks['T'].isin(NIFTY_50)]
     elif watchlist_mode == "🤖 Today's AI Predictions":
         df_filtered = df_stocks.copy()
         ai_predictions, ai_probs = [], []
@@ -1454,30 +1443,11 @@ if not df.empty:
             s_vwap = (df_filtered['H'] + df_filtered['L'] + df_filtered['P']) / 3
             stock_vwap_dist = (df_filtered['P'] - s_vwap).abs() / s_vwap * 100
             
-            open_drive_bull = pd.Series(False, index=df_filtered.index)
-            open_drive_bear = pd.Series(False, index=df_filtered.index)
-            
-            for idx, r in df_filtered.iterrows():
-                tkr = r['Fetch_T']
-                if tkr in processed_charts and len(processed_charts[tkr]) >= 2:
-                    df_hist = processed_charts[tkr]
-                    
-                    day_open = df_hist['Open'].iloc[0]
-                    low_after_1st = df_hist['Low'].iloc[1:].min()
-                    high_after_1st = df_hist['High'].iloc[1:].max()
-                    
-                    if (day_open - low_after_1st) <= (r['P'] * 0.003):
-                        open_drive_bull[idx] = True
-                    if (high_after_1st - day_open) <= (r['P'] * 0.003):
-                        open_drive_bear[idx] = True
-                else:
-                    if (r['O'] - r['L']) <= (r['P'] * 0.003):
-                        open_drive_bull[idx] = True
-                    if (r['H'] - r['O']) <= (r['P'] * 0.003):
-                        open_drive_bear[idx] = True
+            open_drive_bull = (df_filtered['O'] - df_filtered['L'] <= df_filtered['P'] * 0.003)
+            open_drive_bear = (df_filtered['H'] - df_filtered['O'] <= df_filtered['P'] * 0.003)
 
             strategies_list = [
-                "🔥 Live Power Mover (Last 2 Candles)", "🚀 All-Day Volume Spikes (Max Fire)", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", 
+                "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", 
                 "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)", "📈 Minervini Trend Template (VCP)", "🌅 15-Min ORB (Opening Range Breakout)"
             ]
             
@@ -1503,113 +1473,7 @@ if not df.empty:
                 c_sell = pd.Series(False, index=df_filtered.index)
                 icon_str = ""
 
-                if strat == "🔥 Live Power Mover (Last 2 Candles)":
-                    buy_mask = pd.Series(False, index=df_filtered.index)
-                    sell_mask = pd.Series(False, index=df_filtered.index)
-                    
-                    for idx, r in df_filtered.iterrows():
-                        tkr = r['Fetch_T']
-                        if tkr in processed_charts and len(processed_charts[tkr]) >= 2:
-                            df_hist = processed_charts[tkr]
-                            if 'Volume' in df_hist.columns and 'Vol_SMA_89' in df_hist.columns and 'EMA_10' in df_hist.columns:
-                                vol_fire = df_hist['Volume'] > (df_hist['Vol_SMA_89'] * 1.618)
-                                
-                                # బాస్ చెప్పినట్లు: గ్రీన్/రెడ్ రూల్ తీసేశాను. చార్ట్‌లో ఫైర్ పడితే ఇక్కడ కౌంట్ అవుతుంది!
-                                b_cond = vol_fire & (df_hist['Close'] >= df_hist['EMA_10'])
-                                s_cond = vol_fire & (df_hist['Close'] < df_hist['EMA_10'])
-                                
-                                if b_cond.iloc[-2:].sum() >= 1: buy_mask[idx] = True
-                                if s_cond.iloc[-2:].sum() >= 1: sell_mask[idx] = True
-                                
-                    c_buy = base_buy & buy_mask
-                    c_sell = base_sell & sell_mask
-                    icon_str = "🔥 Live Breakout"
-
-                if strat == "🔥 Live Power Mover (Last 2 Candles)":
-                    buy_mask = pd.Series(False, index=df_filtered.index)
-                    sell_mask = pd.Series(False, index=df_filtered.index)
-                    
-                    for idx, r in df_filtered.iterrows():
-                        tkr = r['Fetch_T']
-                        if tkr in processed_charts and len(processed_charts[tkr]) >= 2:
-                            df_hist = processed_charts[tkr]
-                            if 'Volume' in df_hist.columns and 'Vol_SMA_375' in df_hist.columns and 'EMA_10' in df_hist.columns:
-                                
-                                # 375 SMA కన్నా 1.5 రెట్లు వాల్యూమ్
-                                vol_fire = df_hist['Volume'] > (df_hist['Vol_SMA_375'].shift(1) * 1.5)
-                                
-                                # Buy: ముందు క్యాండిల్ పైన క్లోజ్ అవ్వాలి + 10 EMA పైన క్లోజ్ అవ్వాలి
-                                b_cond = vol_fire & (df_hist['Close'] > df_hist['Close'].shift(1)) & (df_hist['Close'] >= df_hist['EMA_10'])
-                                # Sell: ముందు క్యాండిల్ కింద క్లోజ్ అవ్వాలి + 10 EMA కింద క్లోజ్ అవ్వాలి
-                                s_cond = vol_fire & (df_hist['Close'] < df_hist['Close'].shift(1)) & (df_hist['Close'] <= df_hist['EMA_10'])
-                                
-                                if b_cond.iloc[-2:].sum() >= 1: buy_mask[idx] = True
-                                if s_cond.iloc[-2:].sum() >= 1: sell_mask[idx] = True
-                                
-                    c_buy = base_buy & buy_mask
-                    c_sell = base_sell & sell_mask
-                    icon_str = "🔥 Live Breakout"
-
-                elif strat == "🚀 All-Day Volume Spikes (Max Fire)":
-                    buy_mask = pd.Series(False, index=df_filtered.index)
-                    sell_mask = pd.Series(False, index=df_filtered.index)
-                    
-                    # 1. కేవలం FNO (Nifty Futures) స్టాక్స్ ఫిల్టర్
-                    df_fno = df_filtered[df_filtered['T'].isin(FNO_STOCKS)]
-                    
-                    for idx, r in df_fno.iterrows():
-                        tkr = r['Fetch_T']
-                        if tkr in processed_charts and len(processed_charts[tkr]) >= 2:
-                            df_hist = processed_charts[tkr]
-                            
-                            if 'Volume' in df_hist.columns and 'Vol_SMA_375' in df_hist.columns and 'EMA_10' in df_hist.columns:
-                                ltp = df_hist['Close'].iloc[-1]
-                                vwap = df_hist['VWAP'].iloc[-1]
-                                ema10 = df_hist['EMA_10'].iloc[-1]
-                                
-                                # కరెంట్ ప్రైస్ డైరెక్షన్
-                                is_buy_trend = (ltp > vwap) and (ltp > ema10)
-                                is_sell_trend = (ltp < vwap) and (ltp < ema10)
-                                
-                                # వాల్యూమ్ కండిషన్ (375 SMA * 1.5)
-                                vol_fire = df_hist['Volume'] > (df_hist['Vol_SMA_375'].shift(1) * 1.5)
-                                
-                                # 🔥 పక్కా ఫైర్ రూల్స్ (Previous Close Break + 10 EMA Alignment)
-                                valid_buy_fire = vol_fire & (df_hist['Close'] > df_hist['Close'].shift(1)) & (df_hist['Close'] >= df_hist['EMA_10'])
-                                valid_sell_fire = vol_fire & (df_hist['Close'] < df_hist['Close'].shift(1)) & (df_hist['Close'] <= df_hist['EMA_10'])
-                                
-                                tot_buy = valid_buy_fire.sum()
-                                tot_sell = valid_sell_fire.sum()
-                                
-                                fire_score = 0
-                                
-                                # నెట్ స్కోర్ లెక్కించడం
-                                if is_buy_trend and tot_buy >= 1 and tot_buy > tot_sell: 
-                                    buy_mask[idx] = True
-                                    fire_score = (tot_buy - tot_sell) * 10
-                                elif is_sell_trend and tot_sell >= 1 and tot_sell > tot_buy: 
-                                    sell_mask[idx] = True
-                                    fire_score = (tot_sell - tot_buy) * 10
-                                    
-                                if fire_score > 0:
-                                    price_score = int(abs(r['Day_C']) * 5)
-                                    s_vwap = r.get('VWAP', r['P'])
-                                    s_dist = abs(r['P'] - s_vwap) / s_vwap * 100 if s_vwap > 0 else 0
-                                    safe_nifty = max(nifty_dist, 0.2) 
-                                    
-                                    rs_score = 0
-                                    if s_dist >= (safe_nifty * 4): rs_score = 20
-                                    elif s_dist >= (safe_nifty * 3): rs_score = 15
-                                    elif s_dist >= (safe_nifty * 2): rs_score = 10
-                                    elif s_dist >= (safe_nifty * 1.5): rs_score = 5
-                                    
-                                    df_filtered.at[idx, 'S'] = df_filtered.at[idx, 'S'] + fire_score + price_score + rs_score
-
-                    # కనీసం 1% మూమెంట్ (Day Change) ఉంటేనే లిస్ట్‌లోకి రావాలి
-                    c_buy = base_buy & buy_mask & (df_filtered['Day_C'] >= 1.0)
-                    c_sell = base_sell & sell_mask & (df_filtered['Day_C'] <= -1.0)
-                    icon_str = "🚀 Max Fire"
-                elif strat == "⚡ Intraday Pro Breakout (Top 5)":
+                if strat == "⚡ Intraday Pro Breakout (Top 5)":
                     c_buy = base_buy & (df_filtered['P'] > df_filtered['O']) & ((df_filtered['H'] - df_filtered['P']) <= (df_filtered['H'] - df_filtered['L']) * 0.30)
                     c_sell = base_sell & (df_filtered['P'] < df_filtered['O']) & ((df_filtered['P'] - df_filtered['L']) <= (df_filtered['H'] - df_filtered['L']) * 0.30)
                     icon_str = "⚡"
@@ -1789,15 +1653,10 @@ if not df.empty:
     elif watchlist_mode == "My Portfolio 💼" and view_mode == "Heat Map":
         sc1, sc2 = st.columns([0.7, 0.3])
         with sc2: port_sort = st.selectbox("↕️ Sort Portfolio:", ["Default", "Day P&L ⬆️", "Day P&L ⬇️", "Total P&L ⬆️", "Total P&L ⬇️", "P&L % ⬆️", "P&L % ⬇️"], label_visibility="collapsed")
-        
-        # 🔥 FIX: ఇక్కడ df_stocks కి బదులు df_all_stocks ని వాడాలి! అప్పుడే పోర్ట్‌ఫోలియో కి కరెక్ట్ గా లైవ్ డేటా వస్తుంది!
-        st.markdown(render_portfolio_table(df_port_saved, df_all_stocks, weekly_trends, port_sort), unsafe_allow_html=True)
+        st.markdown(render_portfolio_table(df_port_saved, df_stocks, weekly_trends, port_sort), unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
-        
         with st.expander("🤖 View Portfolio Swing Advisor (Action & Levels)", expanded=False):
-            # 🔥 FIX: ఇక్కడ కూడా df_all_stocks వాడాలి
-            st.markdown(render_portfolio_swing_advice_table(df_port_saved, df_all_stocks, weekly_trends), unsafe_allow_html=True)
-            
+            st.markdown(render_portfolio_swing_advice_table(df_port_saved, df_stocks, weekly_trends), unsafe_allow_html=True)
         with st.expander("➕ Search & Add Stock to Portfolio", expanded=False):
             with st.form("portfolio_add_form", clear_on_submit=True):
                 c1, c2, c3, c4 = st.columns(4)
