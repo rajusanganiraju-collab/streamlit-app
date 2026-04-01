@@ -660,17 +660,16 @@ def get_max_oi_strikes(symbol, spot_price):
     try:
         # కేవలం Nifty, BankNifty మరియు FNO స్టాక్స్ కి మాత్రమే OI వస్తుంది
         if symbol not in FNO_STOCKS and symbol not in ["NIFTY", "BANKNIFTY"]:
-            return 0, 0
+            return 0, 0, False
             
         sec_id = sec_map.get(symbol)
-        if not sec_id: return 0, 0
+        if not sec_id: return 0, 0, False
         
         segment = 'IDX_I' if symbol in ["NIFTY", "BANKNIFTY"] else 'NSE_EQ'
         
         # ధన్ API కాల్
         res = dhan.option_chain(under_security_id=str(sec_id), under_exchange_segment=segment)
         
-        # 🔍 NIFTY కి మాత్రమే రెస్పాన్స్ సైడ్‌బార్ లో ప్రింట్ చేద్దాం
         if symbol == "NIFTY":
             st.sidebar.write(f"🔍 NIFTY API Response:", res)
         
@@ -685,13 +684,24 @@ def get_max_oi_strikes(symbol, spot_price):
                 max_put_strike = df_puts.loc[df_puts['oi'].idxmax()]['strike_price'] if not df_puts.empty else 0
                     
                 if max_call_strike > 0 and max_put_strike > 0:
-                    return float(max_call_strike), float(max_put_strike)
+                    # ఇక్కడ రియల్ డేటా కాబట్టి చివరన 'True' పంపుతున్నాం
+                    return float(max_call_strike), float(max_put_strike), True
         
-        # డేటా రాకపోయినా, చార్ట్ పైన టెంపరరీ లైన్స్ కనిపించేలా చేద్దాం (చార్ట్ అందంగా ఉండటానికి)
+        # డేటా రాకపోయినా, చార్ట్ పైన టెంపరరీ లైన్స్ కనిపించేలా చేద్దాం 
         gap = 50 if spot_price > 3000 else (10 if spot_price > 1000 else 5)
         mock_call = round((spot_price * 1.02) / gap) * gap
         mock_put = round((spot_price * 0.98) / gap) * gap
-        return mock_call, mock_put
+        # ఇక్కడ డమ్మీ డేటా కాబట్టి 'False' పంపుతున్నాం
+        return mock_call, mock_put, False
+        
+    except Exception as e:
+        if symbol == "NIFTY":
+            st.sidebar.error(f"❌ NIFTY Option Chain Error: {e}")
+            
+        gap = 50 if spot_price > 3000 else (10 if spot_price > 1000 else 5)
+        mock_call = round((spot_price * 1.02) / gap) * gap
+        mock_put = round((spot_price * 0.98) / gap) * gap
+        return mock_call, mock_put, False
         
     except Exception as e:
         # ❌ ఎర్రర్ వస్తే కేవలం NIFTY ఎర్రర్ మాత్రమే ప్రింట్ చేద్దాం
@@ -1341,7 +1351,12 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
             if display_sym in FNO_STOCKS or display_sym in ["NIFTY", "BANKNIFTY"]:
                 current_spot = float(row['P'])
                 
-                max_call_strike, max_put_strike = get_max_oi_strikes(display_sym, current_spot)
+                # ఫంక్షన్ నుంచి మూడవ వేరియబుల్ 'is_real' ని తీసుకుంటున్నాం
+                max_call_strike, max_put_strike, is_real = get_max_oi_strikes(display_sym, current_spot)
+                
+                # 🔥 రియల్ అయితే Dhan OI అని, డమ్మీ అయితే ⚠️ Dummy అని నేమ్ మారుస్తున్నాం
+                call_label = f"🛑 Dhan Call OI: ₹{max_call_strike}" if is_real else f"⚠️ Dummy Call: ₹{max_call_strike}"
+                put_label = f"🟢 Dhan Put OI: ₹{max_put_strike}" if is_real else f"⚠️ Dummy Put: ₹{max_put_strike}"
                 
                 if max_call_strike > 0:
                     fig.add_hline(
@@ -1350,7 +1365,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                         line_color="#f85149", 
                         line_width=1.5, 
                         opacity=0.8,
-                        annotation_text=f"🛑 Max Call OI: ₹{max_call_strike}", 
+                        annotation_text=call_label, 
                         annotation_position="top right",
                         annotation_font=dict(color="#f85149", size=10),
                         annotation_bgcolor="#161b22", 
@@ -1364,7 +1379,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                         line_color="#3fb950", 
                         line_width=1.5, 
                         opacity=0.8,
-                        annotation_text=f"🟢 Max Put OI: ₹{max_put_strike}", 
+                        annotation_text=put_label, 
                         annotation_position="bottom right",
                         annotation_font=dict(color="#3fb950", size=10),
                         annotation_bgcolor="#161b22",
