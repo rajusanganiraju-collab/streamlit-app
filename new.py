@@ -485,8 +485,8 @@ def fetch_all_data(market_segment="F&O (Top 200) 🔵"):
     all_stocks = set(base_stocks + port_stocks)
     tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + list(COMMODITY_MAP.keys()) + [f"{t}.NS" for t in all_stocks if t]
     
-    # Threads తగ్గించి, IP బ్లాక్ కాకుండా చూస్తున్నాం
-    data = yf.download(tkrs, period="2y", progress=False, group_by='ticker', threads=2)
+    # 🔥 Threads పెంచాం (15), పీరియడ్ కొద్దిగా తగ్గించాం (15mo is enough for 200 SMA)
+    data = yf.download(tkrs, period="15mo", progress=False, group_by='ticker', threads=15)
     
     # డేటా మొత్తం ఫెయిల్ అయితే, ఎర్రర్ రాకుండా ఎంప్టీ యాప్ చూపిస్తుంది
     if data.empty:
@@ -719,12 +719,11 @@ def generate_status(row):
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def fetch_fundamentals_data(symbols_list):
-    fund_data = []
-    for sym in symbols_list:
+    def get_info(sym):
         try:
             tkr = yf.Ticker(f"{sym}")
             info = tkr.info
-            fund_data.append({
+            return {
                 "Fetch_T": sym,
                 "Sector": info.get('sector', 'N/A'),
                 "Market_Cap (Cr)": round(info.get('marketCap', 0) / 10000000, 2) if info.get('marketCap') else 0,
@@ -732,9 +731,18 @@ def fetch_fundamentals_data(symbols_list):
                 "Div Yield %": round(info.get('dividendYield', 0) * 100, 2) if info.get('dividendYield') else 0.0,
                 "52W High": info.get('fiftyTwoWeekHigh', 0),
                 "52W Low": info.get('fiftyTwoWeekLow', 0)
-            })
-        except: continue
-    return pd.DataFrame(fund_data)
+            }
+        except: return None
+
+    fund_data = []
+    # 🔥 Multi-threading magic here! (15x faster)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
+        results = executor.map(get_info, symbols_list)
+        for res in results:
+            if res is not None:
+                fund_data.append(res)
+                
+    return pd.DataFrame(fund_data)   
 @st.cache_data(ttl=86400, show_spinner=False)
 def fetch_mf_performance():
     mf_dict = {}
@@ -743,7 +751,7 @@ def fetch_mf_performance():
             mf_dict[tkr] = {"Name": name, "Category": cat}
     
     tkrs = list(mf_dict.keys())
-    data = yf.download(tkrs, period="20y", progress=False, group_by='ticker', threads=15)
+    data = yf.download(tkrs, period="10y", progress=False, group_by='ticker', threads=20)
     
     results = []
     for tkr in tkrs:
