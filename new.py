@@ -465,7 +465,16 @@ def fetch_cached_5m_data(tkrs_list):
     if valid_results:
         return pd.concat(valid_results.values(), axis=1, keys=valid_results.keys())
     return pd.DataFrame()
-
+# ==========================================
+# 🔥 NEW: HISTORICAL CHARTS CACHE FUNCTION 🔥
+# ==========================================
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_historical_charts_data(tkrs, timeframe):
+    if timeframe == "Weekly Chart":
+        return yf.download(tkrs, period="2y", interval="1wk", progress=False, group_by='ticker', threads=20)
+    elif timeframe == "Daily Chart":
+        return yf.download(tkrs, period="1y", interval="1d", progress=False, group_by='ticker', threads=20)
+    return pd.DataFrame()
 # --- DAILY DATA FETCH ---
 @st.cache_data(ttl=150, show_spinner=False)
 def fetch_all_data(market_segment="F&O (Top 200) 🔵"):
@@ -2255,41 +2264,35 @@ if not df.empty:
         daily_charts = {}
         
         if chart_timeframe in ["Weekly Chart", "Daily Chart"]:
-            if True:
-                display_tkrs = []
-                if search_stock != "-- None --": display_tkrs.append(search_fetch_t)
-                if watchlist_mode not in ["Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️"]:
-                    display_tkrs.extend(df_indices['Fetch_T'].tolist())
-                    display_tkrs.extend(df_sectors['Fetch_T'].tolist())
-                display_tkrs.extend(st.session_state.pinned_stocks)
-                display_tkrs.extend(df_stocks_display['Fetch_T'].tolist())
-                display_tkrs = list(set(display_tkrs)) 
+            display_tkrs = []
+            if search_stock != "-- None --": display_tkrs.append(search_fetch_t)
+            if watchlist_mode not in ["Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️"]:
+                display_tkrs.extend(df_indices['Fetch_T'].tolist())
+                display_tkrs.extend(df_sectors['Fetch_T'].tolist())
+            display_tkrs.extend(st.session_state.pinned_stocks)
+            # 🔥 చార్ట్స్ బ్రౌజర్ ని క్రాష్ చేయకుండా Top 30 మాత్రమే తీసుకుంటున్నాం
+            display_tkrs.extend(df_stocks_display['Fetch_T'].head(30).tolist())
+            display_tkrs = list(set(display_tkrs)) 
+            
+            if display_tkrs:
+                # 🔥 కొత్త క్యాచ్ ఫంక్షన్ ని ఇక్కడ వాడుతున్నాం
+                hist_data = fetch_historical_charts_data(display_tkrs, chart_timeframe)
                 
-                if display_tkrs:
-                    if chart_timeframe == "Weekly Chart":
-                        wk_data = yf.download(display_tkrs, period="2y", interval="1wk", progress=False, group_by='ticker', threads=20)
-                        for sym in display_tkrs:
-                            try:
-                                df_w = wk_data[sym] if isinstance(wk_data.columns, pd.MultiIndex) else wk_data
-                                df_w = df_w.dropna(subset=['Close']).copy()
-                                if not df_w.empty:
-                                    df_w['SMA_10'] = df_w['Close'].rolling(window=10).mean()
-                                    df_w['SMA_40'] = df_w['Close'].rolling(window=40).mean()
-                                    weekly_charts[sym] = df_w
-                            except: pass
-                            
-                    elif chart_timeframe == "Daily Chart":
-                        dy_data = yf.download(display_tkrs, period="1y", interval="1d", progress=False, group_by='ticker', threads=20)
-                        for sym in display_tkrs:
-                            try:
-                                df_d = dy_data[sym] if isinstance(dy_data.columns, pd.MultiIndex) else dy_data
-                                df_d = df_d.dropna(subset=['Close']).copy()
-                                if not df_d.empty:
-                                    df_d['SMA_50'] = df_d['Close'].rolling(window=50).mean()
-                                    df_d['SMA_150'] = df_d['Close'].rolling(window=150).mean()
-                                    df_d['SMA_200'] = df_d['Close'].rolling(window=200).mean()
-                                    daily_charts[sym] = df_d
-                            except: pass
+                for sym in display_tkrs:
+                    try:
+                        df_h = hist_data[sym] if isinstance(hist_data.columns, pd.MultiIndex) else hist_data
+                        df_h = df_h.dropna(subset=['Close']).copy()
+                        if not df_h.empty:
+                            if chart_timeframe == "Weekly Chart":
+                                df_h['SMA_10'] = df_h['Close'].rolling(window=10).mean()
+                                df_h['SMA_40'] = df_h['Close'].rolling(window=40).mean()
+                                weekly_charts[sym] = df_h
+                            elif chart_timeframe == "Daily Chart":
+                                df_h['SMA_50'] = df_h['Close'].rolling(window=50).mean()
+                                df_h['SMA_150'] = df_h['Close'].rolling(window=150).mean()
+                                df_h['SMA_200'] = df_h['Close'].rolling(window=200).mean()
+                                daily_charts[sym] = df_h
+                    except: pass
 
         if chart_timeframe == "Weekly Chart":
             chart_dict_to_use = weekly_charts
@@ -2339,11 +2342,12 @@ if not df.empty:
         
         if not unpinned_df.empty and watchlist_mode != "Fundamentals 🏢":
             if watchlist_mode == "Day Trading Stocks 🚀":
-                df_buy_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('BUY', na=False)]
-                df_sell_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('SELL', na=False)]
+                # 🔥 .head(12) యాడ్ చేశాం
+                df_buy_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('BUY', na=False)].head(12)
+                df_sell_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('SELL', na=False)].head(12)
             else:
-                df_buy_chart = unpinned_df[unpinned_df[sort_key] >= 0]
-                df_sell_chart = unpinned_df[unpinned_df[sort_key] < 0]
+                df_buy_chart = unpinned_df[unpinned_df[sort_key] >= 0].head(12)
+                df_sell_chart = unpinned_df[unpinned_df[sort_key] < 0].head(12)
                 
             if not df_buy_chart.empty:
                 st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:10px; margin-bottom:5px; color:#3fb950;'>🟢 POSITIVE / BUY ({watchlist_mode})</div>", unsafe_allow_html=True)
