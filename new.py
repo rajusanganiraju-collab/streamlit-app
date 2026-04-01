@@ -461,7 +461,10 @@ def fetch_cached_5m_data(tkrs_list):
                     if not df.empty:
                         df.index = df.index.tz_localize(None)
                         results_dict[tkr] = df
-    return pd.concat(results_dict.values(), axis=1, keys=results_dict.keys()) if results_dict else pd.DataFrame()
+    valid_results = {k: v for k, v in results_dict.items() if not v.empty and len(v) > 0}
+    if valid_results:
+        return pd.concat(valid_results.values(), axis=1, keys=valid_results.keys())
+    return pd.DataFrame()
 
 # --- DAILY DATA FETCH ---
 @st.cache_data(ttl=150, show_spinner=False)
@@ -482,13 +485,21 @@ def fetch_all_data(market_segment="F&O (Top 200) 🔵"):
     all_stocks = set(base_stocks + port_stocks)
     tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + list(COMMODITY_MAP.keys()) + [f"{t}.NS" for t in all_stocks if t]
     
-    data = yf.download(tkrs, period="2y", progress=False, group_by='ticker', threads=5)
+    # Threads తగ్గించి, IP బ్లాక్ కాకుండా చూస్తున్నాం
+    data = yf.download(tkrs, period="2y", progress=False, group_by='ticker', threads=2)
     
+    # డేటా మొత్తం ఫెయిల్ అయితే, ఎర్రర్ రాకుండా ఎంప్టీ యాప్ చూపిస్తుంది
+    if data.empty:
+        return pd.DataFrame()
+
     results = []
     minutes = get_minutes_passed()
 
+    # MultiIndex ఎర్రర్ రాకుండా సేఫ్టీ చెక్
+    fetched_symbols = data.columns.levels[0] if isinstance(data.columns, pd.MultiIndex) else data.columns
+
     nifty_dist = 0.1
-    if "^NSEI" in data.columns.levels[0]:
+    if "^NSEI" in fetched_symbols:
         try:
             n_df = data["^NSEI"].dropna(subset=['Close'])
             if not n_df.empty:
