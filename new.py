@@ -1368,8 +1368,8 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
         if watchlist_mode == "🤖 Today's AI Predictions":
             move_type_filter = st.multiselect("Strategy Filter",
                 ["All Moves", "🔥 Live Power Mover (Last 2 Candles)", "🚀 All-Day Volume Spikes (Max Fire)", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)", "📈 Minervini Trend Template (VCP)", "🌅 15-Min ORB (Opening Range Breakout)"], 
-                default=["🔥 Live Power Mover (Last 2 Candles)", "🚀 All-Day Volume Spikes (Max Fire)", "🌊 One Sided Only"],
-                key="day_trading_filter_key" # 🔥 ఈ KEY యాడ్ చేయడం వల్లే బగ్ సాల్వ్ అవుతుంది!
+                default=["All Moves"],
+                key="day_trading_filter_key"
             )
         elif watchlist_mode == "Swing Trading 📈":
             move_type_filter = st.multiselect("Strategy Filter", 
@@ -1666,7 +1666,7 @@ if not df.empty:
                 (df_filtered['Strategy_Icon'].str.contains('DOWN', na=False) & (df_filtered['Retest_Tag'] == 'SELL_RETEST'))
             ]
         
-        if watchlist_mode in ["Day Trading Stocks 🚀", "High Score Stocks 🔥"]:
+        if watchlist_mode == "🤖 Today's AI Predictions" and len(move_type_filter) > 0 and "All Moves" not in move_type_filter:
             base_buy = (df_filtered['P'] > df_filtered['W_EMA10']) & (df_filtered['P'] > df_filtered['W_EMA50']) & (df_filtered['P'] > df_filtered['VWAP'])
             base_sell = (df_filtered['P'] < df_filtered['W_EMA10']) & (df_filtered['P'] < df_filtered['W_EMA50']) & (df_filtered['P'] < df_filtered['VWAP'])
             
