@@ -1290,7 +1290,7 @@ if not df.empty:
 # --- 7. UI SETTINGS ---
 # =========================================================
 
-watchlist_mode = st.selectbox("Watchlist", ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions", "High Score Stocks 🔥", "Swing Trading 📈", "Nifty 50 Heatmap", "Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢", "Mutual Funds 📈"], index=0, label_visibility="collapsed")
+watchlist_mode = st.selectbox("Watchlist", ["🤖 Today's AI Predictions", "Swing Trading 📈", "Nifty 50 Heatmap", "Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢", "Mutual Funds 📈"], index=0, label_visibility="collapsed")
 view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
 
 move_type_filter = ["🌊 One Sided Only", "🎯 Reversals Only", "🏹 Rubber Band Stretch"] 
@@ -1306,7 +1306,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
     with sc4: st.session_state.pause_refresh = st.toggle("⏸️ Pause Data", value=st.session_state.pause_refresh)
 
     with sc1:
-        if watchlist_mode in ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions", "High Score Stocks 🔥"]:
+        if watchlist_mode == "🤖 Today's AI Predictions":
             move_type_filter = st.multiselect("Strategy Filter",
                 ["All Moves", "🔥 Live Power Mover (Last 2 Candles)", "🚀 All-Day Volume Spikes (Max Fire)", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)", "📈 Minervini Trend Template (VCP)", "🌅 15-Min ORB (Opening Range Breakout)"], 
                 default=["🔥 Live Power Mover (Last 2 Candles)", "🚀 All-Day Volume Spikes (Max Fire)", "🌊 One Sided Only"],
