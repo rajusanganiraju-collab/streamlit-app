@@ -1061,15 +1061,59 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 "<br>🔴 C: ₹" + df_chart['Close'].round(2).astype(str)
             )
             
-            # 🔥 సింపుల్ అండ్ క్లీన్ క్యాండిల్స్ కోసం ఫంక్షన్ మార్చబడింది (న్యాచురల్ కలర్స్)
+            # 🔥 Advanced Price Candles (Volume Based Colors directly on Price)
             def apply_standard_candles(fig_obj, is_subplot):
                 rc = dict(row=1, col=1) if is_subplot else dict()
+                
+                if 'Volume' in df_chart.columns:
+                    vol_sma = df_chart.get('Vol_SMA_89', df_chart['Volume'].rolling(window=20, min_periods=1).mean())
+                    hv_mask = df_chart['Volume'] > (vol_sma * 1.618)
+                    
+                    vwap_val = df_chart.get('VWAP', pd.Series(0, index=df_chart.index))
+                    ema10_val = df_chart.get('EMA_10', pd.Series(0, index=df_chart.index))
+                    
+                    strong_up = (df_chart['Close'] > vwap_val) & (df_chart['Close'] > ema10_val)
+                    strong_down = (df_chart['Close'] < vwap_val) & (df_chart['Close'] < ema10_val)
+                    
+                    bull = df_chart['Close'] >= df_chart['Open']
+                    bear = df_chart['Close'] < df_chart['Open']
+                    
+                    # సెపరేట్ మాస్క్‌లు
+                    mask_hv_bull = hv_mask & strong_up & bull
+                    mask_hv_bear = hv_mask & strong_down & bear
+                    mask_norm = ~(mask_hv_bull | mask_hv_bear)
+                else:
+                    mask_hv_bull = pd.Series(False, index=df_chart.index)
+                    mask_hv_bear = pd.Series(False, index=df_chart.index)
+                    mask_norm = pd.Series(True, index=df_chart.index)
+
+                def am(col, mask): return np.where(mask, df_chart[col], np.nan)
+
+                # 1. Normal Candles (మ్యూటెడ్ కలర్స్)
                 fig_obj.add_trace(go.Candlestick(
-                    x=df_chart.index, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'], 
+                    x=df_chart.index, open=am('Open', mask_norm), high=am('High', mask_norm), low=am('Low', mask_norm), close=am('Close', mask_norm), 
                     increasing_line_color='#2ea043', increasing_fillcolor='#2ea043', increasing_line_width=1,
                     decreasing_line_color='#da3633', decreasing_fillcolor='#da3633', decreasing_line_width=1,
                     showlegend=False, hoverinfo='skip'
                 ), **rc)
+                
+                # 2. High Volume Bullish Candles (బ్రైట్ గ్రీన్)
+                if mask_hv_bull.any():
+                    fig_obj.add_trace(go.Candlestick(
+                        x=df_chart.index, open=am('Open', mask_hv_bull), high=am('High', mask_hv_bull), low=am('Low', mask_hv_bull), close=am('Close', mask_hv_bull), 
+                        increasing_line_color='#00FF00', increasing_fillcolor='#00FF00', increasing_line_width=2,
+                        decreasing_line_color='#00FF00', decreasing_fillcolor='#00FF00', decreasing_line_width=2,
+                        showlegend=False, hoverinfo='skip'
+                    ), **rc)
+                    
+                # 3. High Volume Bearish Candles (బ్రైట్ రెడ్)
+                if mask_hv_bear.any():
+                    fig_obj.add_trace(go.Candlestick(
+                        x=df_chart.index, open=am('Open', mask_hv_bear), high=am('High', mask_hv_bear), low=am('Low', mask_hv_bear), close=am('Close', mask_hv_bear), 
+                        increasing_line_color='#FF0000', increasing_fillcolor='#FF0000', increasing_line_width=2,
+                        decreasing_line_color='#FF0000', decreasing_fillcolor='#FF0000', decreasing_line_width=2,
+                        showlegend=False, hoverinfo='skip'
+                    ), **rc)
 
             if show_vol:
                 fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.02, row_heights=[0.75, 0.25])
