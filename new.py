@@ -437,7 +437,8 @@ def fetch_cached_5m_data(tkrs_list):
                 else: yf_tkrs.append(tkr)
 
     if yf_tkrs:
-        yf_data = yf.download(yf_tkrs, period="5d", interval="5m", progress=False, group_by='ticker', threads=10)
+        # 🔥 ఇక్కడ కూడా session=yf_session ఉండాలి! లేకపోతే 5m చార్ట్స్ కి డీలిస్టెడ్ ఎర్రర్ వస్తుంది.
+        yf_data = yf.download(yf_tkrs, period="5d", interval="5m", progress=False, group_by='ticker', threads=10, session=yf_session)
         if len(yf_tkrs) == 1:
             if not yf_data.empty: 
                 yf_data.index = yf_data.index.tz_localize(None)
@@ -1648,9 +1649,6 @@ if not df.empty:
         
         df_filtered['AlphaTag'] = df_filtered['Fetch_T'].map(alpha_tags).fillna("")
         df_filtered['Trend_Score'] = df_filtered['Fetch_T'].map(trend_scores).fillna(0)
-        df_filtered['Retest_Tag'] = df_filtered['Fetch_T'].map(retest_tags).fillna("") 
-        df_filtered['ORB_Tag'] = df_filtered['Fetch_T'].map(orb_tags).fillna("") 
-        df_filtered['S'] = df_filtered['S'] + df_filtered['Trend_Score']
         df_filtered['Retest_Tag'] = df_filtered['Fetch_T'].map(retest_tags).fillna("") 
         df_filtered['ORB_Tag'] = df_filtered['Fetch_T'].map(orb_tags).fillna("") 
         df_filtered['S'] = df_filtered['S'] + df_filtered['Trend_Score']
