@@ -1,4 +1,5 @@
 import streamlit as st
+import requests
 import yfinance as yf
 # 🔥 Yahoo Finance ని బైపాస్ చేయడానికి Custom Session (బ్రౌజర్ లాగా నమ్మించడానికి)
 yf_session = requests.Session()
