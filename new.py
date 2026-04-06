@@ -2296,6 +2296,11 @@ if not df.empty:
             render_chart_grid(pinned_df, show_pin_option=True, key_prefix="pin", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
+        # 🔥 SMART AUTO-REPLACEMENT: Yahoo డేటా మిస్ చేసిన (ఎంప్టీ) చార్ట్స్ ఉంటే ఆ స్టాక్స్ ని ముందే పీకేసి, వాటి ప్లేస్ లో నెక్స్ట్ బెస్ట్ స్టాక్స్ ని తెస్తుంది!
+        if not unpinned_df.empty:
+            valid_tickers = [tkr for tkr in unpinned_df['Fetch_T'] if tkr in chart_dict_to_use and not chart_dict_to_use[tkr].empty]
+            unpinned_df = unpinned_df[unpinned_df['Fetch_T'].isin(valid_tickers)]
+            
         if not unpinned_df.empty and watchlist_mode != "Fundamentals 🏢":
             if watchlist_mode == "Day Trading Stocks 🚀":
                 # 🔥 .head(12) యాడ్ చేశాం
