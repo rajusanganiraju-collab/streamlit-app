@@ -1116,17 +1116,32 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                         fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'), row=1, col=1)
                         fig.add_annotation(x=tag_idx, y=tag_y_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="right", yanchor=e_anchor, xshift=-5, yshift=e_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=2, row=1, col=1)
             
-                # 🔥 Volume Bars Custom Colors (డిఫరెంట్ గా అర్థమయ్యేలా)
+                # 🔥 Advanced Volume Bar Colors (VWAP & 10 EMA Based)
                 vol_colors = []
                 if 'Volume' in df_chart.columns:
                     vol_sma = df_chart.get('Vol_SMA_89', df_chart['Volume'].rolling(window=20, min_periods=1).mean())
                     for i in range(len(df_chart)):
-                        bull = df_chart['Close'].iloc[i] >= df_chart['Open'].iloc[i]
+                        close_p = df_chart['Close'].iloc[i]
+                        open_p = df_chart['Open'].iloc[i]
+                        bull = close_p >= open_p
                         hv = df_chart['Volume'].iloc[i] > (vol_sma.iloc[i] * 1.618)
                         
-                        # నార్మల్ వాల్యూమ్ అయితే లైట్ కలర్, స్పైక్ వస్తే బ్రైట్ కలర్
-                        if hv: vol_colors.append('#00FF00' if bull else '#FF0000') # Bright High Vol
-                        else: vol_colors.append('rgba(46, 160, 67, 0.4)' if bull else 'rgba(218, 54, 51, 0.4)') # Muted Normal Vol
+                        # Fetch VWAP & EMA values safely
+                        vwap_val = df_chart['VWAP'].iloc[i] if 'VWAP' in df_chart.columns else 0
+                        ema10_val = df_chart['EMA_10'].iloc[i] if 'EMA_10' in df_chart.columns else 0
+                        
+                        # VWAP & 10 EMA పైన ఉంటే బుల్లిష్ ట్రెండ్, కింద ఉంటే బేరిష్ ట్రెండ్
+                        is_strong_up = (close_p > vwap_val) and (close_p > ema10_val)
+                        is_strong_down = (close_p < vwap_val) and (close_p < ema10_val)
+
+                        if hv:
+                            # హై వాల్యూమ్ వచ్చి, ప్రైస్ వ్వాప్ & ఈఎంఏ పైన ఉంటే Dark Green, కింద ఉంటే Dark Red
+                            if is_strong_up and bull: vol_colors.append('#00FF00') # Bright Dark Green
+                            elif is_strong_down and not bull: vol_colors.append('#8B0000') # Deep Dark Red
+                            else: vol_colors.append('#FFD700' if bull else '#FF8C00') # Yellow/Orange for undefined trend high vol
+                        else:
+                            # నార్మల్ వాల్యూమ్ కి మ్యూటెడ్ కలర్స్
+                            vol_colors.append('rgba(46, 160, 67, 0.4)' if bull else 'rgba(218, 54, 51, 0.4)')
                 else:
                     vol_colors = ['rgba(46, 160, 67, 0.4)' if close >= open_p else 'rgba(218, 54, 51, 0.4)' for close, open_p in zip(df_chart['Close'], df_chart['Open'])]
                 
