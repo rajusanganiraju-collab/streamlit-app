@@ -1,5 +1,10 @@
 import streamlit as st
 import yfinance as yf
+# 🔥 Yahoo Finance ని బైపాస్ చేయడానికి Custom Session (బ్రౌజర్ లాగా నమ్మించడానికి)
+yf_session = requests.Session()
+yf_session.headers.update({
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+})
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
@@ -453,10 +458,9 @@ def fetch_cached_5m_data(tkrs_list):
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_historical_charts_data(tkrs, timeframe):
     if timeframe == "Weekly Chart":
-        return yf.download(tkrs, period="2y", interval="1wk", progress=False, group_by='ticker', threads=20)
+        return yf.download(tkrs, period="2y", interval="1wk", progress=False, group_by='ticker', threads=20, session=yf_session)
     elif timeframe == "Daily Chart":
-        return yf.download(tkrs, period="1y", interval="1d", progress=False, group_by='ticker', threads=20)
-    return pd.DataFrame()
+        return yf.download(tkrs, period="1y", interval="1d", progress=False, group_by='ticker', threads=20, session=yf_session)
 # --- DAILY DATA FETCH ---
 @st.cache_data(ttl=150, show_spinner=False)
 def fetch_all_data():
