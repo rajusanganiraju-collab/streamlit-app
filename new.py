@@ -1,11 +1,5 @@
 import streamlit as st
-import requests
 import yfinance as yf
-# 🔥 Yahoo Finance ని బైపాస్ చేయడానికి Custom Session (బ్రౌజర్ లాగా నమ్మించడానికి)
-yf_session = requests.Session()
-yf_session.headers.update({
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
-})
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
@@ -437,8 +431,7 @@ def fetch_cached_5m_data(tkrs_list):
                 else: yf_tkrs.append(tkr)
 
     if yf_tkrs:
-        # 🔥 ఇక్కడ కూడా session=yf_session ఉండాలి! లేకపోతే 5m చార్ట్స్ కి డీలిస్టెడ్ ఎర్రర్ వస్తుంది.
-        yf_data = yf.download(yf_tkrs, period="5d", interval="5m", progress=False, group_by='ticker', threads=10, session=yf_session)
+        yf_data = yf.download(yf_tkrs, period="5d", interval="5m", progress=False, group_by='ticker', threads=10)
         if len(yf_tkrs) == 1:
             if not yf_data.empty: 
                 yf_data.index = yf_data.index.tz_localize(None)
@@ -460,9 +453,9 @@ def fetch_cached_5m_data(tkrs_list):
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_historical_charts_data(tkrs, timeframe):
     if timeframe == "Weekly Chart":
-        return yf.download(tkrs, period="2y", interval="1wk", progress=False, group_by='ticker', threads=20, session=yf_session)
+        return yf.download(tkrs, period="2y", interval="1wk", progress=False, group_by='ticker', threads=20)
     elif timeframe == "Daily Chart":
-        return yf.download(tkrs, period="1y", interval="1d", progress=False, group_by='ticker', threads=20, session=yf_session)
+        return yf.download(tkrs, period="1y", interval="1d", progress=False, group_by='ticker', threads=20)
 # --- DAILY DATA FETCH ---
 @st.cache_data(ttl=150, show_spinner=False)
 def fetch_all_data():
