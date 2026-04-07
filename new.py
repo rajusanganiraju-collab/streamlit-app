@@ -691,6 +691,8 @@ def fetch_fundamentals_data(symbols_list):
                 fund_data.append(res)
                 
     return pd.DataFrame(fund_data)   
+import time # ఫైల్ స్టార్టింగ్ లో ఇది లేకపోతే ఇక్కడ కూడా పెట్టుకోవచ్చు
+
 @st.cache_data(ttl=86400, show_spinner=False)
 def fetch_mf_performance():
     tasks = []
@@ -700,53 +702,66 @@ def fetch_mf_performance():
             
     def fetch_single(code, name, cat):
         url = f"https://api.mfapi.in/mf/{code}"
-        # 🔥 బ్రౌజర్ లాగా వెళ్లి డేటా అడగటానికి ఈ హెడర్ చాలా ముఖ్యం!
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
-        try:
-            res = requests.get(url, headers=headers, timeout=15)
-            if res.status_code == 200:
-                data = res.json()
-                nav_data = data.get("data", [])
-                if not nav_data: raise ValueError("No Data")
+        
+        # 🔥 సర్వర్ ఫెయిల్ అయినా వదిలిపెట్టకుండా 3 సార్లు ట్రై చేస్తుంది (Retry Logic)
+        for attempt in range(3):
+            try:
+                res = requests.get(url, headers=headers, timeout=12)
+                if res.status_code == 200:
+                    data = res.json()
+                    nav_data = data.get("data", [])
+                    if not nav_data: raise ValueError("No Data")
+                    
+                    df = pd.DataFrame(nav_data)
+                    
+                    # 🔥 మురికి డేటాని (Dirty Data) క్లీన్ చేసే బ్రహ్మాస్త్రం!
+                    df['date'] = pd.to_datetime(df['date'], dayfirst=True, errors='coerce')
+                    df['nav'] = pd.to_numeric(df['nav'], errors='coerce')
+                    
+                    # చెత్త వాల్యూస్, జీరోలు, ఖాళీలు ఉంటే లేపేస్తుంది
+                    df = df.dropna(subset=['nav', 'date'])
+                    df = df[df['nav'] > 0]
+                    
+                    if df.empty: raise ValueError("Empty after clean")
+                    
+                    # డేట్ ప్రకారం పక్కాగా సార్ట్ చేసి లాస్ట్ వాల్యూ తీసుకుంటుంది
+                    df = df.sort_values('date').set_index('date')
+                    last_price = float(df['nav'].iloc[-1])
+                    
+                    def get_cagr(years):
+                        try:
+                            target_date = df.index[-1] - pd.DateOffset(years=years)
+                            closest_date = df.index[df.index <= target_date].max()
+                            if pd.isna(closest_date): return "N/A"
+                            past_price = float(df.loc[closest_date, 'nav'])
+                            cagr = ((last_price / past_price) ** (1 / years)) - 1
+                            return round(cagr * 100, 2)
+                        except: return "N/A"
+                    
+                    return {
+                        "Category": cat,
+                        "Fund Name": name,
+                        "NAV (₹)": round(last_price, 2),
+                        "1Y (%)": get_cagr(1),
+                        "3Y CAGR (%)": get_cagr(3),
+                        "5Y CAGR (%)": get_cagr(5)
+                    }
+                else:
+                    time.sleep(1.5) # సర్వర్ బిజీగా ఉంటే 1.5 సెకన్లు ఆగి మళ్ళీ ట్రై చేస్తుంది
+            except Exception:
+                time.sleep(1.5)
                 
-                df = pd.DataFrame(nav_data)
-                df['date'] = pd.to_datetime(df['date'], format='%d-%m-%Y')
-                df['nav'] = pd.to_numeric(df['nav'])
-                df = df.sort_values('date').set_index('date')
-                
-                last_price = float(df['nav'].iloc[-1])
-                
-                def get_cagr(years):
-                    try:
-                        target_date = df.index[-1] - pd.DateOffset(years=years)
-                        closest_date = df.index[df.index <= target_date].max()
-                        if pd.isna(closest_date): return "N/A"
-                        past_price = float(df.loc[closest_date, 'nav'])
-                        cagr = ((last_price / past_price) ** (1 / years)) - 1
-                        return round(cagr * 100, 2)
-                    except: return "N/A"
-                
-                return {
-                    "Category": cat,
-                    "Fund Name": name,
-                    "NAV (₹)": round(last_price, 2),
-                    "1Y (%)": get_cagr(1),
-                    "3Y CAGR (%)": get_cagr(3),
-                    "5Y CAGR (%)": get_cagr(5)
-                }
-        except Exception:
-            pass
-            
-        # ఫెయిల్ అయినా సరే టేబుల్ లో పేరు కనిపించేలా "N/A" రిటర్న్ చేస్తుంది
+        # 3 సార్లు ట్రై చేసినా రాకపోతేనే N/A ఇస్తుంది (కానీ ఇప్పుడు 99% వచ్చేస్తుంది)
         return {
             "Category": cat, "Fund Name": name, "NAV (₹)": "N/A",
             "1Y (%)": "N/A", "3Y CAGR (%)": "N/A", "5Y CAGR (%)": "N/A"
         }
 
     results = []
-    # 🔥 సర్వర్ బ్లాక్ చేయకుండా ఉండటానికి స్పీడ్ తగ్గించాం (max_workers=5)
+    # స్పీడ్ 5 దగ్గరే ఉంచుదాం (ఇది సేఫ్)
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
         futures = [executor.submit(fetch_single, code, name, cat) for code, name, cat in tasks]
         for future in concurrent.futures.as_completed(futures):
