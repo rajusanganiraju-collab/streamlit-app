@@ -209,6 +209,13 @@ COMMODITY_MAP = { "GC=F": "GOLD", "SI=F": "SILVER", "CL=F": "CRUDE OIL", "NG=F":
 # --- MEGA MUTUAL FUNDS DATABASE (Official AMFI Direct-Growth Scheme Codes) ---
 # --- MEGA MUTUAL FUNDS DATABASE (Morningstar Direct Growth Search) ---
 MUTUAL_FUNDS = {
+    "⭐ MORNINGSTAR BEST OF BREED (Top Picks)": [
+        "Nippon India Large Cap Fund Direct Growth",
+        "Mirae Asset Large & Midcap Fund Direct Growth",
+        "Kotak Equity Opportunities Fund Direct Growth",
+        "Franklin India Flexi Cap Fund Direct Growth",
+        "Nippon India Multi Cap Fund Direct Growth"
+    ],
     "🔥 AGGRESSIVE SMALL CAP (Highest CAGR)": [
         "Quant Small Cap Fund Direct Growth",
         "Nippon India Small Cap Fund Direct Growth",
@@ -238,7 +245,6 @@ MUTUAL_FUNDS = {
         "Quant Active Fund Direct Growth",
         "Quant Flexi Cap Fund Direct Growth",
         "HDFC Flexi Cap Fund Direct Growth",
-        "Nippon India Multi Cap Fund Direct Growth",
         "SBI Flexicap Fund Direct Growth",
         "Kotak Flexicap Fund Direct Growth",
         "UTI Flexi Cap Fund Direct Growth",
@@ -259,7 +265,6 @@ MUTUAL_FUNDS = {
     ],
     "🏛️ STABLE LARGE CAP & VALUE FUNDS": [
         "SBI Contra Fund Direct Growth",
-        "Nippon India Large Cap Fund Direct Growth",
         "ICICI Prudential Bluechip Fund Direct Growth",
         "SBI Bluechip Fund Direct Growth",
         "HDFC Top 100 Fund Direct Growth",
