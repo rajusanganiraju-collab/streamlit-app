@@ -734,8 +734,9 @@ def fetch_mf_performance():
             mf_dict[tkr] = {"Name": name, "Category": cat}
     
     tkrs = list(mf_dict.keys())
-            # period="5y" తీసేసి period="max" పెట్టాం
-            data = yf.download(tkrs, period="max", progress=False, group_by='ticker', threads=20)
+    # period="5y" తీసేసి period="max" పెట్టాం 
+    data = yf.download(tkrs, period="max", progress=False, group_by='ticker', threads=20)
+            
     
     results = []
     for tkr in tkrs:
