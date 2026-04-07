@@ -762,9 +762,7 @@ def fetch_mf_performance():
                 "NAV (₹)": round(last_price, 2),
                 "1Y (%)": get_cagr(1),
                 "3Y CAGR (%)": get_cagr(3),
-                "5Y CAGR (%)": get_cagr(5),
-                "10Y CAGR (%)": get_cagr(10),
-                "20Y CAGR (%)": get_cagr(20)
+                "5Y CAGR (%)": get_cagr(5)
             })
         except: continue
         
@@ -786,14 +784,15 @@ def fetch_mf_performance():
 
 def render_mf_table(df_mf):
     if df_mf.empty: return "<div style='padding:20px; text-align:center;'>No Mutual Fund data available.</div>"
-    html = f'<table class="term-table"><thead><tr><th colspan="9" class="term-head-swing" style="background-color: #005a9e; color: white;">🏆 TOP 10 MUTUAL FUNDS SCREEENER (AUTO-RANKED BY 5Y CAGR)</th></tr><tr style="background-color: #21262d;"><th style="width:5%;">RANK</th><th style="text-align:left; width:20%;">FUND NAME</th><th style="width:12%; color:#ffd700;">CATEGORY</th><th style="width:10%;">NAV (₹)</th><th style="width:10%;">1Y RETURN</th><th style="width:10%;">3Y CAGR</th><th style="width:10%;">5Y CAGR</th><th style="width:10%;">10Y CAGR</th><th style="width:10%;">20Y CAGR</th></tr></thead><tbody>'
+    # colspan ని 9 నుండి 7 కి మార్చాం, 10Y, 20Y హెడ్డింగ్స్ తీసేశాం
+    html = f'<table class="term-table"><thead><tr><th colspan="7" class="term-head-swing" style="background-color: #005a9e; color: white;">🏆 TOP 10 MUTUAL FUNDS SCREEENER (AUTO-RANKED BY 5Y CAGR)</th></tr><tr style="background-color: #21262d;"><th style="width:5%;">RANK</th><th style="text-align:left; width:25%;">FUND NAME</th><th style="width:15%; color:#ffd700;">CATEGORY</th><th style="width:10%;">NAV (₹)</th><th style="width:15%;">1Y RETURN</th><th style="width:15%;">3Y CAGR</th><th style="width:15%;">5Y CAGR</th></tr></thead><tbody>'
     
     current_cat = ""
     rank = 1
     for i, (_, row) in enumerate(df_mf.iterrows()):
         if row["Category"] != current_cat:
             current_cat = row["Category"]
-            rank = 1 # కేటగిరీ మారగానే ర్యాంక్ మళ్లీ 1 కి వస్తుంది
+            rank = 1 
             
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
         
@@ -805,7 +804,8 @@ def render_mf_table(df_mf):
             elif val_f < 0: return f"<span style='color:#f85149;'>{val}%</span>" 
             return f"{val}%"
 
-        html += f'<tr class="{bg_class}"><td><b>{rank}</b></td><td class="t-symbol">{row["Fund Name"]}</td><td style="font-size:11px; color:#c9d1d9; font-weight:bold;">{row["Category"]}</td><td>₹{row["NAV (₹)"]}</td><td>{colorize(row["1Y (%)"])}</td><td>{colorize(row["3Y CAGR (%)"])}</td><td>{colorize(row["5Y CAGR (%)"])}</td><td>{colorize(row["10Y CAGR (%)"])}</td><td>{colorize(row["20Y CAGR (%)"])}</td></tr>'
+        # కింది లైన్ లో 10Y, 20Y <td> ట్యాగ్స్ తీసేశాం
+        html += f'<tr class="{bg_class}"><td><b>{rank}</b></td><td class="t-symbol">{row["Fund Name"]}</td><td style="font-size:11px; color:#c9d1d9; font-weight:bold;">{row["Category"]}</td><td>₹{row["NAV (₹)"]}</td><td>{colorize(row["1Y (%)"])}</td><td>{colorize(row["3Y CAGR (%)"])}</td><td>{colorize(row["5Y CAGR (%)"])}</td></tr>'
         rank += 1
     html += "</tbody></table>"
     return html
