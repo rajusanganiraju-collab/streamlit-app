@@ -270,57 +270,59 @@ MUTUAL_FUNDS = {
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def fetch_mf_performance():
-    mf_dict = {}
+    tasks = []
     for cat, funds in MUTUAL_FUNDS.items():
         for name, tkr in funds.items():
-            mf_dict[tkr] = {"Name": name, "Category": cat}
-    
-    tkrs = list(mf_dict.keys())
-    # 🔥 Yahoo Finance ఇస్ బ్యాక్! (వేగంగా మరియు స్టేబుల్ గా ఉంటుంది)
-    data = yf.download(tkrs, period="max", progress=False, group_by='ticker', threads=15)
-    
-    results = []
-    for tkr in tkrs:
-        cat = mf_dict[tkr]["Category"]
-        name = mf_dict[tkr]["Name"]
+            tasks.append((tkr, name, cat))
+            
+    def fetch_single(tkr, name, cat):
         try:
-            if isinstance(data.columns, pd.MultiIndex):
-                if tkr in data.columns.levels[0]:
-                    df_t = data[tkr]['Close'].dropna()
-                else:
-                    df_t = pd.Series()
-            else:
-                df_t = data['Close'].dropna() if len(tkrs) == 1 else pd.Series()
-
-            if df_t.empty:
+            # 🔥 ప్రతీ ఫండ్ డేటా విడివిడిగా లాగుతున్నాం! (దీనివల్ల బల్క్ ఎర్రర్స్ రావు)
+            fund = yf.Ticker(tkr)
+            # max బదులు 10y వాడితే యాహూ సర్వర్ మీద లోడ్ పడదు, డేటా పక్కాగా ఇస్తాడు
+            df = fund.history(period="10y") 
+            
+            if df.empty:
                 raise ValueError("No Data")
             
-            last_price = float(df_t.iloc[-1])
+            df = df.dropna(subset=['Close'])
+            if df.empty:
+                raise ValueError("No Data")
+                
+            last_price = float(df['Close'].iloc[-1])
             
             def get_cagr(years):
                 try:
-                    past_date = df_t.index[-1] - pd.DateOffset(years=years)
-                    closest_date = df_t.index[df_t.index <= past_date].max()
+                    target_date = df.index[-1] - pd.DateOffset(years=years)
+                    closest_date = df.index[df.index <= target_date].max()
                     if pd.isna(closest_date): return "N/A"
-                    past_price = float(df_t.loc[closest_date])
+                    past_price = float(df.loc[closest_date, 'Close'])
                     cagr = ((last_price / past_price) ** (1 / years)) - 1
                     return round(cagr * 100, 2)
                 except: return "N/A"
                 
-            results.append({
+            return {
                 "Category": cat,
                 "Fund Name": name,
                 "NAV (₹)": round(last_price, 2),
                 "1Y (%)": get_cagr(1),
                 "3Y CAGR (%)": get_cagr(3),
                 "5Y CAGR (%)": get_cagr(5)
-            })
+            }
         except Exception:
-            # ఫెయిల్ అయినవి N/A తో కిందకు వెళ్ళిపోతాయి
-            results.append({
+            # ఒకవేళ ఏ ఫండ్‌కైనా డేటా రాకపోతే అది మాత్రమే N/A అవుతుంది
+            return {
                 "Category": cat, "Fund Name": name, "NAV (₹)": "N/A",
                 "1Y (%)": "N/A", "3Y CAGR (%)": "N/A", "5Y CAGR (%)": "N/A"
-            })
+            }
+
+    results = []
+    # 🔥 15 త్రెడ్స్ ఒకేసారి అటాక్ చేసి జస్ట్ 2-3 సెకన్లలో 50 ఫండ్స్ డేటాని పక్కాగా తెస్తాయి!
+    with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
+        futures = [executor.submit(fetch_single, tkr, name, cat) for tkr, name, cat in tasks]
+        for future in concurrent.futures.as_completed(futures):
+            res = future.result()
+            if res: results.append(res)
             
     return pd.DataFrame(results)
 
