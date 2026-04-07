@@ -323,7 +323,7 @@ def fetch_mf_performance():
             })
             
     return pd.DataFrame(results)
-NIFTY_50 = [stock for sector in NIFTY_50_SECTORS.values() for stock in sector]
+
 NIFTY_50_SECTORS = {
     "PHARMA": ["SUNPHARMA", "CIPLA", "DRREDDY", "APOLLOHOSP"],
     "IT": ["TCS", "INFY", "HCLTECH", "WIPRO", "TECHM"],
@@ -336,7 +336,7 @@ NIFTY_50_SECTORS = {
     "INFRA_CEMENT": ["LT", "ULTRACEMCO", "GRASIM"],
     "OTHERS": ["BHARTIARTL", "ASIANPAINT", "TITAN", "ADANIENT", "ADANIPORTS", "TRENT", "BEL"]
 }
-
+NIFTY_50 = [stock for sector in NIFTY_50_SECTORS.values() for stock in sector]
 FNO_STOCKS = [
     "AARTIIND", "ABB", "ABBOTINDIA", "ABCAPITAL", "ABFRL", "ACC", "ADANIENSOL", "ADANIENT", "ADANIPORTS",
     "ALKEM", "AMBUJACEM", "ANGELONE", "APOLLOHOSP", "APOLLOTYRE", "ASHOKLEY", "ASIANPAINT", "ASTRAL", "ATUL",
