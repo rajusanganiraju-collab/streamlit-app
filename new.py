@@ -209,6 +209,14 @@ COMMODITY_MAP = { "GC=F": "GOLD", "SI=F": "SILVER", "CL=F": "CRUDE OIL", "NG=F":
 # --- MEGA MUTUAL FUNDS DATABASE (Official AMFI Direct-Growth Scheme Codes) ---
 # --- MEGA MUTUAL FUNDS DATABASE (Morningstar Direct Growth Search) ---
 MUTUAL_FUNDS = {
+    "🏆 2026 MORNINGSTAR AWARD WINNERS": [
+        "Nippon India Large Cap Fund Direct Growth",
+        "Parag Parikh Flexi Cap Fund Direct Growth",
+        "HDFC Mid-Cap Opportunities Fund Direct Growth",
+        "ICICI Prudential Short Term Fund Direct Growth",
+        "Kotak Corporate Bond Fund Direct Growth",
+        "ICICI Prudential All Seasons Bond Fund Direct Growth"
+    ],
     "⭐ MORNINGSTAR BEST OF BREED (Top Picks)": [
         "Nippon India Large Cap Fund Direct Growth",
         "Mirae Asset Large & Midcap Fund Direct Growth",
@@ -275,7 +283,6 @@ MUTUAL_FUNDS = {
         "Tata Large Cap Fund Direct Growth"
     ]
 }
-
 @st.cache_data(ttl=86400, show_spinner=False)
 def fetch_mf_performance():
     tasks = []
