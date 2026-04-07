@@ -273,65 +273,68 @@ MUTUAL_FUNDS = {
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def fetch_mf_performance():
-    # mstarpy ఇన్స్టాల్ అవ్వకపోతే యాప్ క్రాష్ అవ్వకుండా వార్నింగ్ ఇస్తుంది
-    try:
-        import mstarpy
-    except ImportError:
-        st.error("❌ 'mstarpy' లైబ్రరీ దొరకలేదు! దయచేసి 'requirements.txt' లో యాడ్ చేసి సేవ్ చేయండి.")
-        return pd.DataFrame()
-
     tasks = []
-    for cat, funds in MUTUAL_FUNDS.items():
-        for name in funds:
+    # 🔥 ఇక్కడ లిస్ట్ ని లూప్ చేసేలా మార్చాను (పాత ఎర్రర్ రాదు)
+    for cat, funds_list in MUTUAL_FUNDS.items():
+        for name in funds_list:
             tasks.append((name, cat))
             
     def fetch_single(name, cat):
-        # టేబుల్ లో ఫండ్ పేరు మరీ పెద్దగా లేకుండా కట్ చేస్తున్నాం
         short_name = name.replace(" Direct Plan Growth", "").replace(" Direct Growth", "")
         try:
-            # 1. Morningstar లో ఫండ్ ని సెర్చ్ చేసి లాగడం
-            fund = mstarpy.Funds(term=name, country="in")
+            # 1. పేరుతో సెర్చ్ చేసి ఫండ్ కోడ్ (Scheme Code) పట్టుకోవడం
+            search_url = f"https://api.mfapi.in/mf/search?q={name}"
+            search_res = requests.get(search_url, timeout=10).json()
+            if not search_res: raise ValueError("Not Found")
+            code = search_res[0]['schemeCode'] # ఫస్ట్ వచ్చిన కోడ్ ని తీసుకుంటుంది
             
-            # 2. లాస్ట్ 6 ఏళ్ల హిస్టరీ (NAV) లాగడం
-            end_date = datetime.today()
-            start_date = end_date - pd.DateOffset(years=6) 
-            
-            history = fund.nav(start_date=start_date.strftime('%Y-%m-%d'), end_date=end_date.strftime('%Y-%m-%d'))
-            if not history: raise ValueError("No Data")
-            
-            df = pd.DataFrame(history)
-            df['date'] = pd.to_datetime(df['date'])
-            df = df.sort_values('date').set_index('date')
-            df['nav'] = pd.to_numeric(df['nav'], errors='coerce')
-            df = df.dropna(subset=['nav'])
-            
-            if df.empty: raise ValueError("Empty Data")
-            
-            last_price = float(df['nav'].iloc[-1])
-            
-            def get_cagr(years):
-                try:
-                    target_date = df.index[-1] - pd.DateOffset(years=years)
-                    closest_date = df.index[df.index <= target_date].max()
-                    if pd.isna(closest_date): return "N/A"
-                    past_price = float(df.loc[closest_date, 'nav'])
-                    cagr = ((last_price / past_price) ** (1 / years)) - 1
-                    return round(cagr * 100, 2)
-                except: return "N/A"
+            # 2. ఆ కోడ్ తో NAV హిస్టరీ లాగడం
+            url = f"https://api.mfapi.in/mf/{code}"
+            res = requests.get(url, timeout=12)
+            if res.status_code == 200:
+                data = res.json()
+                nav_data = data.get("data", [])
+                if not nav_data: raise ValueError("No Data")
                 
-            return {
-                "Category": cat, "Fund Name": short_name, "NAV (₹)": round(last_price, 2),
-                "1Y (%)": get_cagr(1), "3Y CAGR (%)": get_cagr(3), "5Y CAGR (%)": get_cagr(5)
-            }
+                df = pd.DataFrame(nav_data)
+                df['date'] = pd.to_datetime(df['date'], dayfirst=True, errors='coerce')
+                df['nav'] = pd.to_numeric(df['nav'], errors='coerce')
+                
+                # క్లీనింగ్
+                df = df.dropna(subset=['nav', 'date'])
+                df = df[df['nav'] > 0]
+                
+                if df.empty: raise ValueError("Empty after clean")
+                
+                df = df.sort_values('date').set_index('date')
+                last_price = float(df['nav'].iloc[-1])
+                
+                def get_cagr(years):
+                    try:
+                        target_date = df.index[-1] - pd.DateOffset(years=years)
+                        closest_date = df.index[df.index <= target_date].max()
+                        if pd.isna(closest_date): return "N/A"
+                        past_price = float(df.loc[closest_date, 'nav'])
+                        cagr = ((last_price / past_price) ** (1 / years)) - 1
+                        return round(cagr * 100, 2)
+                    except: return "N/A"
+                
+                return {
+                    "Category": cat, "Fund Name": short_name, "NAV (₹)": round(last_price, 2),
+                    "1Y (%)": get_cagr(1), "3Y CAGR (%)": get_cagr(3), "5Y CAGR (%)": get_cagr(5)
+                }
         except Exception:
-            return {
-                "Category": cat, "Fund Name": short_name, "NAV (₹)": "N/A",
-                "1Y (%)": "N/A", "3Y CAGR (%)": "N/A", "5Y CAGR (%)": "N/A"
-            }
+            pass # ఏదైనా ఫెయిల్ అయితే సైలెంట్ గా కిందకి వెళ్తుంది
+            
+        # ఫండ్ దొరకకపోతే N/A చూపిస్తుంది
+        return {
+            "Category": cat, "Fund Name": short_name, "NAV (₹)": "N/A",
+            "1Y (%)": "N/A", "3Y CAGR (%)": "N/A", "5Y CAGR (%)": "N/A"
+        }
 
     results = []
-    # 🔥 Morningstar కి 10 దారుల్లో అటాక్!
-    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+    # 5 థ్రెడ్స్ తో ప్యారలల్ గా రన్ అవుతుంది (ఫాస్ట్ కోసం)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
         futures = [executor.submit(fetch_single, name, cat) for name, cat in tasks]
         for future in concurrent.futures.as_completed(futures):
             res = future.result()
