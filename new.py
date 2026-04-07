@@ -277,9 +277,16 @@ def fetch_mf_performance():
     
     tkrs = list(mf_dict.keys())
     
-    # 🔥 యాహూ సర్వర్ బ్లాక్ చేయకుండా సింగిల్ రిక్వెస్ట్ తో బల్క్ గా లాగుతున్నాం
+    # 🔥 యాహూ సర్వర్ బ్లాక్ చేయకుండా బ్రౌజర్ సెషన్ (User-Agent) వాడుతున్నాం
+    import requests
+    session = requests.Session()
+    session.headers.update({
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    })
+    
     try:
-        data = yf.download(tkrs, period="10y", progress=False, threads=True)
+        # సింగిల్ రిక్వెస్ట్ తో బల్క్ లాగడం (దీనివల్ల IP బ్యాన్ అవ్వదు)
+        data = yf.download(tkrs, period="10y", progress=False, session=session)
     except:
         data = pd.DataFrame()
         
@@ -290,28 +297,30 @@ def fetch_mf_performance():
         try:
             if data.empty:
                 raise ValueError("No Data")
-                
-            # 🔥 yfinance కన్ఫ్యూజ్ చేయకుండా కచ్చితంగా 'Close' కాలమ్ మాత్రమే లాగే లాజిక్
-            if isinstance(data.columns, pd.MultiIndex):
-                if 'Close' in data.columns.levels[0]:
-                    close_col = data['Close'][tkr]
+            
+            # 🔥 yfinance కొత్త వెర్షన్స్ కన్ఫ్యూజన్ లేకుండా 'Close' డేటా మాత్రమే లాగే లాజిక్
+            if 'Close' in data:
+                close_data = data['Close']
+                if isinstance(close_data, pd.DataFrame) and tkr in close_data.columns:
+                    df_t = close_data[tkr].dropna()
+                elif isinstance(close_data, pd.Series): 
+                    df_t = close_data.dropna()
                 else:
-                    close_col = data.xs('Close', level=0, axis=1)[tkr]
+                    raise ValueError("No Ticker Data")
             else:
-                close_col = data['Close']
+                raise ValueError("No Close Column")
                 
-            close_col = close_col.dropna()
-            if close_col.empty:
+            if df_t.empty:
                 raise ValueError("No Data")
                 
-            last_price = float(close_col.iloc[-1])
+            last_price = float(df_t.iloc[-1])
             
             def get_cagr(years):
                 try:
-                    target_date = close_col.index[-1] - pd.DateOffset(years=years)
-                    closest_date = close_col.index[close_col.index <= target_date].max()
+                    target_date = df_t.index[-1] - pd.DateOffset(years=years)
+                    closest_date = df_t.index[df_t.index <= target_date].max()
                     if pd.isna(closest_date): return "N/A"
-                    past_price = float(close_col.loc[closest_date])
+                    past_price = float(df_t.loc[closest_date])
                     cagr = ((last_price / past_price) ** (1 / years)) - 1
                     return round(cagr * 100, 2)
                 except: return "N/A"
@@ -325,14 +334,13 @@ def fetch_mf_performance():
                 "5Y CAGR (%)": get_cagr(5)
             })
         except Exception:
-            # ఏదైనా ఒక్క ఫండ్ మిస్ అయినా మిగతా టేబుల్ బ్రేక్ అవ్వకుండా N/A పడుతుంది
+            # డేటా యాహూ దగ్గర లేకపోతే మిగతా టేబుల్ బ్రేక్ అవ్వకుండా ఇది N/A వేస్తుంది
             results.append({
                 "Category": cat, "Fund Name": name, "NAV (₹)": "N/A",
                 "1Y (%)": "N/A", "3Y CAGR (%)": "N/A", "5Y CAGR (%)": "N/A"
             })
             
     return pd.DataFrame(results)
-
 NIFTY_50_SECTORS = {
     "PHARMA": ["SUNPHARMA", "CIPLA", "DRREDDY", "APOLLOHOSP"],
     "IT": ["TCS", "INFY", "HCLTECH", "WIPRO", "TECHM"],
