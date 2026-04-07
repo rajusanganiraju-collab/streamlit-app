@@ -201,92 +201,67 @@ TV_SECTOR_URL = {
 
 COMMODITY_MAP = { "GC=F": "GOLD", "SI=F": "SILVER", "CL=F": "CRUDE OIL", "NG=F": "NATURAL GAS", "HG=F": "COPPER" }
 # --- MEGA MUTUAL FUNDS DATABASE (Scanning Universe) ---
+# --- MEGA MUTUAL FUNDS DATABASE (Top 50 High CAGR Funds) ---
 MUTUAL_FUNDS = {
-    "LARGE CAP": {
-        "SBI Bluechip Fund": "0P00005WLZ.BO",
-        "ICICI Pru Bluechip Fund": "0P00005V15.BO",
-        "Nippon India Large Cap": "0P00005WMT.BO",
-        "HDFC Top 100 Fund": "0P00005V17.BO",
-        "Axis Bluechip Fund": "0P0000XVUF.BO",
-        "Mirae Asset Large Cap": "0P0000XVUK.BO",
-        "Kotak Bluechip Fund": "0P00005WZV.BO",
-        "DSP Top 100 Equity": "0P00005W5A.BO",
-        "Tata Large Cap Fund": "0P00005WZJ.BO",
-        "UTI Mastershare Unit": "0P00005WZT.BO",
-        "Aditya Birla SL Frontline": "0P00005WZK.BO",
-        "Edelweiss Large Cap": "0P00005WZQ.BO",
-        "Franklin India Bluechip": "0P00005WZU.BO",
-        "Canara Robeco Bluechip": "0P00005WZY.BO",
-        "Invesco India Largecap": "0P00005WXX.BO"
-    },
-    "MID CAP": {
-        "HDFC Mid-Cap Opportunities": "0P00005V23.BO",
-        "Nippon India Growth Fund": "0P00005WLY.BO",
-        "Kotak Emerging Equity": "0P00005WZW.BO",
-        "DSP Midcap Fund": "0P00005W5C.BO",
-        "Axis Midcap Fund": "0P0000XVUO.BO",
-        "SBI Magnum Midcap": "0P00005WMX.BO",
-        "Tata Mid Cap Growth": "0P00005WZL.BO",
-        "UTI Mid Cap Fund": "0P00005WZM.BO",
-        "Motilal Oswal Midcap": "0P0000XVW4.BO",
-        "Edelweiss Mid Cap": "0P00005WZR.BO",
-        "PGIM India Midcap": "0P0000YWA6.BO"
-    },
-    "SMALL CAP": {
+    "🔥 AGGRESSIVE SMALL CAP (Highest CAGR)": {
+        "Quant Small Cap Fund": "0P00005X00.BO",
         "Nippon India Small Cap": "0P0000XVW5.BO",
         "SBI Small Cap Fund": "0P0000XW8F.BO",
         "Axis Small Cap Fund": "0P0000YWA5.BO",
-        "Kotak Small Cap Fund": "0P00005WZX.BO",
-        "DSP Small Cap Fund": "0P00005WZN.BO",
-        "HDFC Small Cap Fund": "0P00005WZO.BO",
-        "ICICI Pru Smallcap": "0P00005WZP.BO",
         "Tata Small Cap Fund": "0P0000XVU6.BO",
-        "UTI Small Cap Fund": "0P00005WZS.BO",
-        "Quant Small Cap Fund": "0P00005X00.BO",
-        "Franklin India Smaller Cos": "0P00005WZV.BO",
-        "Canara Robeco Small Cap": "0P0000XW8G.BO",
-        "Edelweiss Small Cap": "0P0000YWA7.BO"
+        "Kotak Small Cap Fund": "0P00005WZX.BO",
+        "HDFC Small Cap Fund": "0P00005WZO.BO",
+        "DSP Small Cap Fund": "0P00005WZN.BO",
+        "Bandhan Emerging Businesses": "0P0001J1LM.BO",
+        "Edelweiss Small Cap Fund": "0P0000YWA7.BO"
     },
-    "FLEXI CAP / MULTI CAP": {
+    "🚀 HIGH GROWTH MID CAP": {
+        "Motilal Oswal Midcap Fund": "0P0000XVW4.BO",
+        "Quant Mid Cap Fund": "0P00005WZD.BO",
+        "Nippon India Growth Fund": "0P00005WLY.BO",
+        "HDFC Mid-Cap Opportunities": "0P00005V23.BO",
+        "Kotak Emerging Equity": "0P00005WZW.BO",
+        "SBI Magnum Midcap": "0P00005WMX.BO",
+        "DSP Midcap Fund": "0P00005W5C.BO",
+        "Axis Midcap Fund": "0P0000XVUO.BO",
+        "Tata Mid Cap Growth": "0P00005WZL.BO",
+        "Edelweiss Mid Cap": "0P00005WZR.BO"
+    },
+    "🌟 CONSISTENT FLEXI & MULTI CAP": {
         "Parag Parikh Flexi Cap": "0P0000XVU7.BO",
+        "Quant Active Fund": "0P00005WYY.BO",
+        "Quant Flexi Cap Fund": "0P00005XZS.BO",
         "HDFC Flexi Cap Fund": "0P00005V25.BO",
+        "Nippon India Multi Cap": "0P00005WMB.BO",
+        "SBI Flexicap Fund": "0P00005WMA.BO",
         "Kotak Flexicap Fund": "0P00005V19.BO",
         "UTI Flexi Cap Fund": "0P00005WZU.BO",
-        "SBI Flexicap Fund": "0P00005WMA.BO",
         "DSP Flexi Cap Fund": "0P00005W5B.BO",
-        "Axis Flexi Cap Fund": "0P0000XVUG.BO",
-        "Nippon India Multi Cap": "0P00005WMB.BO",
-        "Aditya Birla SL Flexi Cap": "0P00005WZC.BO",
-        "Franklin India Flexi Cap": "0P00005WZD.BO"
+        "Axis Flexi Cap Fund": "0P0000XVUG.BO"
     },
-    "ELSS (TAX SAVER)": {
-        "Mirae Asset Tax Saver": "0P0000XVUL.BO",
-        "Axis Long Term Equity": "0P0000XVUP.BO",
-        "DSP Tax Saver Fund": "0P00005W5E.BO",
-        "SBI Long Term Equity": "0P00005WMC.BO",
-        "HDFC TaxSaver": "0P00005V24.BO",
-        "Kotak Tax Saver": "0P00005WZE.BO",
-        "Nippon India Tax Saver": "0P00005WMD.BO",
-        "Tata India Tax Savings": "0P00005WZF.BO"
-    },
-    "SECTORAL (IT / TECH)": {
+    "🏭 THEMATIC & SECTORAL (Alpha Generators)": {
+        "Quant Infrastructure Fund": "0P00005X09.BO",
+        "SBI PSU Fund": "0P00005WMH.BO",
         "ICICI Pru Technology Fund": "0P00005UZD.BO",
-        "SBI Technology Opp Fund": "0P00005WMI.BO",
         "Tata Digital India Fund": "0P0000XVU6.BO",
-        "Aditya Birla SL Digital": "0P00005WZK.BO",
-        "Franklin India Technology": "0P00005WZU.BO"
-    },
-    "SECTORAL (PHARMA)": {
         "Nippon India Pharma Fund": "0P00005WMJ.BO",
+        "ICICI Pru Infrastructure": "0P00005V1G.BO",
         "SBI Healthcare Opp Fund": "0P00005WMG.BO",
-        "Mirae Asset Healthcare": "0P0000YWA7.BO",
-        "DSP Healthcare Fund": "0P0000YWA8.BO"
+        "Aditya Birla SL PSU Equity": "0P0001IYZR.BO",
+        "HDFC Defence Fund": "0P0001PO5I.BO",
+        "CPSE ETF": "CPSEETF.NS"
     },
-    "SECTORAL (BANKING)": {
-        "Nippon India Banking Fund": "0P00005WLX.BO",
-        "ICICI Pru Banking & Fin": "0P00005V13.BO",
-        "SBI Banking & Financial": "0P00005WMK.BO",
-        "HDFC Banking & Financial": "0P0000YWA9.BO"
+    "🏛️ STABLE LARGE CAP & VALUE FUNDS": {
+        "SBI Contra Fund": "0P00005WM6.BO",
+        "Nippon India Large Cap": "0P00005WMT.BO",
+        "ICICI Pru Bluechip Fund": "0P00005V15.BO",
+        "SBI Bluechip Fund": "0P00005WLZ.BO",
+        "HDFC Top 100 Fund": "0P00005V17.BO",
+        "Mirae Asset Large Cap": "0P0000XVUK.BO",
+        "Axis Bluechip Fund": "0P0000XVUF.BO",
+        "Kotak Bluechip Fund": "0P00005WZV.BO",
+        "Bandhan Sterling Value": "0P00005W0R.BO",
+        "Tata Large Cap Fund": "0P00005WZJ.BO"
     }
 }
 NIFTY_50_SECTORS = {
