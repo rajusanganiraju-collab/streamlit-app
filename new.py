@@ -693,57 +693,67 @@ def fetch_fundamentals_data(symbols_list):
     return pd.DataFrame(fund_data)   
 @st.cache_data(ttl=86400, show_spinner=False)
 def fetch_mf_performance():
-    mf_dict = {}
+    tasks = []
     for cat, funds in MUTUAL_FUNDS.items():
-        for name, tkr in funds.items():
-            mf_dict[tkr] = {"Name": name, "Category": cat}
-    
-    tkrs = list(mf_dict.keys())
-    data = yf.download(tkrs, period="max", progress=False, group_by='ticker', threads=20)
-    
-    results = []
-    for tkr in tkrs:
+        for name, code in funds.items():
+            tasks.append((code, name, cat))
+            
+    def fetch_single(code, name, cat):
+        url = f"https://api.mfapi.in/mf/{code}"
+        # 🔥 బ్రౌజర్ లాగా వెళ్లి డేటా అడగటానికి ఈ హెడర్ చాలా ముఖ్యం!
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
         try:
-            df_t = data[tkr]['Close'].dropna() if isinstance(data.columns, pd.MultiIndex) else data['Close'].dropna()
-            if df_t.empty: continue
-            
-            last_price = float(df_t.iloc[-1])
-            
-            def get_cagr(years):
-                try:
-                    past_date = df_t.index[-1] - pd.DateOffset(years=years)
-                    closest_date = df_t.index[df_t.index <= past_date].max()
-                    if pd.isna(closest_date): return "N/A"
-                    past_price = float(df_t.loc[closest_date])
-                    cagr = ((last_price / past_price) ** (1 / years)) - 1
-                    return round(cagr * 100, 2)
-                except: return "N/A"
+            res = requests.get(url, headers=headers, timeout=15)
+            if res.status_code == 200:
+                data = res.json()
+                nav_data = data.get("data", [])
+                if not nav_data: raise ValueError("No Data")
                 
-            results.append({
-                "Category": mf_dict[tkr]["Category"],
-                "Fund Name": mf_dict[tkr]["Name"],
-                "NAV (₹)": round(last_price, 2),
-                "1Y (%)": get_cagr(1),
-                "3Y CAGR (%)": get_cagr(3),
-                "5Y CAGR (%)": get_cagr(5)
-            })
-        except: continue
-        
-    df_results = pd.DataFrame(results)
-    if not df_results.empty:
-        # 🔥 ఫిల్టర్ ఆటోమేటిక్‌గా 5 ఏళ్ల పర్ఫార్మెన్స్ (5Y CAGR) ని బట్టి ర్యాంక్ ఇస్తుంది
-        df_results['Sort_Key'] = pd.to_numeric(df_results['5Y CAGR (%)'].replace('N/A', -999))
-        df_results = df_results.sort_values(by='Sort_Key', ascending=False)
-        
-        # 🔥 ఏ కేటగిరీకి ఆ కేటగిరీ టాప్ 10 మాత్రమే తీసుకుంటుంది!
-        top_10_dfs = []
-        for cat in MUTUAL_FUNDS.keys():
-            top_10_dfs.append(df_results[df_results['Category'] == cat].head(10))
+                df = pd.DataFrame(nav_data)
+                df['date'] = pd.to_datetime(df['date'], format='%d-%m-%Y')
+                df['nav'] = pd.to_numeric(df['nav'])
+                df = df.sort_values('date').set_index('date')
+                
+                last_price = float(df['nav'].iloc[-1])
+                
+                def get_cagr(years):
+                    try:
+                        target_date = df.index[-1] - pd.DateOffset(years=years)
+                        closest_date = df.index[df.index <= target_date].max()
+                        if pd.isna(closest_date): return "N/A"
+                        past_price = float(df.loc[closest_date, 'nav'])
+                        cagr = ((last_price / past_price) ** (1 / years)) - 1
+                        return round(cagr * 100, 2)
+                    except: return "N/A"
+                
+                return {
+                    "Category": cat,
+                    "Fund Name": name,
+                    "NAV (₹)": round(last_price, 2),
+                    "1Y (%)": get_cagr(1),
+                    "3Y CAGR (%)": get_cagr(3),
+                    "5Y CAGR (%)": get_cagr(5)
+                }
+        except Exception:
+            pass
             
-        df_results = pd.concat(top_10_dfs)
-        df_results = df_results.drop(columns=['Sort_Key'])
-        
-    return df_results
+        # ఫెయిల్ అయినా సరే టేబుల్ లో పేరు కనిపించేలా "N/A" రిటర్న్ చేస్తుంది
+        return {
+            "Category": cat, "Fund Name": name, "NAV (₹)": "N/A",
+            "1Y (%)": "N/A", "3Y CAGR (%)": "N/A", "5Y CAGR (%)": "N/A"
+        }
+
+    results = []
+    # 🔥 సర్వర్ బ్లాక్ చేయకుండా ఉండటానికి స్పీడ్ తగ్గించాం (max_workers=5)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        futures = [executor.submit(fetch_single, code, name, cat) for code, name, cat in tasks]
+        for future in concurrent.futures.as_completed(futures):
+            res = future.result()
+            if res: results.append(res)
+            
+    return pd.DataFrame(results)
 
 def render_mf_table(df_mf):
     if df_mf.empty: return "<div style='padding:20px; text-align:center;'>No Mutual Fund data available.</div>"
