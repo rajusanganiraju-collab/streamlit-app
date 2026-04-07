@@ -551,19 +551,19 @@ def fetch_all_data():
                 max_60 = float(df['High'].iloc[-60:].max()); min_60 = float(df['Low'].iloc[-60:].min())
                 range_60 = (max_60 - min_60) / min_60 if min_60 > 0 else 0
                 
-                # 10 Days (2 Weeks) Tight Range
+                # 10 Days (2 Weeks) Tight Range - (Relaxed to 15%)
                 max_10 = float(df['High'].iloc[-10:].max()); min_10 = float(df['Low'].iloc[-10:].min())
                 range_10 = (max_10 - min_10) / min_10 if min_10 > 0 else 0
                 
-                # ప్రైస్ కన్సాలిడేషన్: 10 రోజుల రేంజ్ 12% లోపు ఉండాలి & 60 రోజుల రేంజ్ కన్నా తక్కువ ఉండాలి
-                if (range_60 > 0) and (range_10 < range_60) and (range_10 <= 0.12):
+                # ప్రైస్ కన్సాలిడేషన్: 10 రోజుల రేంజ్ 15% లోపు ఉండాలి & 60 రోజుల రేంజ్ లో 75% కన్నా తక్కువ ఉండాలి
+                if (range_60 > 0) and (range_10 <= (range_60 * 0.75)) and (range_10 <= 0.15):
                     vcp_price_contraction = True
                     
-                # వాల్యూమ్ డ్రై అప్: లాస్ట్ 5 రోజుల వాల్యూమ్, 50 రోజుల యావరేజ్ కంటే తక్కువ ఉండాలి
+                # వాల్యూమ్ డ్రై అప్: లాస్ట్ 5 రోజుల వాల్యూమ్, 50 రోజుల యావరేజ్ దరిదాపుల్లో లేదా తక్కువ ఉండాలి (Relaxed to 1.05x)
                 if 'Volume' in df.columns and len(df) >= 50:
                     vol_avg_5 = float(df['Volume'].iloc[-5:].mean())
                     vol_avg_50 = float(df['Volume'].iloc[-50:].mean())
-                    if vol_avg_5 < (vol_avg_50 * 0.85):
+                    if vol_avg_5 <= (vol_avg_50 * 1.05):
                         vcp_vol_dry = True
             
             is_swing = False; is_w_pullback = False
