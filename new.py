@@ -204,135 +204,139 @@ COMMODITY_MAP = { "GC=F": "GOLD", "SI=F": "SILVER", "CL=F": "CRUDE OIL", "NG=F":
 # --- MEGA MUTUAL FUNDS DATABASE (Scanning Universe) ---
 # --- MEGA MUTUAL FUNDS DATABASE (Top 50 High CAGR Funds) ---
 # --- MEGA MUTUAL FUNDS DATABASE (Official AMFI Direct-Growth Scheme Codes) ---
-# --- MEGA MUTUAL FUNDS DATABASE (Top 50 High CAGR Funds - Yahoo Finance) ---
+# --- MEGA MUTUAL FUNDS DATABASE (Top 50 High CAGR Funds - Morningstar) ---
 # --- MEGA MUTUAL FUNDS DATABASE (Official AMFI Direct-Growth Scheme Codes) ---
 # --- MEGA MUTUAL FUNDS DATABASE (Official AMFI Direct-Growth Scheme Codes) ---
+# --- MEGA MUTUAL FUNDS DATABASE (Morningstar Direct Growth Search) ---
 MUTUAL_FUNDS = {
-    "🔥 AGGRESSIVE SMALL CAP (Highest CAGR)": {
-        "Quant Small Cap Fund": "120828",
-        "Nippon India Small Cap": "113338",
-        "SBI Small Cap Fund": "113177",
-        "Axis Small Cap Fund": "125354",
-        "Tata Small Cap Fund": "144505",
-        "Kotak Small Cap Fund": "100222",
-        "HDFC Small Cap Fund": "106822",
-        "DSP Small Cap Fund": "105052",
-        "Bandhan Emerging Businesses": "147900",
-        "Edelweiss Small Cap Fund": "145881"
-    },
-    "🚀 HIGH GROWTH MID CAP": {
-        "Motilal Oswal Midcap Fund": "127042",
-        "Quant Mid Cap Fund": "120825",
-        "Nippon India Growth Fund": "101512",
-        "HDFC Mid-Cap Opportunities": "118989",
-        "Kotak Emerging Equity": "105018",
-        "SBI Magnum Midcap": "103204",
-        "DSP Midcap Fund": "104332",
-        "Axis Midcap Fund": "112932",
-        "Tata Mid Cap Growth": "100412",
-        "Edelweiss Mid Cap": "105634"
-    },
-    "🌟 CONSISTENT FLEXI & MULTI CAP": {
-        "Parag Parikh Flexi Cap": "122639",
-        "Quant Active Fund": "120823",
-        "Quant Flexi Cap Fund": "120839",
-        "HDFC Flexi Cap Fund": "100204",
-        "Nippon India Multi Cap": "103444",
-        "SBI Flexicap Fund": "104443",
-        "Kotak Flexicap Fund": "112098",
-        "UTI Flexi Cap Fund": "100486",
-        "DSP Flexi Cap Fund": "100049",
-        "Axis Flexi Cap Fund": "142436"
-    },
-    "🏭 THEMATIC & SECTORAL (Alpha Generators)": {
-        "Quant Infrastructure Fund": "120826",
-        "SBI PSU Fund": "112111",
-        "ICICI Pru Technology Fund": "100342",
-        "Tata Digital India Fund": "135761",
-        "Nippon India Pharma Fund": "102550",
-        "ICICI Pru Infrastructure": "103410",
-        "SBI Healthcare Opp Fund": "100564",
-        "Aditya Birla SL PSU Equity": "148332",
-        "HDFC Defence Fund": "151743",
-        "CPSE ETF": "126846"
-    },
-    "🏛️ STABLE LARGE CAP & VALUE FUNDS": {
-        "SBI Contra Fund": "104556",
-        "Nippon India Large Cap": "118425",
-        "ICICI Pru Bluechip Fund": "108466",
-        "SBI Bluechip Fund": "105658",
-        "HDFC Top 100 Fund": "101344",
-        "Mirae Asset Large Cap": "107578",
-        "Axis Bluechip Fund": "110697",
-        "Kotak Bluechip Fund": "100067",
-        "Bandhan Sterling Value": "107574",
-        "Tata Large Cap Fund": "100411"
-    }
+    "🔥 AGGRESSIVE SMALL CAP (Highest CAGR)": [
+        "Quant Small Cap Fund Direct Growth",
+        "Nippon India Small Cap Fund Direct Growth",
+        "SBI Small Cap Fund Direct Growth",
+        "Axis Small Cap Fund Direct Growth",
+        "Tata Small Cap Fund Direct Growth",
+        "Kotak Small Cap Fund Direct Growth",
+        "HDFC Small Cap Fund Direct Growth",
+        "DSP Small Cap Fund Direct Plan Growth",
+        "Bandhan Emerging Businesses Fund Direct Growth",
+        "Edelweiss Small Cap Fund Direct Growth"
+    ],
+    "🚀 HIGH GROWTH MID CAP": [
+        "Motilal Oswal Midcap Fund Direct Growth",
+        "Quant Mid Cap Fund Direct Growth",
+        "Nippon India Growth Fund Direct Growth",
+        "HDFC Mid-Cap Opportunities Fund Direct Growth",
+        "Kotak Emerging Equity Fund Direct Growth",
+        "SBI Magnum Midcap Fund Direct Growth",
+        "DSP Midcap Fund Direct Plan Growth",
+        "Axis Midcap Fund Direct Growth",
+        "Tata Mid Cap Growth Fund Direct Growth",
+        "Edelweiss Mid Cap Fund Direct Growth"
+    ],
+    "🌟 CONSISTENT FLEXI & MULTI CAP": [
+        "Parag Parikh Flexi Cap Fund Direct Growth",
+        "Quant Active Fund Direct Growth",
+        "Quant Flexi Cap Fund Direct Growth",
+        "HDFC Flexi Cap Fund Direct Growth",
+        "Nippon India Multi Cap Fund Direct Growth",
+        "SBI Flexicap Fund Direct Growth",
+        "Kotak Flexicap Fund Direct Growth",
+        "UTI Flexi Cap Fund Direct Growth",
+        "DSP Flexi Cap Fund Direct Plan Growth",
+        "Axis Flexi Cap Fund Direct Growth"
+    ],
+    "🏭 THEMATIC & SECTORAL (Alpha Generators)": [
+        "Quant Infrastructure Fund Direct Growth",
+        "SBI PSU Fund Direct Growth",
+        "ICICI Prudential Technology Fund Direct Growth",
+        "Tata Digital India Fund Direct Growth",
+        "Nippon India Pharma Fund Direct Growth",
+        "ICICI Prudential Infrastructure Fund Direct Growth",
+        "SBI Healthcare Opportunities Fund Direct Growth",
+        "Aditya Birla Sun Life PSU Equity Fund Direct Growth",
+        "HDFC Defence Fund Direct Growth",
+        "CPSE ETF"
+    ],
+    "🏛️ STABLE LARGE CAP & VALUE FUNDS": [
+        "SBI Contra Fund Direct Growth",
+        "Nippon India Large Cap Fund Direct Growth",
+        "ICICI Prudential Bluechip Fund Direct Growth",
+        "SBI Bluechip Fund Direct Growth",
+        "HDFC Top 100 Fund Direct Growth",
+        "Mirae Asset Large Cap Fund Direct Growth",
+        "Axis Bluechip Fund Direct Growth",
+        "Kotak Bluechip Fund Direct Growth",
+        "Bandhan Sterling Value Fund Direct Growth",
+        "Tata Large Cap Fund Direct Growth"
+    ]
 }
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def fetch_mf_performance():
+    # mstarpy ఇన్స్టాల్ అవ్వకపోతే యాప్ క్రాష్ అవ్వకుండా వార్నింగ్ ఇస్తుంది
+    try:
+        import mstarpy
+    except ImportError:
+        st.error("❌ 'mstarpy' లైబ్రరీ దొరకలేదు! దయచేసి 'requirements.txt' లో యాడ్ చేసి సేవ్ చేయండి.")
+        return pd.DataFrame()
+
     tasks = []
     for cat, funds in MUTUAL_FUNDS.items():
-        for name, code in funds.items():
-            tasks.append((code, name, cat))
+        for name in funds:
+            tasks.append((name, cat))
             
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36'
-    }
-    
-    results = []
-    # 🔥 Sequential Fetching (ఒక్కొక్కటిగా మెల్లగా లాగుతుంది, సర్వర్ బ్యాన్ చేయకుండా)
-    for code, name, cat in tasks:
-        url = f"https://api.mfapi.in/mf/{code}"
-        success = False
-        
-        for attempt in range(3):
-            try:
-                res = requests.get(url, headers=headers, timeout=10)
-                if res.status_code == 200:
-                    data = res.json()
-                    nav_data = data.get("data", [])
-                    if nav_data:
-                        df = pd.DataFrame(nav_data)
-                        df['date'] = pd.to_datetime(df['date'], format='%d-%m-%Y', errors='coerce')
-                        df['nav'] = pd.to_numeric(df['nav'], errors='coerce')
-                        df = df.dropna(subset=['nav', 'date'])
-                        df = df[df['nav'] > 0]
-                        
-                        if not df.empty:
-                            df = df.sort_values('date').set_index('date')
-                            last_price = float(df['nav'].iloc[-1])
-                            
-                            def get_cagr(years):
-                                try:
-                                    target_date = df.index[-1] - pd.DateOffset(years=years)
-                                    closest_date = df.index[df.index <= target_date].max()
-                                    if pd.isna(closest_date): return "N/A"
-                                    past_price = float(df.loc[closest_date, 'nav'])
-                                    cagr = ((last_price / past_price) ** (1 / years)) - 1
-                                    return round(cagr * 100, 2)
-                                except: return "N/A"
-                            
-                            results.append({
-                                "Category": cat, "Fund Name": name, "NAV (₹)": round(last_price, 2),
-                                "1Y (%)": get_cagr(1), "3Y CAGR (%)": get_cagr(3), "5Y CAGR (%)": get_cagr(5)
-                            })
-                            success = True
-                            break
-                time.sleep(0.5)
-            except Exception:
-                time.sleep(1)
-        
-        if not success:
-            results.append({
-                "Category": cat, "Fund Name": name, "NAV (₹)": "N/A",
+    def fetch_single(name, cat):
+        # టేబుల్ లో ఫండ్ పేరు మరీ పెద్దగా లేకుండా కట్ చేస్తున్నాం
+        short_name = name.replace(" Direct Plan Growth", "").replace(" Direct Growth", "")
+        try:
+            # 1. Morningstar లో ఫండ్ ని సెర్చ్ చేసి లాగడం
+            fund = mstarpy.Funds(term=name, country="in")
+            
+            # 2. లాస్ట్ 6 ఏళ్ల హిస్టరీ (NAV) లాగడం
+            end_date = datetime.today()
+            start_date = end_date - pd.DateOffset(years=6) 
+            
+            history = fund.nav(start_date=start_date.strftime('%Y-%m-%d'), end_date=end_date.strftime('%Y-%m-%d'))
+            if not history: raise ValueError("No Data")
+            
+            df = pd.DataFrame(history)
+            df['date'] = pd.to_datetime(df['date'])
+            df = df.sort_values('date').set_index('date')
+            df['nav'] = pd.to_numeric(df['nav'], errors='coerce')
+            df = df.dropna(subset=['nav'])
+            
+            if df.empty: raise ValueError("Empty Data")
+            
+            last_price = float(df['nav'].iloc[-1])
+            
+            def get_cagr(years):
+                try:
+                    target_date = df.index[-1] - pd.DateOffset(years=years)
+                    closest_date = df.index[df.index <= target_date].max()
+                    if pd.isna(closest_date): return "N/A"
+                    past_price = float(df.loc[closest_date, 'nav'])
+                    cagr = ((last_price / past_price) ** (1 / years)) - 1
+                    return round(cagr * 100, 2)
+                except: return "N/A"
+                
+            return {
+                "Category": cat, "Fund Name": short_name, "NAV (₹)": round(last_price, 2),
+                "1Y (%)": get_cagr(1), "3Y CAGR (%)": get_cagr(3), "5Y CAGR (%)": get_cagr(5)
+            }
+        except Exception:
+            return {
+                "Category": cat, "Fund Name": short_name, "NAV (₹)": "N/A",
                 "1Y (%)": "N/A", "3Y CAGR (%)": "N/A", "5Y CAGR (%)": "N/A"
-            })
-        
-        # AMFI సర్వర్ కి కోపం రాకుండా 0.25 సెకన్ల బ్రేక్
-        time.sleep(0.25)
-        
+            }
+
+    results = []
+    # 🔥 Morningstar కి 10 దారుల్లో అటాక్!
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        futures = [executor.submit(fetch_single, name, cat) for name, cat in tasks]
+        for future in concurrent.futures.as_completed(futures):
+            res = future.result()
+            if res: results.append(res)
+            
     return pd.DataFrame(results)
 NIFTY_50_SECTORS = {
     "PHARMA": ["SUNPHARMA", "CIPLA", "DRREDDY", "APOLLOHOSP"],
@@ -2058,7 +2062,7 @@ if not df.empty:
                 st.markdown(html_fund, unsafe_allow_html=True)
             else: st.info("Fundamentals data not available at the moment.")
     elif watchlist_mode == "Mutual Funds 📈":
-        st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#00BFFF;'>📈 Mutual Funds Screener (Live Yahoo Finance Data)</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#00BFFF;'>📈 Mutual Funds Screener (Live Morningstar Data)</div>", unsafe_allow_html=True)
         
         # 🔥 ఫిల్టర్స్ (Category & Year)
         c1, c2 = st.columns(2)
@@ -2068,7 +2072,7 @@ if not df.empty:
         with c2:
             sort_period = st.selectbox("Rank By Performance", ["1Y (%)", "3Y CAGR (%)", "5Y CAGR (%)"], index=2)
             
-        with st.spinner("Fetching Live Data from Yahoo Finance..."):
+        with st.spinner("Fetching Live Data from Morningstar..."):
             df_mf_raw = fetch_mf_performance()
             
         if not df_mf_raw.empty:
@@ -2086,9 +2090,9 @@ if not df.empty:
             
             # 3. టేబుల్ రెండరింగ్
             st.markdown(render_mf_table(df_mf_data), unsafe_allow_html=True)
-            st.markdown(f"<p style='font-size:11px; color:#888;'><i>*Note: Funds are auto-ranked based on <b>{sort_period}</b>. Returns > 20% are highlighted in Bright Green. Data Source: Yahoo Finance.</i></p>", unsafe_allow_html=True)
+            st.markdown(f"<p style='font-size:11px; color:#888;'><i>*Note: Funds are auto-ranked based on <b>{sort_period}</b>. Returns > 20% are highlighted in Bright Green. Data Source: Morningstar.</i></p>", unsafe_allow_html=True)
         else:
-            st.error("Failed to fetch Mutual Fund data from Yahoo Finance.")      
+            st.error("Failed to fetch Mutual Fund data from Morningstar.")      
     elif watchlist_mode == "Terminal Tables 🗃️" and view_mode == "Heat Map":
         st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>🗃️ Professional Terminal View</div>", unsafe_allow_html=True)
         for df_temp in [df_buy_sector, df_sell_sector, df_independent, df_broader]:
@@ -2379,6 +2383,6 @@ else:
     st.markdown("""
         <div style='padding:50px; text-align:center; border: 1px dashed #30363d; border-radius: 10px; background-color: #161b22; margin-top: 20px;'>
             <h3 style='color:#ffd700;'>⏳ Fetching Market Data...</h3>
-            <p style='color:#8b949e;'>డేటా లోడ్ అవుతోంది. ఒకవేళ ఎక్కువ సమయం తీసుకుంటే, బహుశా Yahoo Finance API లిమిట్ దాటిపోయి ఉండొచ్చు. దయచేసి కొద్దిసేపు వెయిట్ చేయండి.</p>
+            <p style='color:#8b949e;'>డేటా లోడ్ అవుతోంది. ఒకవేళ ఎక్కువ సమయం తీసుకుంటే, బహుశా Morningstar API లిమిట్ దాటిపోయి ఉండొచ్చు. దయచేసి కొద్దిసేపు వెయిట్ చేయండి.</p>
         </div>
     """, unsafe_allow_html=True)
