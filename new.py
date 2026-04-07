@@ -206,8 +206,9 @@ COMMODITY_MAP = { "GC=F": "GOLD", "SI=F": "SILVER", "CL=F": "CRUDE OIL", "NG=F":
 # --- MEGA MUTUAL FUNDS DATABASE (Official AMFI Direct-Growth Scheme Codes) ---
 # --- MEGA MUTUAL FUNDS DATABASE (Top 50 High CAGR Funds - Yahoo Finance) ---
 # --- MEGA MUTUAL FUNDS DATABASE (Official AMFI Direct-Growth Scheme Codes) ---
+# --- MEGA MUTUAL FUNDS DATABASE (Official AMFI Direct-Growth Scheme Codes) ---
 MUTUAL_FUNDS = {
-    "🔥 AGGRESSIVE SMALL CAP": {
+    "🔥 AGGRESSIVE SMALL CAP (Highest CAGR)": {
         "Quant Small Cap Fund": "120828",
         "Nippon India Small Cap": "113338",
         "SBI Small Cap Fund": "113177",
@@ -215,17 +216,21 @@ MUTUAL_FUNDS = {
         "Tata Small Cap Fund": "144505",
         "Kotak Small Cap Fund": "100222",
         "HDFC Small Cap Fund": "106822",
-        "DSP Small Cap Fund": "105052"
+        "DSP Small Cap Fund": "105052",
+        "Bandhan Emerging Businesses": "147900",
+        "Edelweiss Small Cap Fund": "145881"
     },
     "🚀 HIGH GROWTH MID CAP": {
         "Motilal Oswal Midcap Fund": "127042",
         "Quant Mid Cap Fund": "120825",
         "Nippon India Growth Fund": "101512",
-        "HDFC Mid-Cap Opp": "118989",
+        "HDFC Mid-Cap Opportunities": "118989",
         "Kotak Emerging Equity": "105018",
         "SBI Magnum Midcap": "103204",
         "DSP Midcap Fund": "104332",
-        "Axis Midcap Fund": "112932"
+        "Axis Midcap Fund": "112932",
+        "Tata Mid Cap Growth": "100412",
+        "Edelweiss Mid Cap": "105634"
     },
     "🌟 CONSISTENT FLEXI & MULTI CAP": {
         "Parag Parikh Flexi Cap": "122639",
@@ -235,9 +240,11 @@ MUTUAL_FUNDS = {
         "Nippon India Multi Cap": "103444",
         "SBI Flexicap Fund": "104443",
         "Kotak Flexicap Fund": "112098",
-        "UTI Flexi Cap Fund": "100486"
+        "UTI Flexi Cap Fund": "100486",
+        "DSP Flexi Cap Fund": "100049",
+        "Axis Flexi Cap Fund": "142436"
     },
-    "🏭 THEMATIC & SECTORAL": {
+    "🏭 THEMATIC & SECTORAL (Alpha Generators)": {
         "Quant Infrastructure Fund": "120826",
         "SBI PSU Fund": "112111",
         "ICICI Pru Technology Fund": "100342",
@@ -245,9 +252,11 @@ MUTUAL_FUNDS = {
         "Nippon India Pharma Fund": "102550",
         "ICICI Pru Infrastructure": "103410",
         "SBI Healthcare Opp Fund": "100564",
-        "Aditya Birla SL PSU Equity": "148332"
+        "Aditya Birla SL PSU Equity": "148332",
+        "HDFC Defence Fund": "151743",
+        "CPSE ETF": "126846"
     },
-    "🏛️ STABLE LARGE CAP & VALUE": {
+    "🏛️ STABLE LARGE CAP & VALUE FUNDS": {
         "SBI Contra Fund": "104556",
         "Nippon India Large Cap": "118425",
         "ICICI Pru Bluechip Fund": "108466",
@@ -255,7 +264,9 @@ MUTUAL_FUNDS = {
         "HDFC Top 100 Fund": "101344",
         "Mirae Asset Large Cap": "107578",
         "Axis Bluechip Fund": "110697",
-        "Kotak Bluechip Fund": "100067"
+        "Kotak Bluechip Fund": "100067",
+        "Bandhan Sterling Value": "107574",
+        "Tata Large Cap Fund": "100411"
     }
 }
 
@@ -271,12 +282,12 @@ def fetch_mf_performance():
     }
     
     results = []
-    # 🔥 Sequential Fetching (సర్వర్ బ్యాన్ చేయకుండా ఒక్కొక్కటి లాగుతుంది)
+    # 🔥 Sequential Fetching (ఒక్కొక్కటిగా మెల్లగా లాగుతుంది, సర్వర్ బ్యాన్ చేయకుండా)
     for code, name, cat in tasks:
         url = f"https://api.mfapi.in/mf/{code}"
         success = False
         
-        for attempt in range(2):
+        for attempt in range(3):
             try:
                 res = requests.get(url, headers=headers, timeout=10)
                 if res.status_code == 200:
@@ -284,7 +295,7 @@ def fetch_mf_performance():
                     nav_data = data.get("data", [])
                     if nav_data:
                         df = pd.DataFrame(nav_data)
-                        df['date'] = pd.to_datetime(df['date'], dayfirst=True, errors='coerce')
+                        df['date'] = pd.to_datetime(df['date'], format='%d-%m-%Y', errors='coerce')
                         df['nav'] = pd.to_numeric(df['nav'], errors='coerce')
                         df = df.dropna(subset=['nav', 'date'])
                         df = df[df['nav'] > 0]
@@ -311,15 +322,16 @@ def fetch_mf_performance():
                             break
                 time.sleep(0.5)
             except Exception:
-                time.sleep(0.5)
+                time.sleep(1)
         
         if not success:
             results.append({
                 "Category": cat, "Fund Name": name, "NAV (₹)": "N/A",
                 "1Y (%)": "N/A", "3Y CAGR (%)": "N/A", "5Y CAGR (%)": "N/A"
             })
-            
-        time.sleep(0.1) # AMFI సర్వర్ కి కోపం రాకుండా చిన్న బ్రేక్
+        
+        # AMFI సర్వర్ కి కోపం రాకుండా 0.25 సెకన్ల బ్రేక్
+        time.sleep(0.25)
         
     return pd.DataFrame(results)
 NIFTY_50_SECTORS = {
