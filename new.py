@@ -270,59 +270,66 @@ MUTUAL_FUNDS = {
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def fetch_mf_performance():
-    tasks = []
+    mf_dict = {}
     for cat, funds in MUTUAL_FUNDS.items():
         for name, tkr in funds.items():
-            tasks.append((tkr, name, cat))
-            
-    def fetch_single(tkr, name, cat):
+            mf_dict[tkr] = {"Name": name, "Category": cat}
+    
+    tkrs = list(mf_dict.keys())
+    
+    # 🔥 యాహూ సర్వర్ బ్లాక్ చేయకుండా సింగిల్ రిక్వెస్ట్ తో బల్క్ గా లాగుతున్నాం
+    try:
+        data = yf.download(tkrs, period="10y", progress=False, threads=True)
+    except:
+        data = pd.DataFrame()
+        
+    results = []
+    for tkr in tkrs:
+        cat = mf_dict[tkr]["Category"]
+        name = mf_dict[tkr]["Name"]
         try:
-            # 🔥 ప్రతీ ఫండ్ డేటా విడివిడిగా లాగుతున్నాం! (దీనివల్ల బల్క్ ఎర్రర్స్ రావు)
-            fund = yf.Ticker(tkr)
-            # max బదులు 10y వాడితే యాహూ సర్వర్ మీద లోడ్ పడదు, డేటా పక్కాగా ఇస్తాడు
-            df = fund.history(period="10y") 
-            
-            if df.empty:
-                raise ValueError("No Data")
-            
-            df = df.dropna(subset=['Close'])
-            if df.empty:
+            if data.empty:
                 raise ValueError("No Data")
                 
-            last_price = float(df['Close'].iloc[-1])
+            # 🔥 yfinance కన్ఫ్యూజ్ చేయకుండా కచ్చితంగా 'Close' కాలమ్ మాత్రమే లాగే లాజిక్
+            if isinstance(data.columns, pd.MultiIndex):
+                if 'Close' in data.columns.levels[0]:
+                    close_col = data['Close'][tkr]
+                else:
+                    close_col = data.xs('Close', level=0, axis=1)[tkr]
+            else:
+                close_col = data['Close']
+                
+            close_col = close_col.dropna()
+            if close_col.empty:
+                raise ValueError("No Data")
+                
+            last_price = float(close_col.iloc[-1])
             
             def get_cagr(years):
                 try:
-                    target_date = df.index[-1] - pd.DateOffset(years=years)
-                    closest_date = df.index[df.index <= target_date].max()
+                    target_date = close_col.index[-1] - pd.DateOffset(years=years)
+                    closest_date = close_col.index[close_col.index <= target_date].max()
                     if pd.isna(closest_date): return "N/A"
-                    past_price = float(df.loc[closest_date, 'Close'])
+                    past_price = float(close_col.loc[closest_date])
                     cagr = ((last_price / past_price) ** (1 / years)) - 1
                     return round(cagr * 100, 2)
                 except: return "N/A"
                 
-            return {
+            results.append({
                 "Category": cat,
                 "Fund Name": name,
                 "NAV (₹)": round(last_price, 2),
                 "1Y (%)": get_cagr(1),
                 "3Y CAGR (%)": get_cagr(3),
                 "5Y CAGR (%)": get_cagr(5)
-            }
+            })
         except Exception:
-            # ఒకవేళ ఏ ఫండ్‌కైనా డేటా రాకపోతే అది మాత్రమే N/A అవుతుంది
-            return {
+            # ఏదైనా ఒక్క ఫండ్ మిస్ అయినా మిగతా టేబుల్ బ్రేక్ అవ్వకుండా N/A పడుతుంది
+            results.append({
                 "Category": cat, "Fund Name": name, "NAV (₹)": "N/A",
                 "1Y (%)": "N/A", "3Y CAGR (%)": "N/A", "5Y CAGR (%)": "N/A"
-            }
-
-    results = []
-    # 🔥 15 త్రెడ్స్ ఒకేసారి అటాక్ చేసి జస్ట్ 2-3 సెకన్లలో 50 ఫండ్స్ డేటాని పక్కాగా తెస్తాయి!
-    with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
-        futures = [executor.submit(fetch_single, tkr, name, cat) for tkr, name, cat in tasks]
-        for future in concurrent.futures.as_completed(futures):
-            res = future.result()
-            if res: results.append(res)
+            })
             
     return pd.DataFrame(results)
 
