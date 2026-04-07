@@ -204,71 +204,125 @@ COMMODITY_MAP = { "GC=F": "GOLD", "SI=F": "SILVER", "CL=F": "CRUDE OIL", "NG=F":
 # --- MEGA MUTUAL FUNDS DATABASE (Scanning Universe) ---
 # --- MEGA MUTUAL FUNDS DATABASE (Top 50 High CAGR Funds) ---
 # --- MEGA MUTUAL FUNDS DATABASE (Official AMFI Direct-Growth Scheme Codes) ---
+# --- MEGA MUTUAL FUNDS DATABASE (Top 50 High CAGR Funds - Yahoo Finance) ---
 MUTUAL_FUNDS = {
-    "🔥 AGGRESSIVE SMALL CAP": {
-        "Quant Small Cap Fund": "120828",
-        "Nippon India Small Cap": "113338",
-        "SBI Small Cap Fund": "113177",
-        "Axis Small Cap Fund": "125354",
-        "Tata Small Cap Fund": "144505",
-        "Kotak Small Cap Fund": "100222",
-        "HDFC Small Cap Fund": "106822",
-        "DSP Small Cap Fund": "105052"
+    "🔥 AGGRESSIVE SMALL CAP (Highest CAGR)": {
+        "Quant Small Cap Fund": "0P00005X00.BO",
+        "Nippon India Small Cap": "0P0000XVW5.BO",
+        "SBI Small Cap Fund": "0P0000XW8F.BO",
+        "Axis Small Cap Fund": "0P0000YWA5.BO",
+        "Tata Small Cap Fund": "0P0000XVU6.BO",
+        "Kotak Small Cap Fund": "0P00005WZX.BO",
+        "HDFC Small Cap Fund": "0P00005WZO.BO",
+        "DSP Small Cap Fund": "0P00005WZN.BO",
+        "Bandhan Emerging Businesses": "0P0001J1LM.BO",
+        "Edelweiss Small Cap Fund": "0P0000YWA7.BO"
     },
     "🚀 HIGH GROWTH MID CAP": {
-        "Motilal Oswal Midcap Fund": "127042",
-        "Quant Mid Cap Fund": "120825",
-        "Nippon India Growth Fund": "101512",
-        "HDFC Mid-Cap Opp": "118989",
-        "Kotak Emerging Equity": "105018",
-        "SBI Magnum Midcap": "103204",
-        "DSP Midcap Fund": "104332",
-        "Axis Midcap Fund": "112932"
+        "Motilal Oswal Midcap Fund": "0P0000XVW4.BO",
+        "Quant Mid Cap Fund": "0P00005WZD.BO",
+        "Nippon India Growth Fund": "0P00005WLY.BO",
+        "HDFC Mid-Cap Opportunities": "0P00005V23.BO",
+        "Kotak Emerging Equity": "0P00005WZW.BO",
+        "SBI Magnum Midcap": "0P00005WMX.BO",
+        "DSP Midcap Fund": "0P00005W5C.BO",
+        "Axis Midcap Fund": "0P0000XVUO.BO",
+        "Tata Mid Cap Growth": "0P00005WZL.BO",
+        "Edelweiss Mid Cap": "0P00005WZR.BO"
     },
     "🌟 CONSISTENT FLEXI & MULTI CAP": {
-        "Parag Parikh Flexi Cap": "122639",
-        "Quant Active Fund": "120823",
-        "Quant Flexi Cap Fund": "120839",
-        "HDFC Flexi Cap Fund": "100204",
-        "Nippon India Multi Cap": "103444",
-        "SBI Flexicap Fund": "104443",
-        "Kotak Flexicap Fund": "112098",
-        "UTI Flexi Cap Fund": "100486"
+        "Parag Parikh Flexi Cap": "0P0000XVU7.BO",
+        "Quant Active Fund": "0P00005WYY.BO",
+        "Quant Flexi Cap Fund": "0P00005XZS.BO",
+        "HDFC Flexi Cap Fund": "0P00005V25.BO",
+        "Nippon India Multi Cap": "0P00005WMB.BO",
+        "SBI Flexicap Fund": "0P00005WMA.BO",
+        "Kotak Flexicap Fund": "0P00005V19.BO",
+        "UTI Flexi Cap Fund": "0P00005WZU.BO",
+        "DSP Flexi Cap Fund": "0P00005W5B.BO",
+        "Axis Flexi Cap Fund": "0P0000XVUG.BO"
     },
-    "🏭 THEMATIC & SECTORAL": {
-        "Quant Infrastructure Fund": "120826",
-        "SBI PSU Fund": "112111",
-        "ICICI Pru Technology Fund": "100342",
-        "Tata Digital India Fund": "135761",
-        "Nippon India Pharma Fund": "102550",
-        "ICICI Pru Infrastructure": "103410",
-        "SBI Healthcare Opp Fund": "100564",
-        "Aditya Birla SL PSU Equity": "148332"
+    "🏭 THEMATIC & SECTORAL (Alpha Generators)": {
+        "Quant Infrastructure Fund": "0P00005X09.BO",
+        "SBI PSU Fund": "0P00005WMH.BO",
+        "ICICI Pru Technology Fund": "0P00005UZD.BO",
+        "Tata Digital India Fund": "0P0000XVU6.BO",
+        "Nippon India Pharma Fund": "0P00005WMJ.BO",
+        "ICICI Pru Infrastructure": "0P00005V1G.BO",
+        "SBI Healthcare Opp Fund": "0P00005WMG.BO",
+        "Aditya Birla SL PSU Equity": "0P0001IYZR.BO",
+        "HDFC Defence Fund": "0P0001PO5I.BO",
+        "CPSE ETF": "CPSEETF.NS"
     },
-    "🏛️ STABLE LARGE CAP & VALUE": {
-        "SBI Contra Fund": "104556",
-        "Nippon India Large Cap": "118425",
-        "ICICI Pru Bluechip Fund": "108466",
-        "SBI Bluechip Fund": "105658",
-        "HDFC Top 100 Fund": "101344",
-        "Mirae Asset Large Cap": "107578",
-        "Axis Bluechip Fund": "110697",
-        "Kotak Bluechip Fund": "100067"
+    "🏛️ STABLE LARGE CAP & VALUE FUNDS": {
+        "SBI Contra Fund": "0P00005WM6.BO",
+        "Nippon India Large Cap": "0P00005WMT.BO",
+        "ICICI Pru Bluechip Fund": "0P00005V15.BO",
+        "SBI Bluechip Fund": "0P00005WLZ.BO",
+        "HDFC Top 100 Fund": "0P00005V17.BO",
+        "Mirae Asset Large Cap": "0P0000XVUK.BO",
+        "Axis Bluechip Fund": "0P0000XVUF.BO",
+        "Kotak Bluechip Fund": "0P00005WZV.BO",
+        "Bandhan Sterling Value": "0P00005W0R.BO",
+        "Tata Large Cap Fund": "0P00005WZJ.BO"
     }
 }
-NIFTY_50_SECTORS = {
-    "PHARMA": ["SUNPHARMA", "CIPLA", "DRREDDY", "APOLLOHOSP"],
-    "IT": ["TCS", "INFY", "HCLTECH", "WIPRO", "TECHM"],
-    "BANK": ["HDFCBANK", "ICICIBANK", "SBIN", "AXISBANK", "KOTAKBANK", "INDUSINDBK"],
-    "FINANCE": ["BAJFINANCE", "BAJAJFINSV", "HDFCLIFE", "SBILIFE", "SHRIRAMFIN"],
-    "ENERGY": ["RELIANCE", "ONGC", "NTPC", "POWERGRID", "COALINDIA", "BPCL"],
-    "AUTO": ["TATAMOTORS", "M&M", "MARUTI", "BAJAJ-AUTO", "EICHERMOT", "HEROMOTOCO"],
-    "METAL": ["TATASTEEL", "JSWSTEEL", "HINDALCO"],
-    "FMCG": ["ITC", "HINDUNILVR", "NESTLEIND", "BRITANNIA", "TATACONSUM"],
-    "INFRA_CEMENT": ["LT", "ULTRACEMCO", "GRASIM"],
-    "OTHERS": ["BHARTIARTL", "ASIANPAINT", "TITAN", "ADANIENT", "ADANIPORTS", "TRENT", "BEL"]
-}
 
+@st.cache_data(ttl=86400, show_spinner=False)
+def fetch_mf_performance():
+    mf_dict = {}
+    for cat, funds in MUTUAL_FUNDS.items():
+        for name, tkr in funds.items():
+            mf_dict[tkr] = {"Name": name, "Category": cat}
+    
+    tkrs = list(mf_dict.keys())
+    # 🔥 Yahoo Finance ఇస్ బ్యాక్! (వేగంగా మరియు స్టేబుల్ గా ఉంటుంది)
+    data = yf.download(tkrs, period="max", progress=False, group_by='ticker', threads=15)
+    
+    results = []
+    for tkr in tkrs:
+        cat = mf_dict[tkr]["Category"]
+        name = mf_dict[tkr]["Name"]
+        try:
+            if isinstance(data.columns, pd.MultiIndex):
+                if tkr in data.columns.levels[0]:
+                    df_t = data[tkr]['Close'].dropna()
+                else:
+                    df_t = pd.Series()
+            else:
+                df_t = data['Close'].dropna() if len(tkrs) == 1 else pd.Series()
+
+            if df_t.empty:
+                raise ValueError("No Data")
+            
+            last_price = float(df_t.iloc[-1])
+            
+            def get_cagr(years):
+                try:
+                    past_date = df_t.index[-1] - pd.DateOffset(years=years)
+                    closest_date = df_t.index[df_t.index <= past_date].max()
+                    if pd.isna(closest_date): return "N/A"
+                    past_price = float(df_t.loc[closest_date])
+                    cagr = ((last_price / past_price) ** (1 / years)) - 1
+                    return round(cagr * 100, 2)
+                except: return "N/A"
+                
+            results.append({
+                "Category": cat,
+                "Fund Name": name,
+                "NAV (₹)": round(last_price, 2),
+                "1Y (%)": get_cagr(1),
+                "3Y CAGR (%)": get_cagr(3),
+                "5Y CAGR (%)": get_cagr(5)
+            })
+        except Exception:
+            # ఫెయిల్ అయినవి N/A తో కిందకు వెళ్ళిపోతాయి
+            results.append({
+                "Category": cat, "Fund Name": name, "NAV (₹)": "N/A",
+                "1Y (%)": "N/A", "3Y CAGR (%)": "N/A", "5Y CAGR (%)": "N/A"
+            })
+            
+    return pd.DataFrame(results)
 NIFTY_50 = [stock for sector in NIFTY_50_SECTORS.values() for stock in sector]
 
 FNO_STOCKS = [
