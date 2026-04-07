@@ -734,9 +734,7 @@ def fetch_mf_performance():
             mf_dict[tkr] = {"Name": name, "Category": cat}
     
     tkrs = list(mf_dict.keys())
-    # period="5y" తీసేసి period="max" పెట్టాం 
     data = yf.download(tkrs, period="max", progress=False, group_by='ticker', threads=20)
-            
     
     results = []
     for tkr in tkrs:
@@ -785,7 +783,7 @@ def fetch_mf_performance():
 def render_mf_table(df_mf):
     if df_mf.empty: return "<div style='padding:20px; text-align:center;'>No Mutual Fund data available.</div>"
     # colspan ని 9 నుండి 7 కి మార్చాం, 10Y, 20Y హెడ్డింగ్స్ తీసేశాం
-    html = f'<table class="term-table"><thead><tr><th colspan="7" class="term-head-swing" style="background-color: #005a9e; color: white;">🏆 TOP 10 MUTUAL FUNDS SCREEENER (AUTO-RANKED BY 5Y CAGR)</th></tr><tr style="background-color: #21262d;"><th style="width:5%;">RANK</th><th style="text-align:left; width:25%;">FUND NAME</th><th style="width:15%; color:#ffd700;">CATEGORY</th><th style="width:10%;">NAV (₹)</th><th style="width:15%;">1Y RETURN</th><th style="width:15%;">3Y CAGR</th><th style="width:15%;">5Y CAGR</th></tr></thead><tbody>'
+    html = f'<table class="term-table"><thead><tr><th colspan="7" class="term-head-swing" style="background-color: #005a9e; color: white;">🏆 MUTUAL FUNDS SCREEENER (LIVE PERFORMANCE)</th></tr><tr style="background-color: #21262d;"><th style="width:5%;">RANK</th><th style="text-align:left; width:25%;">FUND NAME</th><th style="width:15%; color:#ffd700;">CATEGORY</th><th style="width:10%;">NAV (₹)</th><th style="width:15%;">1Y RETURN</th><th style="width:15%;">3Y CAGR</th><th style="width:15%;">5Y CAGR</th></tr></thead><tbody>'
     
     current_cat = ""
     rank = 1
@@ -2000,20 +1998,40 @@ if not df.empty:
                 st.markdown(html_fund, unsafe_allow_html=True)
             else: st.info("Fundamentals data not available at the moment.")
     elif watchlist_mode == "Mutual Funds 📈":
-        st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#00BFFF;'>📈 Top 10 Mutual Funds Screener (Auto-Scanned)</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#00BFFF;'>📈 Mutual Funds Screener (Auto-Ranked)</div>", unsafe_allow_html=True)
         
-        mf_categories = ["All Categories"] + list(MUTUAL_FUNDS.keys())
-        selected_mf_cat = st.selectbox("Filter by Market Cap / Sector", mf_categories)
-        
-        with st.spinner("Scanning Mega Database & Ranking Top Funds..."):
-            df_mf_data = fetch_mf_performance()
+        # 🔥 కొత్త ఫిల్టర్స్ (Category & Year)
+        c1, c2 = st.columns(2)
+        with c1:
+            mf_categories = ["All Categories"] + list(MUTUAL_FUNDS.keys())
+            selected_mf_cat = st.selectbox("Filter by Category", mf_categories)
+        with c2:
+            # ఇయర్ వైజ్ ఫిల్టర్
+            sort_period = st.selectbox("Rank By Performance", ["1Y (%)", "3Y CAGR (%)", "5Y CAGR (%)"], index=2) # Default 5Y
             
-        if not df_mf_data.empty:
+        with st.spinner("Scanning Mega Database & Ranking Funds..."):
+            df_mf_raw = fetch_mf_performance()
+            
+        if not df_mf_raw.empty:
+            # 1. ర్యాంకింగ్ (సెలెక్ట్ చేసిన ఇయర్ ని బట్టి సార్ట్ చేయడం)
+            df_mf_raw['Sort_Key'] = pd.to_numeric(df_mf_raw[sort_period].replace('N/A', -999))
+            df_mf_raw = df_mf_raw.sort_values(by='Sort_Key', ascending=False)
+            
+            # 2. కేటగిరీ ఫిల్టర్ అప్లై చేయడం
             if selected_mf_cat != "All Categories":
-                df_mf_data = df_mf_data[df_mf_data['Category'] == selected_mf_cat]
+                df_mf_data = df_mf_raw[df_mf_raw['Category'] == selected_mf_cat]
+            else:
+                # All Categories సెలెక్ట్ చేస్తే.. ఏ కేటగిరీకి ఆ కేటగిరీ టాప్ ఫండ్స్ మాత్రమే తీసుకుంటుంది
+                top_dfs = []
+                for cat in MUTUAL_FUNDS.keys():
+                    top_dfs.append(df_mf_raw[df_mf_raw['Category'] == cat].head(10))
+                df_mf_data = pd.concat(top_dfs)
                 
+            df_mf_data = df_mf_data.drop(columns=['Sort_Key'], errors='ignore')
+            
+            # 3. టేబుల్ రెండరింగ్
             st.markdown(render_mf_table(df_mf_data), unsafe_allow_html=True)
-            st.markdown("<p style='font-size:11px; color:#888;'><i>*Note: Funds are auto-ranked based on 5-Year CAGR. Returns > 20% are highlighted in Bright Green. N/A means the fund hasn't completed that many years.</i></p>", unsafe_allow_html=True)
+            st.markdown(f"<p style='font-size:11px; color:#888;'><i>*Note: Funds are auto-ranked based on <b>{sort_period}</b>. Returns > 20% are highlighted in Bright Green.</i></p>", unsafe_allow_html=True)
         else:
             st.error("Failed to fetch Mutual Fund data. Yahoo Finance API might be rate-limited.")            
     elif watchlist_mode == "Terminal Tables 🗃️" and view_mode == "Heat Map":
