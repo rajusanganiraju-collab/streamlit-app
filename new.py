@@ -8,6 +8,7 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import os
+import requests
 from datetime import datetime, time as dt_time
 from streamlit_autorefresh import st_autorefresh
 import threading
@@ -202,66 +203,57 @@ TV_SECTOR_URL = {
 COMMODITY_MAP = { "GC=F": "GOLD", "SI=F": "SILVER", "CL=F": "CRUDE OIL", "NG=F": "NATURAL GAS", "HG=F": "COPPER" }
 # --- MEGA MUTUAL FUNDS DATABASE (Scanning Universe) ---
 # --- MEGA MUTUAL FUNDS DATABASE (Top 50 High CAGR Funds) ---
+# --- MEGA MUTUAL FUNDS DATABASE (Official AMFI Direct-Growth Scheme Codes) ---
 MUTUAL_FUNDS = {
-    "🔥 AGGRESSIVE SMALL CAP (Highest CAGR)": {
-        "Quant Small Cap Fund": "0P00005X00.BO",
-        "Nippon India Small Cap": "0P0000XVW5.BO",
-        "SBI Small Cap Fund": "0P0000XW8F.BO",
-        "Axis Small Cap Fund": "0P0000YWA5.BO",
-        "Tata Small Cap Fund": "0P0000XVU6.BO",
-        "Kotak Small Cap Fund": "0P00005WZX.BO",
-        "HDFC Small Cap Fund": "0P00005WZO.BO",
-        "DSP Small Cap Fund": "0P00005WZN.BO",
-        "Bandhan Emerging Businesses": "0P0001J1LM.BO",
-        "Edelweiss Small Cap Fund": "0P0000YWA7.BO"
+    "🔥 AGGRESSIVE SMALL CAP": {
+        "Quant Small Cap Fund": "120828",
+        "Nippon India Small Cap": "113338",
+        "SBI Small Cap Fund": "113177",
+        "Axis Small Cap Fund": "125354",
+        "Tata Small Cap Fund": "144505",
+        "Kotak Small Cap Fund": "100222",
+        "HDFC Small Cap Fund": "106822",
+        "DSP Small Cap Fund": "105052"
     },
     "🚀 HIGH GROWTH MID CAP": {
-        "Motilal Oswal Midcap Fund": "0P0000XVW4.BO",
-        "Quant Mid Cap Fund": "0P00005WZD.BO",
-        "Nippon India Growth Fund": "0P00005WLY.BO",
-        "HDFC Mid-Cap Opportunities": "0P00005V23.BO",
-        "Kotak Emerging Equity": "0P00005WZW.BO",
-        "SBI Magnum Midcap": "0P00005WMX.BO",
-        "DSP Midcap Fund": "0P00005W5C.BO",
-        "Axis Midcap Fund": "0P0000XVUO.BO",
-        "Tata Mid Cap Growth": "0P00005WZL.BO",
-        "Edelweiss Mid Cap": "0P00005WZR.BO"
+        "Motilal Oswal Midcap Fund": "127042",
+        "Quant Mid Cap Fund": "120825",
+        "Nippon India Growth Fund": "101512",
+        "HDFC Mid-Cap Opp": "118989",
+        "Kotak Emerging Equity": "105018",
+        "SBI Magnum Midcap": "103204",
+        "DSP Midcap Fund": "104332",
+        "Axis Midcap Fund": "112932"
     },
     "🌟 CONSISTENT FLEXI & MULTI CAP": {
-        "Parag Parikh Flexi Cap": "0P0000XVU7.BO",
-        "Quant Active Fund": "0P00005WYY.BO",
-        "Quant Flexi Cap Fund": "0P00005XZS.BO",
-        "HDFC Flexi Cap Fund": "0P00005V25.BO",
-        "Nippon India Multi Cap": "0P00005WMB.BO",
-        "SBI Flexicap Fund": "0P00005WMA.BO",
-        "Kotak Flexicap Fund": "0P00005V19.BO",
-        "UTI Flexi Cap Fund": "0P00005WZU.BO",
-        "DSP Flexi Cap Fund": "0P00005W5B.BO",
-        "Axis Flexi Cap Fund": "0P0000XVUG.BO"
+        "Parag Parikh Flexi Cap": "122639",
+        "Quant Active Fund": "120823",
+        "Quant Flexi Cap Fund": "120839",
+        "HDFC Flexi Cap Fund": "100204",
+        "Nippon India Multi Cap": "103444",
+        "SBI Flexicap Fund": "104443",
+        "Kotak Flexicap Fund": "112098",
+        "UTI Flexi Cap Fund": "100486"
     },
-    "🏭 THEMATIC & SECTORAL (Alpha Generators)": {
-        "Quant Infrastructure Fund": "0P00005X09.BO",
-        "SBI PSU Fund": "0P00005WMH.BO",
-        "ICICI Pru Technology Fund": "0P00005UZD.BO",
-        "Tata Digital India Fund": "0P0000XVU6.BO",
-        "Nippon India Pharma Fund": "0P00005WMJ.BO",
-        "ICICI Pru Infrastructure": "0P00005V1G.BO",
-        "SBI Healthcare Opp Fund": "0P00005WMG.BO",
-        "Aditya Birla SL PSU Equity": "0P0001IYZR.BO",
-        "HDFC Defence Fund": "0P0001PO5I.BO",
-        "CPSE ETF": "CPSEETF.NS"
+    "🏭 THEMATIC & SECTORAL": {
+        "Quant Infrastructure Fund": "120826",
+        "SBI PSU Fund": "112111",
+        "ICICI Pru Technology Fund": "100342",
+        "Tata Digital India Fund": "135761",
+        "Nippon India Pharma Fund": "102550",
+        "ICICI Pru Infrastructure": "103410",
+        "SBI Healthcare Opp Fund": "100564",
+        "Aditya Birla SL PSU Equity": "148332"
     },
-    "🏛️ STABLE LARGE CAP & VALUE FUNDS": {
-        "SBI Contra Fund": "0P00005WM6.BO",
-        "Nippon India Large Cap": "0P00005WMT.BO",
-        "ICICI Pru Bluechip Fund": "0P00005V15.BO",
-        "SBI Bluechip Fund": "0P00005WLZ.BO",
-        "HDFC Top 100 Fund": "0P00005V17.BO",
-        "Mirae Asset Large Cap": "0P0000XVUK.BO",
-        "Axis Bluechip Fund": "0P0000XVUF.BO",
-        "Kotak Bluechip Fund": "0P00005WZV.BO",
-        "Bandhan Sterling Value": "0P00005W0R.BO",
-        "Tata Large Cap Fund": "0P00005WZJ.BO"
+    "🏛️ STABLE LARGE CAP & VALUE": {
+        "SBI Contra Fund": "104556",
+        "Nippon India Large Cap": "118425",
+        "ICICI Pru Bluechip Fund": "108466",
+        "SBI Bluechip Fund": "105658",
+        "HDFC Top 100 Fund": "101344",
+        "Mirae Asset Large Cap": "107578",
+        "Axis Bluechip Fund": "110697",
+        "Kotak Bluechip Fund": "100067"
     }
 }
 NIFTY_50_SECTORS = {
@@ -1965,40 +1957,37 @@ if not df.empty:
                 st.markdown(html_fund, unsafe_allow_html=True)
             else: st.info("Fundamentals data not available at the moment.")
     elif watchlist_mode == "Mutual Funds 📈":
-        st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#00BFFF;'>📈 Mutual Funds Screener (Auto-Ranked)</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#00BFFF;'>📈 Mutual Funds Screener (Live AMFI Data)</div>", unsafe_allow_html=True)
         
-        # 🔥 కొత్త ఫిల్టర్స్ (Category & Year)
+        # 🔥 ఫిల్టర్స్ (Category & Year)
         c1, c2 = st.columns(2)
         with c1:
             mf_categories = ["All Categories"] + list(MUTUAL_FUNDS.keys())
             selected_mf_cat = st.selectbox("Filter by Category", mf_categories)
         with c2:
-            # ఇయర్ వైజ్ ఫిల్టర్
-            sort_period = st.selectbox("Rank By Performance", ["1Y (%)", "3Y CAGR (%)", "5Y CAGR (%)"], index=2) # Default 5Y
+            sort_period = st.selectbox("Rank By Performance", ["1Y (%)", "3Y CAGR (%)", "5Y CAGR (%)"], index=2)
             
-        with st.spinner("Scanning Mega Database & Ranking Funds..."):
+        with st.spinner("Fetching Live Data from AMFI..."):
             df_mf_raw = fetch_mf_performance()
             
         if not df_mf_raw.empty:
-            # 1. ర్యాంకింగ్ (సెలెక్ట్ చేసిన ఇయర్ ని బట్టి సార్ట్ చేయడం)
+            # 1. సెలెక్ట్ చేసిన ఇయర్ ని బట్టి సార్ట్ చేయడం
             df_mf_raw['Sort_Key'] = pd.to_numeric(df_mf_raw[sort_period].replace('N/A', -999))
             df_mf_raw = df_mf_raw.sort_values(by='Sort_Key', ascending=False)
             
-            # 2. కేటగిరీ ఫిల్టర్ అప్లై చేయడం
-            # 🔥 కొత్త కోడ్ (గ్లోబల్ సార్ట్ - నో లిమిట్)
+            # 2. కేటగిరీ ఫిల్టర్ అప్లై చేయడం (ఎలాంటి లిమిట్స్ లేకుండా గ్లోబల్ సార్ట్)
             if selected_mf_cat != "All Categories":
                 df_mf_data = df_mf_raw[df_mf_raw['Category'] == selected_mf_cat]
             else:
-                # లిమిట్ తీసేశాం! ఇప్పుడు 50 ఫండ్స్ అన్నీ లీడర్ బోర్డ్ లో వస్తాయి
                 df_mf_data = df_mf_raw
                 
             df_mf_data = df_mf_data.drop(columns=['Sort_Key'], errors='ignore')
             
             # 3. టేబుల్ రెండరింగ్
             st.markdown(render_mf_table(df_mf_data), unsafe_allow_html=True)
-            st.markdown(f"<p style='font-size:11px; color:#888;'><i>*Note: Funds are auto-ranked based on <b>{sort_period}</b>. Returns > 20% are highlighted in Bright Green.</i></p>", unsafe_allow_html=True)
+            st.markdown(f"<p style='font-size:11px; color:#888;'><i>*Note: Funds are auto-ranked based on <b>{sort_period}</b>. Returns > 20% are highlighted in Bright Green. Data Source: AMFI.</i></p>", unsafe_allow_html=True)
         else:
-            st.error("Failed to fetch Mutual Fund data. Yahoo Finance API might be rate-limited.")            
+            st.error("Failed to fetch Mutual Fund data from AMFI.")        
     elif watchlist_mode == "Terminal Tables 🗃️" and view_mode == "Heat Map":
         st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>🗃️ Professional Terminal View</div>", unsafe_allow_html=True)
         for df_temp in [df_buy_sector, df_sell_sector, df_independent, df_broader]:
