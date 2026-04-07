@@ -2048,35 +2048,18 @@ if not df.empty:
                 st.markdown(html_fund, unsafe_allow_html=True)
             else: st.info("Fundamentals data not available at the moment.")
     elif watchlist_mode == "Mutual Funds 📈":
-        st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#00BFFF;'>📈 Mutual Funds Screener (Live AMFI Data)</div>", unsafe_allow_html=True)
+        # ఇక్కడ AMFI తీసేసి Yahoo Finance అని మార్చాం
+        st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#00BFFF;'>📈 Mutual Funds Screener (Live Yahoo Finance Data)</div>", unsafe_allow_html=True)
         
-        # 🔥 ఫిల్టర్స్ (Category & Year)
-        c1, c2 = st.columns(2)
-        with c1:
-            mf_categories = ["All Categories"] + list(MUTUAL_FUNDS.keys())
-            selected_mf_cat = st.selectbox("Filter by Category", mf_categories)
-        with c2:
-            sort_period = st.selectbox("Rank By Performance", ["1Y (%)", "3Y CAGR (%)", "5Y CAGR (%)"], index=2)
-            
-        with st.spinner("Fetching Live Data from AMFI..."):
-            df_mf_raw = fetch_mf_performance()
-            
+        # ... (మిగతా కోడ్ అంతా అలాగే ఉంచండి) ...
+        
         if not df_mf_raw.empty:
-            # 1. సెలెక్ట్ చేసిన ఇయర్ ని బట్టి సార్ట్ చేయడం
-            df_mf_raw['Sort_Key'] = pd.to_numeric(df_mf_raw[sort_period].replace('N/A', -999))
-            df_mf_raw = df_mf_raw.sort_values(by='Sort_Key', ascending=False)
-            
-            # 2. కేటగిరీ ఫిల్టర్ అప్లై చేయడం (ఎలాంటి లిమిట్స్ లేకుండా గ్లోబల్ సార్ట్)
-            if selected_mf_cat != "All Categories":
-                df_mf_data = df_mf_raw[df_mf_raw['Category'] == selected_mf_cat]
-            else:
-                df_mf_data = df_mf_raw
-                
-            df_mf_data = df_mf_data.drop(columns=['Sort_Key'], errors='ignore')
+            # ... (సార్టింగ్ లాజిక్ అలాగే ఉండనివ్వండి) ...
             
             # 3. టేబుల్ రెండరింగ్
             st.markdown(render_mf_table(df_mf_data), unsafe_allow_html=True)
-            st.markdown(f"<p style='font-size:11px; color:#888;'><i>*Note: Funds are auto-ranked based on <b>{sort_period}</b>. Returns > 20% are highlighted in Bright Green. Data Source: AMFI.</i></p>", unsafe_allow_html=True)
+            # ఇక్కడ కూడా చివరన Data Source మార్చాం
+            st.markdown(f"<p style='font-size:11px; color:#888;'><i>*Note: Funds are auto-ranked based on <b>{sort_period}</b>. Returns > 20% are highlighted in Bright Green. Data Source: Yahoo Finance.</i></p>", unsafe_allow_html=True)
         else:
             st.error("Failed to fetch Mutual Fund data from AMFI.")        
     elif watchlist_mode == "Terminal Tables 🗃️" and view_mode == "Heat Map":
