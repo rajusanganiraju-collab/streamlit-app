@@ -230,9 +230,7 @@ MUTUAL_FUNDS = {
         "UTI Mid Cap Fund": "0P00005WZM.BO",
         "Motilal Oswal Midcap": "0P0000XVW4.BO",
         "Edelweiss Mid Cap": "0P00005WZR.BO",
-        "PGIM India Midcap": "0P0000YWA6.BO",
-        "Invesco India Midcap": "0P00005WXY.BO",
-        "Sundaram Mid Cap": "0P00005WXZ.BO"
+        "PGIM India Midcap": "0P0000YWA6.BO"
     },
     "SMALL CAP": {
         "Nippon India Small Cap": "0P0000XVW5.BO",
