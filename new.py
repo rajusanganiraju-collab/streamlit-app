@@ -1985,12 +1985,12 @@ if not df.empty:
             df_mf_raw = df_mf_raw.sort_values(by='Sort_Key', ascending=False)
             
             # 2. కేటగిరీ ఫిల్టర్ అప్లై చేయడం
-            # 🔥 కొత్త కోడ్ (గ్లోబల్ సార్ట్)
+            # 🔥 కొత్త కోడ్ (గ్లోబల్ సార్ట్ - నో లిమిట్)
             if selected_mf_cat != "All Categories":
                 df_mf_data = df_mf_raw[df_mf_raw['Category'] == selected_mf_cat]
             else:
-                # All Categories సెలెక్ట్ చేస్తే అన్నింటినీ మిక్స్ చేసి Top 25 చూపిస్తుంది
-                df_mf_data = df_mf_raw.head(25)
+                # లిమిట్ తీసేశాం! ఇప్పుడు 50 ఫండ్స్ అన్నీ లీడర్ బోర్డ్ లో వస్తాయి
+                df_mf_data = df_mf_raw
                 
             df_mf_data = df_mf_data.drop(columns=['Sort_Key'], errors='ignore')
             
