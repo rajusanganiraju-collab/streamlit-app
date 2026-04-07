@@ -1372,9 +1372,9 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
             )
         elif watchlist_mode == "Swing Trading 📈":
             move_type_filter = st.multiselect("Strategy Filter", 
-                ["All Swing Stocks", "🚀 Pro Breakout Strategy", "🌟 Weekly 10EMA Pro", "📈 Minervini Trend Template (VCP)", "📉 Strict VCP (Price & Vol Contraction)"], 
+                ["All Swing Stocks", "📈 Minervini Trend Template (VCP)", "📉 Strict VCP (Price & Vol Contraction)"], 
                 default=["All Swing Stocks"],
-                key="swing_trading_filter_key" # 🔥 ఈ KEY యాడ్ చేయడం వల్లే బగ్ సాల్వ్ అవుతుంది!
+                key="swing_trading_filter_key" 
             )
         elif watchlist_mode == "Fundamentals 🏢":
             fund_filter = st.selectbox("Fundamentals Filter", ["Top Ranked Stocks ⭐", "Swing Trading Candidates 📈", "Nifty 50 Stocks", "My Portfolio 💼"], index=0)
@@ -1938,25 +1938,7 @@ if not df.empty:
             if "All Swing Stocks" in move_type_filter or not move_type_filter:
                 dfs_to_concat.append(df_filtered[df_filtered['Is_Swing'] == True])
             
-            if "🚀 Pro Breakout Strategy" in move_type_filter:
-                top_body = df_filtered['H'] - df_filtered['P']
-                total_range = df_filtered['H'] - df_filtered['L']
-                breakout_cond = (
-                    (df_filtered['P'] > df_filtered['O']) &            
-                    (top_body <= (total_range * 0.25)) &             
-                    (df_filtered['VolX'] >= 1.5) &                    
-                    (df_filtered['Day_C'] >= 2.0) &                    
-                    (df_filtered['Is_Swing'] == True)                 
-                )
-                df_brk = df_filtered[breakout_cond].copy()
-                df_brk['Strategy_Icon'] = "🚀"
-                dfs_to_concat.append(df_brk)
-                
-            if "🌟 Weekly 10EMA Pro" in move_type_filter:
-                df_ema = df_filtered[df_filtered['Is_W_Pullback'] == True].copy()
-                df_ema['Strategy_Icon'] = "🌟"
-                dfs_to_concat.append(df_ema)
-                
+                            
             if "📈 Minervini Trend Template (VCP)" in move_type_filter:
                 cond1 = (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['P'] > df_filtered['SMA200'])
                 cond2 = df_filtered['SMA150'] > df_filtered['SMA200']
