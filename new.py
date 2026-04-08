@@ -3,12 +3,13 @@ import yfinance as yf
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
-import json 
+import json
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import os
 import requests
+import time
 from datetime import datetime, time as dt_time
 from streamlit_autorefresh import st_autorefresh
 import threading
@@ -472,7 +473,7 @@ def fetch_single_dhan_5m(symbol, sec_id):
     except: pass
     return symbol, pd.DataFrame()
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)
 def fetch_cached_5m_data(tkrs_list):
     dhan_tasks, yf_tkrs, results_dict = {}, [], {}
     for tkr in tkrs_list:
@@ -526,7 +527,7 @@ def fetch_historical_charts_data(tkrs, timeframe):
     elif len(res) == 1: return res[0]
     return pd.DataFrame()
 # --- DAILY DATA FETCH ---
-@st.cache_data(ttl=150, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def fetch_all_data():
     port_df = load_portfolio()
     port_stocks = [str(sym).upper().strip() for sym in port_df['Symbol'].tolist() if str(sym).strip() != ""]
@@ -796,9 +797,6 @@ def fetch_fundamentals_data(symbols_list):
                 fund_data.append(res)
                 
     return pd.DataFrame(fund_data)   
-import time # ఫైల్ స్టార్టింగ్ లో ఇది లేకపోతే ఇక్కడ కూడా పెట్టుకోవచ్చు
-
-
 
 def render_mf_table(df_mf):
     if df_mf.empty: return "<div style='padding:20px; text-align:center;'>No Mutual Fund data available.</div>"
@@ -1472,7 +1470,7 @@ if not df.empty:
     df_all_stocks = df[(~df['Is_Index']) & (~df['Is_Sector']) & (~df['Is_Commodity'])].copy()
     df_commodities = df[df['Is_Commodity']].copy()
     
-    df_port_saved = load_portfolio()
+    df_port_saved = load_portfolio().copy()
 
     # 2. 🔥 STRICT SEGMENT FILTERING (IRON WALL) 🔥
     # మిగతా సెగ్మెంట్స్ అన్నీ తీసేశాం, కేవలం టాప్ 200 స్టాక్స్ మాత్రమే ఇక్కడ అలో అవుతాయి
@@ -1500,8 +1498,7 @@ if not df.empty:
     elif watchlist_mode == "My Portfolio 💼":
         port_tickers = [f"{str(sym).upper().strip()}.NS" for sym in df_port_saved['Symbol'].tolist() if str(sym).strip() != ""]
         df_filtered = df_all_stocks[df_all_stocks['Fetch_T'].isin(port_tickers)]
-        port_tickers = [f"{str(sym).upper().strip()}.NS" for sym in df_port_saved['Symbol'].tolist() if str(sym).strip() != ""]
-        df_filtered = df_all_stocks[df_all_stocks['Fetch_T'].isin(port_tickers)]
+        
     elif watchlist_mode == "Commodity 🛢️":
         df_filtered = df_commodities.copy()
     elif watchlist_mode == "Fundamentals 🏢":
