@@ -1581,7 +1581,11 @@ if not df.empty:
     orb_tags = {} 
 
     nifty_dist_5m = 0.1
-    if "^NSEI" in five_min_data.columns.levels[0]:
+    
+    # 🔥 MultiIndex ఎర్రర్ రాకుండా సేఫ్టీ చెక్
+    fetched_5m_symbols = five_min_data.columns.levels[0] if isinstance(five_min_data.columns, pd.MultiIndex) else five_min_data.columns
+
+    if "^NSEI" in fetched_5m_symbols:
         n_raw = five_min_data["^NSEI"] if isinstance(five_min_data.columns, pd.MultiIndex) else five_min_data
         n_day = process_5m_data(n_raw)
         if not n_day.empty:
