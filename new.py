@@ -596,57 +596,7 @@ def fetch_all_data():
 
             ema50_d = float(df['Close'].ewm(span=50, adjust=False).mean().iloc[-1]) if len(df) >= 50 else 0.0
             
-            # 🔥 ALGOALPHA - TREND TARGETS LOGIC 🔥
-            algo_rejection = False
-            if len(df) >= 150:
-                # 1. NaN ఎర్రర్స్ రాకుండా సేఫ్ క్యాలిక్యులేషన్ (fillna)
-                tr_aa = pd.concat([
-                    df['High'] - df['Low'], 
-                    (df['High'] - df['Close'].shift(1)).abs(), 
-                    (df['Low'] - df['Close'].shift(1)).abs()
-                ], axis=1).max(axis=1).fillna(0)
-                
-                atr90 = tr_aa.ewm(alpha=1/90, adjust=False).mean()
-                
-                hl2 = (df['High'] + df['Low']) / 2
-                basic_ub = hl2 + (12 * atr90)
-                basic_lb = hl2 - (12 * atr90)
-                
-                ub = np.zeros(len(df))
-                lb = np.zeros(len(df))
-                
-                # ఇక్కడ పక్కాగా వాల్యూస్ అసైన్ చేస్తున్నాం (No NaNs allowed)
-                ub[0] = basic_ub.iloc[0] if not pd.isna(basic_ub.iloc[0]) else df['High'].iloc[0]
-                lb[0] = basic_lb.iloc[0] if not pd.isna(basic_lb.iloc[0]) else df['Low'].iloc[0]
-                
-                closes_arr = df['Close'].values
-                basic_ub_arr = basic_ub.values
-                basic_lb_arr = basic_lb.values
-                
-                for j in range(1, len(df)):
-                    lb[j] = basic_lb_arr[j] if (basic_lb_arr[j] > lb[j-1] or closes_arr[j-1] < lb[j-1]) else lb[j-1]
-                    ub[j] = basic_ub_arr[j] if (basic_ub_arr[j] < ub[j-1] or closes_arr[j-1] > ub[j-1]) else ub[j-1]
-                    
-                st_mid = pd.Series((lb + ub) / 2, index=df.index)
-                
-                weights = np.arange(1, 41)
-                # WMA లో వచ్చే స్టార్టింగ్ NaNs ని bfill() తో కవర్ చేస్తున్నాం
-                tL_wma = st_mid.rolling(40, min_periods=40).apply(lambda x: np.dot(x, weights) / weights.sum(), raw=True).bfill()
-                tL = tL_wma.ewm(span=14, adjust=False).mean()
-                
-                tL_diff = tL.diff().fillna(0)
-                trend_dir = np.where(tL_diff > 0, 1, np.where(tL_diff < 0, -1, 0))
-                trend_series = pd.Series(trend_dir).replace(0, np.nan).ffill().fillna(0)
-                
-                # 🔥 SMART 2% BUFFER ZONE 
-                zone_upper = tL * 1.02 
-                
-                bullish_rej = (trend_series == 1) & (df['Low'] <= zone_upper) & (df['Close'] > tL)
-                algo_trend_bull = trend_series.iloc[-1] == 1
-                
-                # లాస్ట్ 5 రోజుల్లో ఎప్పుడైనా ఈ జోన్ దగ్గర బౌన్స్ అయితే సిగ్నల్ వస్తుంది
-                algo_rejection = algo_trend_bull and (bullish_rej.iloc[-5:].sum() >= 1)
-
+            
             # MINERVINI METRICS
             sma50_d = float(df['Close'].rolling(window=50).mean().iloc[-1]) if len(df) >= 50 else 0.0
             sma150_d = float(df['Close'].rolling(window=150).mean().iloc[-1]) if len(df) >= 150 else 0.0
@@ -810,7 +760,6 @@ def generate_status(row):
     if 'O' in row and 'H' in row and abs(row['O'] - row['H']) < (p * 0.002): status += "O=H🩸 "
     if row.get('C', 0) > 0 and row.get('Day_C', 0) > 0 and row.get('VolX', 0) > 1.5: status += "Rec⇈ "
     if row.get('VolX', 0) > 1.5: status += "VOL🟢 "
-    if row.get('Algo_Rejection'): status += "🎯Trend Reject "
     return status.strip()
 
 @st.cache_data(ttl=86400, show_spinner=False)
@@ -1424,8 +1373,8 @@ if not df.empty:
 # =========================================================
 
 watchlist_mode = st.selectbox("Watchlist", ["🤖 Today's AI Predictions", "Swing Trading 📈", "Nifty 50 Heatmap", "Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢", "Mutual Funds 📈"], index=0, label_visibility="collapsed")
-view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], horizontal=True, label_visibility="collapsed")
-
+# 🔥 స్వింగ్ ట్రేడింగ్ సెలెక్ట్ చేస్తే డీఫాల్ట్‌గా Chart కి మారుతుంది
+view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], index=1 if watchlist_mode == "Swing Trading 📈" else 0, horizontal=True, label_visibility="collapsed")
 move_type_filter = ["🌊 One Sided Only", "🎯 Reversals Only", "🏹 Rubber Band Stretch"] 
 fund_filter = "Top Ranked Stocks ⭐"
 sort_mode = "Custom Sort"
@@ -1447,8 +1396,8 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
             )
         elif watchlist_mode == "Swing Trading 📈":
             move_type_filter = st.multiselect("Strategy Filter", 
-                ["All Swing Stocks", "📈 Minervini Trend Template (VCP)", "📉 Strict VCP (Price & Vol Contraction)", "🎯 AlgoAlpha Trend Rejection"], 
-                default=["All Swing Stocks"],
+                ["All Swing Stocks", "📈 Minervini Trend Template (VCP)", "📉 Strict VCP (Price & Vol Contraction)"], 
+                default=["📈 Minervini Trend Template (VCP)"], # 🔥 డీఫాల్ట్ గా VCP వస్తుంది
                 key="swing_trading_filter_key" 
             )
         elif watchlist_mode == "Fundamentals 🏢":
@@ -1465,7 +1414,8 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
         cc1, cc2, cc3 = st.columns(3)
         with cc1:
             # ✅ ఇప్పుడు అన్ని మోడ్స్ కి టైమ్‌ఫ్రేమ్ ఆప్షన్ కనిపిస్తుంది
-            chart_timeframe = st.radio("Timeframe", ["Intraday (5m)", "Daily Chart", "Weekly Chart"], horizontal=True)
+            # 🔥 స్వింగ్ ట్రేడింగ్ సెలెక్ట్ చేస్తే డీఫాల్ట్‌గా Daily Chart కి మారుతుంది
+            chart_timeframe = st.radio("Timeframe", ["Intraday (5m)", "Daily Chart", "Weekly Chart"], index=1 if watchlist_mode == "Swing Trading 📈" else 0, horizontal=True)
         with cc2: show_crosshair = st.toggle("⌖ Show Crosshair", value=False)
         with cc3: show_vol = st.toggle("📊 Show Vol Bars", value=False)
 
@@ -1997,6 +1947,7 @@ if not df.empty:
             else: df_filtered = pd.DataFrame(columns=df_filtered.columns)
             
             if not df_filtered.empty:
+                
                 # Identify setup type
                 is_buy = df_filtered['Strategy_Icon'].str.contains('BUY|VCP', na=False)
                 is_minervini = df_filtered['Strategy_Icon'].str.contains('VCP', na=False)
@@ -2054,11 +2005,7 @@ if not df.empty:
                 df_min['Strategy_Icon'] = "📈 M-VCP"
                 dfs_to_concat.append(df_min)
 
-            if "🎯 AlgoAlpha Trend Rejection" in move_type_filter:
-                df_algo = df_filtered[df_filtered['Algo_Rejection'] == True].copy()
-                df_algo['Strategy_Icon'] = "🎯 Algo Reject"
-                dfs_to_concat.append(df_algo)
-
+            
             if dfs_to_concat:
                 df_filtered = pd.concat(dfs_to_concat).drop_duplicates(subset=['Fetch_T'])
             else:
