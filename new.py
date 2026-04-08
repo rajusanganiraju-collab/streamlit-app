@@ -618,7 +618,10 @@ def fetch_all_data():
                 trend_dir = np.where(tL_diff > 0, 1, np.where(tL_diff < 0, -1, 0))
                 trend_series = pd.Series(trend_dir).replace(0, np.nan).ffill().fillna(0)
                 bullish_rej = (trend_series == 1) & (df['High'] > tL) & (df['Low'] < tL)
-                algo_rejection = bullish_rej.iloc[-3:].sum() >= 3 # 3 days confirmation
+                
+                # 🔥 STRICT రూల్ తీసేసి "Swing Bounce" రూల్ పెట్టాం
+                # లాస్ట్ 4 రోజుల్లో కనీసం ఒక్కసారైనా లైన్ టచ్ అయ్యి, ఇప్పుడు లైన్ పైన ట్రేడ్ అవుతుంటే చాలు
+                algo_rejection = (bullish_rej.iloc[-4:].sum() >= 1) and (df['Close'].iloc[-1] > tL.iloc[-1])
 
             # MINERVINI METRICS
             sma50_d = float(df['Close'].rolling(window=50).mean().iloc[-1]) if len(df) >= 50 else 0.0
