@@ -1879,25 +1879,26 @@ if not df.empty:
                     cond1 = (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['P'] > df_filtered['SMA200'])
                     cond2 = df_filtered['SMA150'] > df_filtered['SMA200']
                     cond3 = df_filtered['SMA200'] > df_filtered['SMA200_20D']
-                    cond4 = df_filtered['P'] > df_filtered['SMA50']
-                    cond7 = df_filtered['SMA50'] > df_filtered['SMA150'] 
-                    cond5 = df_filtered['P'] >= (df_filtered['Low52W'] * 1.30)
-                    cond6 = df_filtered['P'] >= (df_filtered['High52W'] * 0.75)
-                    c_buy = base_buy & cond1 & cond2 & cond3 & cond4 & cond7 & cond5 & cond6
+                    cond4 = (df_filtered['SMA50'] > df_filtered['SMA150']) & (df_filtered['SMA50'] > df_filtered['SMA200'])
+                    cond5 = df_filtered['P'] > df_filtered['SMA50']
+                    cond6 = df_filtered['P'] >= (df_filtered['Low52W'] * 1.30)
+                    cond7 = df_filtered['P'] >= (df_filtered['High52W'] * 0.75)
+                    
+                    c_buy = base_buy & cond1 & cond2 & cond3 & cond4 & cond5 & cond6 & cond7
                     c_sell = pd.Series(False, index=df_filtered.index)
                     icon_str = "📈 M-VCP"
+                    
                 elif strat == "📉 Strict VCP (Price & Vol Contraction)":
-                    # బేసిక్ Minervini అప్‌ట్రెండ్ రూల్స్
                     cond1 = (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['P'] > df_filtered['SMA200'])
                     cond2 = df_filtered['SMA150'] > df_filtered['SMA200']
-                    cond4 = df_filtered['P'] > df_filtered['SMA50']
-                    cond5 = df_filtered['P'] >= (df_filtered['Low52W'] * 1.30)
-                    cond6 = df_filtered['P'] >= (df_filtered['High52W'] * 0.75)
-                    
-                    # 🔥 మనం కొత్తగా కనిపెట్టిన VCP రూల్స్
+                    cond3 = df_filtered['SMA200'] > df_filtered['SMA200_20D']
+                    cond4 = (df_filtered['SMA50'] > df_filtered['SMA150']) & (df_filtered['SMA50'] > df_filtered['SMA200'])
+                    cond5 = df_filtered['P'] > df_filtered['SMA50']
+                    cond6 = df_filtered['P'] >= (df_filtered['Low52W'] * 1.30)
+                    cond7 = df_filtered['P'] >= (df_filtered['High52W'] * 0.75)
                     vcp_cond = (df_filtered['VCP_Contract'] == True) & (df_filtered['VCP_Vol_Dry'] == True)
                     
-                    c_buy = base_buy & cond1 & cond2 & cond4 & cond5 & cond6 & vcp_cond
+                    c_buy = base_buy & cond1 & cond2 & cond3 & cond4 & cond5 & cond6 & cond7 & vcp_cond
                     c_sell = pd.Series(False, index=df_filtered.index)
                     icon_str = "📉 VCP"
                 elif strat == "🌅 15-Min ORB (Opening Range Breakout)":
@@ -1921,9 +1922,32 @@ if not df.empty:
             else: df_filtered = pd.DataFrame(columns=df_filtered.columns)
             
             if not df_filtered.empty:
-                df_filtered['T1'] = np.where(df_filtered['Strategy_Icon'].str.contains('BUY', na=False), round(df_filtered['P'] * 1.008, 2), round(df_filtered['P'] * 0.992, 2))
-                df_filtered['T2'] = np.where(df_filtered['Strategy_Icon'].str.contains('BUY', na=False), round(df_filtered['P'] * 1.015, 2), round(df_filtered['P'] * 0.985, 2))
-                df_filtered['SL'] = np.where(df_filtered['Strategy_Icon'].str.contains('BUY', na=False), round(df_filtered['P'] * 0.992, 2), round(df_filtered['P'] * 1.008, 2))
+                # Identify setup type
+                is_buy = df_filtered['Strategy_Icon'].str.contains('BUY|VCP', na=False)
+                is_minervini = df_filtered['Strategy_Icon'].str.contains('VCP', na=False)
+                
+                # Fetch ATR for day trading (fallback 2% if missing)
+                atr_val = df_filtered.get('ATR', df_filtered['P'] * 0.02)
+                
+                # 🔥 SMART RISK LOGIC: 5% strict risk for Minervini, 1.5 ATR for Day Trading
+                risk_amt = np.where(is_minervini, df_filtered['P'] * 0.05, atr_val * 1.5)
+                
+                # Calculate Stop Loss
+                df_filtered['SL'] = np.where(is_buy, 
+                                             round(df_filtered['P'] - risk_amt, 2), 
+                                             round(df_filtered['P'] + risk_amt, 2))
+                
+                # 🔥 SMART TARGETS: 1:2 & 1:3 for Minervini Swing | 1:1 & 1:2 for Day Trading
+                tp1_mult = np.where(is_minervini, 2.0, 1.0)
+                tp2_mult = np.where(is_minervini, 3.0, 2.0)
+                
+                df_filtered['T1'] = np.where(is_buy, 
+                                             round(df_filtered['P'] + (risk_amt * tp1_mult), 2), 
+                                             round(df_filtered['P'] - (risk_amt * tp1_mult), 2))
+                
+                df_filtered['T2'] = np.where(is_buy, 
+                                             round(df_filtered['P'] + (risk_amt * tp2_mult), 2), 
+                                             round(df_filtered['P'] - (risk_amt * tp2_mult), 2))
         
         elif watchlist_mode == "Swing Trading 📈":
             dfs_to_concat = []
