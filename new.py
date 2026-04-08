@@ -698,7 +698,6 @@ def fetch_all_data():
                         break
             
             results.append({
-                "Algo_Rejection": algo_rejection,
                 "VCP_Contract": vcp_price_contraction, "VCP_Vol_Dry": vcp_vol_dry,
                 "Fetch_T": symbol, "T": disp_name, "P": ltp, "O": open_p, "H": high, "L": low, "Prev_C": prev_c,
                 "Prev_H": prev_h, "Prev_L": prev_l, "W_EMA10": latest_w_ema10, "W_EMA50": latest_w_ema50, "D_EMA50": ema50_d,
