@@ -512,10 +512,19 @@ def fetch_cached_5m_data(tkrs_list):
 # ==========================================
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_historical_charts_data(tkrs, timeframe):
-    if timeframe == "Weekly Chart":
-        return yf.download(tkrs, period="2y", interval="1wk", progress=False, group_by='ticker', threads=20)
-    elif timeframe == "Daily Chart":
-        return yf.download(tkrs, period="1y", interval="1d", progress=False, group_by='ticker', threads=20)
+    # 🔥 Yahoo Finance టైమ్‌జోన్ బగ్ ని కంట్రోల్ చేయడానికి విడివిడిగా లాగుతున్నాం
+    idx_list = [t for t in tkrs if "^" in t or "=" in t]
+    stk_list = [t for t in tkrs if t not in idx_list]
+    
+    p, i = ("2y", "1wk") if timeframe == "Weekly Chart" else ("1y", "1d")
+    
+    res = []
+    if idx_list: res.append(yf.download(idx_list, period=p, interval=i, progress=False, group_by='ticker', threads=5))
+    if stk_list: res.append(yf.download(stk_list, period=p, interval=i, progress=False, group_by='ticker', threads=5))
+    
+    if len(res) == 2: return pd.concat(res, axis=1)
+    elif len(res) == 1: return res[0]
+    return pd.DataFrame()
 # --- DAILY DATA FETCH ---
 @st.cache_data(ttl=150, show_spinner=False)
 def fetch_all_data():
