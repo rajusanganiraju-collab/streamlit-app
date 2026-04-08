@@ -596,6 +596,30 @@ def fetch_all_data():
 
             ema50_d = float(df['Close'].ewm(span=50, adjust=False).mean().iloc[-1]) if len(df) >= 50 else 0.0
             
+            # 🔥 ALGOALPHA - TREND TARGETS LOGIC 🔥
+            algo_rejection = False
+            if len(df) >= 150:
+                tr_aa = pd.concat([df['High'] - df['Low'], (df['High'] - df['Close'].shift(1)).abs(), (df['Low'] - df['Close'].shift(1)).abs()], axis=1).max(axis=1)
+                atr90 = tr_aa.ewm(alpha=1/90, adjust=False).mean()
+                hl2 = (df['High'] + df['Low']) / 2
+                basic_ub = hl2 + (12 * atr90)
+                basic_lb = hl2 - (12 * atr90)
+                ub, lb = np.zeros(len(df)), np.zeros(len(df))
+                ub[0], lb[0] = basic_ub.iloc[0], basic_lb.iloc[0]
+                closes_arr = df['Close'].values
+                for j in range(1, len(df)):
+                    lb[j] = basic_lb.iloc[j] if (basic_lb.iloc[j] > lb[j-1] or closes_arr[j-1] < lb[j-1]) else lb[j-1]
+                    ub[j] = basic_ub.iloc[j] if (basic_ub.iloc[j] < ub[j-1] or closes_arr[j-1] > ub[j-1]) else ub[j-1]
+                st_mid = pd.Series((lb + ub) / 2, index=df.index)
+                weights = np.arange(1, 41)
+                tL_wma = st_mid.rolling(40).apply(lambda x: np.dot(x, weights) / weights.sum(), raw=True)
+                tL = tL_wma.ewm(span=14, adjust=False).mean()
+                tL_diff = tL.diff()
+                trend_dir = np.where(tL_diff > 0, 1, np.where(tL_diff < 0, -1, 0))
+                trend_series = pd.Series(trend_dir).replace(0, np.nan).ffill().fillna(0)
+                bullish_rej = (trend_series == 1) & (df['High'] > tL) & (df['Low'] < tL)
+                algo_rejection = bullish_rej.iloc[-3:].sum() >= 3 # 3 days confirmation
+
             # MINERVINI METRICS
             sma50_d = float(df['Close'].rolling(window=50).mean().iloc[-1]) if len(df) >= 50 else 0.0
             sma150_d = float(df['Close'].rolling(window=150).mean().iloc[-1]) if len(df) >= 150 else 0.0
@@ -697,6 +721,7 @@ def fetch_all_data():
                         break
             
             results.append({
+                "Algo_Rejection": algo_rejection,
                 "VCP_Contract": vcp_price_contraction, "VCP_Vol_Dry": vcp_vol_dry,
                 "Fetch_T": symbol, "T": disp_name, "P": ltp, "O": open_p, "H": high, "L": low, "Prev_C": prev_c,
                 "Prev_H": prev_h, "Prev_L": prev_l, "W_EMA10": latest_w_ema10, "W_EMA50": latest_w_ema50, "D_EMA50": ema50_d,
@@ -758,6 +783,7 @@ def generate_status(row):
     if 'O' in row and 'H' in row and abs(row['O'] - row['H']) < (p * 0.002): status += "O=H🩸 "
     if row.get('C', 0) > 0 and row.get('Day_C', 0) > 0 and row.get('VolX', 0) > 1.5: status += "Rec⇈ "
     if row.get('VolX', 0) > 1.5: status += "VOL🟢 "
+    if row.get('Algo_Rejection'): status += "🎯Trend Reject "
     return status.strip()
 
 @st.cache_data(ttl=86400, show_spinner=False)
@@ -1394,7 +1420,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
             )
         elif watchlist_mode == "Swing Trading 📈":
             move_type_filter = st.multiselect("Strategy Filter", 
-                ["All Swing Stocks", "📈 Minervini Trend Template (VCP)", "📉 Strict VCP (Price & Vol Contraction)"], 
+                ["All Swing Stocks", "📈 Minervini Trend Template (VCP)", "📉 Strict VCP (Price & Vol Contraction)", "🎯 AlgoAlpha Trend Rejection"], 
                 default=["All Swing Stocks"],
                 key="swing_trading_filter_key" 
             )
@@ -1996,6 +2022,11 @@ if not df.empty:
                 df_min = df_filtered[cond1 & cond2 & cond3 & cond4 & cond7 & cond5 & cond6].copy()
                 df_min['Strategy_Icon'] = "📈 M-VCP"
                 dfs_to_concat.append(df_min)
+
+            if "🎯 AlgoAlpha Trend Rejection" in move_type_filter:
+                df_algo = df_filtered[df_filtered['Algo_Rejection'] == True].copy()
+                df_algo['Strategy_Icon'] = "🎯 Algo Reject"
+                dfs_to_concat.append(df_algo)
 
             if dfs_to_concat:
                 df_filtered = pd.concat(dfs_to_concat).drop_duplicates(subset=['Fetch_T'])
