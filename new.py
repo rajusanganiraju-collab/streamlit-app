@@ -599,34 +599,52 @@ def fetch_all_data():
             # 🔥 ALGOALPHA - TREND TARGETS LOGIC 🔥
             algo_rejection = False
             if len(df) >= 150:
-                tr_aa = pd.concat([df['High'] - df['Low'], (df['High'] - df['Close'].shift(1)).abs(), (df['Low'] - df['Close'].shift(1)).abs()], axis=1).max(axis=1)
+                # 1. NaN ఎర్రర్స్ రాకుండా సేఫ్ క్యాలిక్యులేషన్ (fillna)
+                tr_aa = pd.concat([
+                    df['High'] - df['Low'], 
+                    (df['High'] - df['Close'].shift(1)).abs(), 
+                    (df['Low'] - df['Close'].shift(1)).abs()
+                ], axis=1).max(axis=1).fillna(0)
+                
                 atr90 = tr_aa.ewm(alpha=1/90, adjust=False).mean()
+                
                 hl2 = (df['High'] + df['Low']) / 2
                 basic_ub = hl2 + (12 * atr90)
                 basic_lb = hl2 - (12 * atr90)
-                ub, lb = np.zeros(len(df)), np.zeros(len(df))
-                ub[0], lb[0] = basic_ub.iloc[0], basic_lb.iloc[0]
+                
+                ub = np.zeros(len(df))
+                lb = np.zeros(len(df))
+                
+                # ఇక్కడ పక్కాగా వాల్యూస్ అసైన్ చేస్తున్నాం (No NaNs allowed)
+                ub[0] = basic_ub.iloc[0] if not pd.isna(basic_ub.iloc[0]) else df['High'].iloc[0]
+                lb[0] = basic_lb.iloc[0] if not pd.isna(basic_lb.iloc[0]) else df['Low'].iloc[0]
+                
                 closes_arr = df['Close'].values
+                basic_ub_arr = basic_ub.values
+                basic_lb_arr = basic_lb.values
+                
                 for j in range(1, len(df)):
-                    lb[j] = basic_lb.iloc[j] if (basic_lb.iloc[j] > lb[j-1] or closes_arr[j-1] < lb[j-1]) else lb[j-1]
-                    ub[j] = basic_ub.iloc[j] if (basic_ub.iloc[j] < ub[j-1] or closes_arr[j-1] > ub[j-1]) else ub[j-1]
+                    lb[j] = basic_lb_arr[j] if (basic_lb_arr[j] > lb[j-1] or closes_arr[j-1] < lb[j-1]) else lb[j-1]
+                    ub[j] = basic_ub_arr[j] if (basic_ub_arr[j] < ub[j-1] or closes_arr[j-1] > ub[j-1]) else ub[j-1]
+                    
                 st_mid = pd.Series((lb + ub) / 2, index=df.index)
+                
                 weights = np.arange(1, 41)
-                tL_wma = st_mid.rolling(40).apply(lambda x: np.dot(x, weights) / weights.sum(), raw=True)
+                # WMA లో వచ్చే స్టార్టింగ్ NaNs ని bfill() తో కవర్ చేస్తున్నాం
+                tL_wma = st_mid.rolling(40, min_periods=40).apply(lambda x: np.dot(x, weights) / weights.sum(), raw=True).bfill()
                 tL = tL_wma.ewm(span=14, adjust=False).mean()
-                tL_diff = tL.diff()
+                
+                tL_diff = tL.diff().fillna(0)
                 trend_dir = np.where(tL_diff > 0, 1, np.where(tL_diff < 0, -1, 0))
                 trend_series = pd.Series(trend_dir).replace(0, np.nan).ffill().fillna(0)
                 
-                # 🔥 STRICT గీతను తీసేసి 2% "సపోర్ట్ జోన్" పెట్టాం!
-                zone_upper = tL * 1.02 # బేస్ లైన్ కంటే 2% పైన
+                # 🔥 SMART 2% BUFFER ZONE 
+                zone_upper = tL * 1.02 
                 
-                # ప్రైస్ ఈ 2% జోన్ లోకి వచ్చి సపోర్ట్ తీసుకుని, పైకి క్లోజ్ అవ్వాలి
                 bullish_rej = (trend_series == 1) & (df['Low'] <= zone_upper) & (df['Close'] > tL)
-                
                 algo_trend_bull = trend_series.iloc[-1] == 1
                 
-                # లాస్ట్ 5 రోజుల్లో ఎప్పుడైనా ఈ జోన్ దగ్గర బౌన్స్ అయితే సిగ్నల్ వచ్చేస్తుంది
+                # లాస్ట్ 5 రోజుల్లో ఎప్పుడైనా ఈ జోన్ దగ్గర బౌన్స్ అయితే సిగ్నల్ వస్తుంది
                 algo_rejection = algo_trend_bull and (bullish_rej.iloc[-5:].sum() >= 1)
 
             # MINERVINI METRICS
