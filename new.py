@@ -901,39 +901,57 @@ def render_portfolio_table(df_port, df_stocks, weekly_trends, port_sort="Default
 def render_portfolio_swing_advice_table(df_port, df_stocks, weekly_trends):
     if df_port.empty: return ""
     html = f'<table class="term-table"><thead><tr><th colspan="8" class="term-head-swing">🤖 PORTFOLIO SWING ADVISOR (ACTION & LEVELS)</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:15%;">STOCK</th><th style="width:10%;">AVG PRICE</th><th style="width:10%;">LTP</th><th style="width:10%;">P&L %</th><th style="width:12%;">WK TREND</th><th style="width:13%; color:#f85149;">🛑 TRAILING SL</th><th style="width:13%; color:#3fb950;">🎯 NEXT TARGET</th><th style="width:17%;">💡 ACTION ADVICE</th></tr></thead><tbody>'
+    
     for i, (_, row) in enumerate(df_port.iterrows()):
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
         sym = str(row['Symbol']).upper().strip()
         try: buy_p = float(row['Buy_Price'])
         except: buy_p = 0
+        
         live_row = df_stocks[df_stocks['T'] == sym]
         if live_row.empty: continue
         live_data = live_row.iloc[0]
         ltp = float(live_data['P'])
+        
         pnl_pct = ((ltp - buy_p) / buy_p * 100) if buy_p > 0 else 0
         pnl_color = "text-green" if pnl_pct >= 0 else "text-red"
         t_sign = "+" if pnl_pct > 0 else ""
         trend_state = weekly_trends.get(live_data['Fetch_T'], "Neutral")
-        is_swing = live_data['Is_Swing']
-        atr_val = live_data.get("ATR", ltp * 0.02)
-        advice = ""
-        adv_color = ""
-        if trend_state == 'Bullish' and is_swing: advice = "🚀 STRONG HOLD"; adv_color = "color:#3fb950; font-weight:bold;"
-        elif trend_state == 'Bullish': advice = "🟢 HOLD"; adv_color = "color:#2ea043;"
-        elif trend_state == 'Neutral': advice = "🟡 WATCH"; adv_color = "color:#ffd700;"
-        else: advice = "🔴 EXIT / SELL"; adv_color = "color:#f85149; font-weight:bold;"
-        if trend_state == 'Bearish': sl_val = ltp + (1.5 * atr_val); t1_val = ltp - (1.5 * atr_val)
+        
+        # 🔥 MINERVINI TRAILING SL & TARGETS LOGIC 🔥
+        if pnl_pct >= 15:
+            sl_val = buy_p * 1.10  # Trail to +10% profit minimum
+            t1_val = buy_p * 1.25  # Next Target +25%
+            advice = "🔥 FREE RIDE (Hold)"; adv_color = "color:#00BFFF; font-weight:bold;"
+        elif pnl_pct >= 10:
+            sl_val = buy_p * 1.02  # Trail to Breakeven (+2% buffer)
+            t1_val = buy_p * 1.15  # Target is +15%
+            advice = "🚀 BOOK 50% & TRAIL"; adv_color = "color:#3fb950; font-weight:bold;"
+        elif pnl_pct >= 5:
+            sl_val = buy_p * 0.98  # Move SL closer to -2%
+            t1_val = buy_p * 1.10
+            advice = "🟢 HOLD STRONG"; adv_color = "color:#2ea043;"
+        elif pnl_pct <= -5:
+            sl_val = buy_p * 0.95  # Max SL reached
+            t1_val = buy_p * 1.10
+            advice = "🔴 CUT LOSSES NOW!"; adv_color = "color:#f85149; font-weight:bold;"
         else:
-            sl_val = ltp - (1.5 * atr_val)
-            if pnl_pct > 5 and sl_val < buy_p: sl_val = buy_p + (ltp * 0.005) 
-            t1_val = ltp + (3.0 * atr_val)
+            sl_val = buy_p * 0.95  # Initial 5% SL
+            t1_val = buy_p * 1.10  # Initial 10% Target
+            advice = "🟡 WATCH (In Zone)"; adv_color = "color:#ffd700;"
+
+        if trend_state == 'Bearish' and pnl_pct < 0:
+            advice = "🩸 BEARISH (Exit on Bounce)"; adv_color = "color:#f85149;"
+
         if trend_state == 'Bullish': trend_html = "🟢 Bull"
         elif trend_state == 'Bearish': trend_html = "🔴 Bear"
         else: trend_html = "⚪ Neut"
+        
         row_str = f'<tr class="{bg_class}"><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{sym}" target="_blank">{sym}</a></td>'
         row_str += f'<td>{buy_p:.2f}</td><td>{ltp:.2f}</td><td class="{pnl_color}">{t_sign}{pnl_pct:.2f}%</td><td style="font-size:10px;">{trend_html}</td>'
         row_str += f'<td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td><td style="{adv_color}">{advice}</td></tr>'
         html += row_str
+        
     html += "</tbody></table>"
     return html
 
@@ -2108,17 +2126,32 @@ if not df.empty:
                         if chk_data.empty: st.error(f"❌ '{new_sym}' not found in NSE!")
                         else:
                             new_date_str = new_date.strftime("%d-%b-%Y")
+                            
+                            # ఆవరేజ్ ప్రైస్ క్యాలిక్యులేషన్
                             if new_sym in df_port_saved['Symbol'].values: 
                                 old_row = df_port_saved[df_port_saved['Symbol'] == new_sym].iloc[0]
                                 old_qty, old_price = float(old_row['Quantity']), float(old_row['Buy_Price'])
                                 total_qty = old_qty + new_qty
                                 avg_price = ((old_qty * old_price) + (new_qty * new_price)) / total_qty
-                                df_port_saved.loc[df_port_saved['Symbol'] == new_sym, ['Buy_Price', 'Quantity', 'Date', 'SL', 'T1', 'T2']] = [round(avg_price, 2), total_qty, new_date_str, new_sl, new_t1, new_t2]
-                                st.success(f"✅ {new_sym} యావరేజ్ చేయబడింది! (New Avg: ₹{round(avg_price, 2)}, Total Qty: {int(total_qty)})")
+                                base_price = avg_price
                             else:
-                                new_row = pd.DataFrame({"Symbol": [new_sym], "Buy_Price": [new_price], "Quantity": [new_qty], "Date": [new_date_str], "SL": [new_sl], "T1": [new_t1], "T2": [new_t2]})
+                                total_qty = new_qty
+                                base_price = new_price
+
+                            # 🔥 MINERVINI AUTO-CALCULATION LOGIC 🔥
+                            # యూజర్ SL, T1, T2 ఇవ్వకపోతే (0 ఉంటే) ఆటోమేటిక్ గా Buy Price బట్టి 5% రిస్క్, 10-15% టార్గెట్స్ సెట్ చేస్తుంది
+                            calc_sl = new_sl if new_sl > 0 else round(base_price * 0.95, 2)  # 5% Stop Loss
+                            calc_t1 = new_t1 if new_t1 > 0 else round(base_price * 1.10, 2)  # 10% Target 1
+                            calc_t2 = new_t2 if new_t2 > 0 else round(base_price * 1.15, 2)  # 15% Target 2
+
+                            if new_sym in df_port_saved['Symbol'].values: 
+                                df_port_saved.loc[df_port_saved['Symbol'] == new_sym, ['Buy_Price', 'Quantity', 'Date', 'SL', 'T1', 'T2']] = [round(avg_price, 2), total_qty, new_date_str, calc_sl, calc_t1, calc_t2]
+                                st.success(f"✅ {new_sym} యావరేజ్ చేయబడింది! (New Avg: ₹{round(avg_price, 2)}, SL: {calc_sl})")
+                            else:
+                                new_row = pd.DataFrame({"Symbol": [new_sym], "Buy_Price": [new_price], "Quantity": [new_qty], "Date": [new_date_str], "SL": [calc_sl], "T1": [calc_t1], "T2": [calc_t2]})
                                 df_port_saved = pd.concat([df_port_saved, new_row], ignore_index=True)
-                                st.success(f"✅ {new_sym} పోర్ట్‌ఫోలియోలో యాడ్ చేయబడింది!")
+                                st.success(f"✅ {new_sym} పోర్ట్‌ఫోలియోలో యాడ్ చేయబడింది! (SL: {calc_sl}, T1: {calc_t1})")
+                            
                             import time
                             save_portfolio(df_port_saved); fetch_all_data.clear(); time.sleep(1.5); st.rerun()
                 else: st.warning("Type a symbol first!")
