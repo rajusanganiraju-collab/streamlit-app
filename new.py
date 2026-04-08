@@ -617,11 +617,17 @@ def fetch_all_data():
                 tL_diff = tL.diff()
                 trend_dir = np.where(tL_diff > 0, 1, np.where(tL_diff < 0, -1, 0))
                 trend_series = pd.Series(trend_dir).replace(0, np.nan).ffill().fillna(0)
-                bullish_rej = (trend_series == 1) & (df['High'] > tL) & (df['Low'] < tL)
                 
-                # 🔥 STRICT రూల్ తీసేసి "Swing Bounce" రూల్ పెట్టాం
-                # లాస్ట్ 4 రోజుల్లో కనీసం ఒక్కసారైనా లైన్ టచ్ అయ్యి, ఇప్పుడు లైన్ పైన ట్రేడ్ అవుతుంటే చాలు
-                algo_rejection = (bullish_rej.iloc[-4:].sum() >= 1) and (df['Close'].iloc[-1] > tL.iloc[-1])
+                # 🔥 STRICT గీతను తీసేసి 2% "సపోర్ట్ జోన్" పెట్టాం!
+                zone_upper = tL * 1.02 # బేస్ లైన్ కంటే 2% పైన
+                
+                # ప్రైస్ ఈ 2% జోన్ లోకి వచ్చి సపోర్ట్ తీసుకుని, పైకి క్లోజ్ అవ్వాలి
+                bullish_rej = (trend_series == 1) & (df['Low'] <= zone_upper) & (df['Close'] > tL)
+                
+                algo_trend_bull = trend_series.iloc[-1] == 1
+                
+                # లాస్ట్ 5 రోజుల్లో ఎప్పుడైనా ఈ జోన్ దగ్గర బౌన్స్ అయితే సిగ్నల్ వచ్చేస్తుంది
+                algo_rejection = algo_trend_bull and (bullish_rej.iloc[-5:].sum() >= 1)
 
             # MINERVINI METRICS
             sma50_d = float(df['Close'].rolling(window=50).mean().iloc[-1]) if len(df) >= 50 else 0.0
