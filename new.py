@@ -72,7 +72,7 @@ def load_portfolio():
     except:
         return pd.DataFrame(columns=['Symbol', 'Buy_Price', 'Quantity', 'Date', 'SL', 'T1', 'T2'])
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=30, show_spinner=False)
 def load_closed_trades():
     try:
         records = trade_ws.get_all_records()
@@ -473,7 +473,7 @@ def fetch_single_dhan_5m(symbol, sec_id):
     except: pass
     return symbol, pd.DataFrame()
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=30, show_spinner=False)
 def fetch_cached_5m_data(tkrs_list):
     dhan_tasks, yf_tkrs, results_dict = {}, [], {}
     for tkr in tkrs_list:
