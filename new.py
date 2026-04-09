@@ -506,7 +506,7 @@ def fetch_cached_5m_data(tkrs_list):
                         results_dict[tkr] = df
     valid_results = {k: v for k, v in results_dict.items() if not v.empty and len(v) > 0}
     if valid_results:
-        return pd.concat(valid_results.values(), axis=1, keys=valid_results.keys())
+    return pd.concat(valid_results.values(), axis=1, keys=valid_results.keys(), sort=False)
     return pd.DataFrame()
 # ==========================================
 # 🔥 NEW: HISTORICAL CHARTS CACHE FUNCTION 🔥
