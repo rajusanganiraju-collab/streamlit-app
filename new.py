@@ -724,6 +724,8 @@ def process_5m_data(df_raw):
     try:
         df_s = df_raw.dropna(subset=['Open', 'High', 'Low', 'Close']).copy()
         if df_s.empty: return pd.DataFrame()
+        df_s = df_s.sort_index()
+        
         df_s['EMA_10'] = df_s['Close'].ewm(span=10, adjust=False).mean()
         df_s['EMA_20'] = df_s['Close'].ewm(span=20, adjust=False).mean()
         df_s['EMA_50'] = df_s['Close'].ewm(span=50, adjust=False).mean()
