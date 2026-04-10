@@ -902,7 +902,17 @@ def render_portfolio_table(df_port, df_stocks, weekly_trends, port_sort="Default
     d_color = "text-green" if total_day_pnl >= 0 else "text-red"
     d_sign = "+" if total_day_pnl > 0 else ""
     
-    html += f'<tr class="port-total"><td colspan="7" style="text-align:right; padding-right:15px; font-size:12px;">TOTAL INVESTED: ₹{total_invested:,.0f} &nbsp;|&nbsp; CURRENT: ₹{total_current:,.0f} &nbsp;|&nbsp; OVERALL P&L:</td><td class="{d_color}">{d_sign}₹{total_day_pnl:,.0f}</td><td class="{o_color}">{o_sign}₹{overall_total_pnl:,.0f}</td><td class="{o_color}">{o_sign}{overall_total_pct:.2f}%</td></tr>'
+    # 🔥 ACTUAL PROFITS CALCULATION (Closed P&L + Open P&L + Investment)
+    try:
+        df_closed = load_closed_trades()
+        total_realized_pnl = pd.to_numeric(df_closed['PnL_Rs'], errors='coerce').sum() if not df_closed.empty else 0
+    except:
+        total_realized_pnl = 0
+        
+    actual_profits_value = total_invested + overall_total_pnl + total_realized_pnl
+
+    # 🔥 UPDATE: Inserted ACTUAL PROFITS smoothly into the existing colspan without breaking the table layout
+    html += f'<tr class="port-total"><td colspan="7" style="text-align:right; padding-right:15px; font-size:12px;">TOTAL INVESTED: ₹{total_invested:,.0f} &nbsp;|&nbsp; CURRENT: ₹{total_current:,.0f} &nbsp;|&nbsp; <span style="color:#00BFFF;">ACTUAL PROFITS: ₹{actual_profits_value:,.0f}</span> &nbsp;|&nbsp; OVERALL P&L:</td><td class="{d_color}">{d_sign}₹{total_day_pnl:,.0f}</td><td class="{o_color}">{o_sign}₹{overall_total_pnl:,.0f}</td><td class="{o_color}">{o_sign}{overall_total_pct:.2f}%</td></tr>'
     html += "</tbody></table>"
     return html
 
