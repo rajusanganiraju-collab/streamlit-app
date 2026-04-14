@@ -1545,9 +1545,12 @@ if not df.empty:
     
     df_port_saved = load_portfolio().copy()
 
-    # 2. 🔥 STRICT SEGMENT FILTERING (IRON WALL) 🔥
-    # Nifty 50, F&O, MidCap మరియు SmallCap స్టాక్స్ అన్నీ ఇక్కడ అలో అవుతాయి
-    strict_allowed = set(NIFTY_50 + FNO_STOCKS + MIDCAP_150 + SMALLCAP_250)
+    # 2. 🔥 STRICT SEGMENT FILTERING (SMART IRON WALL) 🔥
+    # స్వింగ్ ట్రేడింగ్ సెలెక్ట్ చేస్తేనే Mid/Small Caps లోపలికి వస్తాయి, లేదంటే కేవలం FNO మాత్రమే!
+    if watchlist_mode == "Swing Trading 📈":
+        strict_allowed = set(NIFTY_50 + FNO_STOCKS + MIDCAP_150 + SMALLCAP_250)
+    else:
+        strict_allowed = set(NIFTY_50 + FNO_STOCKS)
     # ఈ ఒక్క లైన్ దెబ్బతో పోర్ట్‌ఫోలియో స్టాక్స్ బైపాస్ అవ్వడం పర్మినెంట్ గా ఆగిపోతుంది!
     df_stocks = df_all_stocks[df_all_stocks['T'].isin(strict_allowed)].copy()
     
