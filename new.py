@@ -2108,7 +2108,7 @@ if not df.empty:
         if watchlist_mode == "🤖 Today's AI Predictions": df_stocks_display = df_filtered.sort_values(by=['AI_Prob', 'VolX'], ascending=[False, False])
         else: df_stocks_display = df_filtered.sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, False])
             
-    elif watchlist_mode == "Fundamentals 🏢":
+    if watchlist_mode == "Fundamentals 🏢":
         st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#d29922;'>🏢 Core Fundamentals ({fund_filter})</div>", unsafe_allow_html=True)
         # Fetching for top 50 to get good candidates
         fund_tickers = df_stocks_display['Fetch_T'].tolist()[:50] if not df_stocks_display.empty else NIFTY_50[:50]
