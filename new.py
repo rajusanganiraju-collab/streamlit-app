@@ -921,8 +921,7 @@ def render_portfolio_table(df_port, df_stocks, weekly_trends, port_sort="Default
     ap_color = "text-green" if actual_pnl_value >= 0 else "text-red"
     ap_sign = "+" if actual_pnl_value > 0 else ""
 
-        # 🔥 UPDATE: Inserted ACTUAL PROFITS smoothly into the existing colspan without breaking the table layout
-    html += f'<tr class="port-total"><td colspan="7" style="text-align:right; padding-right:15px; font-size:12px;">TOTAL INVESTED: ₹{total_invested:,.0f} &nbsp;|&nbsp; CURRENT: ₹{total_current:,.0f} &nbsp;|&nbsp; <span style="color:#00BFFF;">ACTUAL PROFITS: ₹{actual_profits_value:,.0f}</span> &nbsp;|&nbsp; OVERALL P&L:</td><td class="{d_color}">{d_sign}₹{total_day_pnl:,.0f}</td><td class="{o_color}">{o_sign}₹{overall_total_pnl:,.0f}</td><td class="{o_color}">{o_sign}{overall_total_pct:.2f}%</td></tr>'
+    html += f'<tr class="port-total"><td colspan="7" style="text-align:right; padding-right:15px; font-size:12px;">TOTAL INVESTED: ₹{total_invested:,.0f} &nbsp;|&nbsp; CURRENT: ₹{total_current:,.0f} &nbsp;|&nbsp; <span style="color:#00BFFF;">ACTUAL PROFITS: {ap_sign}₹{actual_pnl_value:,.0f}</span> &nbsp;|&nbsp; OVERALL P&L:</td><td class="{d_color}">{d_sign}₹{total_day_pnl:,.0f}</td><td class="{o_color}">{o_sign}₹{overall_total_pnl:,.0f}</td><td class="{o_color}">{o_sign}{overall_total_pct:.2f}%</td></tr>'
     html += "</tbody></table>"
     return html
 
@@ -1426,8 +1425,8 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
                 default=["📈 Minervini Trend Template (VCP)"], 
                 key="swing_trading_filter_key" 
             )
-        if watchlist_mode == "Fundamentals 🏢":
-        st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#d29922;'>🏢 Core Fundamentals ({fund_filter})</div>", unsafe_allow_html=True)
+        elif watchlist_mode == "Fundamentals 🏢":
+            fund_filter = st.selectbox("Fundamentals Filter", ["Top Ranked Stocks ⭐", "🦅 Warren Buffett Value Stocks", "Swing Trading Candidates 📈", "Nifty 50 Stocks", "My Portfolio 💼"], index=0)
         # Fetching for top 50 to get good candidates
         fund_tickers = df_stocks_display['Fetch_T'].tolist()[:50] if not df_stocks_display.empty else NIFTY_50[:50]
         
