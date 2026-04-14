@@ -532,8 +532,12 @@ def fetch_all_data():
     port_df = load_portfolio()
     port_stocks = [str(sym).upper().strip() for sym in port_df['Symbol'].tolist() if str(sym).strip() != ""]
     
-    # 🔥 కేవలం Nifty 50 మరియు F&O (Top 200) మాత్రమే తీసుకుంటున్నాం
-    base_stocks = NIFTY_50.copy() + FNO_STOCKS
+    # NIFTY MIDCAP 150 & SMALLCAP 250 (ఇవి శాంపిల్స్ మాత్రమే, మీరు ఫుల్ లిస్ట్ తర్వాత యాడ్ చేసుకోండి)
+    MIDCAP_150 = ["SUZLON", "BSE", "PAYTM", "POLICYBZR", "PBFINTECH", "KALYANKJIL", "POONAWALLA", "YESBANK", "IDBI", "TATAELXSI"] 
+    SMALLCAP_250 = ["CDSL", "ANGELONE", "RADICO", "HAPPSTMNDS", "CAMS", "UTIAMC", "JBCHEPHARM", "LATENTVIEW", "CEINFO", "MAPMYINDIA"]
+
+    # 🔥 Nifty 50, F&O మరియు Mid & Small Cap స్టాక్స్ తీసుకుంటున్నాం
+    base_stocks = NIFTY_50.copy() + FNO_STOCKS + MIDCAP_150 + SMALLCAP_250
         
     all_stocks = set(base_stocks + port_stocks)
     tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + list(COMMODITY_MAP.keys()) + [f"{t}.NS" for t in all_stocks if t]
@@ -1418,8 +1422,8 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
             )
         elif watchlist_mode == "Swing Trading 📈":
             move_type_filter = st.multiselect("Strategy Filter", 
-                ["All Swing Stocks", "📈 Minervini Trend Template (VCP)", "📉 Strict VCP (Price & Vol Contraction)"], 
-                default=["📈 Minervini Trend Template (VCP)"], # 🔥 డీఫాల్ట్ గా VCP వస్తుంది
+                ["All Swing Stocks", "📈 Minervini Trend Template (VCP)", "📉 Strict VCP (Price & Vol Contraction)", "🔥 Minervini MidCap 150", "🚀 Minervini SmallCap 250"], 
+                default=["📈 Minervini Trend Template (VCP)"], 
                 key="swing_trading_filter_key" 
             )
         elif watchlist_mode == "Fundamentals 🏢":
@@ -2025,7 +2029,31 @@ if not df.empty:
                 df_min = df_filtered[cond1 & cond2 & cond3 & cond4 & cond7 & cond5 & cond6].copy()
                 df_min['Strategy_Icon'] = "📈 M-VCP"
                 dfs_to_concat.append(df_min)
+            if "🔥 Minervini MidCap 150" in move_type_filter:
+                cond1 = (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['P'] > df_filtered['SMA200'])
+                cond2 = df_filtered['SMA150'] > df_filtered['SMA200']
+                cond3 = df_filtered['SMA200'] > df_filtered['SMA200_20D']
+                cond4 = df_filtered['P'] > df_filtered['SMA50']
+                cond7 = df_filtered['SMA50'] > df_filtered['SMA150'] 
+                cond5 = df_filtered['P'] >= (df_filtered['Low52W'] * 1.30)
+                cond6 = df_filtered['P'] >= (df_filtered['High52W'] * 0.75)
+                cond_vcp = cond1 & cond2 & cond3 & cond4 & cond7 & cond5 & cond6
+                df_mid = df_filtered[cond_vcp & df_filtered['T'].isin(MIDCAP_150)].copy()
+                df_mid['Strategy_Icon'] = "🔥 Mid VCP"
+                dfs_to_concat.append(df_mid)
 
+            if "🚀 Minervini SmallCap 250" in move_type_filter:
+                cond1 = (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['P'] > df_filtered['SMA200'])
+                cond2 = df_filtered['SMA150'] > df_filtered['SMA200']
+                cond3 = df_filtered['SMA200'] > df_filtered['SMA200_20D']
+                cond4 = df_filtered['P'] > df_filtered['SMA50']
+                cond7 = df_filtered['SMA50'] > df_filtered['SMA150'] 
+                cond5 = df_filtered['P'] >= (df_filtered['Low52W'] * 1.30)
+                cond6 = df_filtered['P'] >= (df_filtered['High52W'] * 0.75)
+                cond_vcp = cond1 & cond2 & cond3 & cond4 & cond7 & cond5 & cond6
+                df_small = df_filtered[cond_vcp & df_filtered['T'].isin(SMALLCAP_250)].copy()
+                df_small['Strategy_Icon'] = "🚀 Small VCP"
+                dfs_to_concat.append(df_small)
             
             if dfs_to_concat:
                 df_filtered = pd.concat(dfs_to_concat).drop_duplicates(subset=['Fetch_T'])
