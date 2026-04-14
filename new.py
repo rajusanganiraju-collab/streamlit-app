@@ -1624,6 +1624,57 @@ if not df.empty:
         df_filtered = df_stocks[df_stocks['C'].abs() >= 1.0].copy()
     elif watchlist_mode == "Swing Trading 📈":
         df_filtered = df_stocks.copy()
+        dfs_to_concat = []
+        
+        # ఇవి అన్నింటికీ కామన్ గా ఉండే కండిషన్స్ (IPO స్టాక్స్ కూడా వచ్చేలా)
+        cond1 = (df_filtered['P'] > df_filtered['SMA150']) & ((df_filtered['P'] > df_filtered['SMA200']) | (df_filtered['SMA200'] == 0))
+        cond2 = (df_filtered['SMA150'] > df_filtered['SMA200']) | (df_filtered['SMA200'] == 0)
+        cond3 = (df_filtered['SMA200'] > df_filtered['SMA200_20D']) | (df_filtered['SMA200'] == 0)
+        cond4 = df_filtered['P'] > df_filtered['SMA50']
+        cond7 = df_filtered['SMA50'] > df_filtered['SMA150'] 
+        cond5 = df_filtered['P'] >= (df_filtered['Low52W'] * 1.30)
+        cond6 = df_filtered['P'] >= (df_filtered['High52W'] * 0.75)
+        
+        vcp_base_cond = cond1 & cond2 & cond3 & cond4 & cond7 & cond5 & cond6
+
+        # 1. కేవలం FNO & NIFTY స్టాక్స్
+        if "📈 Minervini Trend Template (VCP)" in move_type_filter:
+            cond_fno = df_filtered['T'].isin(NIFTY_50 + FNO_STOCKS)
+            df_min = df_filtered[cond_fno & vcp_base_cond].copy()
+            df_min['Strategy_Icon'] = "📈 M-VCP"
+            dfs_to_concat.append(df_min)
+
+        # 2. కేవలం MIDCAP 150 స్టాక్స్
+        if "🔥 Minervini MidCap 150" in move_type_filter:
+            cond_mid = df_filtered['T'].isin(MIDCAP_150)
+            df_mid = df_filtered[cond_mid & vcp_base_cond].copy()
+            df_mid['Strategy_Icon'] = "🔥 Mid VCP"
+            dfs_to_concat.append(df_mid)
+
+        # 3. కేవలం SMALLCAP 250 స్టాక్స్
+        if "🚀 Minervini SmallCap 250" in move_type_filter:
+            cond_small = df_filtered['T'].isin(SMALLCAP_250)
+            df_small = df_filtered[cond_small & vcp_base_cond].copy()
+            df_small['Strategy_Icon'] = "🚀 Small VCP"
+            dfs_to_concat.append(df_small)
+            
+        # 4. Strict VCP (FNO వాటికి మాత్రమే)
+        if "📉 Strict VCP (Price & Vol Contraction)" in move_type_filter:
+            cond_fno = df_filtered['T'].isin(NIFTY_50 + FNO_STOCKS)
+            strict_vcp_cond = (df_filtered['VCP_Contract'] == True) & (df_filtered['VCP_Vol_Dry'] == True)
+            df_vcp = df_filtered[cond_fno & vcp_base_cond & strict_vcp_cond].copy()
+            df_vcp['Strategy_Icon'] = "📉 VCP"
+            dfs_to_concat.append(df_vcp)
+
+        if "All Swing Stocks" in move_type_filter or not move_type_filter:
+            dfs_to_concat.append(df_filtered[df_filtered['Is_Swing'] == True])
+
+        if dfs_to_concat:
+            df_filtered = pd.concat(dfs_to_concat).drop_duplicates(subset=['Fetch_T'], keep='last')
+            # 🔥 SMART FIX: ముందే ఫిల్టర్ చేసి Top 40 మాత్రమే ఉంచుతున్నాం!
+            df_filtered = df_filtered.sort_values(by="Day_C", ascending=False).head(40)
+        else:
+            df_filtered = pd.DataFrame(columns=df_filtered.columns)
     else:
         df_filtered = df_stocks[(df_stocks['S'] >= 11) & (df_stocks['VolX'] >= 1.5)]
 
@@ -2069,58 +2120,7 @@ if not df.empty:
                                              round(df_filtered['P'] + (risk_amt * tp2_mult), 2), 
                                              round(df_filtered['P'] - (risk_amt * tp2_mult), 2))
         
-        elif watchlist_mode == "Swing Trading 📈":
-            dfs_to_concat = []
-            
-            # ఇవి అన్నింటికీ కామన్ గా ఉండే కండిషన్స్ (IPO స్టాక్స్ కూడా వచ్చేలా)
-            cond1 = (df_filtered['P'] > df_filtered['SMA150']) & ((df_filtered['P'] > df_filtered['SMA200']) | (df_filtered['SMA200'] == 0))
-            cond2 = (df_filtered['SMA150'] > df_filtered['SMA200']) | (df_filtered['SMA200'] == 0)
-            cond3 = (df_filtered['SMA200'] > df_filtered['SMA200_20D']) | (df_filtered['SMA200'] == 0)
-            cond4 = df_filtered['P'] > df_filtered['SMA50']
-            cond7 = df_filtered['SMA50'] > df_filtered['SMA150'] 
-            cond5 = df_filtered['P'] >= (df_filtered['Low52W'] * 1.30)
-            cond6 = df_filtered['P'] >= (df_filtered['High52W'] * 0.75)
-            
-            vcp_base_cond = cond1 & cond2 & cond3 & cond4 & cond7 & cond5 & cond6
-
-            # 1. కేవలం FNO & NIFTY స్టాక్స్
-            if "📈 Minervini Trend Template (VCP)" in move_type_filter:
-                cond_fno = df_filtered['T'].isin(NIFTY_50 + FNO_STOCKS)
-                df_min = df_filtered[cond_fno & vcp_base_cond].copy()
-                df_min['Strategy_Icon'] = "📈 M-VCP"
-                dfs_to_concat.append(df_min)
-
-            # 2. కేవలం MIDCAP 150 స్టాక్స్
-            if "🔥 Minervini MidCap 150" in move_type_filter:
-                cond_mid = df_filtered['T'].isin(MIDCAP_150)
-                df_mid = df_filtered[cond_mid & vcp_base_cond].copy()
-                df_mid['Strategy_Icon'] = "🔥 Mid VCP"
-                dfs_to_concat.append(df_mid)
-
-            # 3. కేవలం SMALLCAP 250 స్టాక్స్
-            if "🚀 Minervini SmallCap 250" in move_type_filter:
-                cond_small = df_filtered['T'].isin(SMALLCAP_250)
-                df_small = df_filtered[cond_small & vcp_base_cond].copy()
-                df_small['Strategy_Icon'] = "🚀 Small VCP"
-                dfs_to_concat.append(df_small)
-                
-            # 4. Strict VCP (FNO వాటికి మాత్రమే)
-            if "📉 Strict VCP (Price & Vol Contraction)" in move_type_filter:
-                cond_fno = df_filtered['T'].isin(NIFTY_50 + FNO_STOCKS)
-                strict_vcp_cond = (df_filtered['VCP_Contract'] == True) & (df_filtered['VCP_Vol_Dry'] == True)
-                df_vcp = df_filtered[cond_fno & vcp_base_cond & strict_vcp_cond].copy()
-                df_vcp['Strategy_Icon'] = "📉 VCP"
-                dfs_to_concat.append(df_vcp)
-
-            if "All Swing Stocks" in move_type_filter or not move_type_filter:
-                dfs_to_concat.append(df_filtered[df_filtered['Is_Swing'] == True])
-
-            if dfs_to_concat:
-                df_filtered = pd.concat(dfs_to_concat).drop_duplicates(subset=['Fetch_T'], keep='last')
-                # 🔥 SMART FIX: 5-Min API క్రాష్ అవ్వకుండా, టాప్ 40 ట్రెండింగ్ స్టాక్స్ ని మాత్రమే స్కాన్ చేస్తున్నాం
-                df_filtered = df_filtered.sort_values(by="Day_C", ascending=False).head(40)
-            else:
-                df_filtered = pd.DataFrame(columns=df_filtered.columns)
+        
     sort_key = "W_C" if chart_timeframe == "Weekly Chart" else "Day_C"
     if 'Sector_Bonus' not in df_filtered.columns: df_filtered['Sector_Bonus'] = 0
     
