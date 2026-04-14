@@ -1425,39 +1425,8 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
                 default=["📈 Minervini Trend Template (VCP)"], 
                 key="swing_trading_filter_key" 
             )
-        if watchlist_mode == "Fundamentals 🏢":
-        st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#d29922;'>🏢 Core Fundamentals ({fund_filter})</div>", unsafe_allow_html=True)
-        
-        # 🛠️ BUG FIX: వేరియబుల్ క్రియేట్ అవ్వకపోతే, ఇక్కడ డీఫాల్ట్‌గా ఒక ఎంప్టీ డేటాఫ్రేమ్ ఇస్తుంది
-        try:
-            _ = df_stocks_display
-        except NameError:
-            df_stocks_display = pd.DataFrame(columns=['Fetch_T', 'P', 'S'])
-            
-        # Fetching for top 50 to get good candidates
-        fund_tickers = df_stocks_display['Fetch_T'].tolist()[:50] if not df_stocks_display.empty else NIFTY_50[:50]
-        
-        df_fund = fetch_fundamentals_data(fund_tickers)
-        if not df_fund.empty:
-            # 🦅 WARREN BUFFETT LOGIC APPLIED HERE 🦅
-            if fund_filter == "🦅 Warren Buffett Value Stocks":
-                df_fund = df_fund[
-                    (df_fund['ROE %'] > 15) &              # Consistent strong returns
-                    (df_fund['Debt/Equity'] < 0.5) &       # Low Debt
-                    (df_fund['P/E Ratio'] > 0) &           # Profitable
-                    (df_fund['P/E Ratio'] < 25)            # Not overvalued
-                ]
-            
-            html_fund = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-fund" style="background-color: #d29922; color: #161b22;">📊 FUNDAMENTAL & TECHNICAL METRICS</th></tr><tr><th style="text-align:left;">STOCK</th><th>SECTOR</th><th>LTP (₹)</th><th>TECH SCORE</th><th>MKT CAP (Cr)</th><th>P/E</th><th>ROE %</th><th>D/E Ratio</th><th>DIV YIELD</th><th>52W HIGH</th></tr></thead><tbody>'
-            for _, row in df_fund.iterrows():
-                stock_name = row["Fetch_T"].replace(".NS", "")
-                tech_row = df_stocks_display[df_stocks_display['Fetch_T'] == row["Fetch_T"]]
-                ltp_val, score_val = (float(tech_row['P'].iloc[0]), int(tech_row['S'].iloc[0])) if not tech_row.empty else (0.0, 0)
-                html_fund += f'<tr><td class="t-symbol">{stock_name}</td><td>{row["Sector"]}</td><td>{ltp_val:.2f}</td><td style="color:#ffd700;">⭐ {score_val}</td><td>{row["Market_Cap (Cr)"]:,.2f}</td><td>{row["P/E Ratio"]}</td><td class="text-green">{row["ROE %"]}%</td><td>{row["Debt/Equity"]}</td><td>{row["Div Yield %"]}%</td><td class="text-green">₹{row["52W High"]}</td></tr>'
-            html_fund += '</tbody></table>'
-            st.markdown(html_fund, unsafe_allow_html=True)
-        else:
-            st.info("Fundamentals data not available at the moment.")
+        elif watchlist_mode == "Fundamentals 🏢":
+            fund_filter = st.selectbox("Fundamentals Filter", ["Top Ranked Stocks ⭐", "🦅 Warren Buffett Value Stocks", "Swing Trading Candidates 📈", "Nifty 50 Stocks", "My Portfolio 💼"], index=0)
             
     with sc2:
         sort_mode = st.selectbox("Sort By", ["Score Wise Up ⭐", "Custom Sort", "Sector Trending First 📊", "Score Wise Down ⬇️", "🤖 AI Prob Up ⬆️", "% Change Up 🟢", "% Change Down 🔴"], index=0)
@@ -2117,6 +2086,13 @@ if not df.empty:
             
     if watchlist_mode == "Fundamentals 🏢":
         st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#d29922;'>🏢 Core Fundamentals ({fund_filter})</div>", unsafe_allow_html=True)
+        
+        # 🛠️ BUG FIX: వేరియబుల్ క్రియేట్ అవ్వకపోతే ఇక్కడ ఎర్రర్ రాకుండా కాపాడుతుంది
+        try:
+            _ = df_stocks_display
+        except NameError:
+            df_stocks_display = pd.DataFrame(columns=['Fetch_T', 'P', 'S'])
+            
         # Fetching for top 50 to get good candidates
         fund_tickers = df_stocks_display['Fetch_T'].tolist()[:50] if not df_stocks_display.empty else NIFTY_50[:50]
         
@@ -2141,6 +2117,7 @@ if not df.empty:
             st.markdown(html_fund, unsafe_allow_html=True)
         else:
             st.info("Fundamentals data not available at the moment.")
+            
     elif watchlist_mode == "Mutual Funds 📈":
         st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#00BFFF;'>📈 Mutual Funds Screener (Live Morningstar Data)</div>", unsafe_allow_html=True)
         
