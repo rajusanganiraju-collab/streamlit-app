@@ -596,12 +596,21 @@ def fetch_all_data():
     all_stocks = set(base_stocks + port_stocks)
     tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + list(COMMODITY_MAP.keys()) + [f"{t}.NS" for t in all_stocks if t]
     
-    # 🔥 Threads పెంచాం (15), పీరియడ్ కొద్దిగా తగ్గించాం (15mo is enough for 200 SMA)
-    data = yf.download(tkrs, period="15mo", progress=False, group_by='ticker', threads=15)
+    # 🔥 యాహూ ఫైనాన్స్ కనెక్షన్ కట్ అవ్వకుండా 150 స్టాక్స్ ని ఒక బ్యాచ్ లాగా డౌన్‌లోడ్ చేస్తున్నాం
+    chunk_size = 150
+    data_frames = []
     
+    for i in range(0, len(tkrs), chunk_size):
+        chunk = tkrs[i : i + chunk_size]
+        temp_data = yf.download(chunk, period="15mo", progress=False, group_by='ticker', threads=5)
+        if not temp_data.empty:
+            data_frames.append(temp_data)
+            
     # డేటా మొత్తం ఫెయిల్ అయితే, ఎర్రర్ రాకుండా ఎంప్టీ యాప్ చూపిస్తుంది
-    if data.empty:
+    if not data_frames:
         return pd.DataFrame()
+        
+    data = pd.concat(data_frames, axis=1)
 
     results = []
     minutes = get_minutes_passed()
