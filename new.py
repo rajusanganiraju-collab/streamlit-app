@@ -593,14 +593,17 @@ def fetch_all_data():
     all_stocks = set(base_stocks + port_stocks)
     tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + list(COMMODITY_MAP.keys()) + [f"{t}.NS" for t in all_stocks if t]
     
-    # 🔥 యాహూ ఫైనాన్స్ కనెక్షన్ కట్ అవ్వకుండా 150 స్టాక్స్ ని ఒక బ్యాచ్ లాగా డౌన్‌లోడ్ చేస్తున్నాం
-    chunk_size = 150
+    # 🔥 యాహూ ఫైనాన్స్ కనెక్షన్ కట్ అవ్వకుండా 200 స్టాక్స్ ని ఒక బ్యాచ్ లాగా డౌన్‌లోడ్ చేస్తున్నాం
+    chunk_size = 200
     data_frames = []
     
     for i in range(0, len(tkrs), chunk_size):
         chunk = tkrs[i : i + chunk_size]
         temp_data = yf.download(chunk, period="15mo", progress=False, group_by='ticker', threads=5)
         if not temp_data.empty:
+            # సింగిల్ స్టాక్ వస్తే MultiIndex ఎర్రర్ రాకుండా సేఫ్టీ చెక్
+            if len(chunk) == 1:
+                temp_data.columns = pd.MultiIndex.from_product([chunk, temp_data.columns])
             data_frames.append(temp_data)
             
     # డేటా మొత్తం ఫెయిల్ అయితే, ఎర్రర్ రాకుండా ఎంప్టీ యాప్ చూపిస్తుంది
