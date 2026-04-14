@@ -981,7 +981,8 @@ def render_portfolio_table(df_port, df_stocks, weekly_trends, port_sort="Default
     ap_color = "text-green" if actual_pnl_value >= 0 else "text-red"
     ap_sign = "+" if actual_pnl_value > 0 else ""
 
-    html += f'<tr class="port-total"><td colspan="7" style="text-align:right; padding-right:15px; font-size:12px;">TOTAL INVESTED: ₹{total_invested:,.0f} &nbsp;|&nbsp; CURRENT: ₹{total_current:,.0f} &nbsp;|&nbsp; <span style="color:#00BFFF;">ACTUAL PROFITS: {ap_sign}₹{actual_pnl_value:,.0f}</span> &nbsp;|&nbsp; OVERALL P&L:</td><td class="{d_color}">{d_sign}₹{total_day_pnl:,.0f}</td><td class="{o_color}">{o_sign}₹{overall_total_pnl:,.0f}</td><td class="{o_color}">{o_sign}{overall_total_pct:.2f}%</td></tr>'
+    # 🔥 ఇక్కడితో టేబుల్ క్లోజ్ చేసి కరెక్ట్ గా రిటర్న్ చేస్తున్నాం
+    html += f'<tr class="port-total"><td colspan="7" style="text-align:right; padding-right:15px; font-size:12px;">TOTAL INVESTED: ₹{total_invested:,.0f} &nbsp;|&nbsp; CURRENT: ₹{total_current:,.0f} &nbsp;|&nbsp; ACTUAL P&L: <span class="{ap_color}">{ap_sign}₹{actual_pnl_value:,.0f}</span> &nbsp;|&nbsp; OVERALL P&L:</td><td class="{d_color}">{d_sign}₹{total_day_pnl:,.0f}</td><td class="{o_color}">{o_sign}₹{overall_total_pnl:,.0f}</td><td class="{o_color}">{o_sign}{overall_total_pct:.2f}%</td></tr>'
     html += "</tbody></table>"
     return html
 
@@ -2113,6 +2114,8 @@ if not df.empty:
 
             if dfs_to_concat:
                 df_filtered = pd.concat(dfs_to_concat).drop_duplicates(subset=['Fetch_T'], keep='last')
+                # 🔥 SMART FIX: 5-Min API క్రాష్ అవ్వకుండా, టాప్ 40 ట్రెండింగ్ స్టాక్స్ ని మాత్రమే స్కాన్ చేస్తున్నాం
+                df_filtered = df_filtered.sort_values(by="Day_C", ascending=False).head(40)
             else:
                 df_filtered = pd.DataFrame(columns=df_filtered.columns)
     sort_key = "W_C" if chart_timeframe == "Weekly Chart" else "Day_C"
