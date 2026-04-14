@@ -784,12 +784,14 @@ def fetch_fundamentals_data(symbols_list):
                 "Sector": info.get('sector', 'N/A'),
                 "Market_Cap (Cr)": round(info.get('marketCap', 0) / 10000000, 2) if info.get('marketCap') else 0,
                 "P/E Ratio": round(info.get('trailingPE', 0), 2) if info.get('trailingPE') else 0,
+                "ROE %": round(info.get('returnOnEquity', 0) * 100, 2) if info.get('returnOnEquity') else 0,
+                "Debt/Equity": round(info.get('debtToEquity', 0) / 100, 2) if info.get('debtToEquity') else 0,
                 "Div Yield %": round(info.get('dividendYield', 0) * 100, 2) if info.get('dividendYield') else 0.0,
                 "52W High": info.get('fiftyTwoWeekHigh', 0),
                 "52W Low": info.get('fiftyTwoWeekLow', 0)
             }
         except: return None
-
+   
     fund_data = []
     # 🔥 Multi-threading magic here! (15x faster)
     with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
@@ -915,11 +917,7 @@ def render_portfolio_table(df_port, df_stocks, weekly_trends, port_sort="Default
     ap_color = "text-green" if actual_pnl_value >= 0 else "text-red"
     ap_sign = "+" if actual_pnl_value > 0 else ""
 
-    html += f'<tr class="port-total"><td colspan="7" style="text-align:right; padding-right:15px; font-size:12px;">TOTAL INVESTED: ₹{total_invested:,.0f} &nbsp;|&nbsp; CURRENT: ₹{total_current:,.0f} &nbsp;|&nbsp; ACTUAL P&L: <span class="{ap_color}">{ap_sign}₹{actual_pnl_value:,.0f}</span> &nbsp;|&nbsp; OVERALL P&L:</td><td class="{d_color}">{d_sign}₹{total_day_pnl:,.0f}</td><td class="{o_color}">{o_sign}₹{overall_total_pnl:,.0f}</td><td class="{o_color}">{o_sign}{overall_total_pct:.2f}%</td></tr>'
-    html += "</tbody></table>"
-    return html
-
-    # 🔥 UPDATE: Inserted ACTUAL PROFITS smoothly into the existing colspan without breaking the table layout
+        # 🔥 UPDATE: Inserted ACTUAL PROFITS smoothly into the existing colspan without breaking the table layout
     html += f'<tr class="port-total"><td colspan="7" style="text-align:right; padding-right:15px; font-size:12px;">TOTAL INVESTED: ₹{total_invested:,.0f} &nbsp;|&nbsp; CURRENT: ₹{total_current:,.0f} &nbsp;|&nbsp; <span style="color:#00BFFF;">ACTUAL PROFITS: ₹{actual_profits_value:,.0f}</span> &nbsp;|&nbsp; OVERALL P&L:</td><td class="{d_color}">{d_sign}₹{total_day_pnl:,.0f}</td><td class="{o_color}">{o_sign}₹{overall_total_pnl:,.0f}</td><td class="{o_color}">{o_sign}{overall_total_pct:.2f}%</td></tr>'
     html += "</tbody></table>"
     return html
@@ -1425,7 +1423,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
                 key="swing_trading_filter_key" 
             )
         elif watchlist_mode == "Fundamentals 🏢":
-            fund_filter = st.selectbox("Fundamentals Filter", ["Top Ranked Stocks ⭐", "Swing Trading Candidates 📈", "Nifty 50 Stocks", "My Portfolio 💼"], index=0)
+            fund_filter = st.selectbox("Fundamentals Filter", ["Top Ranked Stocks ⭐", "🦅 Warren Buffett Value Stocks", "Swing Trading Candidates 📈", "Nifty 50 Stocks", "My Portfolio 💼"], index=0)
             
     with sc2:
         sort_mode = st.selectbox("Sort By", ["Score Wise Up ⭐", "Custom Sort", "Sector Trending First 📊", "Score Wise Down ⬇️", "🤖 AI Prob Up ⬆️", "% Change Up 🟢", "% Change Down 🔴"], index=0)
@@ -2059,22 +2057,32 @@ if not df.empty:
         if watchlist_mode == "🤖 Today's AI Predictions": df_stocks_display = df_filtered.sort_values(by=['AI_Prob', 'VolX'], ascending=[False, False])
         else: df_stocks_display = df_filtered.sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, False])
             
-    if watchlist_mode == "Fundamentals 🏢":
+    elif watchlist_mode == "Fundamentals 🏢":
         st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#d29922;'>🏢 Core Fundamentals ({fund_filter})</div>", unsafe_allow_html=True)
-        fund_tickers = df_stocks_display['Fetch_T'].tolist()[:30] if not df_stocks_display.empty else NIFTY_50[:30]
+        # Fetching for top 50 to get good candidates
+        fund_tickers = df_stocks_display['Fetch_T'].tolist()[:50] if not df_stocks_display.empty else NIFTY_50[:50]
         
-        if True:
-            df_fund = fetch_fundamentals_data(fund_tickers)
-            if not df_fund.empty:
-                html_fund = f'<table class="term-table"><thead><tr><th colspan="9" class="term-head-fund" style="background-color: #d29922; color: #161b22;">📊 FUNDAMENTAL & TECHNICAL METRICS</th></tr><tr><th style="text-align:left;">STOCK</th><th>SECTOR</th><th>LTP (₹)</th><th>TECH SCORE</th><th>MKT CAP (Cr)</th><th>P/E RATIO</th><th>DIV YIELD</th><th>52W HIGH</th><th>52W LOW</th></tr></thead><tbody>'
-                for _, row in df_fund.iterrows():
-                    stock_name = row["Fetch_T"].replace(".NS", "")
-                    tech_row = df_stocks_display[df_stocks_display['Fetch_T'] == row["Fetch_T"]]
-                    ltp_val, score_val = (float(tech_row['P'].iloc[0]), int(tech_row['S'].iloc[0])) if not tech_row.empty else (0.0, 0)
-                    html_fund += f'<tr><td class="t-symbol">{stock_name}</td><td>{row["Sector"]}</td><td>{ltp_val:.2f}</td><td style="color:#ffd700;">⭐ {score_val}</td><td>{row["Market_Cap (Cr)"]:,.2f}</td><td>{row["P/E Ratio"]}</td><td>{row["Div Yield %"]}%</td><td class="text-green">₹{row["52W High"]}</td><td class="text-red">₹{row["52W Low"]}</td></tr>'
-                html_fund += '</tbody></table>'
-                st.markdown(html_fund, unsafe_allow_html=True)
-            else: st.info("Fundamentals data not available at the moment.")
+        df_fund = fetch_fundamentals_data(fund_tickers)
+        if not df_fund.empty:
+            # 🦅 WARREN BUFFETT LOGIC APPLIED HERE 🦅
+            if fund_filter == "🦅 Warren Buffett Value Stocks":
+                df_fund = df_fund[
+                    (df_fund['ROE %'] > 15) &              # Consistent strong returns
+                    (df_fund['Debt/Equity'] < 0.5) &       # Low Debt
+                    (df_fund['P/E Ratio'] > 0) &           # Profitable
+                    (df_fund['P/E Ratio'] < 25)            # Not overvalued
+                ]
+            
+            html_fund = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-fund" style="background-color: #d29922; color: #161b22;">📊 FUNDAMENTAL & TECHNICAL METRICS</th></tr><tr><th style="text-align:left;">STOCK</th><th>SECTOR</th><th>LTP (₹)</th><th>TECH SCORE</th><th>MKT CAP (Cr)</th><th>P/E</th><th>ROE %</th><th>D/E Ratio</th><th>DIV YIELD</th><th>52W HIGH</th></tr></thead><tbody>'
+            for _, row in df_fund.iterrows():
+                stock_name = row["Fetch_T"].replace(".NS", "")
+                tech_row = df_stocks_display[df_stocks_display['Fetch_T'] == row["Fetch_T"]]
+                ltp_val, score_val = (float(tech_row['P'].iloc[0]), int(tech_row['S'].iloc[0])) if not tech_row.empty else (0.0, 0)
+                html_fund += f'<tr><td class="t-symbol">{stock_name}</td><td>{row["Sector"]}</td><td>{ltp_val:.2f}</td><td style="color:#ffd700;">⭐ {score_val}</td><td>{row["Market_Cap (Cr)"]:,.2f}</td><td>{row["P/E Ratio"]}</td><td class="text-green">{row["ROE %"]}%</td><td>{row["Debt/Equity"]}</td><td>{row["Div Yield %"]}%</td><td class="text-green">₹{row["52W High"]}</td></tr>'
+            html_fund += '</tbody></table>'
+            st.markdown(html_fund, unsafe_allow_html=True)
+        else:
+            st.info("Fundamentals data not available at the moment.")
     elif watchlist_mode == "Mutual Funds 📈":
         st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#00BFFF;'>📈 Mutual Funds Screener (Live Morningstar Data)</div>", unsafe_allow_html=True)
         
