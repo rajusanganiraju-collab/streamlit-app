@@ -392,7 +392,7 @@ FNO_STOCKS = [
 # 🔥 FNO లో లేని కచ్చితమైన NIFTY MIDCAP స్టాక్స్ మాత్రమే:
 MIDCAP_150 = [
     "AJANTPHARM", "APARINDS", "BANKINDIA", "CGPOWER", "DELHIVERY", "FORTIS", "INDIANB", "INDIGOPNTS", 
-    "IREDA", "KALYANKJIL", "KPITTECH", "L&TFH", "LODHA", "MAXHEALTH", "MAZDOCK", "NHPC", 
+    "IREDA", "KALYANKJIL", "KPITTECH", "LTF", "LODHA", "MAXHEALTH", "MAZDOCK", "NHPC", 
     "NLCINDIA", "OIL", "PAYTM", "PBFINTECH", "PHOENIXLTD", "POONAWALLA", "RVNL", "SJVN", 
     "SONACOMS", "SUNDARMFIN", "SUPREMEIND", "SUZLON", "TATAELXSI", "TATAMTRDVR", "TORNTPOWER", "UCOBANK", 
     "UNIONBANK", "VIJAYA", "YESBANK"
@@ -2108,7 +2108,8 @@ if not df.empty:
                 dfs_to_concat.append(df_small)
             
             if dfs_to_concat:
-                df_filtered = pd.concat(dfs_to_concat).drop_duplicates(subset=['Fetch_T'])
+    # 🔥 FIX: keep='last' పెట్టడం వల్ల స్పెషల్ ట్యాగ్ (Mid/Small) ఓవర్‌రైట్ అవ్వకుండా ఉంటుంది
+    df_filtered = pd.concat(dfs_to_concat).drop_duplicates(subset=['Fetch_T'], keep='last')
             else:
                 df_filtered = pd.DataFrame(columns=df_filtered.columns)
 
