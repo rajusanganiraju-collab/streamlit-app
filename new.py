@@ -1425,8 +1425,15 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
                 default=["📈 Minervini Trend Template (VCP)"], 
                 key="swing_trading_filter_key" 
             )
-        elif watchlist_mode == "Fundamentals 🏢":
-            fund_filter = st.selectbox("Fundamentals Filter", ["Top Ranked Stocks ⭐", "🦅 Warren Buffett Value Stocks", "Swing Trading Candidates 📈", "Nifty 50 Stocks", "My Portfolio 💼"], index=0)
+        if watchlist_mode == "Fundamentals 🏢":
+        st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#d29922;'>🏢 Core Fundamentals ({fund_filter})</div>", unsafe_allow_html=True)
+        
+        # 🛠️ BUG FIX: వేరియబుల్ క్రియేట్ అవ్వకపోతే, ఇక్కడ డీఫాల్ట్‌గా ఒక ఎంప్టీ డేటాఫ్రేమ్ ఇస్తుంది
+        try:
+            _ = df_stocks_display
+        except NameError:
+            df_stocks_display = pd.DataFrame(columns=['Fetch_T', 'P', 'S'])
+            
         # Fetching for top 50 to get good candidates
         fund_tickers = df_stocks_display['Fetch_T'].tolist()[:50] if not df_stocks_display.empty else NIFTY_50[:50]
         
