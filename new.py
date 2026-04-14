@@ -590,7 +590,7 @@ def fetch_all_data():
     port_df = load_portfolio()
     port_stocks = [str(sym).upper().strip() for sym in port_df['Symbol'].tolist() if str(sym).strip() != ""]
     
-    # 🔥 Nifty 50, F&O మరియు Mid & Small Cap స్టాక్స్ తీసుకుంటున్నాం
+    # 🔥 Nifty 50, F&O మరియు పైన గ్లోబల్ గా ఇచ్చిన Mid & Small Cap స్టాక్స్ అన్నీ తీసుకుంటున్నాం
     base_stocks = NIFTY_50.copy() + FNO_STOCKS + MIDCAP_150 + SMALLCAP_250
         
     all_stocks = set(base_stocks + port_stocks)
@@ -1492,8 +1492,6 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
         st.markdown("<hr style='margin:10px 0; border-color:#30363d;'>", unsafe_allow_html=True)
         cc1, cc2, cc3 = st.columns(3)
         with cc1:
-            # ✅ ఇప్పుడు అన్ని మోడ్స్ కి టైమ్‌ఫ్రేమ్ ఆప్షన్ కనిపిస్తుంది
-            # 🔥 స్వింగ్ ట్రేడింగ్ సెలెక్ట్ చేస్తే డీఫాల్ట్‌గా Daily Chart కి మారుతుంది
             chart_timeframe = st.radio("Timeframe", ["Intraday (5m)", "Daily Chart", "Weekly Chart"], index=1 if watchlist_mode == "Swing Trading 📈" else 0, horizontal=True)
         with cc2: show_crosshair = st.toggle("⌖ Show Crosshair", value=False)
         with cc3: show_vol = st.toggle("📊 Show Vol Bars", value=False)
@@ -1525,7 +1523,6 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
                     if st.button("Delete", key=f"del_{s_key}"):
                         del st.session_state.custom_alerts[s_key]
                         st.rerun()
-
 # =========================================================
 # --- 8. RENDERING ---
 # =========================================================
