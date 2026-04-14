@@ -1546,9 +1546,8 @@ if not df.empty:
     df_port_saved = load_portfolio().copy()
 
     # 2. 🔥 STRICT SEGMENT FILTERING (IRON WALL) 🔥
-    # మిగతా సెగ్మెంట్స్ అన్నీ తీసేశాం, కేవలం టాప్ 200 స్టాక్స్ మాత్రమే ఇక్కడ అలో అవుతాయి
-    strict_allowed = set(NIFTY_50 + FNO_STOCKS)
-
+    # Nifty 50, F&O, MidCap మరియు SmallCap స్టాక్స్ అన్నీ ఇక్కడ అలో అవుతాయి
+    strict_allowed = set(NIFTY_50 + FNO_STOCKS + MIDCAP_150 + SMALLCAP_250)
     # ఈ ఒక్క లైన్ దెబ్బతో పోర్ట్‌ఫోలియో స్టాక్స్ బైపాస్ అవ్వడం పర్మినెంట్ గా ఆగిపోతుంది!
     df_stocks = df_all_stocks[df_all_stocks['T'].isin(strict_allowed)].copy()
     
