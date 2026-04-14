@@ -101,9 +101,6 @@ def save_closed_trades(df):
 if 'pause_refresh' not in st.session_state:
     st.session_state.pause_refresh = False
 
-if not st.session_state.pause_refresh:
-    st_autorefresh(interval=5000, key="datarefresh")
-
 if 'pinned_stocks' not in st.session_state:
     st.session_state.pinned_stocks = []
 if 'custom_alerts' not in st.session_state:
@@ -1461,6 +1458,13 @@ if not df.empty:
 # =========================================================
 
 watchlist_mode = st.selectbox("Watchlist", ["🤖 Today's AI Predictions", "Swing Trading 📈", "Nifty 50 Heatmap", "Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢", "Mutual Funds 📈"], index=0, label_visibility="collapsed")
+
+# 🔥 SMART REFRESH: స్వింగ్ ట్రేడింగ్ కి 15 సెకన్లు, మిగతా డే ట్రేడింగ్/హీట్ మ్యాప్ లకి 5 సెకన్లు
+refresh_time = 15000 if watchlist_mode == "Swing Trading 📈" else 5000
+
+if not st.session_state.pause_refresh:
+    st_autorefresh(interval=refresh_time, key="datarefresh")
+
 # 🔥 స్వింగ్ ట్రేడింగ్ సెలెక్ట్ చేస్తే డీఫాల్ట్‌గా Chart కి మారుతుంది
 view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], index=1 if watchlist_mode == "Swing Trading 📈" else 0, horizontal=True, label_visibility="collapsed")
 move_type_filter = ["🌊 One Sided Only", "🎯 Reversals Only", "🏹 Rubber Band Stretch"] 
