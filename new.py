@@ -2108,11 +2108,9 @@ if not df.empty:
                 dfs_to_concat.append(df_small)
             
             if dfs_to_concat:
-    # 🔥 FIX: keep='last' పెట్టడం వల్ల స్పెషల్ ట్యాగ్ (Mid/Small) ఓవర్‌రైట్ అవ్వకుండా ఉంటుంది
-    df_filtered = pd.concat(dfs_to_concat).drop_duplicates(subset=['Fetch_T'], keep='last')
+                df_filtered = pd.concat(dfs_to_concat).drop_duplicates(subset=['Fetch_T'], keep='last')
             else:
                 df_filtered = pd.DataFrame(columns=df_filtered.columns)
-
     sort_key = "W_C" if chart_timeframe == "Weekly Chart" else "Day_C"
     if 'Sector_Bonus' not in df_filtered.columns: df_filtered['Sector_Bonus'] = 0
     
