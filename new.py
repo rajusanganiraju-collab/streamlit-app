@@ -542,6 +542,11 @@ def fetch_cached_5m_data(tkrs_list):
         else:
             yf_tkrs.append(tkr)
             
+    # 🔥 FIX: ఇక్కడ Dhan API ఫెయిల్ అయితే, స్టాక్స్ అన్నీ Yahoo Finance (YF) కి వెళ్లేలా యాడ్ చేశాం
+    if not dhan and dhan_tasks:
+        yf_tkrs.extend(list(dhan_tasks.keys()))
+        dhan_tasks = {} # Dhan లిస్ట్ క్లియర్ చేస్తున్నాం
+        
     if dhan and dhan_tasks:
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             futures = {executor.submit(fetch_single_dhan_5m, tkr, data[1]): tkr for tkr, data in dhan_tasks.items()}
@@ -563,6 +568,7 @@ def fetch_cached_5m_data(tkrs_list):
                     if not df.empty:
                         df.index = df.index.tz_localize(None)
                         results_dict[tkr] = df
+                        
     valid_results = {k: v for k, v in results_dict.items() if not v.empty and len(v) > 0}
     if valid_results:
         return pd.concat(valid_results.values(), axis=1, keys=valid_results.keys(), sort=False)
