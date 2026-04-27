@@ -471,13 +471,13 @@ def init_dhan_client():
 dhan_client = init_dhan_client()
 
 if isinstance(dhan_client, str):
-    st.sidebar.error(f"Dhan Config Error: {dhan_client}")
+    st.toast(f"❌ Dhan Config Error: {dhan_client}")
     dhan = None
 elif dhan_client:
-    st.sidebar.success("Dhan API Connected ✅")
+    st.toast("Dhan API Connected ✅", icon="🟢")
     dhan = dhan_client
 else:
-    st.sidebar.error("Dhan API Connection Failed ❌")
+    st.toast("❌ Dhan API Connection Failed")
     dhan = None
 if dhan:
     st.sidebar.success("Dhan API Connected ✅")
