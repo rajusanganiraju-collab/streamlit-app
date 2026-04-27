@@ -1606,8 +1606,8 @@ if not df.empty:
     df_port_saved = load_portfolio().copy()
 
     # 2. 🔥 STRICT SEGMENT FILTERING (SMART IRON WALL) 🔥
-    # స్వింగ్ ట్రేడింగ్ సెలెక్ట్ చేస్తేనే Mid/Small Caps లోపలికి వస్తాయి, లేదంటే కేవలం FNO మాత్రమే!
-    if watchlist_mode == "Swing Trading 📈":
+    # స్వింగ్ ట్రేడింగ్ మరియు AI Predictions కి Mid/Small Caps ని కూడా లోపలికి అనుమతిస్తున్నాం
+    if watchlist_mode in ["Swing Trading 📈", "🤖 Today's AI Predictions"]:
         strict_allowed = set(NIFTY_50 + FNO_STOCKS + MIDCAP_150 + SMALLCAP_250)
     else:
         strict_allowed = set(NIFTY_50 + FNO_STOCKS)
@@ -2443,8 +2443,27 @@ if not df.empty:
                     html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">{special_icon}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if pct_val>0 else ""}{pct_val:.2f}%</div></a>'
                 st.markdown(html_stk + '</div>', unsafe_allow_html=True)
                 
-            if not df_buy.empty: render_heatmap_section(df_buy, f"🟢 POSITIVE / BUY ({watchlist_mode})", "#3fb950")
-            if not df_sell.empty: render_heatmap_section(df_sell, f"🔴 NEGATIVE / SELL ({watchlist_mode})", "#f85149")
+            if watchlist_mode == "🤖 Today's AI Predictions":
+                # 1. F&O మరియు NIFTY 50 
+                fno_buy = df_buy[df_buy['T'].isin(NIFTY_50 + FNO_STOCKS)]
+                fno_sell = df_sell[df_sell['T'].isin(NIFTY_50 + FNO_STOCKS)]
+                if not fno_buy.empty: render_heatmap_section(fno_buy, "🟢 POSITIVE / BUY (F&O & Nifty 50)", "#3fb950")
+                if not fno_sell.empty: render_heatmap_section(fno_sell, "🔴 NEGATIVE / SELL (F&O & Nifty 50)", "#f85149")
+                
+                # 2. Mid Cap 150
+                mid_buy = df_buy[df_buy['T'].isin(MIDCAP_150)]
+                mid_sell = df_sell[df_sell['T'].isin(MIDCAP_150)]
+                if not mid_buy.empty: render_heatmap_section(mid_buy, "🟢 POSITIVE / BUY (AI Mid Cap)", "#3fb950")
+                if not mid_sell.empty: render_heatmap_section(mid_sell, "🔴 NEGATIVE / SELL (AI Mid Cap)", "#f85149")
+                
+                # 3. Small Cap 250
+                small_buy = df_buy[df_buy['T'].isin(SMALLCAP_250)]
+                small_sell = df_sell[df_sell['T'].isin(SMALLCAP_250)]
+                if not small_buy.empty: render_heatmap_section(small_buy, "🟢 POSITIVE / BUY (AI Small Cap)", "#3fb950")
+                if not small_sell.empty: render_heatmap_section(small_sell, "🔴 NEGATIVE / SELL (AI Small Cap)", "#f85149")
+            else:
+                if not df_buy.empty: render_heatmap_section(df_buy, f"🟢 POSITIVE / BUY ({watchlist_mode})", "#3fb950")
+                if not df_sell.empty: render_heatmap_section(df_sell, f"🔴 NEGATIVE / SELL ({watchlist_mode})", "#f85149")
             
             if watchlist_mode == "🤖 Today's AI Predictions":
                 with st.expander("🤖 View AI Predictive Radar (Probability Based)", expanded=True): st.markdown(render_highscore_terminal_table(df_stocks_display), unsafe_allow_html=True)
@@ -2543,26 +2562,50 @@ if not df.empty:
         #     unpinned_df = unpinned_df[unpinned_df['Fetch_T'].isin(valid_tickers)]
             
         if not unpinned_df.empty and watchlist_mode != "Fundamentals 🏢":
-            if watchlist_mode == "Day Trading Stocks 🚀":
-                # 🔥 .head(12) యాడ్ చేశాం
-                df_buy_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('BUY', na=False)].head(12)
-                df_sell_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('SELL', na=False)].head(12)
-            else:
-                df_buy_chart = unpinned_df[unpinned_df[sort_key] >= 0].head(12)
-                df_sell_chart = unpinned_df[unpinned_df[sort_key] < 0].head(12)
+            if watchlist_mode == "🤖 Today's AI Predictions":
+                # Buy side Charts
+                fno_buy_chart = unpinned_df[(unpinned_df[sort_key] >= 0) & (unpinned_df['T'].isin(NIFTY_50 + FNO_STOCKS))].head(12)
+                mid_buy_chart = unpinned_df[(unpinned_df[sort_key] >= 0) & (unpinned_df['T'].isin(MIDCAP_150))].head(12)
+                small_buy_chart = unpinned_df[(unpinned_df[sort_key] >= 0) & (unpinned_df['T'].isin(SMALLCAP_250))].head(12)
                 
-            if not df_buy_chart.empty:
-                st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:10px; margin-bottom:5px; color:#3fb950;'>🟢 POSITIVE / BUY ({watchlist_mode})</div>", unsafe_allow_html=True)
-                render_chart_grid(df_buy_chart, show_pin_option=True, key_prefix="main_buy", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
+                if not fno_buy_chart.empty:
+                    st.markdown("<div style='font-size:16px; font-weight:bold; margin-top:10px; margin-bottom:5px; color:#3fb950;'>🟢 POSITIVE / BUY (F&O & Nifty 50)</div>", unsafe_allow_html=True)
+                    render_chart_grid(fno_buy_chart, show_pin_option=True, key_prefix="fno_buy", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
+                if not mid_buy_chart.empty:
+                    st.markdown("<div style='font-size:16px; font-weight:bold; margin-top:20px; margin-bottom:5px; color:#3fb950;'>🟢 POSITIVE / BUY (AI Mid Cap)</div>", unsafe_allow_html=True)
+                    render_chart_grid(mid_buy_chart, show_pin_option=True, key_prefix="mid_buy", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
+                if not small_buy_chart.empty:
+                    st.markdown("<div style='font-size:16px; font-weight:bold; margin-top:20px; margin-bottom:5px; color:#3fb950;'>🟢 POSITIVE / BUY (AI Small Cap)</div>", unsafe_allow_html=True)
+                    render_chart_grid(small_buy_chart, show_pin_option=True, key_prefix="small_buy", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
 
-            if not df_sell_chart.empty:
-                st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:20px; margin-bottom:5px; color:#f85149;'>🔴 NEGATIVE / SELL ({watchlist_mode})</div>", unsafe_allow_html=True)
-                render_chart_grid(df_sell_chart, show_pin_option=True, key_prefix="main_sell", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
+                # Sell side Charts
+                fno_sell_chart = unpinned_df[(unpinned_df[sort_key] < 0) & (unpinned_df['T'].isin(NIFTY_50 + FNO_STOCKS))].head(12)
+                mid_sell_chart = unpinned_df[(unpinned_df[sort_key] < 0) & (unpinned_df['T'].isin(MIDCAP_150))].head(12)
+                small_sell_chart = unpinned_df[(unpinned_df[sort_key] < 0) & (unpinned_df['T'].isin(SMALLCAP_250))].head(12)
+                
+                if not fno_sell_chart.empty:
+                    st.markdown("<div style='font-size:16px; font-weight:bold; margin-top:20px; margin-bottom:5px; color:#f85149;'>🔴 NEGATIVE / SELL (F&O & Nifty 50)</div>", unsafe_allow_html=True)
+                    render_chart_grid(fno_sell_chart, show_pin_option=True, key_prefix="fno_sell", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
+                if not mid_sell_chart.empty:
+                    st.markdown("<div style='font-size:16px; font-weight:bold; margin-top:20px; margin-bottom:5px; color:#f85149;'>🔴 NEGATIVE / SELL (AI Mid Cap)</div>", unsafe_allow_html=True)
+                    render_chart_grid(mid_sell_chart, show_pin_option=True, key_prefix="mid_sell", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
+                if not small_sell_chart.empty:
+                    st.markdown("<div style='font-size:16px; font-weight:bold; margin-top:20px; margin-bottom:5px; color:#f85149;'>🔴 NEGATIVE / SELL (AI Small Cap)</div>", unsafe_allow_html=True)
+                    render_chart_grid(small_sell_chart, show_pin_option=True, key_prefix="small_sell", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
+                    
+            else:
+                # మిగతా మోడ్స్ కి నార్మల్ గా రెండర్ అవుతుంది
+                if watchlist_mode == "Day Trading Stocks 🚀":
+                    df_buy_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('BUY', na=False)].head(12)
+                    df_sell_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('SELL', na=False)].head(12)
+                else:
+                    df_buy_chart = unpinned_df[unpinned_df[sort_key] >= 0].head(12)
+                    df_sell_chart = unpinned_df[unpinned_df[sort_key] < 0].head(12)
+                    
+                if not df_buy_chart.empty:
+                    st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:10px; margin-bottom:5px; color:#3fb950;'>🟢 POSITIVE / BUY ({watchlist_mode})</div>", unsafe_allow_html=True)
+                    render_chart_grid(df_buy_chart, show_pin_option=True, key_prefix="main_buy", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
 
-else: 
-    st.markdown("""
-        <div style='padding:50px; text-align:center; border: 1px dashed #30363d; border-radius: 10px; background-color: #161b22; margin-top: 20px;'>
-            <h3 style='color:#ffd700;'>⏳ Fetching Market Data...</h3>
-            <p style='color:#8b949e;'>డేటా లోడ్ అవుతోంది. ఒకవేళ ఎక్కువ సమయం తీసుకుంటే, బహుశా Morningstar API లిమిట్ దాటిపోయి ఉండొచ్చు. దయచేసి కొద్దిసేపు వెయిట్ చేయండి.</p>
-        </div>
-    """, unsafe_allow_html=True)
+                if not df_sell_chart.empty:
+                    st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:20px; margin-bottom:5px; color:#f85149;'>🔴 NEGATIVE / SELL ({watchlist_mode})</div>", unsafe_allow_html=True)
+                    render_chart_grid(df_sell_chart, show_pin_option=True, key_prefix="main_sell", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
