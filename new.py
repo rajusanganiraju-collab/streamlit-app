@@ -451,18 +451,23 @@ SMALLCAP_250 = [
 ]
 
 # --- DHAN API INITIALIZATION ---
+try:
+    from dhanhq import DhanContext
+except ImportError:
+    DhanContext = None
+
 @st.cache_resource(show_spinner=False)
 def init_dhan_client():
     try:
         c_id = str(st.secrets["dhan"]["client_id"]).strip()
         a_token = str(st.secrets["dhan"]["access_token"]).strip()
         
-        # 🔥 కొత్త ధన్ లైబ్రరీ రూల్స్ (Version 2.1.0+)
+        # 🔥 కొత్త ధన్ లైబ్రరీ రూల్స్ 
         if DhanContext:
             context = DhanContext(c_id, a_token)
             return dhanhq(context)
         else:
-            # పాత ధన్ లైబ్రరీ రూల్స్ (Version 2.0.2)
+            # పాత ధన్ లైబ్రరీ రూల్స్
             return dhanhq(c_id, a_token)
             
     except Exception as e:
@@ -470,6 +475,7 @@ def init_dhan_client():
 
 dhan_client = init_dhan_client()
 
+# 🔥 కేవలం Toast (పాప్-అప్) మాత్రమే వస్తుంది, సైడ్‌బార్ లో ఏమీ రాదు
 if isinstance(dhan_client, str):
     st.toast(f"❌ Dhan Config Error: {dhan_client}")
     dhan = None
@@ -479,10 +485,6 @@ elif dhan_client:
 else:
     st.toast("❌ Dhan API Connection Failed")
     dhan = None
-if dhan:
-    st.sidebar.success("Dhan API Connected ✅")
-else:
-    st.sidebar.error("Dhan API Connection Failed ❌")
 
 @st.cache_data(ttl=86400)
 def get_dhan_security_map():
