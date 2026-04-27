@@ -451,6 +451,10 @@ SMALLCAP_250 = [
 ]
 
 # --- DHAN API INITIALIZATION ---
+# Session state initialization (app start lo okasari run avtundi)
+if 'shown_dhan_status' not in st.session_state:
+    st.session_state.shown_dhan_status = False
+
 try:
     from dhanhq import DhanContext
 except ImportError:
@@ -462,12 +466,10 @@ def init_dhan_client():
         c_id = str(st.secrets["dhan"]["client_id"]).strip()
         a_token = str(st.secrets["dhan"]["access_token"]).strip()
         
-        # 🔥 కొత్త ధన్ లైబ్రరీ రూల్స్ 
         if DhanContext:
             context = DhanContext(c_id, a_token)
             return dhanhq(context)
         else:
-            # పాత ధన్ లైబ్రరీ రూల్స్
             return dhanhq(c_id, a_token)
             
     except Exception as e:
@@ -475,15 +477,20 @@ def init_dhan_client():
 
 dhan_client = init_dhan_client()
 
-# 🔥 కేవలం Toast (పాప్-అప్) మాత్రమే వస్తుంది, సైడ్‌బార్ లో ఏమీ రాదు
+# 🔥 Logic: Success aithe okasari toast choopinchu, fail aithe sidebar lo persistent ga unchu
 if isinstance(dhan_client, str):
-    st.toast(f"❌ Dhan Config Error: {dhan_client}")
+    # Failure case: Idhi sidebar lo permanent ga untundi (prati 5s ki disturb cheyadu)
+    st.sidebar.error(f"❌ Dhan Config Error: {dhan_client}")
     dhan = None
 elif dhan_client:
-    st.toast("Dhan API Connected ✅", icon="🟢")
+    # Success case: App open chesinappudu okasari matrame Toast chopistundi
+    if not st.session_state.shown_dhan_status:
+        st.toast("Dhan API Connected ✅", icon="🟢")
+        st.session_state.shown_dhan_status = True
     dhan = dhan_client
 else:
-    st.toast("❌ Dhan API Connection Failed")
+    # Connection fail case: Permanent ga sidebar lo choopistundi
+    st.sidebar.error("❌ Dhan API Connection Failed")
     dhan = None
 
 @st.cache_data(ttl=86400)
