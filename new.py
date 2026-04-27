@@ -625,7 +625,7 @@ def fetch_historical_charts_data(tkrs, timeframe):
     elif len(res) == 1: return res[0]
     return pd.DataFrame()
 # --- DAILY DATA FETCH ---
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=180, show_spinner=False)
 def fetch_all_data():
     port_df = load_portfolio()
     port_stocks = [str(sym).upper().strip() for sym in port_df['Symbol'].tolist() if str(sym).strip() != ""]
