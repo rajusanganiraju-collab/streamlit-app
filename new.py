@@ -455,6 +455,10 @@ def init_dhan_client():
         return None
 
 dhan = init_dhan_client()
+if dhan:
+    st.sidebar.success("Dhan API Connected ✅")
+else:
+    st.sidebar.error("Dhan API Connection Failed ❌")
 
 @st.cache_data(ttl=86400)
 def get_dhan_security_map():
