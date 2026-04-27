@@ -1470,7 +1470,8 @@ def render_closed_trades_table(df_closed):
         p_color = "text-green" if pnl_rs >= 0 else "text-red"
         p_sign = "+" if pnl_rs > 0 else ""
         
-        html += f'<tr class="{bg_class}"><td style="text-align:left;">{row["Sell_Date"]}</td><td class="t-symbol {p_color}" style="text-align:left;">{sym}</td><td>{qty}</td><td>{buy_p:.2f}</td><td>{sell_p:.2f}</td><td class="{p_color}">{p_sign}{pnl_rs:,.2f}</td><td class="{p_color}">{p_sign}{pnl_pct:.2f}%</td></tr>'
+        # 🔥 FIX: ఇక్కడ స్టాక్ పేరుకి TradingView లింక్ (a href) యాడ్ చేశాను
+        html += f'<tr class="{bg_class}"><td style="text-align:left;">{row["Sell_Date"]}</td><td class="t-symbol {p_color}" style="text-align:left;"><a href="https://in.tradingview.com/chart/?symbol=NSE:{sym}" target="_blank">{sym}</a></td><td>{qty}</td><td>{buy_p:.2f}</td><td>{sell_p:.2f}</td><td class="{p_color}">{p_sign}{pnl_rs:,.2f}</td><td class="{p_color}">{p_sign}{pnl_pct:.2f}%</td></tr>'
         
     tot_color = "text-green" if total_realized_pnl >= 0 else "text-red"
     tot_sign = "+" if total_realized_pnl > 0 else ""
