@@ -445,14 +445,27 @@ SMALLCAP_250 = [
 ]
 
 # --- DHAN API INITIALIZATION ---
-@st.cache_resource
+@st.cache_resource(show_spinner=False)
 def init_dhan_client():
     try:
-        c_id = st.secrets["dhan"]["client_id"]
-        a_token = st.secrets["dhan"]["access_token"]
+        # 🔥 ఎట్టి పరిస్థితుల్లోనూ String లాగానే వెళ్లేలా జాగ్రత్త పడ్డాం
+        c_id = str(st.secrets["dhan"]["client_id"]).strip()
+        a_token = str(st.secrets["dhan"]["access_token"]).strip()
         return dhanhq(c_id, a_token)
     except Exception as e:
-        return None
+        return f"ERROR: {e}" # సైలెంట్ ఫెయిల్యూర్‌ని తీసేసి ఎర్రర్ చూపిస్తున్నాం
+
+dhan_client = init_dhan_client()
+
+if isinstance(dhan_client, str):
+    st.sidebar.error(f"Dhan Config Error: {dhan_client}")
+    dhan = None
+elif dhan_client:
+    st.sidebar.success("Dhan API Connected ✅")
+    dhan = dhan_client
+else:
+    st.sidebar.error("Dhan API Connection Failed ❌")
+    dhan = None
 
 dhan = init_dhan_client()
 if dhan:
