@@ -16,6 +16,12 @@ import threading
 import concurrent.futures
 from dhanhq import dhanhq, marketfeed
 
+# 🔥 ధన్ కొత్త అప్‌డేట్ కోసం క్యాచ్
+try:
+    from dhanhq import DhanContext
+except ImportError:
+    DhanContext = None
+
 # --- 1. PAGE CONFIGURATION ---
 st.set_page_config(page_title="Market Heatmap", page_icon="📊", layout="wide")
 
@@ -451,9 +457,14 @@ def init_dhan_client():
         c_id = str(st.secrets["dhan"]["client_id"]).strip()
         a_token = str(st.secrets["dhan"]["access_token"]).strip()
         
-        # 🔥 FIX: ఇక్కడ డైరెక్ట్ గా వాల్యూస్ కాకుండా, పేర్లతో (Keyword Arguments) పాస్ చేయాలి
-        return dhanhq(client_id=c_id, access_token=a_token)
-        
+        # 🔥 కొత్త ధన్ లైబ్రరీ రూల్స్ (Version 2.1.0+)
+        if DhanContext:
+            context = DhanContext(c_id, a_token)
+            return dhanhq(context)
+        else:
+            # పాత ధన్ లైబ్రరీ రూల్స్ (Version 2.0.2)
+            return dhanhq(c_id, a_token)
+            
     except Exception as e:
         return f"ERROR: {e}"
 
@@ -468,7 +479,6 @@ elif dhan_client:
 else:
     st.sidebar.error("Dhan API Connection Failed ❌")
     dhan = None
-dhan = init_dhan_client()
 if dhan:
     st.sidebar.success("Dhan API Connected ✅")
 else:
