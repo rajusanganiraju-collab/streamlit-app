@@ -1535,7 +1535,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
     with sc4: st.session_state.pause_refresh = st.toggle("⏸️ Pause Data", value=st.session_state.pause_refresh)
 
     with sc1:
-            if "AI Predictions" in watchlist_mode:  # 🔥 3 ఆప్షన్లకూ ఇది వర్తిస్తుంది
+        if "AI Predictions" in watchlist_mode:  # 🔥 3 ఆప్షన్లకూ ఇది వర్తిస్తుంది
                 move_type_filter = st.multiselect("Strategy Filter",
                     ["All Moves", "🔥 Live Power Mover (Last 2 Candles)", "🚀 All-Day Volume Spikes (Max Fire)", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)", "📈 Minervini Trend Template (VCP)", "🌅 15-Min ORB (Opening Range Breakout)"], 
                     default=["All Moves"],
