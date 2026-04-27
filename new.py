@@ -2496,9 +2496,9 @@ if not df.empty:
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
         # 🔥 SMART AUTO-REPLACEMENT: 
-        # if not unpinned_df.empty:
-        #     valid_tickers = [tkr for tkr in unpinned_df['Fetch_T'] if tkr in chart_dict_to_use and not chart_dict_to_use[tkr].empty]
-        #     unpinned_df = unpinned_df[unpinned_df['Fetch_T'].isin(valid_tickers)]
+        # if not unpinned_df.empty:
+        #     valid_tickers = [tkr for tkr in unpinned_df['Fetch_T'] if tkr in chart_dict_to_use and not chart_dict_to_use[tkr].empty]
+        #     unpinned_df = unpinned_df[unpinned_df['Fetch_T'].isin(valid_tickers)]
             
         if not unpinned_df.empty and watchlist_mode != "Fundamentals 🏢":
             if watchlist_mode == "Day Trading Stocks 🚀":
