@@ -1507,8 +1507,13 @@ if not df.empty:
 # --- 7. UI SETTINGS ---
 # =========================================================
 
-watchlist_mode = st.selectbox("Watchlist", ["🤖 Today's AI Predictions", "Swing Trading 📈", "Nifty 50 Heatmap", "Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢", "Mutual Funds 📈"], index=0, label_visibility="collapsed")
-
+watchlist_mode = st.selectbox("Watchlist", [
+    "🤖 AI Predictions (F&O)", 
+    "🤖 AI Predictions (Mid Cap)", 
+    "🤖 AI Predictions (Small Cap)", 
+    "Swing Trading 📈", "Nifty 50 Heatmap", "Terminal Tables 🗃️", 
+    "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢", "Mutual Funds 📈"
+], index=0, label_visibility="collapsed")
 # 🔥 SMART REFRESH: స్వింగ్ ట్రేడింగ్ కి 15 సెకన్లు, మిగతా డే ట్రేడింగ్/హీట్ మ్యాప్ లకి 5 సెకన్లు
 refresh_time = 15000 if watchlist_mode == "Swing Trading 📈" else 5000
 
@@ -1530,12 +1535,12 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
     with sc4: st.session_state.pause_refresh = st.toggle("⏸️ Pause Data", value=st.session_state.pause_refresh)
 
     with sc1:
-        if watchlist_mode == "🤖 Today's AI Predictions":
-            move_type_filter = st.multiselect("Strategy Filter",
-                ["All Moves", "🔥 Live Power Mover (Last 2 Candles)", "🚀 All-Day Volume Spikes (Max Fire)", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)", "📈 Minervini Trend Template (VCP)", "🌅 15-Min ORB (Opening Range Breakout)"], 
-                default=["All Moves"],
-                key="day_trading_filter_key"
-            )
+            if "AI Predictions" in watchlist_mode:  # 🔥 3 ఆప్షన్లకూ ఇది వర్తిస్తుంది
+                move_type_filter = st.multiselect("Strategy Filter",
+                    ["All Moves", "🔥 Live Power Mover (Last 2 Candles)", "🚀 All-Day Volume Spikes (Max Fire)", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)", "📈 Minervini Trend Template (VCP)", "🌅 15-Min ORB (Opening Range Breakout)"], 
+                    default=["All Moves"],
+                    key="day_trading_filter_key"
+                )
         elif watchlist_mode == "Swing Trading 📈":
             move_type_filter = st.multiselect("Strategy Filter", 
                 ["All Swing Stocks", "📈 Minervini Trend Template (VCP)", "📉 Strict VCP (Price & Vol Contraction)", "🔥 Minervini MidCap 150", "🚀 Minervini SmallCap 250"], 
@@ -1606,12 +1611,18 @@ if not df.empty:
     df_port_saved = load_portfolio().copy()
 
     # 2. 🔥 STRICT SEGMENT FILTERING (SMART IRON WALL) 🔥
-    # స్వింగ్ ట్రేడింగ్ మరియు AI Predictions కి Mid/Small Caps ని కూడా లోపలికి అనుమతిస్తున్నాం
-    if watchlist_mode in ["Swing Trading 📈", "🤖 Today's AI Predictions"]:
+    if watchlist_mode == "Swing Trading 📈":
         strict_allowed = set(NIFTY_50 + FNO_STOCKS + MIDCAP_150 + SMALLCAP_250)
+    elif watchlist_mode == "🤖 AI Predictions (F&O)":
+        strict_allowed = set(NIFTY_50 + FNO_STOCKS)
+    elif watchlist_mode == "🤖 AI Predictions (Mid Cap)":
+        strict_allowed = set(MIDCAP_150)
+    elif watchlist_mode == "🤖 AI Predictions (Small Cap)":
+        strict_allowed = set(SMALLCAP_250)
     else:
         strict_allowed = set(NIFTY_50 + FNO_STOCKS)
-    # ఈ ఒక్క లైన్ దెబ్బతో పోర్ట్‌ఫోలియో స్టాక్స్ బైపాస్ అవ్వడం పర్మినెంట్ గా ఆగిపోతుంది!
+        
+    # ఇక్కడే సగం లోడ్ ఆగిపోతుంది!
     df_stocks = df_all_stocks[df_all_stocks['T'].isin(strict_allowed)].copy()
     
     # 3. Sector Calcs (దీనికి ఎప్పుడూ df_all_stocks వాడాలి)
@@ -1645,7 +1656,7 @@ if not df.empty:
         else: df_filtered = df_stocks[df_stocks['S'] >= 6]
     elif watchlist_mode == "Nifty 50 Heatmap":
         df_filtered = df_all_stocks[df_all_stocks['T'].isin(NIFTY_50)]
-    elif watchlist_mode == "🤖 Today's AI Predictions":
+    elif "AI Predictions" in watchlist_mode:
         df_filtered = df_stocks.copy()
         ai_predictions, ai_probs = [], []
         for _, row in df_filtered.iterrows():
@@ -2189,7 +2200,7 @@ if not df.empty:
             df_filtered[df_filtered[sort_key] >= 0].sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, False])
         ])
     else:
-        if watchlist_mode == "🤖 Today's AI Predictions": df_stocks_display = df_filtered.sort_values(by=['AI_Prob', 'VolX'], ascending=[False, False])
+        if "AI Predictions" in watchlist_mode: df_stocks_display = df_filtered.sort_values(by=['AI_Prob', 'VolX'], ascending=[False, False])
         else: df_stocks_display = df_filtered.sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, False])
             
     if watchlist_mode == "Fundamentals 🏢":
@@ -2425,7 +2436,7 @@ if not df.empty:
                     bg = "bull-card" if pct_val > 0 else ("bear-card" if pct_val < 0 else "neut-card")
                     
                     special_icon = f"⭐{int(row['S'])}"
-                    if watchlist_mode == "🤖 Today's AI Predictions":
+                    if "AI Predictions" in watchlist_mode:
                         if sort_mode == "🤖 AI Prob Up ⬆️": special_icon = f"🤖{int(row.get('AI_Prob', 0))}%"
                         else: special_icon = f"⭐{int(row['S'])}"
                     elif watchlist_mode == "Swing Trading 📈": 
@@ -2443,7 +2454,7 @@ if not df.empty:
                     html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">{special_icon}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if pct_val>0 else ""}{pct_val:.2f}%</div></a>'
                 st.markdown(html_stk + '</div>', unsafe_allow_html=True)
                 
-            if watchlist_mode == "🤖 Today's AI Predictions":
+            if "AI Predictions" in watchlist_mode:
                 # 1. F&O మరియు NIFTY 50 
                 fno_buy = df_buy[df_buy['T'].isin(NIFTY_50 + FNO_STOCKS)]
                 fno_sell = df_sell[df_sell['T'].isin(NIFTY_50 + FNO_STOCKS)]
@@ -2465,7 +2476,7 @@ if not df.empty:
                 if not df_buy.empty: render_heatmap_section(df_buy, f"🟢 POSITIVE / BUY ({watchlist_mode})", "#3fb950")
                 if not df_sell.empty: render_heatmap_section(df_sell, f"🔴 NEGATIVE / SELL ({watchlist_mode})", "#f85149")
             
-            if watchlist_mode == "🤖 Today's AI Predictions":
+            if "AI Predictions" in watchlist_mode:
                 with st.expander("🤖 View AI Predictive Radar (Probability Based)", expanded=True): st.markdown(render_highscore_terminal_table(df_stocks_display), unsafe_allow_html=True)
             elif watchlist_mode == "Swing Trading 📈":
                 with st.expander("🌊 View Swing Trading Radar (Ranked Table)", expanded=True): st.markdown(render_swing_terminal_table(df_stocks_display), unsafe_allow_html=True)
@@ -2562,39 +2573,22 @@ if not df.empty:
         #     unpinned_df = unpinned_df[unpinned_df['Fetch_T'].isin(valid_tickers)]
             
         if not unpinned_df.empty and watchlist_mode != "Fundamentals 🏢":
-            if watchlist_mode == "🤖 Today's AI Predictions":
-                # Buy side Charts
-                fno_buy_chart = unpinned_df[(unpinned_df[sort_key] >= 0) & (unpinned_df['T'].isin(NIFTY_50 + FNO_STOCKS))].head(12)
-                mid_buy_chart = unpinned_df[(unpinned_df[sort_key] >= 0) & (unpinned_df['T'].isin(MIDCAP_150))].head(12)
-                small_buy_chart = unpinned_df[(unpinned_df[sort_key] >= 0) & (unpinned_df['T'].isin(SMALLCAP_250))].head(12)
+            if "AI Predictions" in watchlist_mode:
+                df_buy_chart = unpinned_df[unpinned_df[sort_key] >= 0].head(12)
+                df_sell_chart = unpinned_df[unpinned_df[sort_key] < 0].head(12)
                 
-                if not fno_buy_chart.empty:
-                    st.markdown("<div style='font-size:16px; font-weight:bold; margin-top:10px; margin-bottom:5px; color:#3fb950;'>🟢 POSITIVE / BUY (F&O & Nifty 50)</div>", unsafe_allow_html=True)
-                    render_chart_grid(fno_buy_chart, show_pin_option=True, key_prefix="fno_buy", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
-                if not mid_buy_chart.empty:
-                    st.markdown("<div style='font-size:16px; font-weight:bold; margin-top:20px; margin-bottom:5px; color:#3fb950;'>🟢 POSITIVE / BUY (AI Mid Cap)</div>", unsafe_allow_html=True)
-                    render_chart_grid(mid_buy_chart, show_pin_option=True, key_prefix="mid_buy", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
-                if not small_buy_chart.empty:
-                    st.markdown("<div style='font-size:16px; font-weight:bold; margin-top:20px; margin-bottom:5px; color:#3fb950;'>🟢 POSITIVE / BUY (AI Small Cap)</div>", unsafe_allow_html=True)
-                    render_chart_grid(small_buy_chart, show_pin_option=True, key_prefix="small_buy", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
+                # టైటిల్ కోసం (F&O లేదా Mid Cap అని డైనమిక్ గా రావడానికి)
+                title_suffix = watchlist_mode.split('(')[-1].replace(')','')
+                
+                if not df_buy_chart.empty:
+                    st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:10px; margin-bottom:5px; color:#3fb950;'>🟢 POSITIVE / BUY ({title_suffix})</div>", unsafe_allow_html=True)
+                    render_chart_grid(df_buy_chart, show_pin_option=True, key_prefix="ai_buy", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
 
-                # Sell side Charts
-                fno_sell_chart = unpinned_df[(unpinned_df[sort_key] < 0) & (unpinned_df['T'].isin(NIFTY_50 + FNO_STOCKS))].head(12)
-                mid_sell_chart = unpinned_df[(unpinned_df[sort_key] < 0) & (unpinned_df['T'].isin(MIDCAP_150))].head(12)
-                small_sell_chart = unpinned_df[(unpinned_df[sort_key] < 0) & (unpinned_df['T'].isin(SMALLCAP_250))].head(12)
-                
-                if not fno_sell_chart.empty:
-                    st.markdown("<div style='font-size:16px; font-weight:bold; margin-top:20px; margin-bottom:5px; color:#f85149;'>🔴 NEGATIVE / SELL (F&O & Nifty 50)</div>", unsafe_allow_html=True)
-                    render_chart_grid(fno_sell_chart, show_pin_option=True, key_prefix="fno_sell", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
-                if not mid_sell_chart.empty:
-                    st.markdown("<div style='font-size:16px; font-weight:bold; margin-top:20px; margin-bottom:5px; color:#f85149;'>🔴 NEGATIVE / SELL (AI Mid Cap)</div>", unsafe_allow_html=True)
-                    render_chart_grid(mid_sell_chart, show_pin_option=True, key_prefix="mid_sell", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
-                if not small_sell_chart.empty:
-                    st.markdown("<div style='font-size:16px; font-weight:bold; margin-top:20px; margin-bottom:5px; color:#f85149;'>🔴 NEGATIVE / SELL (AI Small Cap)</div>", unsafe_allow_html=True)
-                    render_chart_grid(small_sell_chart, show_pin_option=True, key_prefix="small_sell", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
-                    
+                if not df_sell_chart.empty:
+                    st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:20px; margin-bottom:5px; color:#f85149;'>🔴 NEGATIVE / SELL ({title_suffix})</div>", unsafe_allow_html=True)
+                    render_chart_grid(df_sell_chart, show_pin_option=True, key_prefix="ai_sell", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
             else:
-                # మిగతా మోడ్స్ కి నార్మల్ గా రెండర్ అవుతుంది
+                # Swing trading & other modes...
                 if watchlist_mode == "Day Trading Stocks 🚀":
                     df_buy_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('BUY', na=False)].head(12)
                     df_sell_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('SELL', na=False)].head(12)
