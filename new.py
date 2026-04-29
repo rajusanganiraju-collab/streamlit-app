@@ -2347,7 +2347,10 @@ if not df.empty:
                                 st.success(f"✅ {new_sym} పోర్ట్‌ఫోలియోలో యాడ్ చేయబడింది! (SL: {calc_sl}, T1: {calc_t1})")
                             
                             import time
-                            save_portfolio(df_port_saved); fetch_all_data.clear(); time.sleep(1.5); st.rerun()
+                            save_portfolio(df_port_saved); fetch_all_data.clear(); 
+                        st.success(f"✅ {sell_qty} shares of {sell_sym} sold successfully!") # ఇది యాడ్ చేయండి
+                        time.sleep(1.5) # ఒక సెకను ఆగి రీలోడ్ అవ్వడానికి 
+                        st.rerun()
                 else: st.warning("Type a symbol first!")
         
         if not df_port_saved.empty:
@@ -2398,6 +2401,26 @@ if not df.empty:
             with st.expander("📜 View Trade Book (Closed P&L Ledger)", expanded=False):
                 df_closed_view = load_closed_trades()
                 st.markdown(render_closed_trades_table(df_closed_view), unsafe_allow_html=True) 
+                
+                # 🔥 Trade Book Edit & Delete ఆప్షన్ (కొత్తగా యాడ్ చేసింది)
+                if not df_closed_view.empty:
+                    st.markdown("<hr style='border-color:#30363d; margin-top:15px;'>", unsafe_allow_html=True)
+                    st.markdown("<p style='font-size:12px; color:#ffd700;'>✏️ <b>Edit / Delete Closed Trades:</b> (తప్పుగా ఎంటర్ అయిన రో ని సెలెక్ట్ చేసి కీబోర్డ్ లో Delete నొక్కండి, ఆ తర్వాత Save నొక్కండి)</p>", unsafe_allow_html=True)
+                    
+                    edited_closed_df = st.data_editor(
+                        df_closed_view, 
+                        width="stretch", 
+                        hide_index=True,
+                        num_rows="dynamic", # ఇది ఉంటేనే యాప్ లో రోస్ డిలీట్ చేయగలం 
+                        key="tradebook_editor"
+                    )
+                    
+                    if st.button("💾 Save Trade Book Changes", width="stretch", key="save_tb"): 
+                        save_closed_trades(edited_closed_df)
+                        load_closed_trades.clear()
+                        st.success("✅ Trade Book అప్డేట్ అయ్యింది!")
+                        time.sleep(1)
+                        st.rerun()
                 
     elif view_mode == "Heat Map" and watchlist_mode != "Fundamentals 🏢":
         map_sort_key = "W_C" if chart_timeframe == "Weekly Chart" else "Day_C"
