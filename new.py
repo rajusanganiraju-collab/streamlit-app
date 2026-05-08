@@ -1676,7 +1676,8 @@ if not df.empty:
                 
         df_filtered['Strategy_Icon'] = ai_predictions
         df_filtered['AI_Prob'] = ai_probs
-        df_filtered = df_filtered[(df_filtered['Strategy_Icon'] != "Neutral") & (df_filtered['S'] >= 11)]
+        # 🔥 స్కోర్ తో సంబంధం లేకుండా అన్ని స్టాక్స్ స్ట్రాటజీ స్కానింగ్ కి వెళ్లడానికి పాత S>=11 ఫిల్టర్ తీసేశాం
+        # df_filtered = df_filtered[(df_filtered['Strategy_Icon'] != "Neutral") & (df_filtered['S'] >= 11)]
     elif watchlist_mode == "Day Trading Stocks 🚀":
         df_filtered = df_stocks[df_stocks['C'].abs() >= 1.0].copy()
     elif watchlist_mode == "Swing Trading 📈":
@@ -2209,9 +2210,11 @@ if not df.empty:
                     c_sell = c_sell & fib_sell_mask
                     icon_str = icon_str + " + 📉FIB"
 
-                top_buy = df_filtered[c_buy].sort_values(by=['VolX', 'Day_C'], ascending=[False, False]).head(5).copy()
+                # 🔥 ఫైనల్ స్కోర్ తో సంబంధం లేకుండా కేవలం వాల్యూమ్(VolX) & ప్రైస్(Day_C) మొమెంటం ఆధారంగా టాప్ 8 స్టాక్స్ తీసుకుంటున్నాం
+                top_buy = df_filtered[c_buy].sort_values(by=['VolX', 'Day_C'], ascending=[False, False]).head(8).copy()
                 if not top_buy.empty: top_buy['Strategy_Icon'] = f"{icon_str} BUY"
-                top_sell = df_filtered[c_sell].sort_values(by=['VolX', 'Day_C'], ascending=[False, True]).head(5).copy()
+                
+                top_sell = df_filtered[c_sell].sort_values(by=['VolX', 'Day_C'], ascending=[False, True]).head(8).copy()
                 if not top_sell.empty: top_sell['Strategy_Icon'] = f"{icon_str} SELL"
                 
                 all_dfs.extend([top_buy, top_sell])
