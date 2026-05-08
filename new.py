@@ -1830,7 +1830,7 @@ if not df.empty:
             trend_scores[sym] = trend_bonus + trap_bonus
             
             retest_tag = ""
-            if watchlist_mode in ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions"] and len(df_day) >= 4:
+            if (watchlist_mode == "Day Trading Stocks 🚀" or "AI Predictions" in watchlist_mode) and len(df_day) >= 4:
                 c1 = df_day.iloc[-1] 
                 c2 = df_day.iloc[-2] 
                 if c1['Close'] > c1['VWAP'] and c1['EMA_10'] > c1['VWAP']:
@@ -1844,7 +1844,7 @@ if not df.empty:
             retest_tags[sym] = retest_tag
 
             orb_tag = ""
-            if watchlist_mode in ["Day Trading Stocks 🚀", "High Score Stocks 🔥", "🤖 Today's AI Predictions"] and len(df_day) >= 3:
+            if (watchlist_mode in ["Day Trading Stocks 🚀", "High Score Stocks 🔥"] or "AI Predictions" in watchlist_mode) and len(df_day) >= 3:
                 orb_high = df_day['High'].iloc[0:3].max()
                 orb_low = df_day['Low'].iloc[0:3].min()
                 if last_price > orb_high and last_price > last_vwap:
@@ -1887,13 +1887,13 @@ if not df.empty:
         else:
             df_filtered['Sector_Bonus'] = 0
             
-        if watchlist_mode == "🤖 Today's AI Predictions" and "🧲 10-EMA Retest (Best Entry)" in move_type_filter:
+        if "AI Predictions" in watchlist_mode and "🧲 10-EMA Retest (Best Entry)" in move_type_filter:
             df_filtered = df_filtered[
                 (df_filtered['Strategy_Icon'].str.contains('UP', na=False) & (df_filtered['Retest_Tag'] == 'BUY_RETEST')) |
                 (df_filtered['Strategy_Icon'].str.contains('DOWN', na=False) & (df_filtered['Retest_Tag'] == 'SELL_RETEST'))
             ]
         
-        if watchlist_mode == "🤖 Today's AI Predictions" and len(move_type_filter) > 0 and "All Moves" not in move_type_filter:
+        if "AI Predictions" in watchlist_mode and len(move_type_filter) > 0 and "All Moves" not in move_type_filter:
             base_buy = (df_filtered['P'] > df_filtered['W_EMA10']) & (df_filtered['P'] > df_filtered['W_EMA50']) & (df_filtered['P'] > df_filtered['VWAP'])
             base_sell = (df_filtered['P'] < df_filtered['W_EMA10']) & (df_filtered['P'] < df_filtered['W_EMA50']) & (df_filtered['P'] < df_filtered['VWAP'])
             
