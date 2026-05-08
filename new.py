@@ -1535,9 +1535,9 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
     with sc4: st.session_state.pause_refresh = st.toggle("⏸️ Pause Data", value=st.session_state.pause_refresh)
 
     with sc1:
-        if "AI Predictions" in watchlist_mode:  # 🔥 3 ఆప్షన్లకూ ఇది వర్తిస్తుంది
+        if "AI Predictions" in watchlist_mode:  
                 move_type_filter = st.multiselect("Strategy Filter",
-                    ["All Moves", "🔥 Live Power Mover (Last 2 Candles)", "🚀 All-Day Volume Spikes (Max Fire)", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)", "📈 Minervini Trend Template (VCP)", "🌅 15-Min ORB (Opening Range Breakout)"], 
+                    ["All Moves", "🔥 Live Power Mover (Last 2 Candles)", "🚀 All-Day Volume Spikes (Max Fire)", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)", "📈 Minervini Trend Template (VCP)", "🌅 15-Min ORB (Opening Range Breakout)", "📐 45° VWAP Bounce (High Vol)"], 
                     default=["All Moves"],
                     key="day_trading_filter_key"
                 )
@@ -1931,7 +1931,7 @@ if not df.empty:
 
             strategies_list = [
                 "🔥 Live Power Mover (Last 2 Candles)", "🚀 All-Day Volume Spikes (Max Fire)", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", 
-                "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)", "📈 Minervini Trend Template (VCP)", "🌅 15-Min ORB (Opening Range Breakout)"
+                "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)", "📈 Minervini Trend Template (VCP)", "🌅 15-Min ORB (Opening Range Breakout)", "📐 45° VWAP Bounce (High Vol)"
             ]
             
             fib_range = (df_filtered['H'] - df_filtered['L'])
@@ -2132,6 +2132,77 @@ if not df.empty:
                     c_buy = base_buy & (df_filtered['ORB_Tag'] == "ORB_BUY") & (df_filtered['VolX'] >= 1.2)
                     c_sell = base_sell & (df_filtered['ORB_Tag'] == "ORB_SELL") & (df_filtered['VolX'] >= 1.2)
                     icon_str = "🌅 ORB"
+                elif strat == "📐 45° VWAP Bounce (High Vol)":
+                    import math  # యాంగిల్ క్యాలిక్యులేషన్ కోసం 
+                    buy_mask = pd.Series(False, index=df_filtered.index)
+                    sell_mask = pd.Series(False, index=df_filtered.index)
+                    
+                    for idx, r in df_filtered.iterrows():
+                        tkr = r['Fetch_T']
+                        if tkr in processed_charts and len(processed_charts[tkr]) >= 10:
+                            df_hist = processed_charts[tkr]
+                            if 'Volume' in df_hist.columns and 'EMA_10' in df_hist.columns and 'VWAP' in df_hist.columns:
+                                
+                                # 1. ట్రెండ్ యాంగిల్ (Degrees) క్యాలిక్యులేషన్ (గత 10 క్యాండిల్స్ డేటా ఆధారంగా)
+                                ema_now = df_hist['EMA_10'].iloc[-1]
+                                ema_past = df_hist['EMA_10'].iloc[-10]
+                                ema_pct_change = ((ema_now - ema_past) / ema_past) * 100
+                                
+                                # 1% మూవ్‌మెంట్ = 45 డిగ్రీలు గా పరిగణించి మ్యాథ్ ఫార్ములా అప్లై చేశాం
+                                angle = abs(math.degrees(math.atan(ema_pct_change)))
+                                
+                                # 2. యాంగిల్ మార్క్స్ (Angle Points Logic)
+                                angle_points = 0
+                                if angle >= 35:
+                                    # 35°=5, 40°=10, 45°=15... ఇలా ప్రతి 5° కి 5 పాయింట్స్ యాడ్ అవుతాయి
+                                    steps = int((angle - 35) / 5)
+                                    angle_points = 5 + (steps * 5)
+                                
+                                # 3. ప్రైస్ మూవ్‌మెంట్ మార్క్స్ (Price Points Logic)
+                                day_change_pct = abs(r.get('Day_C', 0))
+                                price_points = int(day_change_pct) * 5  # 1%=5, 2%=10, 3%=15...
+                                
+                                # 4. VWAP & High Volume చెక్
+                                curr_low = df_hist['Low'].iloc[-1]
+                                curr_high = df_hist['High'].iloc[-1]
+                                curr_close = df_hist['Close'].iloc[-1]
+                                curr_vwap = df_hist['VWAP'].iloc[-1]
+                                curr_vol = df_hist['Volume'].iloc[-1]
+                                
+                                # లాస్ట్ 20 క్యాండిల్స్ ఆవరేజ్ కన్నా 1.5 రెట్లు ఎక్కువ వాల్యూమ్ ఉందా?
+                                vol_sma = df_hist['Volume'].rolling(window=20).mean().iloc[-1]
+                                is_high_vol = curr_vol > (vol_sma * 1.5)
+                                
+                                # VWAP టచ్ అయ్యిందా లేదా (0.5% బఫర్ ఇచ్చాం)
+                                buy_vwap_near = (curr_low <= curr_vwap * 1.005) and (curr_close >= curr_vwap)
+                                sell_vwap_near = (curr_high >= curr_vwap * 0.995) and (curr_close <= curr_vwap)
+                                
+                                vwap_vol_points = 0
+                                is_buy_setup = False
+                                is_sell_setup = False
+                                
+                                if is_high_vol:
+                                    if ema_pct_change > 0 and buy_vwap_near:
+                                        vwap_vol_points = 20
+                                        is_buy_setup = True
+                                    elif ema_pct_change < 0 and sell_vwap_near:
+                                        vwap_vol_points = 20
+                                        is_sell_setup = True
+                                        
+                                # 5. ఫైనల్ ఫిల్టర్ & స్కోర్ అప్‌డేట్ (Angle 35+ ఉండాలి & VWAP Vol కండిషన్ మ్యాచ్ అవ్వాలి)
+                                if angle >= 35 and (is_buy_setup or is_sell_setup):
+                                    if is_buy_setup:
+                                        buy_mask[idx] = True
+                                    if is_sell_setup:
+                                        sell_mask[idx] = True
+                                        
+                                    # మీరు చెప్పిన మార్క్స్ అన్నీ కలిపి మెయిన్ స్కోర్‌కి యాడ్ చేస్తున్నాం
+                                    total_bonus = angle_points + price_points + vwap_vol_points
+                                    df_filtered.at[idx, 'S'] = df_filtered.at[idx, 'S'] + total_bonus
+                                    
+                    c_buy = base_buy & buy_mask
+                    c_sell = base_sell & sell_mask
+                    icon_str = "📐 45° Bounce"
 
                 if apply_fib_strict and strat != "📉 FIB Retracement (0.382)":
                     c_buy = c_buy & fib_buy_mask
