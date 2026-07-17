@@ -1461,19 +1461,31 @@ def render_closed_trades_table(df_closed):
     total_realized_pnl = 0
     for i, (_, row) in enumerate(df_closed.iterrows()):
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
-        sym = row['Symbol']
-        qty = int(row['Quantity'])
-        buy_p = float(row['Buy_Price'])
-        sell_p = float(row['Sell_Price'])
-        pnl_rs = float(row['PnL_Rs'])
-        pnl_pct = float(row['PnL_Pct'])
+        sym = str(row.get('Symbol', ''))
+        
+        # 🔥 FIX: డైరెక్ట్ కన్వర్షన్ కాకుండా try-except వాడి ఫస్ట్ float కి మార్చి అప్పుడు int చేస్తున్నాం
+        try: qty = int(float(row.get('Quantity', 0)))
+        except: qty = 0
+        
+        try: buy_p = float(row.get('Buy_Price', 0))
+        except: buy_p = 0.0
+        
+        try: sell_p = float(row.get('Sell_Price', 0))
+        except: sell_p = 0.0
+        
+        try: pnl_rs = float(row.get('PnL_Rs', 0))
+        except: pnl_rs = 0.0
+        
+        try: pnl_pct = float(row.get('PnL_Pct', 0))
+        except: pnl_pct = 0.0
         
         total_realized_pnl += pnl_rs
         p_color = "text-green" if pnl_rs >= 0 else "text-red"
         p_sign = "+" if pnl_rs > 0 else ""
         
-        # 🔥 FIX: ఇక్కడ స్టాక్ పేరుకి TradingView లింక్ (a href) యాడ్ చేశాను
-        html += f'<tr class="{bg_class}"><td style="text-align:left;">{row["Sell_Date"]}</td><td class="t-symbol {p_color}" style="text-align:left;"><a href="https://in.tradingview.com/chart/?symbol=NSE:{sym}" target="_blank">{sym}</a></td><td>{qty}</td><td>{buy_p:.2f}</td><td>{sell_p:.2f}</td><td class="{p_color}">{p_sign}{pnl_rs:,.2f}</td><td class="{p_color}">{p_sign}{pnl_pct:.2f}%</td></tr>'
+        sell_date_val = str(row.get("Sell_Date", ""))
+        
+        html += f'<tr class="{bg_class}"><td style="text-align:left;">{sell_date_val}</td><td class="t-symbol {p_color}" style="text-align:left;"><a href="https://in.tradingview.com/chart/?symbol=NSE:{sym}" target="_blank">{sym}</a></td><td>{qty}</td><td>{buy_p:.2f}</td><td>{sell_p:.2f}</td><td class="{p_color}">{p_sign}{pnl_rs:,.2f}</td><td class="{p_color}">{p_sign}{pnl_pct:.2f}%</td></tr>'
         
     tot_color = "text-green" if total_realized_pnl >= 0 else "text-red"
     tot_sign = "+" if total_realized_pnl > 0 else ""
