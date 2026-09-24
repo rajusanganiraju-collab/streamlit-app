@@ -1748,6 +1748,11 @@ if not df.empty:
             df_vcp['Strategy_Icon'] = "📉 VCP"
             dfs_to_concat.append(df_vcp)
 
+        # 🔥 కొత్త లెజెండ్స్ కి గేట్‌పాస్ (ఇది లేకపోతే ముందే బ్లాక్ అయిపోతాయి)
+        legend_strats = ["📦 Nicolas Darvas (Box Breakout)", "📈 Stan Weinstein (Stage 2 Uptrend)", "💥 Dan Zanger (Volume Explosion)"]
+        if any(strat in move_type_filter for strat in legend_strats):
+            dfs_to_concat.append(df_filtered[df_filtered['T'].isin(NIFTY_50 + FNO_STOCKS)].copy())
+
         if "All Swing Stocks" in move_type_filter or not move_type_filter:
             dfs_to_concat.append(df_filtered[df_filtered['Is_Swing'] == True])
 
