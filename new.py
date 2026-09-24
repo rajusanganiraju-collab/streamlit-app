@@ -2403,9 +2403,9 @@ if not df.empty:
                     (me_df["Avg 1st-10th Return (%)"] > me_df["Avg Rest Return (%)"]) & # Migita nela kante better performance
                     (me_df["Avg Loss on Fail (%)"] >= -6.0) # -6% kanna ekkuva padani stocks (Market volatility ni tattukotaniki)
                 )# 🚀 Logic 2: Average Loss
-                            "Avg Rest Return (%)": round(avg_rest, 2),
-                            "Total Months": total_months
-                        })
+                    "Avg Rest Return (%)": round(avg_rest, 2),
+                    "Total Months": total_months
+                })
                 except Exception:
                     pass
             
