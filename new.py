@@ -1510,15 +1510,11 @@ def render_closed_trades_table(df_closed):
 st.markdown("<hr style='margin:10px 0; border-color:#30363d;'>", unsafe_allow_html=True)
 # 🔥 మార్కెట్ సెగ్మెంట్ రేడియో బటన్ పీకేశాం
 
-if True: 
+with st.spinner("📥 Market Data load avuthondi... Dayachesi 1 nimisham aagandi..."):
     df = fetch_all_data()
-    if True: 
-    with st.spinner("📥 Market Data load avuthondi... Dayachesi 1 nimisham aagandi..."):
-        df = fetch_all_data()
-        
-    if df.empty:
-        st.warning("⚠️ Data raledu boss! Yahoo Finance nunchi response ledu. Dayachesi page refresh cheyandi.")# ఆర్గ్యుమెంట్స్ లేకుండా కాల్ చేస్తున్నాం
-
+    
+if df.empty:
+    st.warning("⚠️ Data raledu boss! Yahoo Finance nunchi response ledu. Dayachesi page refresh cheyandi.")
 if not df.empty and 'LIVE_PRICES' in st.session_state:
     for i, row in df.iterrows():
         clean_sym = str(row['Fetch_T']).replace(".NS", "")
