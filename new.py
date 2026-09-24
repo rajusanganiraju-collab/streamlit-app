@@ -15,7 +15,7 @@ if 'pinned_stocks' not in st.session_state:
 if 'custom_alerts' not in st.session_state:
     st.session_state.custom_alerts = {}
 
-# 🔥 CSS ఫర్ పర్ఫెక్ట్ చార్ట్ గ్రిడ్ (పాత కోడ్ లాగే)
+# 🔥 CSS ఫర్ పర్ఫెక్ట్ చార్ట్ గ్రిడ్ 
 st.markdown("""
     <style>
     .stApp { background-color: #0e1117; color: #ffffff; }
@@ -132,19 +132,31 @@ SMALLCAP_250 = [
 ALL_STOCKS = list(set(NIFTY_50 + FNO_STOCKS + MIDCAP_150 + SMALLCAP_250))
 TICKERS = [f"{sym}.NS" for sym in ALL_STOCKS]
 
-# --- 3. FETCH & PROCESS DATA ---
+# --- 3. 🚀 20X SPEED FETCH & PROCESS DATA ---
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_and_calculate_metrics(tickers):
-    chunk_size = 200
+    chunk_size = 25 # ఒక్కో బ్యాచ్‌కి 25 స్టాక్స్
+    chunks = [tickers[i : i + chunk_size] for i in range(0, len(tickers), chunk_size)]
     data_frames = []
-    
-    for i in range(0, len(tickers), chunk_size):
-        chunk = tickers[i : i + chunk_size]
-        temp_data = yf.download(chunk, period="18mo", interval="1d", progress=False, group_by='ticker', threads=False)
-        if not temp_data.empty:
-            if len(chunk) == 1:
-                temp_data.columns = pd.MultiIndex.from_product([chunk, temp_data.columns])
-            data_frames.append(temp_data)
+
+    def download_chunk(chunk):
+        try:
+            temp = yf.download(chunk, period="18mo", interval="1d", progress=False, group_by='ticker', threads=False)
+            if not temp.empty:
+                if len(chunk) == 1:
+                    temp.columns = pd.MultiIndex.from_product([chunk, temp.columns])
+                return temp
+        except Exception:
+            return pd.DataFrame()
+        return pd.DataFrame()
+
+    # 🔥 20 Threads in parallel
+    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+        futures = [executor.submit(download_chunk, c) for c in chunks]
+        for future in concurrent.futures.as_completed(futures):
+            res = future.result()
+            if not res.empty:
+                data_frames.append(res)
             
     if not data_frames: return pd.DataFrame()
     data = pd.concat(data_frames, axis=1)
@@ -224,7 +236,7 @@ def fetch_historical_charts_data(tkrs, timeframe):
     if res.empty: return pd.DataFrame()
     return res
 
-# --- 5. RENDER CHART FUNCTION (FROM OLD CODE) ---
+# --- 5. RENDER CHART FUNCTION ---
 def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Daily Chart", show_crosshair=False, show_vol=False):
     display_sym = row['T']
     fetch_sym = row['Fetch_T']
