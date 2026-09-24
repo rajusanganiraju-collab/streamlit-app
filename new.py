@@ -2176,6 +2176,23 @@ if not df.empty:
                     c_buy = base_buy & (df_filtered['ORB_Tag'] == "ORB_BUY") & (df_filtered['VolX'] >= 1.2)
                     c_sell = base_sell & (df_filtered['ORB_Tag'] == "ORB_SELL") & (df_filtered['VolX'] >= 1.2)
                     icon_str = "🌅 ORB"
+
+                elif strat == "📦 Nicolas Darvas (Box Breakout)":
+                    box_width = (df_filtered['Box_Top20'] - df_filtered['Box_Bot20']) / (df_filtered['Box_Bot20'] + 0.001)
+                    c_buy = base_buy & (df_filtered['P'] > df_filtered['Box_Top20']) & (box_width <= 0.15) & (df_filtered['P'] >= df_filtered['High52W'] * 0.90) & (df_filtered['VolX'] >= 1.5)
+                    c_sell = pd.Series(False, index=df_filtered.index)
+                    icon_str = "📦 Darvas"
+
+                elif strat == "📈 Stan Weinstein (Stage 2 Uptrend)":
+                    c_buy = base_buy & (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['SMA150'] > df_filtered['SMA150_20D']) & (df_filtered['SMA50'] > df_filtered['SMA150']) & (df_filtered['P'] > df_filtered['SMA200']) & (df_filtered['Day_C'] >= 1.5)
+                    c_sell = pd.Series(False, index=df_filtered.index)
+                    icon_str = "📈 Stage 2"
+
+                elif strat == "💥 Dan Zanger (Volume Explosion)":
+                    close_range_strength = (df_filtered['P'] - df_filtered['L']) / (df_filtered['H'] - df_filtered['L'] + 0.001)
+                    c_buy = base_buy & (df_filtered['VolX'] >= 2.5) & (df_filtered['Day_C'] >= 4.0) & (close_range_strength >= 0.75) & (df_filtered['SMA50'] > df_filtered['SMA150'])
+                    c_sell = pd.Series(False, index=df_filtered.index)
+                    icon_str = "💥 Zanger"
                 elif strat == "📦 Nicolas Darvas (Box Breakout)":
                     # లాజిక్: బాక్స్ 15% లోపే ఉండాలి, 52Week High కి దగ్గరలో ఉండాలి, బాక్స్ టాప్ బ్రేక్ అవ్వాలి
                     box_width = (df_filtered['Box_Top20'] - df_filtered['Box_Bot20']) / (df_filtered['Box_Bot20'] + 0.001)
