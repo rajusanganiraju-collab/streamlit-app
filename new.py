@@ -2286,7 +2286,7 @@ if not df.empty:
     # ==========================================
     elif watchlist_mode == "Month Effect Advantage 📅":
         st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#00BFFF;'>📅 Month Effect Advantage (First 10 Days vs Rest)</div>", unsafe_allow_html=True)
-        st.markdown("<p style='font-size:13px; color:#c9d1d9;'>Top 200 స్టాక్స్ (Nifty 50 + Midcap 150) గత 5 ఏళ్ల డేటాను విశ్లేషించి, ప్రతి నెలా <b>మొదటి 10 రోజుల్లో</b> కచ్చితంగా పెరిగే బెస్ట్ స్టాక్స్‌ను ఇక్కడ చూడవచ్చు.</p>", unsafe_allow_html=True)
+        st.markdown("<p style='font-size:13px; color:#c9d1d9;'>Top 200 stocks (Nifty 50 + Midcap 150) gata 5 yellalo prati nela <b>modati 10 rojullo</b> kachitamga 2.5% paina perige best momentum stocks idigo.</p>", unsafe_allow_html=True)
 
         @st.cache_data(ttl=86400, show_spinner=False)
         def analyze_month_effect(tickers, years=5):
@@ -2294,10 +2294,33 @@ if not df.empty:
             end_date = datetime.now()
             start_date = end_date - pd.DateOffset(years=years)
 
-            # 5 ఏళ్ల డేటాను ఒకేసారి ఫాస్ట్ గా డౌన్లోడ్ చేయడానికి
-            data = yf.download(tickers, start=start_date, end=end_date, progress=False, group_by='ticker', threads=10)
-            if len(tickers) == 1:
-                data = {tickers[0]: data}
+            chunk_size = 40
+            data_frames = []
+            
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            for i in range(0, len(tickers), chunk_size):
+                chunk = tickers[i : i + chunk_size]
+                status_text.write(f"📥 Data download avuthondi... ({min(i+chunk_size, len(tickers))} / {len(tickers)} stocks)")
+                
+                temp_data = yf.download(chunk, start=start_date, end=end_date, progress=False, group_by='ticker', threads=False)
+                
+                if not temp_data.empty:
+                    if len(chunk) == 1:
+                        temp_data.columns = pd.MultiIndex.from_product([chunk, temp_data.columns])
+                    data_frames.append(temp_data)
+                
+                progress_bar.progress(min((i + chunk_size) / len(tickers), 1.0))
+                
+            status_text.write("⚙️ Data ni analyze chesthondi... Dayachesi vechi undandi...")
+            
+            if not data_frames:
+                progress_bar.empty()
+                status_text.empty()
+                return pd.DataFrame()
+
+            data = pd.concat(data_frames, axis=1)
 
             for tkr in tickers:
                 try:
@@ -2312,6 +2335,7 @@ if not df.empty:
                     monthly_groups = df_t.groupby(['Year', 'Month'])
                     first_10_returns = []
                     rest_returns = []
+                    losing_returns = []
                     win_count = 0
                     total_months = 0
 
@@ -2328,23 +2352,33 @@ if not df.empty:
                             first_10_returns.append(f10_ret)
                             rest_returns.append(r_ret)
 
-                            if f10_ret > 0: win_count += 1
+                            # 🚀 Logic 1: Kaneesam 2.5% perigithe ne WIN!
+                            if f10_ret >= 2.5: 
+                                win_count += 1
+                            elif f10_ret < 0:
+                                losing_returns.append(f10_ret) # Nashtapoyina nelala data
+                                
                             total_months += 1
 
                     if total_months > 0:
                         avg_f10 = sum(first_10_returns) / len(first_10_returns)
                         avg_rest = sum(rest_returns) / len(rest_returns)
+                        avg_loss = sum(losing_returns) / len(losing_returns) if losing_returns else 0.0
                         win_rate = (win_count / total_months) * 100
 
                         results.append({
                             "Stock": tkr.replace(".NS", ""),
                             "Win Rate (1st 10 Days) %": round(win_rate, 2),
                             "Avg 1st-10th Return (%)": round(avg_f10, 2),
+                            "Avg Loss on Fail (%)": round(avg_loss, 2), # 🚀 Logic 2: Average Loss
                             "Avg Rest Return (%)": round(avg_rest, 2),
                             "Total Months": total_months
                         })
                 except Exception:
                     pass
+            
+            progress_bar.empty()
+            status_text.empty()
             return pd.DataFrame(results)
 
         scan_list = st.radio("Select Universe to Scan:", ["Top 200 (Nifty + Midcap)", "NIFTY 50 Only", "Custom Stock"], horizontal=True)
@@ -2358,23 +2392,30 @@ if not df.empty:
             tkr_list = [f"{s}.NS" for s in NIFTY_50 + MIDCAP_150]
 
         if st.button("🚀 Run 5-Year Month Effect Analysis", width="stretch"):
-            with st.spinner(f"Analyzing {len(tkr_list)} stocks over 5 years. This takes about 10-20 seconds..."):
-                me_df = analyze_month_effect(tkr_list)
-                if not me_df.empty:
-                    # బెస్ట్ స్టాక్స్ కోసం Win Rate మరియు Return బట్టి సార్టింగ్ 
-                    me_df = me_df.sort_values(by=["Win Rate (1st 10 Days) %", "Avg 1st-10th Return (%)"], ascending=[False, False])
+            me_df = analyze_month_effect(tkr_list)
+            
+            if not me_df.empty:
+                # 🚀 Logic 3: Relative Strength & Risk Filter
+                strict_condition = (
+                    (me_df["Win Rate (1st 10 Days) %"] >= 50) & 
+                    (me_df["Avg 1st-10th Return (%)"] >= 2.5) &
+                    (me_df["Avg 1st-10th Return (%)"] > me_df["Avg Rest Return (%)"]) &
+                    (me_df["Avg Loss on Fail (%)"] >= -4.0) # -4% kanna ekkuva padani stocks
+                )
+                
+                me_df = me_df.sort_values(by=["Win Rate (1st 10 Days) %", "Avg 1st-10th Return (%)"], ascending=[False, False])
 
-                    st.markdown("### 🏆 Top 10 Best Stocks (Month Effect Advantage)")
-                    st.markdown("<p style='font-size:12px; color:#3fb950;'>గత 5 ఏళ్లలో ప్రతి నెలా మొదటి 10 రోజుల్లో అత్యధిక విజయశాతం (Win Rate) ఉన్న బెస్ట్ స్టాక్స్ ఇవే. వీటికి DII SIP ఫండ్స్ సపోర్ట్ చాలా ఎక్కువ.</p>", unsafe_allow_html=True)
-                    
-                    top_10 = me_df[me_df["Win Rate (1st 10 Days) %"] >= 55].head(10)
-                    if not top_10.empty:
-                        st.dataframe(top_10, use_container_width=True, hide_index=True)
-                    else:
-                        st.info("No stocks matched the strict consistency criteria.")
+                st.markdown("### 🏆 Top 10 Best Stocks (High Probability Swing)")
+                st.markdown("<p style='font-size:12px; color:#3fb950;'>Kevalam <b>kaneesam 2.5% perige stocks</b>, avi kooda rest of the month kante modati 10 rojullone ekkuva momentum ichevi ikkada filter ayyayi. Deentlo fail ayina kooda pedda loss undadu.</p>", unsafe_allow_html=True)
+                
+                top_10 = me_df[strict_condition].head(10)
+                if not top_10.empty:
+                    st.dataframe(top_10, use_container_width=True, hide_index=True)
+                else:
+                    st.info("No stocks matched the strict consistency criteria.")
 
-                    st.markdown("### 📊 Full Data Analysis")
-                    st.dataframe(me_df, use_container_width=True, hide_index=True)
+                st.markdown("### 📊 Full Data Analysis")
+                st.dataframe(me_df, use_container_width=True, hide_index=True)
 
             
     elif watchlist_mode == "Terminal Tables 🗃️" and view_mode == "Heat Map":
