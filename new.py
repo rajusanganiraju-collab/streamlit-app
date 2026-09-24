@@ -2352,10 +2352,11 @@ if not df.empty:
                             first_10_returns.append(f10_ret)
                             rest_returns.append(r_ret)
 
-                            # 🚀 Logic 1: Kaneesam 2.5% perigithe ne WIN!
-                            if f10_ret >= 2.5: 
+                            # 🚀 Logic 1: Positive ga close ayithe WIN! (Relaxed for actual momentum)
+                            if f10_ret > 0: 
                                 win_count += 1
-                            elif f10_ret < 0:
+                            
+                            if f10_ret < 0:
                                 losing_returns.append(f10_ret) # Nashtapoyina nelala data
                                 
                             total_months += 1
@@ -2370,7 +2371,38 @@ if not df.empty:
                             "Stock": tkr.replace(".NS", ""),
                             "Win Rate (1st 10 Days) %": round(win_rate, 2),
                             "Avg 1st-10th Return (%)": round(avg_f10, 2),
-                            "Avg Loss on Fail (%)": round(avg_loss, 2), # 🚀 Logic 2: Average Loss
+                            "Avg Loss on Fail (%)": round(avg_loss, 2), 
+                            "Avg Rest Return (%)": round(avg_rest, 2),
+                            "Total Months": total_months
+                        })
+                except Exception:
+                    pass
+            
+            progress_bar.empty()
+            status_text.empty()
+            return pd.DataFrame(results)
+
+        scan_list = st.radio("Select Universe to Scan:", ["Top 200 (Nifty + Midcap)", "NIFTY 50 Only", "Custom Stock"], horizontal=True)
+
+        if scan_list == "Custom Stock":
+            cust_stock = st.selectbox("Select Stock", all_names if all_names else NIFTY_50)
+            tkr_list = [f"{cust_stock}.NS"]
+        elif scan_list == "NIFTY 50 Only":
+            tkr_list = [f"{s}.NS" for s in NIFTY_50]
+        else:
+            tkr_list = [f"{s}.NS" for s in NIFTY_50 + MIDCAP_150]
+
+        if st.button("🚀 Run 5-Year Month Effect Analysis", width="stretch"):
+            me_df = analyze_month_effect(tkr_list)
+            
+            if not me_df.empty:
+                # 🚀 Logic 3: Relative Strength & Risk Filter (Relaxed)
+                strict_condition = (
+                    (me_df["Win Rate (1st 10 Days) %"] >= 55) &  # Kaneesam 55% times win avvali
+                    (me_df["Avg 1st-10th Return (%)"] > 0.5) &   # Overall return positive ga undali
+                    (me_df["Avg 1st-10th Return (%)"] > me_df["Avg Rest Return (%)"]) & # Migita nela kante better performance
+                    (me_df["Avg Loss on Fail (%)"] >= -6.0) # -6% kanna ekkuva padani stocks (Market volatility ni tattukotaniki)
+                )# 🚀 Logic 2: Average Loss
                             "Avg Rest Return (%)": round(avg_rest, 2),
                             "Total Months": total_months
                         })
