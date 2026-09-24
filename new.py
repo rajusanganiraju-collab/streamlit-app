@@ -1721,7 +1721,7 @@ if not df.empty:
             df_filtered = df_filtered.sort_values(by="Day_C", ascending=False).head(40)
         else:
             df_filtered = pd.DataFrame(columns=df_filtered.columns)
-        elif watchlist_mode == "Legendary Strategy 🏆":
+    elif watchlist_mode == "Legendary Strategy 🏆":
         df_filtered = df_stocks.copy()
         dfs_to_concat = []
         
