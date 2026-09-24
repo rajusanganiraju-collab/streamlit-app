@@ -1758,8 +1758,8 @@ if not df.empty:
 
         if dfs_to_concat:
             df_filtered = pd.concat(dfs_to_concat).drop_duplicates(subset=['Fetch_T'], keep='last')
-            # 🔥 SMART FIX: ముందే ఫిల్టర్ చేసి Top 40 మాత్రమే ఉంచుతున్నాం!
-            df_filtered = df_filtered.sort_values(by="Day_C", ascending=False).head(40)
+            # 🔥 FIX: .head(40) తీసేశాం! లెజెండరీ స్ట్రాటజీస్ మొత్తం డేటాని స్వేచ్ఛగా స్కాన్ చేయడానికి.
+            df_filtered = df_filtered.sort_values(by="Day_C", ascending=False)
         else:
             df_filtered = pd.DataFrame(columns=df_filtered.columns)
     else:
