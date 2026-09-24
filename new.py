@@ -1568,8 +1568,8 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
                 )
         elif watchlist_mode == "Swing Trading 📈":
             move_type_filter = st.multiselect("Strategy Filter", 
-                ["All Swing Stocks", "📈 Minervini Trend Template (VCP)", "📉 Strict VCP (Price & Vol Contraction)", "🔥 Minervini MidCap 150", "🚀 Minervini SmallCap 250"], 
-                default=["📈 Minervini Trend Template (VCP)"], "📦 Nicolas Darvas (Box Breakout)", "📈 Stan Weinstein (Stage 2 Uptrend)", "💥 Dan Zanger (Volume Explosion)"
+                ["All Swing Stocks", "📈 Minervini Trend Template (VCP)", "📉 Strict VCP (Price & Vol Contraction)", "🔥 Minervini MidCap 150", "🚀 Minervini SmallCap 250", "📦 Nicolas Darvas (Box Breakout)", "📈 Stan Weinstein (Stage 2 Uptrend)", "💥 Dan Zanger (Volume Explosion)"], 
+                default=["📈 Minervini Trend Template (VCP)"], 
                 key="swing_trading_filter_key" 
             )
         elif watchlist_mode == "Fundamentals 🏢":
