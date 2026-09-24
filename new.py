@@ -644,7 +644,7 @@ def fetch_all_data():
     
     for i in range(0, len(tkrs), chunk_size):
         chunk = tkrs[i : i + chunk_size]
-        temp_data = yf.download(chunk, period="15mo", progress=False, group_by='ticker', threads=False)
+        temp_data = yf.download(chunk, period="15mo", progress=False, group_by='ticker', threads=2)
         if not temp_data.empty:
             # సింగిల్ స్టాక్ వస్తే MultiIndex ఎర్రర్ రాకుండా సేఫ్టీ చెక్
             if len(chunk) == 1:
@@ -1511,7 +1511,13 @@ st.markdown("<hr style='margin:10px 0; border-color:#30363d;'>", unsafe_allow_ht
 # 🔥 మార్కెట్ సెగ్మెంట్ రేడియో బటన్ పీకేశాం
 
 if True: 
-    df = fetch_all_data() # ఆర్గ్యుమెంట్స్ లేకుండా కాల్ చేస్తున్నాం
+    df = fetch_all_data()
+    if True: 
+    with st.spinner("📥 Market Data load avuthondi... Dayachesi 1 nimisham aagandi..."):
+        df = fetch_all_data()
+        
+    if df.empty:
+        st.warning("⚠️ Data raledu boss! Yahoo Finance nunchi response ledu. Dayachesi page refresh cheyandi.")# ఆర్గ్యుమెంట్స్ లేకుండా కాల్ చేస్తున్నాం
 
 if not df.empty and 'LIVE_PRICES' in st.session_state:
     for i, row in df.iterrows():
