@@ -132,7 +132,7 @@ SMALLCAP_250 = [
 ALL_STOCKS = list(set(NIFTY_50 + FNO_STOCKS + MIDCAP_150 + SMALLCAP_250))
 TICKERS = [f"{sym}.NS" for sym in ALL_STOCKS]
 
-# --- 3. 🚀 20X SPEED FETCH & PROCESS DATA ---
+# --- 3. FETCH & PROCESS DATA ---
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_and_calculate_metrics(tickers):
     chunk_size = 25 # ఒక్కో బ్యాచ్‌కి 25 స్టాక్స్
@@ -150,7 +150,7 @@ def fetch_and_calculate_metrics(tickers):
             return pd.DataFrame()
         return pd.DataFrame()
 
-    # 🔥 20 Threads in parallel
+    # 🔥 20 Threads in parallel (Super Fast)
     with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
         futures = [executor.submit(download_chunk, c) for c in chunks]
         for future in concurrent.futures.as_completed(futures):
