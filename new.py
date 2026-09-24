@@ -1752,6 +1752,58 @@ if not df.empty:
             df_filtered = df_filtered.sort_values(by="Day_C", ascending=False).head(40)
         else:
             df_filtered = pd.DataFrame(columns=df_filtered.columns)
+    elif watchlist_mode == "Legendary Strategy 🏆":
+        df_filtered = df_stocks.copy()
+        dfs_to_concat = []
+        
+        # Base VCP Logic
+        cond1 = (df_filtered['P'] > df_filtered['SMA150']) & ((df_filtered['P'] > df_filtered['SMA200']) | (df_filtered['SMA200'] == 0))
+        cond2 = (df_filtered['SMA150'] > df_filtered['SMA200']) | (df_filtered['SMA200'] == 0)
+        cond3 = (df_filtered['SMA200'] > df_filtered['SMA200_20D']) | (df_filtered['SMA200'] == 0)
+        cond4 = df_filtered['P'] > df_filtered['SMA50']
+        cond7 = df_filtered['SMA50'] > df_filtered['SMA150'] 
+        cond5 = df_filtered['P'] >= (df_filtered['Low52W'] * 1.30)
+        cond6 = df_filtered['P'] >= (df_filtered['High52W'] * 0.75)
+        vcp_base_cond = cond1 & cond2 & cond3 & cond4 & cond7 & cond5 & cond6
+        
+        strat = move_type_filter[0] if isinstance(move_type_filter, list) else move_type_filter
+        
+        if strat == "📈 Minervini Trend Template (VCP)":
+            df_min = df_filtered[vcp_base_cond].copy()
+            df_min['Strategy_Icon'] = "📈 M-VCP"
+            dfs_to_concat.append(df_min)
+            
+        elif strat == "📉 Strict VCP (Price & Vol Contraction)":
+            strict_vcp_cond = (df_filtered['VCP_Contract'] == True) & (df_filtered['VCP_Vol_Dry'] == True)
+            df_vcp = df_filtered[vcp_base_cond & strict_vcp_cond].copy()
+            df_vcp['Strategy_Icon'] = "📉 VCP"
+            dfs_to_concat.append(df_vcp)
+            
+        elif strat == "📦 Nicolas Darvas (Box Breakout)":
+            box_width = (df_filtered['Box_Top20'] - df_filtered['Box_Bot20']) / (df_filtered['Box_Bot20'] + 0.001)
+            darvas_cond = (df_filtered['P'] > df_filtered['Box_Top20']) & (box_width <= 0.15) & (df_filtered['P'] >= df_filtered['High52W'] * 0.90) & (df_filtered['VolX'] >= 1.5)
+            df_darvas = df_filtered[darvas_cond].copy()
+            df_darvas['Strategy_Icon'] = "📦 Darvas"
+            dfs_to_concat.append(df_darvas)
+            
+        elif strat == "📈 Stan Weinstein (Stage 2 Uptrend)":
+            weinstein_cond = (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['SMA150'] > df_filtered['SMA150_20D']) & (df_filtered['SMA50'] > df_filtered['SMA150']) & (df_filtered['P'] > df_filtered['SMA200']) & (df_filtered['Day_C'] >= 1.5)
+            df_weinstein = df_filtered[weinstein_cond].copy()
+            df_weinstein['Strategy_Icon'] = "📈 Stage 2"
+            dfs_to_concat.append(df_weinstein)
+            
+        elif strat == "💥 Dan Zanger (Volume Explosion)":
+            close_range = (df_filtered['P'] - df_filtered['L']) / (df_filtered['H'] - df_filtered['L'] + 0.001)
+            zanger_cond = (df_filtered['VolX'] >= 2.5) & (df_filtered['Day_C'] >= 4.0) & (close_range >= 0.75) & (df_filtered['SMA50'] > df_filtered['SMA150'])
+            df_zanger = df_filtered[zanger_cond].copy()
+            df_zanger['Strategy_Icon'] = "💥 Zanger"
+            dfs_to_concat.append(df_zanger)
+            
+        if dfs_to_concat:
+            df_filtered = pd.concat(dfs_to_concat).drop_duplicates(subset=['Fetch_T'], keep='last')
+            df_filtered = df_filtered.sort_values(by="Day_C", ascending=False)
+        else:
+            df_filtered = pd.DataFrame(columns=df_filtered.columns)
     else:
         df_filtered = df_stocks[(df_stocks['S'] >= 11) & (df_stocks['VolX'] >= 1.5)]
 
@@ -2641,8 +2693,8 @@ if not df.empty:
             
             if "AI Predictions" in watchlist_mode:
                 with st.expander("🤖 View AI Predictive Radar (Probability Based)", expanded=True): st.markdown(render_highscore_terminal_table(df_stocks_display), unsafe_allow_html=True)
-            elif watchlist_mode == "Swing Trading 📈":
-                with st.expander("🌊 View Swing Trading Radar (Ranked Table)", expanded=True): st.markdown(render_swing_terminal_table(df_stocks_display), unsafe_allow_html=True)
+            elif watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"]:
+                with st.expander(f"🌊 View {watchlist_mode} Radar (Ranked Table)", expanded=True): st.markdown(render_swing_terminal_table(df_stocks_display), unsafe_allow_html=True)
             elif watchlist_mode in ["High Score Stocks 🔥", "Day Trading Stocks 🚀"]:
                 with st.expander("🔥 View Day Trading Radar (Ranked Table)", expanded=True): st.markdown(render_highscore_terminal_table(df_stocks_display), unsafe_allow_html=True)
             elif watchlist_mode != "Commodity 🛢️":
