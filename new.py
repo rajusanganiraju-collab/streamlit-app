@@ -1524,7 +1524,7 @@ watchlist_mode = st.selectbox("Watchlist", [
     "🤖 AI Predictions (Mid Cap)", 
     "🤖 AI Predictions (Small Cap)", 
     "Swing Trading 📈", "Nifty 50 Heatmap", "Terminal Tables 🗃️", 
-    "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢", "Mutual Funds 📈"
+    "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢", "Mutual Funds 📈", "Month Effect Advantage 📅"
 ], index=0, label_visibility="collapsed")
 # 🔥 SMART REFRESH: స్వింగ్ ట్రేడింగ్ కి 15 సెకన్లు, మిగతా డే ట్రేడింగ్/హీట్ మ్యాప్ లకి 5 సెకన్లు
 refresh_time = 15000 if watchlist_mode == "Swing Trading 📈" else 5000
@@ -2280,7 +2280,103 @@ if not df.empty:
             st.markdown(render_mf_table(df_mf_data), unsafe_allow_html=True)
             st.markdown(f"<p style='font-size:11px; color:#888;'><i>*Note: Funds are auto-ranked based on <b>{sort_period}</b>. Returns > 20% are highlighted in Bright Green. Data Source: Morningstar.</i></p>", unsafe_allow_html=True)
         else:
-            st.error("Failed to fetch Mutual Fund data from Morningstar.")      
+            st.error("Failed to fetch Mutual Fund data from Morningstar.") 
+    # ==========================================
+    # 🔥 NEW: MONTH EFFECT ADVANTAGE SECTION 🔥
+    # ==========================================
+    elif watchlist_mode == "Month Effect Advantage 📅":
+        st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#00BFFF;'>📅 Month Effect Advantage (First 10 Days vs Rest)</div>", unsafe_allow_html=True)
+        st.markdown("<p style='font-size:13px; color:#c9d1d9;'>Top 200 స్టాక్స్ (Nifty 50 + Midcap 150) గత 5 ఏళ్ల డేటాను విశ్లేషించి, ప్రతి నెలా <b>మొదటి 10 రోజుల్లో</b> కచ్చితంగా పెరిగే బెస్ట్ స్టాక్స్‌ను ఇక్కడ చూడవచ్చు.</p>", unsafe_allow_html=True)
+
+        @st.cache_data(ttl=86400, show_spinner=False)
+        def analyze_month_effect(tickers, years=5):
+            results = []
+            end_date = datetime.now()
+            start_date = end_date - pd.DateOffset(years=years)
+
+            # 5 ఏళ్ల డేటాను ఒకేసారి ఫాస్ట్ గా డౌన్లోడ్ చేయడానికి
+            data = yf.download(tickers, start=start_date, end=end_date, progress=False, group_by='ticker', threads=10)
+            if len(tickers) == 1:
+                data = {tickers[0]: data}
+
+            for tkr in tickers:
+                try:
+                    df_t = data[tkr] if len(tickers) > 1 else data
+                    if df_t.empty: continue
+                    df_t = df_t.dropna(subset=['Close'])
+
+                    df_t['Month'] = df_t.index.month
+                    df_t['Year'] = df_t.index.year
+                    df_t['Day'] = df_t.index.day
+
+                    monthly_groups = df_t.groupby(['Year', 'Month'])
+                    first_10_returns = []
+                    rest_returns = []
+                    win_count = 0
+                    total_months = 0
+
+                    for (y, m), group in monthly_groups:
+                        if len(group) < 5: continue
+                        
+                        first_10 = group[group['Day'] <= 10]
+                        rest = group[group['Day'] > 10]
+
+                        if not first_10.empty and not rest.empty:
+                            f10_ret = (first_10['Close'].iloc[-1] - first_10['Open'].iloc[0]) / first_10['Open'].iloc[0] * 100
+                            r_ret = (rest['Close'].iloc[-1] - rest['Open'].iloc[0]) / rest['Open'].iloc[0] * 100
+
+                            first_10_returns.append(f10_ret)
+                            rest_returns.append(r_ret)
+
+                            if f10_ret > 0: win_count += 1
+                            total_months += 1
+
+                    if total_months > 0:
+                        avg_f10 = sum(first_10_returns) / len(first_10_returns)
+                        avg_rest = sum(rest_returns) / len(rest_returns)
+                        win_rate = (win_count / total_months) * 100
+
+                        results.append({
+                            "Stock": tkr.replace(".NS", ""),
+                            "Win Rate (1st 10 Days) %": round(win_rate, 2),
+                            "Avg 1st-10th Return (%)": round(avg_f10, 2),
+                            "Avg Rest Return (%)": round(avg_rest, 2),
+                            "Total Months": total_months
+                        })
+                except Exception:
+                    pass
+            return pd.DataFrame(results)
+
+        scan_list = st.radio("Select Universe to Scan:", ["Top 200 (Nifty + Midcap)", "NIFTY 50 Only", "Custom Stock"], horizontal=True)
+
+        if scan_list == "Custom Stock":
+            cust_stock = st.selectbox("Select Stock", all_names if all_names else NIFTY_50)
+            tkr_list = [f"{cust_stock}.NS"]
+        elif scan_list == "NIFTY 50 Only":
+            tkr_list = [f"{s}.NS" for s in NIFTY_50]
+        else:
+            tkr_list = [f"{s}.NS" for s in NIFTY_50 + MIDCAP_150]
+
+        if st.button("🚀 Run 5-Year Month Effect Analysis", width="stretch"):
+            with st.spinner(f"Analyzing {len(tkr_list)} stocks over 5 years. This takes about 10-20 seconds..."):
+                me_df = analyze_month_effect(tkr_list)
+                if not me_df.empty:
+                    # బెస్ట్ స్టాక్స్ కోసం Win Rate మరియు Return బట్టి సార్టింగ్ 
+                    me_df = me_df.sort_values(by=["Win Rate (1st 10 Days) %", "Avg 1st-10th Return (%)"], ascending=[False, False])
+
+                    st.markdown("### 🏆 Top 10 Best Stocks (Month Effect Advantage)")
+                    st.markdown("<p style='font-size:12px; color:#3fb950;'>గత 5 ఏళ్లలో ప్రతి నెలా మొదటి 10 రోజుల్లో అత్యధిక విజయశాతం (Win Rate) ఉన్న బెస్ట్ స్టాక్స్ ఇవే. వీటికి DII SIP ఫండ్స్ సపోర్ట్ చాలా ఎక్కువ.</p>", unsafe_allow_html=True)
+                    
+                    top_10 = me_df[me_df["Win Rate (1st 10 Days) %"] >= 55].head(10)
+                    if not top_10.empty:
+                        st.dataframe(top_10, use_container_width=True, hide_index=True)
+                    else:
+                        st.info("No stocks matched the strict consistency criteria.")
+
+                    st.markdown("### 📊 Full Data Analysis")
+                    st.dataframe(me_df, use_container_width=True, hide_index=True)
+
+            
     elif watchlist_mode == "Terminal Tables 🗃️" and view_mode == "Heat Map":
         st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>🗃️ Professional Terminal View</div>", unsafe_allow_html=True)
         for df_temp in [df_buy_sector, df_sell_sector, df_independent, df_broader]:
