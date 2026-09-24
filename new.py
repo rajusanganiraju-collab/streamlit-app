@@ -644,7 +644,7 @@ def fetch_all_data():
     
     for i in range(0, len(tkrs), chunk_size):
         chunk = tkrs[i : i + chunk_size]
-        temp_data = yf.download(chunk, period="15mo", progress=False, group_by='ticker', threads=5)
+        temp_data = yf.download(chunk, period="15mo", progress=False, group_by='ticker', threads=False)
         if not temp_data.empty:
             # సింగిల్ స్టాక్ వస్తే MultiIndex ఎర్రర్ రాకుండా సేఫ్టీ చెక్
             if len(chunk) == 1:
