@@ -2286,7 +2286,7 @@ if not df.empty:
     # ==========================================
     elif watchlist_mode == "Month Effect Advantage 📅":
         st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#00BFFF;'>📅 Month Effect Advantage (First 10 Days vs Rest)</div>", unsafe_allow_html=True)
-        st.markdown("<p style='font-size:13px; color:#c9d1d9;'>Top 200 stocks (Nifty 50 + Midcap 150) gata 5 yellalo prati nela <b>modati 10 rojullo</b> kachitamga 2.5% paina perige best momentum stocks idigo.</p>", unsafe_allow_html=True)
+        st.markdown("<p style='font-size:13px; color:#c9d1d9;'>Top 200 stocks (Nifty 50 + Midcap 150) gata 5 yellalo prati nela <b>modati 10 rojullo</b> kachitamga momentum iche best stocks idigo.</p>", unsafe_allow_html=True)
 
         @st.cache_data(ttl=86400, show_spinner=False)
         def analyze_month_effect(tickers, years=5):
@@ -2402,43 +2402,12 @@ if not df.empty:
                     (me_df["Avg 1st-10th Return (%)"] > 0.5) &   # Overall return positive ga undali
                     (me_df["Avg 1st-10th Return (%)"] > me_df["Avg Rest Return (%)"]) & # Migita nela kante better performance
                     (me_df["Avg Loss on Fail (%)"] >= -6.0) # -6% kanna ekkuva padani stocks (Market volatility ni tattukotaniki)
-                )# 🚀 Logic 2: Average Loss
-                "Avg Rest Return (%)": round(avg_rest, 2),
-                "Total Months": total_months
-                })
-                except Exception:
-                    pass
-            
-            progress_bar.empty()
-            status_text.empty()
-            return pd.DataFrame(results)
-
-        scan_list = st.radio("Select Universe to Scan:", ["Top 200 (Nifty + Midcap)", "NIFTY 50 Only", "Custom Stock"], horizontal=True)
-
-        if scan_list == "Custom Stock":
-            cust_stock = st.selectbox("Select Stock", all_names if all_names else NIFTY_50)
-            tkr_list = [f"{cust_stock}.NS"]
-        elif scan_list == "NIFTY 50 Only":
-            tkr_list = [f"{s}.NS" for s in NIFTY_50]
-        else:
-            tkr_list = [f"{s}.NS" for s in NIFTY_50 + MIDCAP_150]
-
-        if st.button("🚀 Run 5-Year Month Effect Analysis", width="stretch"):
-            me_df = analyze_month_effect(tkr_list)
-            
-            if not me_df.empty:
-                # 🚀 Logic 3: Relative Strength & Risk Filter
-                strict_condition = (
-                    (me_df["Win Rate (1st 10 Days) %"] >= 50) & 
-                    (me_df["Avg 1st-10th Return (%)"] >= 2.5) &
-                    (me_df["Avg 1st-10th Return (%)"] > me_df["Avg Rest Return (%)"]) &
-                    (me_df["Avg Loss on Fail (%)"] >= -4.0) # -4% kanna ekkuva padani stocks
                 )
                 
                 me_df = me_df.sort_values(by=["Win Rate (1st 10 Days) %", "Avg 1st-10th Return (%)"], ascending=[False, False])
 
                 st.markdown("### 🏆 Top 10 Best Stocks (High Probability Swing)")
-                st.markdown("<p style='font-size:12px; color:#3fb950;'>Kevalam <b>kaneesam 2.5% perige stocks</b>, avi kooda rest of the month kante modati 10 rojullone ekkuva momentum ichevi ikkada filter ayyayi. Deentlo fail ayina kooda pedda loss undadu.</p>", unsafe_allow_html=True)
+                st.markdown("<p style='font-size:12px; color:#3fb950;'>Kevalam <b>kaneesam 55% Win Rate mariyu overall positive returns unde stocks</b>, avi kooda rest of the month kante modati 10 rojullone ekkuva momentum ichevi ikkada filter ayyayi. Deentlo fail ayina kooda pedda loss undadu.</p>", unsafe_allow_html=True)
                 
                 top_10 = me_df[strict_condition].head(10)
                 if not top_10.empty:
@@ -2448,24 +2417,6 @@ if not df.empty:
 
                 st.markdown("### 📊 Full Data Analysis")
                 st.dataframe(me_df, use_container_width=True, hide_index=True)
-
-            
-    elif watchlist_mode == "Terminal Tables 🗃️" and view_mode == "Heat Map":
-        st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#e6edf3;'>🗃️ Professional Terminal View</div>", unsafe_allow_html=True)
-        for df_temp in [df_buy_sector, df_sell_sector, df_independent, df_broader]:
-            if not df_temp.empty:
-                df_temp['AlphaTag'] = df_temp['Fetch_T'].map(alpha_tags).fillna("")
-                df_temp['S'] = df_temp['S'] + df_temp['Fetch_T'].map(trend_scores).fillna(0)
-        
-        df_buy_sector = df_buy_sector.sort_values(by=['S', 'C'], ascending=[False, False])
-        df_sell_sector = df_sell_sector.sort_values(by=['S', 'C'], ascending=[False, True])
-        df_independent = df_independent.sort_values(by=['S', 'C'], ascending=[False, False])
-        df_broader = df_broader.sort_values(by=['S', 'C'], ascending=[False, False])
-
-        st.markdown(render_html_table(df_buy_sector, f"🚀 BUY LEADER: {top_buy_sector}", "term-head-buy"), unsafe_allow_html=True)
-        st.markdown(render_html_table(df_sell_sector, f"🩸 SELL LAGGARD: {top_sell_sector}", "term-head-sell"), unsafe_allow_html=True)
-        st.markdown(render_html_table(df_independent, "🌟 INDEPENDENT MOVERS", "term-head-ind"), unsafe_allow_html=True)
-        st.markdown(render_html_table(df_broader, "🌌 BROADER MARKET", "term-head-brd"), unsafe_allow_html=True)
         
     elif watchlist_mode == "My Portfolio 💼" and view_mode == "Heat Map":
         sc1, sc2 = st.columns([0.7, 0.3])
