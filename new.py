@@ -726,7 +726,19 @@ def fetch_all_data():
             high_52w = float(df['High'].rolling(window=252).max().iloc[-1]) if len(df) >= 252 else float(df['High'].max())
             low_52w = float(df['Low'].rolling(window=252).min().iloc[-1]) if len(df) >= 252 else float(df['Low'].min())
             sma200_20d = float(df['Close'].rolling(window=200).mean().iloc[-21]) if len(df) >= 220 else 0.0
+            
+            # 🔥 FIX: ఇక్కడ మిస్సయిన Darvas Box మరియు Weinstein వేరియబుల్స్ యాడ్ చేశాం
+            sma150_20d = float(df['Close'].rolling(window=150).mean().iloc[-21]) if len(df) >= 170 else 0.0
+            
+            if len(df) >= 25:
+                box_top_20 = float(df['High'].iloc[-21:-1].max())
+                box_bot_20 = float(df['Low'].iloc[-21:-1].min())
+            else:
+                box_top_20 = high_52w
+                box_bot_20 = low_52w
+
             # VCP CONTRACTION & VOLUME DRY-UP LOGIC (Practical & Relaxed)
+            
             vcp_price_contraction = False
             vcp_vol_dry = False
             if len(df) >= 60:
