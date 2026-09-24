@@ -1781,40 +1781,77 @@ if not df.empty:
         
         strat = move_type_filter[0] if isinstance(move_type_filter, list) else move_type_filter
         
+        # 🔥 SMART TIME-FRAME & STRATEGY MAPPING (Only for Legendary Strategy)
+        is_intraday = (chart_timeframe == "Intraday (5m)")
+        is_weekly = (chart_timeframe == "Weekly Chart")
+        
         if strat == "📈 Minervini Trend Template (VCP)":
             df_min = df_filtered[vcp_base_cond].copy()
+            if is_intraday:
+                df_min = df_min[(df_min['VolX'] >= 1.5) & (df_min['Day_C'] >= 1.0)]
+            elif is_weekly:
+                df_min = df_min[df_min['W_C'] > 0]
             df_min['Strategy_Icon'] = "📈 M-VCP"
             dfs_to_concat.append(df_min)
             
         elif strat == "📉 Strict VCP (Price & Vol Contraction)":
             strict_vcp_cond = (df_filtered['VCP_Contract'] == True) & (df_filtered['VCP_Vol_Dry'] == True)
             df_vcp = df_filtered[vcp_base_cond & strict_vcp_cond].copy()
+            if is_intraday:
+                df_vcp = df_vcp[df_vcp['VolX'] >= 1.5]
+            elif is_weekly:
+                df_vcp = df_vcp[df_vcp['W_C'] > 0]
             df_vcp['Strategy_Icon'] = "📉 VCP"
             dfs_to_concat.append(df_vcp)
             
         elif strat == "📦 Nicolas Darvas (Box Breakout)":
             box_width = (df_filtered['Box_Top20'] - df_filtered['Box_Bot20']) / (df_filtered['Box_Bot20'] + 0.001)
-            darvas_cond = (df_filtered['P'] > df_filtered['Box_Top20']) & (box_width <= 0.15) & (df_filtered['P'] >= df_filtered['High52W'] * 0.90) & (df_filtered['VolX'] >= 1.5)
+            darvas_cond = (df_filtered['P'] > df_filtered['Box_Top20']) & (box_width <= 0.15) & (df_filtered['P'] >= df_filtered['High52W'] * 0.90)
             df_darvas = df_filtered[darvas_cond].copy()
+            
+            if is_intraday:
+                df_darvas = df_darvas[(df_darvas['VolX'] >= 1.5) & (df_darvas['Day_C'] >= 1.0)]
+            elif is_weekly:
+                df_darvas = df_darvas[(df_darvas['VolX'] >= 1.0) & (df_darvas['W_C'] >= 2.0)]
+            else:
+                df_darvas = df_darvas[df_darvas['VolX'] >= 1.0]
+                
             df_darvas['Strategy_Icon'] = "📦 Darvas"
             dfs_to_concat.append(df_darvas)
             
         elif strat == "📈 Stan Weinstein (Stage 2 Uptrend)":
-            weinstein_cond = (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['SMA150'] > df_filtered['SMA150_20D']) & (df_filtered['SMA50'] > df_filtered['SMA150']) & (df_filtered['P'] > df_filtered['SMA200']) & (df_filtered['Day_C'] >= 1.5)
+            weinstein_cond = (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['SMA150'] > df_filtered['SMA150_20D']) & (df_filtered['SMA50'] > df_filtered['SMA150']) & (df_filtered['P'] > df_filtered['SMA200'])
             df_weinstein = df_filtered[weinstein_cond].copy()
+            
+            if is_intraday:
+                df_weinstein = df_weinstein[(df_weinstein['VolX'] >= 1.5) & (df_weinstein['Day_C'] >= 1.0)]
+            elif is_weekly:
+                df_weinstein = df_weinstein[(df_weinstein['P'] > df_weinstein['W_EMA50']) & (df_weinstein['W_C'] > 1.0)]
+            else:
+                df_weinstein = df_weinstein[df_weinstein['Day_C'] > 0.5]
+                
             df_weinstein['Strategy_Icon'] = "📈 Stage 2"
             dfs_to_concat.append(df_weinstein)
             
         elif strat == "💥 Dan Zanger (Volume Explosion)":
             close_range = (df_filtered['P'] - df_filtered['L']) / (df_filtered['H'] - df_filtered['L'] + 0.001)
-            zanger_cond = (df_filtered['VolX'] >= 2.5) & (df_filtered['Day_C'] >= 4.0) & (close_range >= 0.75) & (df_filtered['SMA50'] > df_filtered['SMA150'])
-            df_zanger = df_filtered[zanger_cond].copy()
+            zanger_base = (df_filtered['SMA50'] > df_filtered['SMA150']) & (close_range >= 0.70)
+            df_zanger = df_filtered[zanger_base].copy()
+            
+            if is_intraday:
+                df_zanger = df_zanger[(df_zanger['VolX'] >= 2.0) & (df_zanger['Day_C'] >= 3.0)]
+            elif is_weekly:
+                df_zanger = df_zanger[(df_zanger['VolX'] >= 1.5) & (df_zanger['W_C'] >= 5.0)]
+            else:
+                df_zanger = df_zanger[(df_zanger['VolX'] >= 1.5) & (df_zanger['Day_C'] >= 4.0)]
+                
             df_zanger['Strategy_Icon'] = "💥 Zanger"
             dfs_to_concat.append(df_zanger)
             
         if dfs_to_concat:
             df_filtered = pd.concat(dfs_to_concat).drop_duplicates(subset=['Fetch_T'], keep='last')
-            df_filtered = df_filtered.sort_values(by="Day_C", ascending=False)
+            sort_metric = "W_C" if is_weekly else "Day_C"
+            df_filtered = df_filtered.sort_values(by=sort_metric, ascending=False)
         else:
             df_filtered = pd.DataFrame(columns=df_filtered.columns)
     else:
