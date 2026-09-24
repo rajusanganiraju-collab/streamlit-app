@@ -719,13 +719,24 @@ def fetch_all_data():
             ema50_d = float(df['Close'].ewm(span=50, adjust=False).mean().iloc[-1]) if len(df) >= 50 else 0.0
             
             
-            # MINERVINI METRICS
+            # 🚀 LEGENDARY METRICS (Minervini, Weinstein, Darvas, Zanger)
             sma50_d = float(df['Close'].rolling(window=50).mean().iloc[-1]) if len(df) >= 50 else 0.0
             sma150_d = float(df['Close'].rolling(window=150).mean().iloc[-1]) if len(df) >= 150 else 0.0
             sma200_d = float(df['Close'].rolling(window=200).mean().iloc[-1]) if len(df) >= 200 else 0.0
             high_52w = float(df['High'].rolling(window=252).max().iloc[-1]) if len(df) >= 252 else float(df['High'].max())
             low_52w = float(df['Low'].rolling(window=252).min().iloc[-1]) if len(df) >= 252 else float(df['Low'].min())
+            
+            # Weinstein Trend Metrics (Slope check)
             sma200_20d = float(df['Close'].rolling(window=200).mean().iloc[-21]) if len(df) >= 220 else 0.0
+            sma150_20d = float(df['Close'].rolling(window=150).mean().iloc[-21]) if len(df) >= 170 else 0.0
+            
+            # Darvas Box Metrics (Last 20 days tight range calculation)
+            if len(df) >= 25:
+                box_top_20 = float(df['High'].iloc[-21:-1].max())
+                box_bot_20 = float(df['Low'].iloc[-21:-1].min())
+            else:
+                box_top_20 = high_52w
+                box_bot_20 = low_52w
             # VCP CONTRACTION & VOLUME DRY-UP LOGIC (Practical & Relaxed)
             vcp_price_contraction = False
             vcp_vol_dry = False
@@ -828,7 +839,9 @@ def fetch_all_data():
                 "Is_W_Pullback": is_w_pullback, "VWAP": vwap,
                 "ATR": atr, "Narrow_CPR": is_narrow_cpr,
                 "Bull_P": bull_power, "Bear_P": bear_power,
-                "Is_Index": is_index, "Is_Sector": is_sector, "Sector": stock_sector, "Is_Commodity": is_commodity
+                "Is_Index": is_index, "Is_Sector": is_sector, "Sector": stock_sector, "Is_Commodity": is_commodity,
+                "Is_Index": is_index, "Is_Sector": is_sector, "Sector": stock_sector, "Is_Commodity": is_commodity,
+                "SMA150_20D": sma150_20d, "Box_Top20": box_top_20, "Box_Bot20": box_bot_20
             })
         except: continue
     return pd.DataFrame(results)
@@ -1556,7 +1569,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
         elif watchlist_mode == "Swing Trading 📈":
             move_type_filter = st.multiselect("Strategy Filter", 
                 ["All Swing Stocks", "📈 Minervini Trend Template (VCP)", "📉 Strict VCP (Price & Vol Contraction)", "🔥 Minervini MidCap 150", "🚀 Minervini SmallCap 250"], 
-                default=["📈 Minervini Trend Template (VCP)"], 
+                default=["📈 Minervini Trend Template (VCP)"], "📦 Nicolas Darvas (Box Breakout)", "📈 Stan Weinstein (Stage 2 Uptrend)", "💥 Dan Zanger (Volume Explosion)"
                 key="swing_trading_filter_key" 
             )
         elif watchlist_mode == "Fundamentals 🏢":
@@ -2144,7 +2157,25 @@ if not df.empty:
                     c_buy = base_buy & (df_filtered['ORB_Tag'] == "ORB_BUY") & (df_filtered['VolX'] >= 1.2)
                     c_sell = base_sell & (df_filtered['ORB_Tag'] == "ORB_SELL") & (df_filtered['VolX'] >= 1.2)
                     icon_str = "🌅 ORB"
+                elif strat == "📦 Nicolas Darvas (Box Breakout)":
+                    # లాజిక్: బాక్స్ 15% లోపే ఉండాలి, 52Week High కి దగ్గరలో ఉండాలి, బాక్స్ టాప్ బ్రేక్ అవ్వాలి
+                    box_width = (df_filtered['Box_Top20'] - df_filtered['Box_Bot20']) / (df_filtered['Box_Bot20'] + 0.001)
+                    c_buy = base_buy & (df_filtered['P'] > df_filtered['Box_Top20']) & (box_width <= 0.15) & (df_filtered['P'] >= df_filtered['High52W'] * 0.90) & (df_filtered['VolX'] >= 1.5)
+                    c_sell = pd.Series(False, index=df_filtered.index)
+                    icon_str = "📦 Darvas"
 
+                elif strat == "📈 Stan Weinstein (Stage 2 Uptrend)":
+                    # లాజిక్: 150-SMA పైకి వంగి ఉండాలి (Current > Past 20D), అన్ని MA's పర్ఫెక్ట్ అలైన్‌మెంట్
+                    c_buy = base_buy & (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['SMA150'] > df_filtered['SMA150_20D']) & (df_filtered['SMA50'] > df_filtered['SMA150']) & (df_filtered['P'] > df_filtered['SMA200']) & (df_filtered['Day_C'] >= 1.5)
+                    c_sell = pd.Series(False, index=df_filtered.index)
+                    icon_str = "📈 Stage 2"
+
+                elif strat == "💥 Dan Zanger (Volume Explosion)":
+                    # లాజిక్: సగటు వాల్యూమ్ కన్నా 2.5 రెట్లు బ్లాస్ట్, +4% మూవ్, క్యాండిల్ హై దగ్గరే క్లోజ్ అవ్వాలి
+                    close_range_strength = (df_filtered['P'] - df_filtered['L']) / (df_filtered['H'] - df_filtered['L'] + 0.001)
+                    c_buy = base_buy & (df_filtered['VolX'] >= 2.5) & (df_filtered['Day_C'] >= 4.0) & (close_range_strength >= 0.75) & (df_filtered['SMA50'] > df_filtered['SMA150'])
+                    c_sell = pd.Series(False, index=df_filtered.index)
+                    icon_str = "💥 Zanger"
                 if apply_fib_strict and strat != "📉 FIB Retracement (0.382)":
                     c_buy = c_buy & fib_buy_mask
                     c_sell = c_sell & fib_sell_mask
