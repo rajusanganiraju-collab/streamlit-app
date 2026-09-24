@@ -2139,25 +2139,6 @@ if not df.empty:
                     c_buy = base_buy & cond1 & cond2 & cond3 & cond4 & cond5 & cond6 & cond7
                     c_sell = pd.Series(False, index=df_filtered.index)
                     icon_str = "📈 M-VCP"
-                    elif strat == "📦 Nicolas Darvas (Box Breakout)":
-                    # లాజిక్: బాక్స్ 15% లోపే ఉండాలి, 52Week High కి దగ్గరలో ఉండాలి, బాక్స్ టాప్ బ్రేక్ అవ్వాలి
-                    box_width = (df_filtered['Box_Top20'] - df_filtered['Box_Bot20']) / (df_filtered['Box_Bot20'] + 0.001)
-                    c_buy = base_buy & (df_filtered['P'] > df_filtered['Box_Top20']) & (box_width <= 0.15) & (df_filtered['P'] >= df_filtered['High52W'] * 0.90) & (df_filtered['VolX'] >= 1.5)
-                    c_sell = pd.Series(False, index=df_filtered.index)
-                    icon_str = "📦 Darvas"
-
-                elif strat == "📈 Stan Weinstein (Stage 2 Uptrend)":
-                    # లాజిక్: 150-SMA పైకి వంగి ఉండాలి (Current > Past 20D), అన్ని MA's పర్ఫెక్ట్ అలైన్‌మెంట్
-                    c_buy = base_buy & (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['SMA150'] > df_filtered['SMA150_20D']) & (df_filtered['SMA50'] > df_filtered['SMA150']) & (df_filtered['P'] > df_filtered['SMA200']) & (df_filtered['Day_C'] >= 1.5)
-                    c_sell = pd.Series(False, index=df_filtered.index)
-                    icon_str = "📈 Stage 2"
-
-                elif strat == "💥 Dan Zanger (Volume Explosion)":
-                    # లాజిక్: సగటు వాల్యూమ్ కన్నా 2.5 రెట్లు బ్లాస్ట్, +4% మూవ్, క్యాండిల్ హై దగ్గరే క్లోజ్ అవ్వాలి
-                    close_range_strength = (df_filtered['P'] - df_filtered['L']) / (df_filtered['H'] - df_filtered['L'] + 0.001)
-                    c_buy = base_buy & (df_filtered['VolX'] >= 2.5) & (df_filtered['Day_C'] >= 4.0) & (close_range_strength >= 0.75) & (df_filtered['SMA50'] > df_filtered['SMA150'])
-                    c_sell = pd.Series(False, index=df_filtered.index)
-                    icon_str = "💥 Zanger"
                     
                 elif strat == "📉 Strict VCP (Price & Vol Contraction)":
                     cond1 = (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['P'] > df_filtered['SMA200'])
@@ -2172,6 +2153,7 @@ if not df.empty:
                     c_buy = base_buy & cond1 & cond2 & cond3 & cond4 & cond5 & cond6 & cond7 & vcp_cond
                     c_sell = pd.Series(False, index=df_filtered.index)
                     icon_str = "📉 VCP"
+
                 elif strat == "🌅 15-Min ORB (Opening Range Breakout)":
                     c_buy = base_buy & (df_filtered['ORB_Tag'] == "ORB_BUY") & (df_filtered['VolX'] >= 1.2)
                     c_sell = base_sell & (df_filtered['ORB_Tag'] == "ORB_SELL") & (df_filtered['VolX'] >= 1.2)
@@ -2189,25 +2171,6 @@ if not df.empty:
                     icon_str = "📈 Stage 2"
 
                 elif strat == "💥 Dan Zanger (Volume Explosion)":
-                    close_range_strength = (df_filtered['P'] - df_filtered['L']) / (df_filtered['H'] - df_filtered['L'] + 0.001)
-                    c_buy = base_buy & (df_filtered['VolX'] >= 2.5) & (df_filtered['Day_C'] >= 4.0) & (close_range_strength >= 0.75) & (df_filtered['SMA50'] > df_filtered['SMA150'])
-                    c_sell = pd.Series(False, index=df_filtered.index)
-                    icon_str = "💥 Zanger"
-                elif strat == "📦 Nicolas Darvas (Box Breakout)":
-                    # లాజిక్: బాక్స్ 15% లోపే ఉండాలి, 52Week High కి దగ్గరలో ఉండాలి, బాక్స్ టాప్ బ్రేక్ అవ్వాలి
-                    box_width = (df_filtered['Box_Top20'] - df_filtered['Box_Bot20']) / (df_filtered['Box_Bot20'] + 0.001)
-                    c_buy = base_buy & (df_filtered['P'] > df_filtered['Box_Top20']) & (box_width <= 0.15) & (df_filtered['P'] >= df_filtered['High52W'] * 0.90) & (df_filtered['VolX'] >= 1.5)
-                    c_sell = pd.Series(False, index=df_filtered.index)
-                    icon_str = "📦 Darvas"
-
-                elif strat == "📈 Stan Weinstein (Stage 2 Uptrend)":
-                    # లాజిక్: 150-SMA పైకి వంగి ఉండాలి (Current > Past 20D), అన్ని MA's పర్ఫెక్ట్ అలైన్‌మెంట్
-                    c_buy = base_buy & (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['SMA150'] > df_filtered['SMA150_20D']) & (df_filtered['SMA50'] > df_filtered['SMA150']) & (df_filtered['P'] > df_filtered['SMA200']) & (df_filtered['Day_C'] >= 1.5)
-                    c_sell = pd.Series(False, index=df_filtered.index)
-                    icon_str = "📈 Stage 2"
-
-                elif strat == "💥 Dan Zanger (Volume Explosion)":
-                    # లాజిక్: సగటు వాల్యూమ్ కన్నా 2.5 రెట్లు బ్లాస్ట్, +4% మూవ్, క్యాండిల్ హై దగ్గరే క్లోజ్ అవ్వాలి
                     close_range_strength = (df_filtered['P'] - df_filtered['L']) / (df_filtered['H'] - df_filtered['L'] + 0.001)
                     c_buy = base_buy & (df_filtered['VolX'] >= 2.5) & (df_filtered['Day_C'] >= 4.0) & (close_range_strength >= 0.75) & (df_filtered['SMA50'] > df_filtered['SMA150'])
                     c_sell = pd.Series(False, index=df_filtered.index)
