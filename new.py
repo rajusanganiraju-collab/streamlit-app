@@ -10,48 +10,52 @@ from plotly.subplots import make_subplots
 import os
 import requests
 import time
-from datetime import datetime, time as dt_time
-from streamlit_autorefresh import st_autorefresh
 import threading
 import concurrent.futures
+from datetime import datetime, time as dt_time
+from streamlit_autorefresh import st_autorefresh
 from dhanhq import dhanhq, marketfeed
 
-# 🔥 ధన్ కొత్త అప్‌డేట్ కోసం క్యాచ్
 try:
     from dhanhq import DhanContext
 except ImportError:
     DhanContext = None
 
+# =========================================================
+# 🔥 FIX: GLOBAL LIVE PRICES (Thread Safe) - session_state కాదు
+# =========================================================
+LIVE_PRICES_GLOBAL = {}
+LIVE_PRICES_LOCK = threading.Lock()
+
 # --- 1. PAGE CONFIGURATION ---
 st.set_page_config(page_title="Market Heatmap", page_icon="📊", layout="wide")
 
-# 🔥 ఎల్లో బాక్సులు, స్పిన్నర్లు పక్కాగా మాయం మరియు డిమ్ అవ్వకుండా ఆపుతుంది
 st.markdown("""
     <style>
     div[data-testid="stNotification"] { display: none !important; }
     iframe[title="streamlit_autorefresh.st_autorefresh"] { display: none !important; }
-    
-    /* 🔥 రిఫ్రెష్ అయినప్పుడు చార్ట్స్ బ్రైట్‌నెస్ తగ్గిపోకుండా (డిమ్ అవ్వకుండా) పక్కాగా ఆపుతుంది */
     *[data-stale="true"] { 
         opacity: 1 !important; 
         filter: none !important; 
         transition: none !important; 
     }
-    div[data-testid="stElementContainer"] {
-        opacity: 1 !important;
-    }
+    div[data-testid="stElementContainer"] { opacity: 1 !important; }
     </style>
 """, unsafe_allow_html=True)
 
 # --- 2. GOOGLE SHEETS CONNECTION ---
 @st.cache_resource(show_spinner=False)
 def init_connection():
-    creds_json = st.secrets["gcp_service_account"]
+    # 🔥 FIX: Missing secrets handle
+    try:
+        creds_json = st.secrets["gcp_service_account"]
+    except KeyError:
+        st.error("❌ Missing 'gcp_service_account' in secrets.toml")
+        st.stop()
     creds_dict = json.loads(creds_json)
     scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
     client = gspread.authorize(creds)
-    
     db_sheet = client.open("Trading_DB")
     p_ws = db_sheet.worksheet("Portfolio")
     t_ws = db_sheet.worksheet("TradeBook")
@@ -64,6 +68,7 @@ except Exception as e:
     st.stop()
 
 # --- 3. DATA LOAD & SAVE FUNCTIONS ---
+# 🔥 FIX: Cached function లో save_* call తీసేశాం (deadlock prevent)
 @st.cache_data(ttl=300, show_spinner=False)
 def load_portfolio():
     try:
@@ -73,7 +78,6 @@ def load_portfolio():
             df.rename(columns={'Stock Name': 'Symbol', 'Buy Price': 'Buy_Price', 'Buy Date': 'Date'}, inplace=True)
             for col in ['SL', 'T1', 'T2']:
                 if col not in df.columns: df[col] = 0.0
-            save_portfolio(df)
         return df
     except:
         return pd.DataFrame(columns=['Symbol', 'Buy_Price', 'Quantity', 'Date', 'SL', 'T1', 'T2'])
@@ -86,7 +90,6 @@ def load_closed_trades():
         if not df.empty and 'Stock Name' in df.columns:
             df.rename(columns={'Stock Name': 'Symbol', 'Buy Price': 'Buy_Price', 'Sell Price': 'Sell_Price', 'Sell Date': 'Sell_Date', 'Profit/Loss': 'PnL_Rs'}, inplace=True)
             if 'PnL_Pct' not in df.columns: df['PnL_Pct'] = 0.0
-            save_closed_trades(df)
         return df
     except:
         return pd.DataFrame(columns=['Sell_Date', 'Symbol', 'Quantity', 'Buy_Price', 'Sell_Price', 'PnL_Rs', 'PnL_Pct'])
@@ -98,6 +101,8 @@ def save_portfolio(df):
     load_portfolio.clear()
 
 def save_closed_trades(df):
+    # 🔥 FIX: Empty rows drop
+    df = df.dropna(how='all').reset_index(drop=True)
     trade_ws.clear()
     df = df.fillna("")
     trade_ws.update([df.columns.values.tolist()] + df.values.tolist())
@@ -106,13 +111,15 @@ def save_closed_trades(df):
 # --- 4. AUTO RUN & STATE MANAGEMENT ---
 if 'pause_refresh' not in st.session_state:
     st.session_state.pause_refresh = False
-
 if 'pinned_stocks' not in st.session_state:
     st.session_state.pinned_stocks = []
 if 'custom_alerts' not in st.session_state:
     st.session_state.custom_alerts = {}
 if 'active_sec' not in st.session_state:
     st.session_state.active_sec = None
+# 🔥 FIX: Alert trigger tracking
+if 'alert_triggered' not in st.session_state:
+    st.session_state.alert_triggered = set()
 
 TOP_SECTOR_STOCKS = {
     "NIFTY IT": ["TCS", "INFY", "HCLTECH", "WIPRO", "TECHM", "COFORGE", "PERSISTENT", "LTIM"],
@@ -198,99 +205,63 @@ SECTOR_INDICES_MAP = {
     "^CNXIT": "NIFTY IT", "^CNXAUTO": "NIFTY AUTO", "^CNXMETAL": "NIFTY METAL",
     "^CNXPHARMA": "NIFTY PHARMA", "^CNXFMCG": "NIFTY FMCG", "^CNXENERGY": "NIFTY ENERGY", "^CNXREALTY": "NIFTY REALTY"
 }
-
 TV_SECTOR_URL = {
     "^CNXIT": "NSE:CNXIT", "^CNXAUTO": "NSE:CNXAUTO", "^CNXMETAL": "NSE:CNXMETAL",
     "^CNXPHARMA": "NSE:CNXPHARMA", "^CNXFMCG": "NSE:CNXFMCG", "^CNXENERGY": "NSE:CNXENERGY", "^CNXREALTY": "NSE:CNXREALTY"
 }
-
 COMMODITY_MAP = { "GC=F": "GOLD", "SI=F": "SILVER", "CL=F": "CRUDE OIL", "NG=F": "NATURAL GAS", "HG=F": "COPPER" }
-# --- MEGA MUTUAL FUNDS DATABASE (Scanning Universe) ---
-# --- MEGA MUTUAL FUNDS DATABASE (Top 50 High CAGR Funds) ---
-# --- MEGA MUTUAL FUNDS DATABASE (Official AMFI Direct-Growth Scheme Codes) ---
-# --- MEGA MUTUAL FUNDS DATABASE (Top 50 High CAGR Funds - Morningstar) ---
-# --- MEGA MUTUAL FUNDS DATABASE (Official AMFI Direct-Growth Scheme Codes) ---
-# --- MEGA MUTUAL FUNDS DATABASE (Official AMFI Direct-Growth Scheme Codes) ---
-# --- MEGA MUTUAL FUNDS DATABASE (Morningstar Direct Growth Search) ---
+
 MUTUAL_FUNDS = {
     "🏆 2026 MORNINGSTAR AWARD WINNERS": [
-        "Nippon India Large Cap Fund Direct Growth",
-        "Parag Parikh Flexi Cap Fund Direct Growth",
-        "HDFC Mid-Cap Opportunities Fund Direct Growth",
-        "ICICI Prudential Short Term Fund Direct Growth",
-        "Kotak Corporate Bond Fund Direct Growth",
-        "ICICI Prudential All Seasons Bond Fund Direct Growth"
+        "Nippon India Large Cap Fund Direct Growth", "Parag Parikh Flexi Cap Fund Direct Growth",
+        "HDFC Mid-Cap Opportunities Fund Direct Growth", "ICICI Prudential Short Term Fund Direct Growth",
+        "Kotak Corporate Bond Fund Direct Growth", "ICICI Prudential All Seasons Bond Fund Direct Growth"
     ],
     "⭐ MORNINGSTAR BEST OF BREED (Top Picks)": [
-        "Nippon India Large Cap Fund Direct Growth",
-        "Mirae Asset Large & Midcap Fund Direct Growth",
-        "Kotak Equity Opportunities Fund Direct Growth",
-        "Franklin India Flexi Cap Fund Direct Growth",
+        "Nippon India Large Cap Fund Direct Growth", "Mirae Asset Large & Midcap Fund Direct Growth",
+        "Kotak Equity Opportunities Fund Direct Growth", "Franklin India Flexi Cap Fund Direct Growth",
         "Nippon India Multi Cap Fund Direct Growth"
     ],
     "🔥 AGGRESSIVE SMALL CAP (Highest CAGR)": [
-        "Quant Small Cap Fund Direct Growth",
-        "Nippon India Small Cap Fund Direct Growth",
-        "SBI Small Cap Fund Direct Growth",
-        "Axis Small Cap Fund Direct Growth",
-        "Tata Small Cap Fund Direct Growth",
-        "Kotak Small Cap Fund Direct Growth",
-        "HDFC Small Cap Fund Direct Growth",
-        "DSP Small Cap Fund Direct Plan Growth",
-        "Bandhan Emerging Businesses Fund Direct Growth",
-        "Edelweiss Small Cap Fund Direct Growth"
+        "Quant Small Cap Fund Direct Growth", "Nippon India Small Cap Fund Direct Growth",
+        "SBI Small Cap Fund Direct Growth", "Axis Small Cap Fund Direct Growth",
+        "Tata Small Cap Fund Direct Growth", "Kotak Small Cap Fund Direct Growth",
+        "HDFC Small Cap Fund Direct Growth", "DSP Small Cap Fund Direct Plan Growth",
+        "Bandhan Emerging Businesses Fund Direct Growth", "Edelweiss Small Cap Fund Direct Growth"
     ],
     "🚀 HIGH GROWTH MID CAP": [
-        "Motilal Oswal Midcap Fund Direct Growth",
-        "Quant Mid Cap Fund Direct Growth",
-        "Nippon India Growth Fund Direct Growth",
-        "HDFC Mid-Cap Opportunities Fund Direct Growth",
-        "Kotak Emerging Equity Fund Direct Growth",
-        "SBI Magnum Midcap Fund Direct Growth",
-        "DSP Midcap Fund Direct Plan Growth",
-        "Axis Midcap Fund Direct Growth",
-        "Tata Mid Cap Growth Fund Direct Growth",
-        "Edelweiss Mid Cap Fund Direct Growth"
+        "Motilal Oswal Midcap Fund Direct Growth", "Quant Mid Cap Fund Direct Growth",
+        "Nippon India Growth Fund Direct Growth", "HDFC Mid-Cap Opportunities Fund Direct Growth",
+        "Kotak Emerging Equity Fund Direct Growth", "SBI Magnum Midcap Fund Direct Growth",
+        "DSP Midcap Fund Direct Plan Growth", "Axis Midcap Fund Direct Growth",
+        "Tata Mid Cap Growth Fund Direct Growth", "Edelweiss Mid Cap Fund Direct Growth"
     ],
     "🌟 CONSISTENT FLEXI & MULTI CAP": [
-        "Parag Parikh Flexi Cap Fund Direct Growth",
-        "Quant Active Fund Direct Growth",
-        "Quant Flexi Cap Fund Direct Growth",
-        "HDFC Flexi Cap Fund Direct Growth",
-        "SBI Flexicap Fund Direct Growth",
-        "Kotak Flexicap Fund Direct Growth",
-        "UTI Flexi Cap Fund Direct Growth",
-        "DSP Flexi Cap Fund Direct Plan Growth",
+        "Parag Parikh Flexi Cap Fund Direct Growth", "Quant Active Fund Direct Growth",
+        "Quant Flexi Cap Fund Direct Growth", "HDFC Flexi Cap Fund Direct Growth",
+        "SBI Flexicap Fund Direct Growth", "Kotak Flexicap Fund Direct Growth",
+        "UTI Flexi Cap Fund Direct Growth", "DSP Flexi Cap Fund Direct Plan Growth",
         "Axis Flexi Cap Fund Direct Growth"
     ],
     "🏭 THEMATIC & SECTORAL (Alpha Generators)": [
-        "Quant Infrastructure Fund Direct Growth",
-        "SBI PSU Fund Direct Growth",
-        "ICICI Prudential Technology Fund Direct Growth",
-        "Tata Digital India Fund Direct Growth",
-        "Nippon India Pharma Fund Direct Growth",
-        "ICICI Prudential Infrastructure Fund Direct Growth",
-        "SBI Healthcare Opportunities Fund Direct Growth",
-        "Aditya Birla Sun Life PSU Equity Fund Direct Growth",
-        "HDFC Defence Fund Direct Growth",
-        "CPSE ETF"
+        "Quant Infrastructure Fund Direct Growth", "SBI PSU Fund Direct Growth",
+        "ICICI Prudential Technology Fund Direct Growth", "Tata Digital India Fund Direct Growth",
+        "Nippon India Pharma Fund Direct Growth", "ICICI Prudential Infrastructure Fund Direct Growth",
+        "SBI Healthcare Opportunities Fund Direct Growth", "Aditya Birla Sun Life PSU Equity Fund Direct Growth",
+        "HDFC Defence Fund Direct Growth", "CPSE ETF"
     ],
     "🏛️ STABLE LARGE CAP & VALUE FUNDS": [
-        "SBI Contra Fund Direct Growth",
-        "ICICI Prudential Bluechip Fund Direct Growth",
-        "SBI Bluechip Fund Direct Growth",
-        "HDFC Top 100 Fund Direct Growth",
-        "Mirae Asset Large Cap Fund Direct Growth",
-        "Axis Bluechip Fund Direct Growth",
-        "Kotak Bluechip Fund Direct Growth",
-        "Bandhan Sterling Value Fund Direct Growth",
+        "SBI Contra Fund Direct Growth", "ICICI Prudential Bluechip Fund Direct Growth",
+        "SBI Bluechip Fund Direct Growth", "HDFC Top 100 Fund Direct Growth",
+        "Mirae Asset Large Cap Fund Direct Growth", "Axis Bluechip Fund Direct Growth",
+        "Kotak Bluechip Fund Direct Growth", "Bandhan Sterling Value Fund Direct Growth",
         "Tata Large Cap Fund Direct Growth"
     ]
 }
+
 @st.cache_data(ttl=86400, show_spinner=False)
 def fetch_mf_performance():
     tasks = []
-    # 🔥 ఇక్కడ లిస్ట్ ని లూప్ చేసేలా మార్చాను (పాత ఎర్రర్ రాదు)
     for cat, funds_list in MUTUAL_FUNDS.items():
         for name in funds_list:
             tasks.append((name, cat))
@@ -298,13 +269,14 @@ def fetch_mf_performance():
     def fetch_single(name, cat):
         short_name = name.replace(" Direct Plan Growth", "").replace(" Direct Growth", "")
         try:
-            # 1. పేరుతో సెర్చ్ చేసి ఫండ్ కోడ్ (Scheme Code) పట్టుకోవడం
             search_url = f"https://api.mfapi.in/mf/search?q={name}"
             search_res = requests.get(search_url, timeout=10).json()
             if not search_res: raise ValueError("Not Found")
-            code = search_res[0]['schemeCode'] # ఫస్ట్ వచ్చిన కోడ్ ని తీసుకుంటుంది
             
-            # 2. ఆ కోడ్ తో NAV హిస్టరీ లాగడం
+            # 🔥 FIX: Direct + Growth only filter
+            direct_results = [r for r in search_res if 'direct' in r['schemeName'].lower() and 'growth' in r['schemeName'].lower()]
+            code = direct_results[0]['schemeCode'] if direct_results else search_res[0]['schemeCode']
+            
             url = f"https://api.mfapi.in/mf/{code}"
             res = requests.get(url, timeout=12)
             if res.status_code == 200:
@@ -315,12 +287,9 @@ def fetch_mf_performance():
                 df = pd.DataFrame(nav_data)
                 df['date'] = pd.to_datetime(df['date'], dayfirst=True, errors='coerce')
                 df['nav'] = pd.to_numeric(df['nav'], errors='coerce')
-                
-                # క్లీనింగ్
                 df = df.dropna(subset=['nav', 'date'])
                 df = df[df['nav'] > 0]
-                
-                if df.empty: raise ValueError("Empty after clean")
+                if df.empty: raise ValueError("Empty")
                 
                 df = df.sort_values('date').set_index('date')
                 last_price = float(df['nav'].iloc[-1])
@@ -335,28 +304,21 @@ def fetch_mf_performance():
                         return round(cagr * 100, 2)
                     except: return "N/A"
                 
-                return {
-                    "Category": cat, "Fund Name": short_name, "NAV (₹)": round(last_price, 2),
-                    "1Y (%)": get_cagr(1), "3Y CAGR (%)": get_cagr(3), "5Y CAGR (%)": get_cagr(5)
-                }
+                return {"Category": cat, "Fund Name": short_name, "NAV (₹)": round(last_price, 2),
+                    "1Y (%)": get_cagr(1), "3Y CAGR (%)": get_cagr(3), "5Y CAGR (%)": get_cagr(5)}
         except Exception:
-            pass # ఏదైనా ఫెయిల్ అయితే సైలెంట్ గా కిందకి వెళ్తుంది
-            
-        # ఫండ్ దొరకకపోతే N/A చూపిస్తుంది
-        return {
-            "Category": cat, "Fund Name": short_name, "NAV (₹)": "N/A",
-            "1Y (%)": "N/A", "3Y CAGR (%)": "N/A", "5Y CAGR (%)": "N/A"
-        }
+            pass
+        return {"Category": cat, "Fund Name": short_name, "NAV (₹)": "N/A",
+            "1Y (%)": "N/A", "3Y CAGR (%)": "N/A", "5Y CAGR (%)": "N/A"}
 
     results = []
-    # 5 థ్రెడ్స్ తో ప్యారలల్ గా రన్ అవుతుంది (ఫాస్ట్ కోసం)
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
         futures = [executor.submit(fetch_single, name, cat) for name, cat in tasks]
         for future in concurrent.futures.as_completed(futures):
             res = future.result()
             if res: results.append(res)
-            
     return pd.DataFrame(results)
+
 NIFTY_50_SECTORS = {
     "PHARMA": ["SUNPHARMA", "CIPLA", "DRREDDY", "APOLLOHOSP"],
     "IT": ["TCS", "INFY", "HCLTECH", "WIPRO", "TECHM"],
@@ -394,7 +356,6 @@ FNO_STOCKS = [
     "UBL", "ULTRACEMCO", "UPL", "VEDL", "VOLTAS", "WIPRO", "ZEEL", "ZOMATO", "ZYDUSLIFE"
 ]
 
-# 🔥 FNO లో లేని కచ్చితమైన NIFTY MIDCAP స్టాక్స్ మాత్రమే:
 MIDCAP_150 = [
     "AJANTPHARM", "APARINDS", "BANKINDIA", "CGPOWER", "DELHIVERY", "FORTIS", "INDIANB", "INDIGOPNTS", 
     "IREDA", "KALYANKJIL", "KPITTECH", "LTF", "LODHA", "MAXHEALTH", "MAZDOCK", "NHPC", 
@@ -403,8 +364,6 @@ MIDCAP_150 = [
     "UNIONBANK", "VIJAYA", "YESBANK"
 ]
 
-# 🔥 FNO లో లేని కచ్చితమైన NIFTY SMALLCAP స్టాక్స్ మాత్రమే:
-# 🔥 FNO లో లేని కచ్చితమైన NIFTY SMALLCAP స్టాక్స్ మాత్రమే:
 SMALLCAP_250 = [
     "AARTIDRUGS", "AAVAS", "AEGISCHEM", "AFFLE", "AJMERA", "AKZOINDIA", "ALEMBICLTD", "ALKYLAMINE", 
     "ALLCARGO", "ARE&M", "AMBER", "ANANDTHI", "ANURAS", "APLLTD", "APTUS", "ASAHIINDIA", 
@@ -452,46 +411,35 @@ SMALLCAP_250 = [
     "VTL", "WABAG", "WELCORP", "WELENT", "WELSPUNLIV", "WSTCSTPAPR", "XYLEM", 
     "YATHARTH", "ZENSARTECH", "ZENTEC", "ZYDUSWELL"
 ]
+
 # --- DHAN API INITIALIZATION ---
-# Session state initialization (app start lo okasari run avtundi)
 if 'shown_dhan_status' not in st.session_state:
     st.session_state.shown_dhan_status = False
-
-try:
-    from dhanhq import DhanContext
-except ImportError:
-    DhanContext = None
 
 @st.cache_resource(show_spinner=False)
 def init_dhan_client():
     try:
         c_id = str(st.secrets["dhan"]["client_id"]).strip()
         a_token = str(st.secrets["dhan"]["access_token"]).strip()
-        
         if DhanContext:
             context = DhanContext(c_id, a_token)
             return dhanhq(context)
         else:
             return dhanhq(c_id, a_token)
-            
     except Exception as e:
         return f"ERROR: {e}"
 
 dhan_client = init_dhan_client()
 
-# 🔥 Logic: Success aithe okasari toast choopinchu, fail aithe sidebar lo persistent ga unchu
 if isinstance(dhan_client, str):
-    # Failure case: Idhi sidebar lo permanent ga untundi (prati 5s ki disturb cheyadu)
     st.sidebar.error(f"❌ Dhan Config Error: {dhan_client}")
     dhan = None
 elif dhan_client:
-    # Success case: App open chesinappudu okasari matrame Toast chopistundi
     if not st.session_state.shown_dhan_status:
         st.toast("Dhan API Connected ✅", icon="🟢")
         st.session_state.shown_dhan_status = True
     dhan = dhan_client
 else:
-    # Connection fail case: Permanent ga sidebar lo choopistundi
     st.sidebar.error("❌ Dhan API Connection Failed")
     dhan = None
 
@@ -508,12 +456,12 @@ sec_map = get_dhan_security_map()
 rev_sec_map = {str(v): k for k, v in sec_map.items()} 
 
 # --- WEBSOCKET LIVE TICKER (BACKGROUND THREAD) ---
-if 'LIVE_PRICES' not in st.session_state:
-    st.session_state.LIVE_PRICES = {}
-
 @st.cache_resource
 def start_live_ticker():
     try:
+        # 🔥 FIX: sec_map empty అయితే skip
+        if not sec_map:
+            return False
         c_id = st.secrets["dhan"]["client_id"]
         a_token = st.secrets["dhan"]["access_token"]
         instruments = [(1, str(sec_id)) for sec_id in list(sec_map.values())[:500]]
@@ -522,11 +470,13 @@ def start_live_ticker():
             pass
             
         def on_message(instance, message):
+            # 🔥 FIX: Global dict + lock (session_state thread-safe కాదు)
             if 'LTP' in message and 'SecurityId' in message:
                 sec_id = str(message['SecurityId'])
                 if sec_id in rev_sec_map:
                     sym = rev_sec_map[sec_id]
-                    st.session_state.LIVE_PRICES[sym] = float(message['LTP'])
+                    with LIVE_PRICES_LOCK:
+                        LIVE_PRICES_GLOBAL[sym] = float(message['LTP'])
                     
         feed = marketfeed.DhanFeed(c_id, a_token, instruments, "v2", on_connect=on_connect, on_message=on_message)
         t = threading.Thread(target=feed.run_forever, daemon=True)
@@ -537,13 +487,16 @@ def start_live_ticker():
 
 start_live_ticker()
 
+# 🔥 FIX: Weekend + before-market fix
 def get_minutes_passed():
     now = datetime.now()
-    if now.weekday() >= 5 or now.time() > dt_time(15, 30): return 375
+    if now.weekday() >= 5: return 375
+    if now.time() < dt_time(9, 15): return 1
+    if now.time() > dt_time(15, 30): return 375
     open_time = now.replace(hour=9, minute=15, second=0)
     return min(375, max(1, int((now - open_time).total_seconds() / 60)))
 
-# --- 5-MIN CACHED FETCH ENGINE (FAST PAGE LOADS) ---
+# --- DHAN 5-MIN FETCH ---
 def fetch_single_dhan_5m(symbol, sec_id):
     try:
         to_date = datetime.now().strftime('%Y-%m-%d')
@@ -557,12 +510,16 @@ def fetch_single_dhan_5m(symbol, sec_id):
             if not df.empty:
                 try: df['Date'] = pd.to_datetime(df['start_Time'])
                 except: df['Date'] = pd.to_datetime(df['start_Time'], unit='s')
+                # 🔥 FIX: Magic number constant
+                DHAN_EPOCH_OFFSET = 315513000
                 if df['Date'].dt.year.min() < 2010:
-                    df['Date'] = pd.to_datetime(df['start_Time'] + 315513000, unit='s') + pd.Timedelta(hours=5, minutes=30)
+                    df['Date'] = pd.to_datetime(df['start_Time'] + DHAN_EPOCH_OFFSET, unit='s') + pd.Timedelta(hours=5, minutes=30)
                 df.set_index('Date', inplace=True)
                 df.rename(columns={'open': 'Open', 'high': 'High', 'low': 'Low', 'close': 'Close', 'volume': 'Volume'}, inplace=True)
                 for col in ['Open', 'High', 'Low', 'Close', 'Volume']: df[col] = pd.to_numeric(df[col], errors='coerce')
-                df.index = df.index.tz_localize(None)
+                # 🔥 FIX: tz-aware check
+                if df.index.tz is not None:
+                    df.index = df.index.tz_localize(None)
                 return symbol, df
     except: pass
     return symbol, pd.DataFrame()
@@ -577,10 +534,9 @@ def fetch_cached_5m_data(tkrs_list):
         else:
             yf_tkrs.append(tkr)
             
-    # 🔥 FIX: ఇక్కడ Dhan API ఫెయిల్ అయితే, స్టాక్స్ అన్నీ Yahoo Finance (YF) కి వెళ్లేలా యాడ్ చేశాం
     if not dhan and dhan_tasks:
         yf_tkrs.extend(list(dhan_tasks.keys()))
-        dhan_tasks = {} # Dhan లిస్ట్ క్లియర్ చేస్తున్నాం
+        dhan_tasks = {}
         
     if dhan and dhan_tasks:
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
@@ -592,75 +548,77 @@ def fetch_cached_5m_data(tkrs_list):
 
     if yf_tkrs:
         yf_data = yf.download(yf_tkrs, period="5d", interval="5m", progress=False, group_by='ticker', threads=10)
-        if len(yf_tkrs) == 1:
-            if not yf_data.empty: 
-                yf_data.index = yf_data.index.tz_localize(None)
+        # 🔥 FIX: empty + MultiIndex safety
+        if not yf_data.empty:
+            if len(yf_tkrs) == 1:
+                if yf_data.index.tz is not None:
+                    yf_data.index = yf_data.index.tz_localize(None)
                 results_dict[yf_tkrs[0]] = yf_data
-        else:
-            for tkr in yf_tkrs:
-                if tkr in yf_data.columns.levels[0]:
-                    df = yf_data[tkr].dropna(subset=['Close'])
-                    if not df.empty:
-                        df.index = df.index.tz_localize(None)
-                        results_dict[tkr] = df
+            else:
+                if isinstance(yf_data.columns, pd.MultiIndex):
+                    for tkr in yf_tkrs:
+                        if tkr in yf_data.columns.levels[0]:
+                            df = yf_data[tkr].dropna(subset=['Close'])
+                            if not df.empty:
+                                if df.index.tz is not None:
+                                    df.index = df.index.tz_localize(None)
+                                results_dict[tkr] = df
                         
     valid_results = {k: v for k, v in results_dict.items() if not v.empty and len(v) > 0}
     if valid_results:
         return pd.concat(valid_results.values(), axis=1, keys=valid_results.keys(), sort=False)
     return pd.DataFrame()
-# ==========================================
-# 🔥 NEW: HISTORICAL CHARTS CACHE FUNCTION 🔥
-# ==========================================
+
+# 🔥 FIX: Single ticker MultiIndex guaranteed + period extended
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_historical_charts_data(tkrs, timeframe):
-    # 🔥 Yahoo Finance టైమ్‌జోన్ బగ్ ని కంట్రోల్ చేయడానికి విడివిడిగా లాగుతున్నాం
     idx_list = [t for t in tkrs if "^" in t or "=" in t]
     stk_list = [t for t in tkrs if t not in idx_list]
     
-    p, i = ("2y", "1wk") if timeframe == "Weekly Chart" else ("1y", "1d")
+    p, i = ("5y", "1wk") if timeframe == "Weekly Chart" else ("2y", "1d")
     
     res = []
     if idx_list: res.append(yf.download(idx_list, period=p, interval=i, progress=False, group_by='ticker', threads=5))
     if stk_list: res.append(yf.download(stk_list, period=p, interval=i, progress=False, group_by='ticker', threads=5))
     
-    if len(res) == 2: return pd.concat(res, axis=1)
-    elif len(res) == 1: return res[0]
-    return pd.DataFrame()
+    if not res: return pd.DataFrame()
+    
+    if len(res) == 2:
+        df = pd.concat(res, axis=1)
+    else:
+        df = res[0]
+    
+    if df.empty: return df
+    
+    if len(tkrs) == 1 and not isinstance(df.columns, pd.MultiIndex):
+        df.columns = pd.MultiIndex.from_product([tkrs, df.columns])
+    return df
+
 # --- DAILY DATA FETCH ---
 @st.cache_data(ttl=180, show_spinner=False)
 def fetch_all_data():
     port_df = load_portfolio()
     port_stocks = [str(sym).upper().strip() for sym in port_df['Symbol'].tolist() if str(sym).strip() != ""]
-    
-    # 🔥 Nifty 50, F&O మరియు పైన గ్లోబల్ గా ఇచ్చిన Mid & Small Cap స్టాక్స్ అన్నీ తీసుకుంటున్నాం
     base_stocks = NIFTY_50.copy() + FNO_STOCKS + MIDCAP_150 + SMALLCAP_250
-        
     all_stocks = set(base_stocks + port_stocks)
     tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + list(COMMODITY_MAP.keys()) + [f"{t}.NS" for t in all_stocks if t]
     
-    # 🔥 యాహూ ఫైనాన్స్ కనెక్షన్ కట్ అవ్వకుండా 200 స్టాక్స్ ని ఒక బ్యాచ్ లాగా డౌన్‌లోడ్ చేస్తున్నాం
     chunk_size = 200
     data_frames = []
-    
     for i in range(0, len(tkrs), chunk_size):
         chunk = tkrs[i : i + chunk_size]
         temp_data = yf.download(chunk, period="15mo", progress=False, group_by='ticker', threads=5)
         if not temp_data.empty:
-            # సింగిల్ స్టాక్ వస్తే MultiIndex ఎర్రర్ రాకుండా సేఫ్టీ చెక్
             if len(chunk) == 1:
                 temp_data.columns = pd.MultiIndex.from_product([chunk, temp_data.columns])
             data_frames.append(temp_data)
             
-    # డేటా మొత్తం ఫెయిల్ అయితే, ఎర్రర్ రాకుండా ఎంప్టీ యాప్ చూపిస్తుంది
-    if not data_frames:
-        return pd.DataFrame()
-        
+    if not data_frames: return pd.DataFrame()
     data = pd.concat(data_frames, axis=1)
+    if data.empty: return pd.DataFrame()
 
     results = []
     minutes = get_minutes_passed()
-
-    # MultiIndex ఎర్రర్ రాకుండా సేఫ్టీ చెక్
     fetched_symbols = data.columns.levels[0] if isinstance(data.columns, pd.MultiIndex) else data.columns
 
     nifty_dist = 0.1
@@ -709,7 +667,6 @@ def fetch_all_data():
                 vol_x = 0.0; curr_vol = 0.0
                 
             vwap = (high + low + ltp) / 3
-            
             high_low_range = high - low
             bull_power = 0; bear_power = 0
             if high_low_range > 0:
@@ -717,17 +674,12 @@ def fetch_all_data():
                 bear_power = ((high - ltp) / high_low_range) * 100
 
             ema50_d = float(df['Close'].ewm(span=50, adjust=False).mean().iloc[-1]) if len(df) >= 50 else 0.0
-            
-            
-            # MINERVINI METRICS
             sma50_d = float(df['Close'].rolling(window=50).mean().iloc[-1]) if len(df) >= 50 else 0.0
             sma150_d = float(df['Close'].rolling(window=150).mean().iloc[-1]) if len(df) >= 150 else 0.0
             sma200_d = float(df['Close'].rolling(window=200).mean().iloc[-1]) if len(df) >= 200 else 0.0
             high_52w = float(df['High'].rolling(window=252).max().iloc[-1]) if len(df) >= 252 else float(df['High'].max())
             low_52w = float(df['Low'].rolling(window=252).min().iloc[-1]) if len(df) >= 252 else float(df['Low'].min())
             sma200_20d = float(df['Close'].rolling(window=200).mean().iloc[-21]) if len(df) >= 220 else 0.0
-            
-            # 🔥 FIX: ఇక్కడ మిస్సయిన Darvas Box మరియు Weinstein వేరియబుల్స్ యాడ్ చేశాం
             sma150_20d = float(df['Close'].rolling(window=150).mean().iloc[-21]) if len(df) >= 170 else 0.0
             
             if len(df) >= 25:
@@ -737,24 +689,15 @@ def fetch_all_data():
                 box_top_20 = high_52w
                 box_bot_20 = low_52w
 
-            # VCP CONTRACTION & VOLUME DRY-UP LOGIC (Practical & Relaxed)
-            
             vcp_price_contraction = False
             vcp_vol_dry = False
             if len(df) >= 60:
-                # 60 Days (3 Months) Range
                 max_60 = float(df['High'].iloc[-60:].max()); min_60 = float(df['Low'].iloc[-60:].min())
                 range_60 = (max_60 - min_60) / min_60 if min_60 > 0 else 0
-                
-                # 10 Days (2 Weeks) Tight Range - (Relaxed to 15%)
                 max_10 = float(df['High'].iloc[-10:].max()); min_10 = float(df['Low'].iloc[-10:].min())
                 range_10 = (max_10 - min_10) / min_10 if min_10 > 0 else 0
-                
-                # ప్రైస్ కన్సాలిడేషన్: 10 రోజుల రేంజ్ 15% లోపు ఉండాలి & 60 రోజుల రేంజ్ లో 75% కన్నా తక్కువ ఉండాలి
                 if (range_60 > 0) and (range_10 <= (range_60 * 0.75)) and (range_10 <= 0.15):
                     vcp_price_contraction = True
-                    
-                # వాల్యూమ్ డ్రై అప్: లాస్ట్ 5 రోజుల వాల్యూమ్, 50 రోజుల యావరేజ్ దరిదాపుల్లో లేదా తక్కువ ఉండాలి (Relaxed to 1.05x)
                 if 'Volume' in df.columns and len(df) >= 50:
                     vol_avg_5 = float(df['Volume'].iloc[-5:].mean())
                     vol_avg_50 = float(df['Volume'].iloc[-50:].mean())
@@ -845,6 +788,7 @@ def fetch_all_data():
             })
         except: continue
     return pd.DataFrame(results)
+
 def process_5m_data(df_raw):
     try:
         df_s = df_raw.dropna(subset=['Open', 'High', 'Low', 'Close']).copy()
@@ -855,7 +799,6 @@ def process_5m_data(df_raw):
         df_s['EMA_20'] = df_s['Close'].ewm(span=20, adjust=False).mean()
         df_s['EMA_50'] = df_s['Close'].ewm(span=50, adjust=False).mean()
 
-        # ఇక్కడ మార్చండి:
         if 'Volume' in df_s.columns:
             df_s['Vol_SMA_375'] = df_s['Volume'].rolling(window=375, min_periods=1).mean()
         else:
@@ -918,24 +861,20 @@ def fetch_fundamentals_data(symbols_list):
         except: return None
    
     fund_data = []
-    # 🔥 Multi-threading magic here! (15x faster)
     with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
         results = executor.map(get_info, symbols_list)
         for res in results:
             if res is not None:
                 fund_data.append(res)
-                
     return pd.DataFrame(fund_data)   
 
+# --- RENDER FUNCTIONS ---
 def render_mf_table(df_mf):
     if df_mf.empty: return "<div style='padding:20px; text-align:center;'>No Mutual Fund data available.</div>"
-    html = f'<table class="term-table"><thead><tr><th colspan="7" class="term-head-swing" style="background-color: #005a9e; color: white;">🏆 MUTUAL FUNDS SCREEENER (LIVE PERFORMANCE)</th></tr><tr style="background-color: #21262d;"><th style="width:5%;">RANK</th><th style="text-align:left; width:25%;">FUND NAME</th><th style="width:15%; color:#ffd700;">CATEGORY</th><th style="width:10%;">NAV (₹)</th><th style="width:15%;">1Y RETURN</th><th style="width:15%;">3Y CAGR</th><th style="width:15%;">5Y CAGR</th></tr></thead><tbody>'
-    
-    # 🔥 ఇక్కడ ర్యాంక్ లాజిక్ ని సింపుల్ చేశాం (1, 2, 3 కంటిన్యూస్ గా వస్తుంది)
+    html = f'<table class="term-table"><thead><tr><th colspan="7" class="term-head-swing" style="background-color: #005a9e; color: white;">🏆 MUTUAL FUNDS SCREENER (LIVE PERFORMANCE)</th></tr><tr style="background-color: #21262d;"><th style="width:5%;">RANK</th><th style="text-align:left; width:25%;">FUND NAME</th><th style="width:15%; color:#ffd700;">CATEGORY</th><th style="width:10%;">NAV (₹)</th><th style="width:15%;">1Y RETURN</th><th style="width:15%;">3Y CAGR</th><th style="width:15%;">5Y CAGR</th></tr></thead><tbody>'
     for i, (_, row) in enumerate(df_mf.iterrows()):
         rank = i + 1 
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
-        
         def colorize(val):
             if val == "N/A": return "<span style='color:#8b949e;'>N/A</span>"
             val_f = float(val)
@@ -943,11 +882,10 @@ def render_mf_table(df_mf):
             elif val_f > 12: return f"<span style='color:#3fb950;'>{val}%</span>" 
             elif val_f < 0: return f"<span style='color:#f85149;'>{val}%</span>" 
             return f"{val}%"
-
         html += f'<tr class="{bg_class}"><td><b>{rank}</b></td><td class="t-symbol">{row["Fund Name"]}</td><td style="font-size:11px; color:#c9d1d9; font-weight:bold;">{row["Category"]}</td><td>₹{row["NAV (₹)"]}</td><td>{colorize(row["1Y (%)"])}</td><td>{colorize(row["3Y CAGR (%)"])}</td><td>{colorize(row["5Y CAGR (%)"])}</td></tr>'
-        
     html += "</tbody></table>"
     return html
+
 def render_html_table(df_subset, title, color_class):
     if df_subset.empty: return ""
     html = f'<table class="term-table"><thead><tr><th colspan="7" class="{color_class}">{title}</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:20%;">STOCK</th><th style="width:12%;">PRICE</th><th style="width:12%;">DAY%</th><th style="width:12%;">NET%</th><th style="width:10%;">VOL</th><th style="width:26%;">STATUS</th><th style="width:8%;">SCORE</th></tr></thead><tbody>'
@@ -963,6 +901,9 @@ def render_html_table(df_subset, title, color_class):
 def render_portfolio_table(df_port, df_stocks, weekly_trends, port_sort="Default"):
     if df_port.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>Portfolio is empty. Add a stock using the option below!</div>"
     
+    # 🔥 FIX: Dict lookup (performance)
+    stock_lookup = df_stocks.drop_duplicates(subset=['T'], keep='first').set_index('T').to_dict('index')
+    
     rows_data = []
     total_invested, total_current, total_day_pnl = 0, 0, 0
     
@@ -976,14 +917,13 @@ def render_portfolio_table(df_port, df_stocks, weekly_trends, port_sort="Default
         date_val = str(row.get('Date', '-'))
         if date_val in ['nan', 'NaN', '']: date_val = '-'
         
-        live_row = df_stocks[df_stocks['T'] == sym]
+        live_row = stock_lookup.get(sym, None)
         trend_html = "➖"
         
-        if not live_row.empty:
-            ltp = float(live_row['P'].iloc[0])
-            prev_c = float(live_row['Prev_C'].iloc[0])
-            fetch_t = live_row['Fetch_T'].iloc[0]
-            
+        if live_row is not None:
+            ltp = float(live_row['P'])
+            prev_c = float(live_row['Prev_C'])
+            fetch_t = live_row['Fetch_T']
             trend_state = weekly_trends.get(fetch_t, "Neutral")
             if trend_state == 'Bullish': trend_html = "🟢 Bullish"
             elif trend_state == 'Bearish': trend_html = "🔴 Bearish"
@@ -1031,7 +971,6 @@ def render_portfolio_table(df_port, df_stocks, weekly_trends, port_sort="Default
     d_color = "text-green" if total_day_pnl >= 0 else "text-red"
     d_sign = "+" if total_day_pnl > 0 else ""
     
-    # 🔥 ACTUAL P&L CALCULATION (Open P&L + Closed P&L)
     try:
         df_closed = load_closed_trades()
         total_realized_pnl = pd.to_numeric(df_closed['PnL_Rs'], errors='coerce').sum() if not df_closed.empty else 0
@@ -1042,13 +981,15 @@ def render_portfolio_table(df_port, df_stocks, weekly_trends, port_sort="Default
     ap_color = "text-green" if actual_pnl_value >= 0 else "text-red"
     ap_sign = "+" if actual_pnl_value > 0 else ""
 
-    # 🔥 ఇక్కడితో టేబుల్ క్లోజ్ చేసి కరెక్ట్ గా రిటర్న్ చేస్తున్నాం
     html += f'<tr class="port-total"><td colspan="7" style="text-align:right; padding-right:15px; font-size:12px;">TOTAL INVESTED: ₹{total_invested:,.0f} &nbsp;|&nbsp; CURRENT: ₹{total_current:,.0f} &nbsp;|&nbsp; ACTUAL P&L: <span class="{ap_color}">{ap_sign}₹{actual_pnl_value:,.0f}</span> &nbsp;|&nbsp; OVERALL P&L:</td><td class="{d_color}">{d_sign}₹{total_day_pnl:,.0f}</td><td class="{o_color}">{o_sign}₹{overall_total_pnl:,.0f}</td><td class="{o_color}">{o_sign}{overall_total_pct:.2f}%</td></tr>'
     html += "</tbody></table>"
     return html
 
 def render_portfolio_swing_advice_table(df_port, df_stocks, weekly_trends):
     if df_port.empty: return ""
+    
+    stock_lookup = df_stocks.drop_duplicates(subset=['T'], keep='first').set_index('T').to_dict('index')
+    
     html = f'<table class="term-table"><thead><tr><th colspan="8" class="term-head-swing">🤖 PORTFOLIO SWING ADVISOR (ACTION & LEVELS)</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:15%;">STOCK</th><th style="width:10%;">AVG PRICE</th><th style="width:10%;">LTP</th><th style="width:10%;">P&L %</th><th style="width:12%;">WK TREND</th><th style="width:13%; color:#f85149;">🛑 TRAILING SL</th><th style="width:13%; color:#3fb950;">🎯 NEXT TARGET</th><th style="width:17%;">💡 ACTION ADVICE</th></tr></thead><tbody>'
     
     for i, (_, row) in enumerate(df_port.iterrows()):
@@ -1057,9 +998,8 @@ def render_portfolio_swing_advice_table(df_port, df_stocks, weekly_trends):
         try: buy_p = float(row['Buy_Price'])
         except: buy_p = 0
         
-        live_row = df_stocks[df_stocks['T'] == sym]
-        if live_row.empty: continue
-        live_data = live_row.iloc[0]
+        live_data = stock_lookup.get(sym, None)
+        if live_data is None: continue
         ltp = float(live_data['P'])
         
         pnl_pct = ((ltp - buy_p) / buy_p * 100) if buy_p > 0 else 0
@@ -1067,26 +1007,25 @@ def render_portfolio_swing_advice_table(df_port, df_stocks, weekly_trends):
         t_sign = "+" if pnl_pct > 0 else ""
         trend_state = weekly_trends.get(live_data['Fetch_T'], "Neutral")
         
-        # 🔥 MINERVINI TRAILING SL & TARGETS LOGIC 🔥
         if pnl_pct >= 15:
-            sl_val = buy_p * 1.10  # Trail to +10% profit minimum
-            t1_val = buy_p * 1.25  # Next Target +25%
+            sl_val = buy_p * 1.10
+            t1_val = buy_p * 1.25
             advice = "🔥 FREE RIDE (Hold)"; adv_color = "color:#00BFFF; font-weight:bold;"
         elif pnl_pct >= 10:
-            sl_val = buy_p * 1.02  # Trail to Breakeven (+2% buffer)
-            t1_val = buy_p * 1.15  # Target is +15%
+            sl_val = buy_p * 1.02
+            t1_val = buy_p * 1.15
             advice = "🚀 BOOK 50% & TRAIL"; adv_color = "color:#3fb950; font-weight:bold;"
         elif pnl_pct >= 5:
-            sl_val = buy_p * 0.98  # Move SL closer to -2%
+            sl_val = buy_p * 0.98
             t1_val = buy_p * 1.10
             advice = "🟢 HOLD STRONG"; adv_color = "color:#2ea043;"
         elif pnl_pct <= -5:
-            sl_val = buy_p * 0.95  # Max SL reached
+            sl_val = buy_p * 0.95
             t1_val = buy_p * 1.10
             advice = "🔴 CUT LOSSES NOW!"; adv_color = "color:#f85149; font-weight:bold;"
         else:
-            sl_val = buy_p * 0.95  # Initial 5% SL
-            t1_val = buy_p * 1.10  # Initial 10% Target
+            sl_val = buy_p * 0.95
+            t1_val = buy_p * 1.10
             advice = "🟡 WATCH (In Zone)"; adv_color = "color:#ffd700;"
 
         if trend_state == 'Bearish' and pnl_pct < 0:
@@ -1124,9 +1063,12 @@ def render_swing_terminal_table(df_subset):
         if trend_state == 'Bullish': custom_status += " 🟢Trend"
         elif trend_state == 'Bearish': custom_status += " 🔴Trend"
         atr_val = row.get("ATR", row["P"] * 0.02)
-        sl_val = row.get('SL', row["P"] + (1.5 * atr_val) if is_down else row["P"] - (1.5 * atr_val))
-        t1_val = row.get('T1', row["P"] - (1.5 * atr_val) if is_down else row["P"] + (1.5 * atr_val))
-        t2_val = row.get('T2', row["P"] - (3.0 * atr_val) if is_down else row["P"] + (3.0 * atr_val))
+        default_sl = (row["P"] + (1.5 * atr_val)) if is_down else (row["P"] - (1.5 * atr_val))
+        default_t1 = (row["P"] - (1.5 * atr_val)) if is_down else (row["P"] + (1.5 * atr_val))
+        default_t2 = (row["P"] - (3.0 * atr_val)) if is_down else (row["P"] + (3.0 * atr_val))
+        sl_val = row.get('SL', default_sl)
+        t1_val = row.get('T1', default_t1)
+        t2_val = row.get('T2', default_t2)
         rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
         row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td>'
         row_str += f'<td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px; cursor:help;" title="{custom_status}">{custom_status}</td>'
@@ -1151,9 +1093,12 @@ def render_highscore_terminal_table(df_subset):
         custom_status = f"{strat_icon} | {base_status}".strip() if strat_icon else base_status
         is_down = row['C'] < 0
         atr_val = row.get("ATR", row["P"] * 0.02)
-        sl_val = row.get('SL', row["P"] + (1.5 * atr_val) if is_down else row["P"] - (1.5 * atr_val))
-        t1_val = row.get('T1', row["P"] - (1.5 * atr_val) if is_down else row["P"] + (1.5 * atr_val))
-        t2_val = row.get('T2', row["P"] - (3.0 * atr_val) if is_down else row["P"] + (3.0 * atr_val))
+        default_sl = (row["P"] + (1.5 * atr_val)) if is_down else (row["P"] - (1.5 * atr_val))
+        default_t1 = (row["P"] - (1.5 * atr_val)) if is_down else (row["P"] + (1.5 * atr_val))
+        default_t2 = (row["P"] - (3.0 * atr_val)) if is_down else (row["P"] + (3.0 * atr_val))
+        sl_val = row.get('SL', default_sl)
+        t1_val = row.get('T1', default_t1)
+        t2_val = row.get('T2', default_t2)
         rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
         row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td>'
         sec_name = row.get("Sector", "OTHER")
@@ -1181,9 +1126,12 @@ def render_levels_table(df_subset):
         custom_status = f"{strat_icon} | {base_status}".strip() if strat_icon else base_status
         is_down = row['C'] < 0
         atr_val = row.get("ATR", row["P"] * 0.02)
-        sl_val = row.get('SL', row["P"] + (1.5 * atr_val) if is_down else row["P"] - (1.5 * atr_val))
-        t1_val = row.get('T1', row["P"] - (1.5 * atr_val) if is_down else row["P"] + (1.5 * atr_val))
-        t2_val = row.get('T2', row["P"] - (3.0 * atr_val) if is_down else row["P"] + (3.0 * atr_val))
+        default_sl = (row["P"] + (1.5 * atr_val)) if is_down else (row["P"] - (1.5 * atr_val))
+        default_t1 = (row["P"] - (1.5 * atr_val)) if is_down else (row["P"] + (1.5 * atr_val))
+        default_t2 = (row["P"] - (3.0 * atr_val)) if is_down else (row["P"] + (3.0 * atr_val))
+        sl_val = row.get('SL', default_sl)
+        t1_val = row.get('T1', default_t1)
+        t2_val = row.get('T2', default_t2)
         rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
         row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td>'
         row_str += f'<td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px; cursor:help;" title="{custom_status}">{custom_status}</td>'
@@ -1215,7 +1163,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
     title_html = f"<a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; line-height:1.2;'><b>{display_sym}</b><br><span style='font-size:12px; color:#cccccc;'>₹{row['P']:.2f} &nbsp;<span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span></span></a>"
     
     try:
-        if not df_chart.empty:
+        if not df_chart.empty and 'Low' in df_chart.columns and 'High' in df_chart.columns:
             min_val = df_chart['Low'].min()
             max_val = df_chart['High'].max()
             y_padding = (max_val - min_val) * 0.15 if (max_val - min_val) != 0 else min_val * 0.005 
@@ -1231,7 +1179,11 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 "<br>🔴 C: ₹" + df_chart['Close'].round(2).astype(str)
             )
             
-            # 🔥 Advanced Price Candles (Volume Based Colors directly on Price)
+            # 🔥 FIX: hovertemplate None fix
+            hover_kwargs = {}
+            if show_crosshair:
+                hover_kwargs = {"hovertemplate": "%{text}<extra></extra>"}
+            
             def apply_standard_candles(fig_obj, is_subplot):
                 rc = dict(row=1, col=1) if is_subplot else dict()
                 
@@ -1248,7 +1200,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                     bull = df_chart['Close'] >= df_chart['Open']
                     bear = df_chart['Close'] < df_chart['Open']
                     
-                    # సెపరేట్ మాస్క్‌లు
                     mask_hv_bull = hv_mask & strong_up & bull
                     mask_hv_bear = hv_mask & strong_down & bear
                     mask_norm = ~(mask_hv_bull | mask_hv_bear)
@@ -1259,7 +1210,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
 
                 def am(col, mask): return np.where(mask, df_chart[col], np.nan)
 
-                # 1. Normal Candles (మ్యూటెడ్ కలర్స్)
                 fig_obj.add_trace(go.Candlestick(
                     x=df_chart.index, open=am('Open', mask_norm), high=am('High', mask_norm), low=am('Low', mask_norm), close=am('Close', mask_norm), 
                     increasing_line_color='#2ea043', increasing_fillcolor='#2ea043', increasing_line_width=1,
@@ -1267,7 +1217,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                     showlegend=False, hoverinfo='skip'
                 ), **rc)
                 
-                # 2. High Volume Bullish Candles (బ్రైట్ గ్రీన్)
                 if mask_hv_bull.any():
                     fig_obj.add_trace(go.Candlestick(
                         x=df_chart.index, open=am('Open', mask_hv_bull), high=am('High', mask_hv_bull), low=am('Low', mask_hv_bull), close=am('Close', mask_hv_bull), 
@@ -1276,7 +1225,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                         showlegend=False, hoverinfo='skip'
                     ), **rc)
                     
-                # 3. High Volume Bearish Candles (బ్రైట్ రెడ్)
                 if mask_hv_bear.any():
                     fig_obj.add_trace(go.Candlestick(
                         x=df_chart.index, open=am('Open', mask_hv_bear), high=am('High', mask_hv_bear), low=am('Low', mask_hv_bear), close=am('Close', mask_hv_bear), 
@@ -1288,7 +1236,12 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
             if show_vol:
                 fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.02, row_heights=[0.75, 0.25])
                 apply_standard_candles(fig, is_subplot=True)
-                fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['High'], mode='lines', line=dict(color='rgba(0,0,0,0)'), showlegend=False, hoverinfo='text' if show_crosshair else 'skip', text=hover_data, hovertemplate="%{text}<extra></extra>" if show_crosshair else None, name=""), row=1, col=1)
+                fig.add_trace(go.Scatter(
+                    x=df_chart.index, y=df_chart['High'], mode='lines', 
+                    line=dict(color='rgba(0,0,0,0)'), showlegend=False, 
+                    hoverinfo='text' if show_crosshair else 'skip', 
+                    text=hover_data, name="", **hover_kwargs
+                ), row=1, col=1)
                 
                 if timeframe == "Daily Chart":
                     if 'SMA_50' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_50'], mode='lines', line=dict(color='#FFD700', width=1.5), name='50 SMA', showlegend=False, hoverinfo='skip'), row=1, col=1)
@@ -1330,34 +1283,30 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                         fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'), row=1, col=1)
                         fig.add_annotation(x=tag_idx, y=tag_y_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="right", yanchor=e_anchor, xshift=-5, yshift=e_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=2, row=1, col=1)
             
-                # 🔥 Advanced Volume Bar Colors (VWAP & 10 EMA Based)
                 vol_colors = []
                 if 'Volume' in df_chart.columns:
                     vol_sma = df_chart.get('Vol_SMA_89', df_chart['Volume'].rolling(window=20, min_periods=1).mean())
                     for i in range(len(df_chart)):
                         close_p = df_chart['Close'].iloc[i]
-                        open_p = df_chart['Open'].iloc[i]
-                        bull = close_p >= open_p
+                        open_px = df_chart['Open'].iloc[i]
+                        bull = close_p >= open_px
                         hv = df_chart['Volume'].iloc[i] > (vol_sma.iloc[i] * 1.618)
                         
-                        # Fetch VWAP & EMA values safely
                         vwap_val = df_chart['VWAP'].iloc[i] if 'VWAP' in df_chart.columns else 0
                         ema10_val = df_chart['EMA_10'].iloc[i] if 'EMA_10' in df_chart.columns else 0
                         
-                        # VWAP & 10 EMA పైన ఉంటే బుల్లిష్ ట్రెండ్, కింద ఉంటే బేరిష్ ట్రెండ్
                         is_strong_up = (close_p > vwap_val) and (close_p > ema10_val)
                         is_strong_down = (close_p < vwap_val) and (close_p < ema10_val)
 
                         if hv:
-                            # హై వాల్యూమ్ వచ్చి, ప్రైస్ వ్వాప్ & ఈఎంఏ పైన ఉంటే Dark Green, కింద ఉంటే Dark Red
-                            if is_strong_up and bull: vol_colors.append('#00FF00') # Bright Dark Green
-                            elif is_strong_down and not bull: vol_colors.append('#8B0000') # Deep Dark Red
-                            else: vol_colors.append('#FFD700' if bull else '#FF8C00') # Yellow/Orange for undefined trend high vol
+                            if is_strong_up and bull: vol_colors.append('#00FF00')
+                            elif is_strong_down and not bull: vol_colors.append('#8B0000')
+                            else: vol_colors.append('#FFD700' if bull else '#FF8C00')
                         else:
-                            # నార్మల్ వాల్యూమ్ కి మ్యూటెడ్ కలర్స్
                             vol_colors.append('rgba(46, 160, 67, 0.4)' if bull else 'rgba(218, 54, 51, 0.4)')
                 else:
-                    vol_colors = ['rgba(46, 160, 67, 0.4)' if close >= open_p else 'rgba(218, 54, 51, 0.4)' for close, open_p in zip(df_chart['Close'], df_chart['Open'])]
+                    vol_colors = ['rgba(46, 160, 67, 0.4)' if c >= o else 'rgba(218, 54, 51, 0.4)' 
+                                  for c, o in zip(df_chart['Close'], df_chart['Open'])]
                 
                 fig.add_trace(go.Bar(x=df_chart.index, y=df_chart['Volume'], marker_color=vol_colors, showlegend=False, hoverinfo='skip'), row=2, col=1)
                 
@@ -1384,7 +1333,12 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
             else:
                 fig = go.Figure()
                 apply_standard_candles(fig, is_subplot=False)
-                fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['High'], mode='lines', line=dict(color='rgba(0,0,0,0)'), showlegend=False, hoverinfo='text' if show_crosshair else 'skip', text=hover_data, hovertemplate="%{text}<extra></extra>" if show_crosshair else None, name=""))
+                fig.add_trace(go.Scatter(
+                    x=df_chart.index, y=df_chart['High'], mode='lines', 
+                    line=dict(color='rgba(0,0,0,0)'), showlegend=False, 
+                    hoverinfo='text' if show_crosshair else 'skip', 
+                    text=hover_data, name="", **hover_kwargs
+                ))
                 
                 if timeframe == "Daily Chart":
                     if 'SMA_50' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_50'], mode='lines', line=dict(color='#FFD700', width=1.5), name='50 SMA', showlegend=False, hoverinfo='skip'))
@@ -1467,28 +1421,25 @@ def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Intraday 
                         st.rerun()
 
 def render_closed_trades_table(df_closed):
-    if df_closed.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No closed trades yet. Sell a stock to book P&L!</div>"
+    if df_closed.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border:1px dashed #30363d; border-radius:8px;'>No closed trades yet. Sell a stock to book P&L!</div>"
     
     html = f'<table class="term-table"><thead><tr><th colspan="7" style="background-color:#4a148c; color:white; text-align:left; padding-left:10px;">📜 CLOSED TRADES (TRADE BOOK & P&L)</th></tr><tr style="background-color: #21262d;"><th style="width:15%; text-align:left;">SELL DATE</th><th style="width:15%; text-align:left;">STOCK</th><th style="width:10%;">QTY</th><th style="width:15%;">BUY AVG</th><th style="width:15%;">SELL AVG</th><th style="width:15%;">REALIZED P&L (₹)</th><th style="width:15%;">P&L %</th></tr></thead><tbody>'
     
     total_realized_pnl = 0
     for i, (_, row) in enumerate(df_closed.iterrows()):
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
-        sym = str(row.get('Symbol', ''))
+        # 🔥 FIX: NaN handling
+        sym_raw = row.get('Symbol', '')
+        sym = '' if pd.isna(sym_raw) else str(sym_raw)
         
-        # 🔥 FIX: డైరెక్ట్ కన్వర్షన్ కాకుండా try-except వాడి ఫస్ట్ float కి మార్చి అప్పుడు int చేస్తున్నాం
         try: qty = int(float(row.get('Quantity', 0)))
         except: qty = 0
-        
         try: buy_p = float(row.get('Buy_Price', 0))
         except: buy_p = 0.0
-        
         try: sell_p = float(row.get('Sell_Price', 0))
         except: sell_p = 0.0
-        
         try: pnl_rs = float(row.get('PnL_Rs', 0))
         except: pnl_rs = 0.0
-        
         try: pnl_pct = float(row.get('PnL_Pct', 0))
         except: pnl_pct = 0.0
         
@@ -1508,16 +1459,17 @@ def render_closed_trades_table(df_closed):
 
 # --- 6. FETCH DATA ---
 st.markdown("<hr style='margin:10px 0; border-color:#30363d;'>", unsafe_allow_html=True)
-# 🔥 మార్కెట్ సెగ్మెంట్ రేడియో బటన్ పీకేశాం
 
-if True: 
-    df = fetch_all_data() # ఆర్గ్యుమెంట్స్ లేకుండా కాల్ చేస్తున్నాం
+df = fetch_all_data()
 
-if not df.empty and 'LIVE_PRICES' in st.session_state:
+# 🔥 FIX: Global LIVE_PRICES with lock
+if not df.empty:
+    with LIVE_PRICES_LOCK:
+        live_prices_snapshot = dict(LIVE_PRICES_GLOBAL)
     for i, row in df.iterrows():
         clean_sym = str(row['Fetch_T']).replace(".NS", "")
-        if clean_sym in st.session_state.LIVE_PRICES:
-            new_ltp = st.session_state.LIVE_PRICES[clean_sym]
+        if clean_sym in live_prices_snapshot:
+            new_ltp = live_prices_snapshot[clean_sym]
             df.at[i, 'P'] = new_ltp
             open_p = df.at[i, 'O']
             prev_c = df.at[i, 'Prev_C']
@@ -1532,20 +1484,29 @@ if not df.empty:
 # --- 7. UI SETTINGS ---
 # =========================================================
 
+# 🔥 FIX: Missing watchlist options add చేశాం
 watchlist_mode = st.selectbox("Watchlist", [
     "🤖 AI Predictions (F&O)", 
     "🤖 AI Predictions (Mid Cap)", 
     "🤖 AI Predictions (Small Cap)", 
-    "Swing Trading 📈", "Legendary Strategy 🏆", "Nifty 50 Heatmap", "Terminal Tables 🗃️",
-    "My Portfolio 💼", "Commodity 🛢️", "Fundamentals 🏢", "Mutual Funds 📈", "Month Effect Advantage 📅"
+    "Day Trading Stocks 🚀",
+    "High Score Stocks 🔥",
+    "Swing Trading 📈", 
+    "Legendary Strategy 🏆", 
+    "Nifty 50 Heatmap", 
+    "Terminal Tables 🗃️",
+    "My Portfolio 💼", 
+    "Commodity 🛢️", 
+    "Fundamentals 🏢", 
+    "Mutual Funds 📈", 
+    "Month Effect Advantage 📅"
 ], index=0, label_visibility="collapsed")
-# 🔥 SMART REFRESH: స్వింగ్ ట్రేడింగ్ కి 15 సెకన్లు, మిగతా డే ట్రేడింగ్/హీట్ మ్యాప్ లకి 5 సెకన్లు
+
 refresh_time = 15000 if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"] else 5000
 
 if not st.session_state.pause_refresh:
     st_autorefresh(interval=refresh_time, key="datarefresh")
 
-# 🔥 స్వింగ్ ట్రేడింగ్ సెలెక్ట్ చేస్తే డీఫాల్ట్‌గా Chart కి మారుతుంది
 view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], index=1 if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"] else 0, horizontal=True, label_visibility="collapsed")
 move_type_filter = ["🌊 One Sided Only", "🎯 Reversals Only", "🏹 Rubber Band Stretch"] 
 fund_filter = "Top Ranked Stocks ⭐"
@@ -1560,7 +1521,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
     with sc4: st.session_state.pause_refresh = st.toggle("⏸️ Pause Data", value=st.session_state.pause_refresh)
 
     with sc1:
-        if "AI Predictions" in watchlist_mode:  # 🔥 3 ఆప్షన్లకూ ఇది వర్తిస్తుంది
+        if "AI Predictions" in watchlist_mode:
                 move_type_filter = st.multiselect("Strategy Filter",
                     ["All Moves", "🔥 Live Power Mover (Last 2 Candles)", "🚀 All-Day Volume Spikes (Max Fire)", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)", "📈 Minervini Trend Template (VCP)", "🌅 15-Min ORB (Opening Range Breakout)"], 
                     default=["All Moves"],
@@ -1624,26 +1585,26 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
                     if st.button("Delete", key=f"del_{s_key}"):
                         del st.session_state.custom_alerts[s_key]
                         st.rerun()
+
 # =========================================================
 # --- 8. RENDERING ---
 # =========================================================
 
 if not df.empty:
     df_indices = df[df['Is_Index']].copy()
-    df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3, "SPX": 4, "DAX": 5, "USD/INR": 6})
+    # 🔥 FIX: Order fillna
+    df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3, "SPX": 4, "DAX": 5, "USD/INR": 6}).fillna(99)
     df_indices = df_indices.sort_values('Order')
     
     df_sectors = df[df['Is_Sector']].copy()
     sec_sort_key = "W_C" if chart_timeframe == "Weekly Chart" else "Day_C"
     df_sectors = df_sectors.sort_values(by=sec_sort_key, ascending=False)
     
-    # 1. Base Data (All Fetched Stocks)
     df_all_stocks = df[(~df['Is_Index']) & (~df['Is_Sector']) & (~df['Is_Commodity'])].copy()
     df_commodities = df[df['Is_Commodity']].copy()
-    
     df_port_saved = load_portfolio().copy()
 
-    # 2. 🔥 STRICT SEGMENT FILTERING (SMART IRON WALL) 🔥
+    # 🔥 STRICT SEGMENT FILTERING
     if watchlist_mode == "Swing Trading 📈":
         strict_allowed = set(NIFTY_50 + FNO_STOCKS + MIDCAP_150 + SMALLCAP_250)
     elif watchlist_mode == "🤖 AI Predictions (F&O)":
@@ -1655,10 +1616,8 @@ if not df.empty:
     else:
         strict_allowed = set(NIFTY_50 + FNO_STOCKS)
         
-    # ఇక్కడే సగం లోడ్ ఆగిపోతుంది!
     df_stocks = df_all_stocks[df_all_stocks['T'].isin(strict_allowed)].copy()
     
-    # 3. Sector Calcs (దీనికి ఎప్పుడూ df_all_stocks వాడాలి)
     df_nifty = df_all_stocks[df_all_stocks['T'].isin(NIFTY_50)].copy()
     sector_perf = df_nifty.groupby('Sector')['C'].mean().sort_values(ascending=False)
     valid_sectors = [s for s in sector_perf.index if s != "OTHER"]
@@ -1671,13 +1630,15 @@ if not df.empty:
     df_independent = df_nifty[(~df_nifty['Sector'].isin([top_buy_sector, top_sell_sector])) & (df_nifty['S'] >= 5)].sort_values(by='S', ascending=False).head(8)
     df_broader = df_all_stocks[(df_all_stocks['T'].isin(FNO_STOCKS)) & (~df_all_stocks['T'].isin(NIFTY_50)) & (df_all_stocks['S'] >= 5)].sort_values(by='S', ascending=False).head(8)
 
+    # 🔥 FIX: df_filtered default initialize
+    df_filtered = pd.DataFrame(columns=df_stocks.columns)
+
     if watchlist_mode == "Terminal Tables 🗃️":
         terminal_tickers = pd.concat([df_buy_sector, df_sell_sector, df_independent, df_broader])['Fetch_T'].unique().tolist()
         df_filtered = df_all_stocks[df_all_stocks['Fetch_T'].isin(terminal_tickers)]
     elif watchlist_mode == "My Portfolio 💼":
         port_tickers = [f"{str(sym).upper().strip()}.NS" for sym in df_port_saved['Symbol'].tolist() if str(sym).strip() != ""]
         df_filtered = df_all_stocks[df_all_stocks['Fetch_T'].isin(port_tickers)]
-        
     elif watchlist_mode == "Commodity 🛢️":
         df_filtered = df_commodities.copy()
     elif watchlist_mode == "Fundamentals 🏢":
@@ -1712,11 +1673,12 @@ if not df.empty:
         df_filtered = df_filtered[(df_filtered['Strategy_Icon'] != "Neutral") & (df_filtered['S'] >= 11)]
     elif watchlist_mode == "Day Trading Stocks 🚀":
         df_filtered = df_stocks[df_stocks['C'].abs() >= 1.0].copy()
+    elif watchlist_mode == "High Score Stocks 🔥":
+        df_filtered = df_stocks[(df_stocks['S'] >= 11) & (df_stocks['VolX'] >= 1.5)].copy()
     elif watchlist_mode == "Swing Trading 📈":
         df_filtered = df_stocks.copy()
         dfs_to_concat = []
         
-        # ఇవి అన్నింటికీ కామన్ గా ఉండే కండిషన్స్ (IPO స్టాక్స్ కూడా వచ్చేలా)
         cond1 = (df_filtered['P'] > df_filtered['SMA150']) & ((df_filtered['P'] > df_filtered['SMA200']) | (df_filtered['SMA200'] == 0))
         cond2 = (df_filtered['SMA150'] > df_filtered['SMA200']) | (df_filtered['SMA200'] == 0)
         cond3 = (df_filtered['SMA200'] > df_filtered['SMA200_20D']) | (df_filtered['SMA200'] == 0)
@@ -1724,31 +1686,26 @@ if not df.empty:
         cond7 = df_filtered['SMA50'] > df_filtered['SMA150'] 
         cond5 = df_filtered['P'] >= (df_filtered['Low52W'] * 1.30)
         cond6 = df_filtered['P'] >= (df_filtered['High52W'] * 0.75)
-        
         vcp_base_cond = cond1 & cond2 & cond3 & cond4 & cond7 & cond5 & cond6
 
-        # 1. కేవలం FNO & NIFTY స్టాక్స్
         if "📈 Minervini Trend Template (VCP)" in move_type_filter:
             cond_fno = df_filtered['T'].isin(NIFTY_50 + FNO_STOCKS)
             df_min = df_filtered[cond_fno & vcp_base_cond].copy()
             df_min['Strategy_Icon'] = "📈 M-VCP"
             dfs_to_concat.append(df_min)
 
-        # 2. కేవలం MIDCAP 150 స్టాక్స్
         if "🔥 Minervini MidCap 150" in move_type_filter:
             cond_mid = df_filtered['T'].isin(MIDCAP_150)
             df_mid = df_filtered[cond_mid & vcp_base_cond].copy()
             df_mid['Strategy_Icon'] = "🔥 Mid VCP"
             dfs_to_concat.append(df_mid)
 
-        # 3. కేవలం SMALLCAP 250 స్టాక్స్
         if "🚀 Minervini SmallCap 250" in move_type_filter:
             cond_small = df_filtered['T'].isin(SMALLCAP_250)
             df_small = df_filtered[cond_small & vcp_base_cond].copy()
             df_small['Strategy_Icon'] = "🚀 Small VCP"
             dfs_to_concat.append(df_small)
             
-        # 4. Strict VCP (FNO వాటికి మాత్రమే)
         if "📉 Strict VCP (Price & Vol Contraction)" in move_type_filter:
             cond_fno = df_filtered['T'].isin(NIFTY_50 + FNO_STOCKS)
             strict_vcp_cond = (df_filtered['VCP_Contract'] == True) & (df_filtered['VCP_Vol_Dry'] == True)
@@ -1761,7 +1718,6 @@ if not df.empty:
 
         if dfs_to_concat:
             df_filtered = pd.concat(dfs_to_concat).drop_duplicates(subset=['Fetch_T'], keep='last')
-            # 🔥 SMART FIX: ముందే ఫిల్టర్ చేసి Top 40 మాత్రమే ఉంచుతున్నాం!
             df_filtered = df_filtered.sort_values(by="Day_C", ascending=False).head(40)
         else:
             df_filtered = pd.DataFrame(columns=df_filtered.columns)
@@ -1769,7 +1725,6 @@ if not df.empty:
         df_filtered = df_stocks.copy()
         dfs_to_concat = []
         
-        # Base VCP Logic
         cond1 = (df_filtered['P'] > df_filtered['SMA150']) & ((df_filtered['P'] > df_filtered['SMA200']) | (df_filtered['SMA200'] == 0))
         cond2 = (df_filtered['SMA150'] > df_filtered['SMA200']) | (df_filtered['SMA200'] == 0)
         cond3 = (df_filtered['SMA200'] > df_filtered['SMA200_20D']) | (df_filtered['SMA200'] == 0)
@@ -1781,70 +1736,46 @@ if not df.empty:
         
         strat = move_type_filter[0] if isinstance(move_type_filter, list) else move_type_filter
         
-        # 🔥 SMART TIME-FRAME & STRATEGY MAPPING (Only for Legendary Strategy)
         is_intraday = (chart_timeframe == "Intraday (5m)")
         is_weekly = (chart_timeframe == "Weekly Chart")
         
         if strat == "📈 Minervini Trend Template (VCP)":
             df_min = df_filtered[vcp_base_cond].copy()
-            if is_intraday:
-                df_min = df_min[(df_min['VolX'] >= 1.5) & (df_min['Day_C'] >= 1.0)]
-            elif is_weekly:
-                df_min = df_min[df_min['W_C'] > 0]
+            if is_intraday: df_min = df_min[(df_min['VolX'] >= 1.5) & (df_min['Day_C'] >= 1.0)]
+            elif is_weekly: df_min = df_min[df_min['W_C'] > 0]
             df_min['Strategy_Icon'] = "📈 M-VCP"
             dfs_to_concat.append(df_min)
-            
         elif strat == "📉 Strict VCP (Price & Vol Contraction)":
             strict_vcp_cond = (df_filtered['VCP_Contract'] == True) & (df_filtered['VCP_Vol_Dry'] == True)
             df_vcp = df_filtered[vcp_base_cond & strict_vcp_cond].copy()
-            if is_intraday:
-                df_vcp = df_vcp[df_vcp['VolX'] >= 1.5]
-            elif is_weekly:
-                df_vcp = df_vcp[df_vcp['W_C'] > 0]
+            if is_intraday: df_vcp = df_vcp[df_vcp['VolX'] >= 1.5]
+            elif is_weekly: df_vcp = df_vcp[df_vcp['W_C'] > 0]
             df_vcp['Strategy_Icon'] = "📉 VCP"
             dfs_to_concat.append(df_vcp)
-            
         elif strat == "📦 Nicolas Darvas (Box Breakout)":
             box_width = (df_filtered['Box_Top20'] - df_filtered['Box_Bot20']) / (df_filtered['Box_Bot20'] + 0.001)
             darvas_cond = (df_filtered['P'] > df_filtered['Box_Top20']) & (box_width <= 0.15) & (df_filtered['P'] >= df_filtered['High52W'] * 0.90)
             df_darvas = df_filtered[darvas_cond].copy()
-            
-            if is_intraday:
-                df_darvas = df_darvas[(df_darvas['VolX'] >= 1.5) & (df_darvas['Day_C'] >= 1.0)]
-            elif is_weekly:
-                df_darvas = df_darvas[(df_darvas['VolX'] >= 1.0) & (df_darvas['W_C'] >= 2.0)]
-            else:
-                df_darvas = df_darvas[df_darvas['VolX'] >= 1.0]
-                
+            if is_intraday: df_darvas = df_darvas[(df_darvas['VolX'] >= 1.5) & (df_darvas['Day_C'] >= 1.0)]
+            elif is_weekly: df_darvas = df_darvas[(df_darvas['VolX'] >= 1.0) & (df_darvas['W_C'] >= 2.0)]
+            else: df_darvas = df_darvas[df_darvas['VolX'] >= 1.0]
             df_darvas['Strategy_Icon'] = "📦 Darvas"
             dfs_to_concat.append(df_darvas)
-            
         elif strat == "📈 Stan Weinstein (Stage 2 Uptrend)":
             weinstein_cond = (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['SMA150'] > df_filtered['SMA150_20D']) & (df_filtered['SMA50'] > df_filtered['SMA150']) & (df_filtered['P'] > df_filtered['SMA200'])
             df_weinstein = df_filtered[weinstein_cond].copy()
-            
-            if is_intraday:
-                df_weinstein = df_weinstein[(df_weinstein['VolX'] >= 1.5) & (df_weinstein['Day_C'] >= 1.0)]
-            elif is_weekly:
-                df_weinstein = df_weinstein[(df_weinstein['P'] > df_weinstein['W_EMA50']) & (df_weinstein['W_C'] > 1.0)]
-            else:
-                df_weinstein = df_weinstein[df_weinstein['Day_C'] > 0.5]
-                
+            if is_intraday: df_weinstein = df_weinstein[(df_weinstein['VolX'] >= 1.5) & (df_weinstein['Day_C'] >= 1.0)]
+            elif is_weekly: df_weinstein = df_weinstein[(df_weinstein['P'] > df_weinstein['W_EMA50']) & (df_weinstein['W_C'] > 1.0)]
+            else: df_weinstein = df_weinstein[df_weinstein['Day_C'] > 0.5]
             df_weinstein['Strategy_Icon'] = "📈 Stage 2"
             dfs_to_concat.append(df_weinstein)
-            
         elif strat == "💥 Dan Zanger (Volume Explosion)":
             close_range = (df_filtered['P'] - df_filtered['L']) / (df_filtered['H'] - df_filtered['L'] + 0.001)
             zanger_base = (df_filtered['SMA50'] > df_filtered['SMA150']) & (close_range >= 0.70)
             df_zanger = df_filtered[zanger_base].copy()
-            
-            if is_intraday:
-                df_zanger = df_zanger[(df_zanger['VolX'] >= 2.0) & (df_zanger['Day_C'] >= 3.0)]
-            elif is_weekly:
-                df_zanger = df_zanger[(df_zanger['VolX'] >= 1.5) & (df_zanger['W_C'] >= 5.0)]
-            else:
-                df_zanger = df_zanger[(df_zanger['VolX'] >= 1.5) & (df_zanger['Day_C'] >= 4.0)]
-                
+            if is_intraday: df_zanger = df_zanger[(df_zanger['VolX'] >= 2.0) & (df_zanger['Day_C'] >= 3.0)]
+            elif is_weekly: df_zanger = df_zanger[(df_zanger['VolX'] >= 1.5) & (df_zanger['W_C'] >= 5.0)]
+            else: df_zanger = df_zanger[(df_zanger['VolX'] >= 1.5) & (df_zanger['Day_C'] >= 4.0)]
             df_zanger['Strategy_Icon'] = "💥 Zanger"
             dfs_to_concat.append(df_zanger)
             
@@ -1864,12 +1795,11 @@ if not df.empty:
         sec_tickers = [f"{sym}.NS" for sym in sec_stock_names]
         all_display_tickers = list(set(all_display_tickers + sec_tickers))
     
-    if search_stock != "-- None --":
+    if search_stock != "-- None --" and not df[df['T'] == search_stock].empty:
         search_fetch_t = df[df['T'] == search_stock]['Fetch_T'].iloc[0]
         if search_fetch_t not in all_display_tickers: all_display_tickers.append(search_fetch_t)
             
-    if True: # 5m fetch
-        five_min_data = fetch_cached_5m_data(all_display_tickers)
+    five_min_data = fetch_cached_5m_data(all_display_tickers)
 
     processed_charts = {}
     weekly_trends = {}
@@ -1879,8 +1809,6 @@ if not df.empty:
     orb_tags = {} 
 
     nifty_dist_5m = 0.1
-    
-    # 🔥 MultiIndex ఎర్రర్ రాకుండా సేఫ్టీ చెక్
     fetched_5m_symbols = five_min_data.columns.levels[0] if isinstance(five_min_data.columns, pd.MultiIndex) else five_min_data.columns
 
     if "^NSEI" in fetched_5m_symbols:
@@ -1891,6 +1819,9 @@ if not df.empty:
             n_vwap = n_day['VWAP'].iloc[-1]
             if n_vwap > 0: nifty_dist_5m = abs(n_ltp - n_vwap) / n_vwap * 100
 
+    # 🔥 FIX: df lookup dict for performance
+    df_lookup = df.drop_duplicates(subset=['Fetch_T'], keep='first').set_index('Fetch_T').to_dict('index')
+
     for sym in all_display_tickers:
         try: df_raw = five_min_data[sym] if isinstance(five_min_data.columns, pd.MultiIndex) else five_min_data
         except KeyError: df_raw = pd.DataFrame()
@@ -1899,19 +1830,23 @@ if not df.empty:
         processed_charts[sym] = df_day
         
         try:
-            sym_row = df[df['Fetch_T'] == sym].iloc[0]
-            w_ema10 = float(sym_row['W_EMA10'])
-            w_ema50 = float(sym_row['W_EMA50'])
-            last_p = float(sym_row['P'])
-            if last_p > w_ema10 and w_ema10 >= w_ema50: weekly_trends[sym] = 'Bullish'
-            elif last_p < w_ema10 and w_ema10 <= w_ema50: weekly_trends[sym] = 'Bearish'
-            else: weekly_trends[sym] = 'Neutral'
+            sym_row = df_lookup.get(sym)
+            if sym_row:
+                w_ema10 = float(sym_row['W_EMA10'])
+                w_ema50 = float(sym_row['W_EMA50'])
+                last_p = float(sym_row['P'])
+                if last_p > w_ema10 and w_ema10 >= w_ema50: weekly_trends[sym] = 'Bullish'
+                elif last_p < w_ema10 and w_ema10 <= w_ema50: weekly_trends[sym] = 'Bearish'
+                else: weekly_trends[sym] = 'Neutral'
+            else:
+                weekly_trends[sym] = 'Neutral'
         except: weekly_trends[sym] = 'Neutral'
             
         if sym in df_filtered['Fetch_T'].tolist() and not df_day.empty:
             last_price = df_day['Close'].iloc[-1]
             last_vwap = df_day['VWAP'].iloc[-1]
-            net_chg = df[df['Fetch_T'] == sym]['C'].iloc[0]
+            sym_info = df_lookup.get(sym, {})
+            net_chg = sym_info.get('C', 0)
             
             alpha_tag = ""
             if len(df_day) >= 50:
@@ -1937,9 +1872,9 @@ if not df.empty:
             trap_bonus = 0
             if watchlist_mode in ["Day Trading Stocks 🚀", "High Score Stocks 🔥"] and len(df_day) >= 6 and last_vwap > 0:
                 curr_open = float(df_day['Open'].iloc[-1])
-                day_open = df[df['Fetch_T'] == sym]['O'].iloc[0]
-                day_high = df[df['Fetch_T'] == sym]['H'].iloc[0]
-                day_low = df[df['Fetch_T'] == sym]['L'].iloc[0]
+                day_open = sym_info.get('O', 0)
+                day_high = sym_info.get('H', 0)
+                day_low = sym_info.get('L', 0)
                 morning_spike = (day_high - day_open) / day_open * 100 if day_open > 0 else 0
                 morning_drop = (day_open - day_low) / day_open * 100 if day_open > 0 else 0
 
@@ -1975,34 +1910,46 @@ if not df.empty:
                     orb_tag = "ORB_SELL"
             orb_tags[sym] = orb_tag
 
+    # 🔥 FIX: Alert — prevent repeated toasts
     alerts_triggered_html = ""
     for sym, a_data in st.session_state.custom_alerts.items():
         if a_data['enabled']:
             live_r = df[df['Fetch_T'] == sym]
             if not live_r.empty:
                 current_ltp = float(live_r['P'].iloc[0])
+                alert_key = f"{sym}_{a_data['price']}_{a_data['type']}"
                 if "Above" in a_data['type'] and current_ltp >= a_data['price']:
-                    st.toast(f"🔔 ALERT: {a_data['name']} is ABOVE ₹{a_data['price']}! (LTP: {current_ltp})", icon="🚀")
+                    if alert_key not in st.session_state.alert_triggered:
+                        st.toast(f"🔔 ALERT: {a_data['name']} is ABOVE ₹{a_data['price']}! (LTP: {current_ltp})", icon="🚀")
+                        st.session_state.alert_triggered.add(alert_key)
                     alerts_triggered_html += f"<div style='background-color:#1e5f29; color:white; padding:10px; border-radius:5px; margin-bottom:5px;'><b>🔔 ALERT:</b> {a_data['name']} crossed ABOVE ₹{a_data['price']}! (LTP: {current_ltp})</div>"
                 elif "Below" in a_data['type'] and current_ltp <= a_data['price']:
-                    st.toast(f"🔔 ALERT: {a_data['name']} is BELOW ₹{a_data['price']}! (LTP: {current_ltp})", icon="🩸")
+                    if alert_key not in st.session_state.alert_triggered:
+                        st.toast(f"🔔 ALERT: {a_data['name']} is BELOW ₹{a_data['price']}! (LTP: {current_ltp})", icon="🩸")
+                        st.session_state.alert_triggered.add(alert_key)
                     alerts_triggered_html += f"<div style='background-color:#b52524; color:white; padding:10px; border-radius:5px; margin-bottom:5px;'><b>🔔 ALERT:</b> {a_data['name']} crossed BELOW ₹{a_data['price']}! (LTP: {current_ltp})</div>"
 
     if alerts_triggered_html: st.markdown(alerts_triggered_html, unsafe_allow_html=True)
 
+    # 🔥 FIX: Initialize df_stocks_display upfront (empty df_filtered safety)
+    df_stocks_display = pd.DataFrame(columns=df_filtered.columns)
+    sort_key = "W_C" if chart_timeframe == "Weekly Chart" else "Day_C"
+
     if not df_filtered.empty:
-        df_filtered = df_filtered.copy() # 👈 ఈ ఒక్క లైన్ యాడ్ చేయండి బాస్!
+        df_filtered = df_filtered.copy()
         
         df_filtered['AlphaTag'] = df_filtered['Fetch_T'].map(alpha_tags).fillna("")
-        df_filtered['Trend_Score'] = df_filtered['Fetch_T'].map(trend_scores).fillna(0)
+        # 🔥 FIX: dtype numeric
+        df_filtered['Trend_Score'] = pd.to_numeric(df_filtered['Fetch_T'].map(trend_scores), errors='coerce').fillna(0).astype(int)
         df_filtered['Retest_Tag'] = df_filtered['Fetch_T'].map(retest_tags).fillna("") 
         df_filtered['ORB_Tag'] = df_filtered['Fetch_T'].map(orb_tags).fillna("") 
         df_filtered['S'] = df_filtered['S'] + df_filtered['Trend_Score']
         
         if watchlist_mode in ["Day Trading Stocks 🚀", "🤖 Today's AI Predictions"]:
-            sector_abs_perf = sector_perf.abs().sort_values(ascending=False)
+            # 🔥 FIX: Only positive sectors get bonus
+            sector_bull_perf = sector_perf[sector_perf > 0].sort_values(ascending=False)
             sector_bonus_map = {}
-            for rank, (sec, val) in enumerate(sector_abs_perf.items()):
+            for rank, sec in enumerate(sector_bull_perf.index):
                 bonus = max(10 - (rank * 2), 0)
                 sector_bonus_map[sec] = bonus
             df_filtered['Sector_Bonus'] = df_filtered['Sector'].map(sector_bonus_map).fillna(0)
@@ -2036,7 +1983,6 @@ if not df.empty:
                 tkr = r['Fetch_T']
                 if tkr in processed_charts and len(processed_charts[tkr]) >= 2:
                     df_hist = processed_charts[tkr]
-                    
                     day_open = df_hist['Open'].iloc[0]
                     low_after_1st = df_hist['Low'].iloc[1:].min()
                     high_after_1st = df_hist['High'].iloc[1:].max()
@@ -2078,28 +2024,7 @@ if not df.empty:
                 c_sell = pd.Series(False, index=df_filtered.index)
                 icon_str = ""
 
-                if strat == "🔥 Live Power Mover (Last 2 Candles)":
-                    buy_mask = pd.Series(False, index=df_filtered.index)
-                    sell_mask = pd.Series(False, index=df_filtered.index)
-                    
-                    for idx, r in df_filtered.iterrows():
-                        tkr = r['Fetch_T']
-                        if tkr in processed_charts and len(processed_charts[tkr]) >= 2:
-                            df_hist = processed_charts[tkr]
-                            if 'Volume' in df_hist.columns and 'Vol_SMA_89' in df_hist.columns and 'EMA_10' in df_hist.columns:
-                                vol_fire = df_hist['Volume'] > (df_hist['Vol_SMA_89'] * 1.618)
-                                
-                                # బాస్ చెప్పినట్లు: గ్రీన్/రెడ్ రూల్ తీసేశాను. చార్ట్‌లో ఫైర్ పడితే ఇక్కడ కౌంట్ అవుతుంది!
-                                b_cond = vol_fire & (df_hist['Close'] >= df_hist['EMA_10'])
-                                s_cond = vol_fire & (df_hist['Close'] < df_hist['EMA_10'])
-                                
-                                if b_cond.iloc[-2:].sum() >= 1: buy_mask[idx] = True
-                                if s_cond.iloc[-2:].sum() >= 1: sell_mask[idx] = True
-                                
-                    c_buy = base_buy & buy_mask
-                    c_sell = base_sell & sell_mask
-                    icon_str = "🔥 Live Breakout"
-
+                # 🔥 FIX: Duplicate block తీసేశాం, only correct Vol_SMA_375 version
                 if strat == "🔥 Live Power Mover (Last 2 Candles)":
                     buy_mask = pd.Series(False, index=df_filtered.index)
                     sell_mask = pd.Series(False, index=df_filtered.index)
@@ -2109,15 +2034,9 @@ if not df.empty:
                         if tkr in processed_charts and len(processed_charts[tkr]) >= 2:
                             df_hist = processed_charts[tkr]
                             if 'Volume' in df_hist.columns and 'Vol_SMA_375' in df_hist.columns and 'EMA_10' in df_hist.columns:
-                                
-                                # 375 SMA కన్నా 1.5 రెట్లు వాల్యూమ్
                                 vol_fire = df_hist['Volume'] > (df_hist['Vol_SMA_375'].shift(1) * 1.5)
-                                
-                                # Buy: ముందు క్యాండిల్ పైన క్లోజ్ అవ్వాలి + 10 EMA పైన క్లోజ్ అవ్వాలి
                                 b_cond = vol_fire & (df_hist['Close'] > df_hist['Close'].shift(1)) & (df_hist['Close'] >= df_hist['EMA_10'])
-                                # Sell: ముందు క్యాండిల్ కింద క్లోజ్ అవ్వాలి + 10 EMA కింద క్లోజ్ అవ్వాలి
                                 s_cond = vol_fire & (df_hist['Close'] < df_hist['Close'].shift(1)) & (df_hist['Close'] <= df_hist['EMA_10'])
-                                
                                 if b_cond.iloc[-2:].sum() >= 1: buy_mask[idx] = True
                                 if s_cond.iloc[-2:].sum() >= 1: sell_mask[idx] = True
                                 
@@ -2129,36 +2048,28 @@ if not df.empty:
                     buy_mask = pd.Series(False, index=df_filtered.index)
                     sell_mask = pd.Series(False, index=df_filtered.index)
                     
-                    # 1. కేవలం FNO (Nifty Futures) స్టాక్స్ ఫిల్టర్
                     df_fno = df_filtered[df_filtered['T'].isin(FNO_STOCKS)]
                     
                     for idx, r in df_fno.iterrows():
                         tkr = r['Fetch_T']
                         if tkr in processed_charts and len(processed_charts[tkr]) >= 2:
                             df_hist = processed_charts[tkr]
-                            
                             if 'Volume' in df_hist.columns and 'Vol_SMA_375' in df_hist.columns and 'EMA_10' in df_hist.columns:
                                 ltp = df_hist['Close'].iloc[-1]
                                 vwap = df_hist['VWAP'].iloc[-1]
                                 ema10 = df_hist['EMA_10'].iloc[-1]
                                 
-                                # కరెంట్ ప్రైస్ డైరెక్షన్
                                 is_buy_trend = (ltp > vwap) and (ltp > ema10)
                                 is_sell_trend = (ltp < vwap) and (ltp < ema10)
-                                
-                                # వాల్యూమ్ కండిషన్ (375 SMA * 1.5)
                                 vol_fire = df_hist['Volume'] > (df_hist['Vol_SMA_375'].shift(1) * 1.5)
                                 
-                                # 🔥 పక్కా ఫైర్ రూల్స్ (Previous Close Break + 10 EMA Alignment)
                                 valid_buy_fire = vol_fire & (df_hist['Close'] > df_hist['Close'].shift(1)) & (df_hist['Close'] >= df_hist['EMA_10'])
                                 valid_sell_fire = vol_fire & (df_hist['Close'] < df_hist['Close'].shift(1)) & (df_hist['Close'] <= df_hist['EMA_10'])
                                 
                                 tot_buy = valid_buy_fire.sum()
                                 tot_sell = valid_sell_fire.sum()
-                                
                                 fire_score = 0
                                 
-                                # నెట్ స్కోర్ లెక్కించడం
                                 if is_buy_trend and tot_buy >= 1 and tot_buy > tot_sell: 
                                     buy_mask[idx] = True
                                     fire_score = (tot_buy - tot_sell) * 10
@@ -2171,7 +2082,6 @@ if not df.empty:
                                     s_vwap = r.get('VWAP', r['P'])
                                     s_dist = abs(r['P'] - s_vwap) / s_vwap * 100 if s_vwap > 0 else 0
                                     safe_nifty = max(nifty_dist, 0.2) 
-                                    
                                     rs_score = 0
                                     if s_dist >= (safe_nifty * 4): rs_score = 20
                                     elif s_dist >= (safe_nifty * 3): rs_score = 15
@@ -2180,7 +2090,6 @@ if not df.empty:
                                     
                                     df_filtered.at[idx, 'S'] = df_filtered.at[idx, 'S'] + fire_score + price_score + rs_score
 
-                    # కనీసం 1% మూమెంట్ (Day Change) ఉంటేనే లిస్ట్‌లోకి రావాలి
                     c_buy = base_buy & buy_mask & (df_filtered['Day_C'] >= 1.0)
                     c_sell = base_sell & sell_mask & (df_filtered['Day_C'] <= -1.0)
                     icon_str = "🚀 Max Fire"
@@ -2232,11 +2141,9 @@ if not df.empty:
                     cond5 = df_filtered['P'] > df_filtered['SMA50']
                     cond6 = df_filtered['P'] >= (df_filtered['Low52W'] * 1.30)
                     cond7 = df_filtered['P'] >= (df_filtered['High52W'] * 0.75)
-                    
                     c_buy = base_buy & cond1 & cond2 & cond3 & cond4 & cond5 & cond6 & cond7
                     c_sell = pd.Series(False, index=df_filtered.index)
                     icon_str = "📈 M-VCP"
-                    
                 elif strat == "📉 Strict VCP (Price & Vol Contraction)":
                     cond1 = (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['P'] > df_filtered['SMA200'])
                     cond2 = df_filtered['SMA150'] > df_filtered['SMA200']
@@ -2246,7 +2153,6 @@ if not df.empty:
                     cond6 = df_filtered['P'] >= (df_filtered['Low52W'] * 1.30)
                     cond7 = df_filtered['P'] >= (df_filtered['High52W'] * 0.75)
                     vcp_cond = (df_filtered['VCP_Contract'] == True) & (df_filtered['VCP_Vol_Dry'] == True)
-                    
                     c_buy = base_buy & cond1 & cond2 & cond3 & cond4 & cond5 & cond6 & cond7 & vcp_cond
                     c_sell = pd.Series(False, index=df_filtered.index)
                     icon_str = "📉 VCP"
@@ -2267,85 +2173,61 @@ if not df.empty:
                 
                 all_dfs.extend([top_buy, top_sell])
                 
-            if all_dfs: df_filtered = pd.concat(all_dfs).drop_duplicates(subset=['Fetch_T'])
-            else: df_filtered = pd.DataFrame(columns=df_filtered.columns)
+            if all_dfs: 
+                df_filtered = pd.concat(all_dfs).drop_duplicates(subset=['Fetch_T'])
+            else: 
+                df_filtered = pd.DataFrame(columns=df_filtered.columns)
             
             if not df_filtered.empty:
-                
-                # Identify setup type
                 is_buy = df_filtered['Strategy_Icon'].str.contains('BUY|VCP', na=False)
                 is_minervini = df_filtered['Strategy_Icon'].str.contains('VCP', na=False)
-                
-                # Fetch ATR for day trading (fallback 2% if missing)
                 atr_val = df_filtered.get('ATR', df_filtered['P'] * 0.02)
-                
-                # 🔥 SMART RISK LOGIC: 5% strict risk for Minervini, 1.5 ATR for Day Trading
                 risk_amt = np.where(is_minervini, df_filtered['P'] * 0.05, atr_val * 1.5)
                 
-                # Calculate Stop Loss
-                df_filtered['SL'] = np.where(is_buy, 
-                                             round(df_filtered['P'] - risk_amt, 2), 
-                                             round(df_filtered['P'] + risk_amt, 2))
-                
-                # 🔥 SMART TARGETS: 1:2 & 1:3 for Minervini Swing | 1:1 & 1:2 for Day Trading
+                df_filtered['SL'] = np.where(is_buy, round(df_filtered['P'] - risk_amt, 2), round(df_filtered['P'] + risk_amt, 2))
                 tp1_mult = np.where(is_minervini, 2.0, 1.0)
                 tp2_mult = np.where(is_minervini, 3.0, 2.0)
-                
-                df_filtered['T1'] = np.where(is_buy, 
-                                             round(df_filtered['P'] + (risk_amt * tp1_mult), 2), 
-                                             round(df_filtered['P'] - (risk_amt * tp1_mult), 2))
-                
-                df_filtered['T2'] = np.where(is_buy, 
-                                             round(df_filtered['P'] + (risk_amt * tp2_mult), 2), 
-                                             round(df_filtered['P'] - (risk_amt * tp2_mult), 2))
+                df_filtered['T1'] = np.where(is_buy, round(df_filtered['P'] + (risk_amt * tp1_mult), 2), round(df_filtered['P'] - (risk_amt * tp1_mult), 2))
+                df_filtered['T2'] = np.where(is_buy, round(df_filtered['P'] + (risk_amt * tp2_mult), 2), round(df_filtered['P'] - (risk_amt * tp2_mult), 2))
         
+        # 🔥 FIX: Sorting inside the df_filtered non-empty block
+        if 'Sector_Bonus' not in df_filtered.columns: df_filtered['Sector_Bonus'] = 0
         
-    sort_key = "W_C" if chart_timeframe == "Weekly Chart" else "Day_C"
-    if 'Sector_Bonus' not in df_filtered.columns: df_filtered['Sector_Bonus'] = 0
-    
-    if sort_mode == "% Change Up 🟢": df_stocks_display = df_filtered.sort_values(by=sort_key, ascending=False)
-    elif sort_mode == "% Change Down 🔴": df_stocks_display = df_filtered.sort_values(by=sort_key, ascending=True)
-    elif sort_mode == "Sector Trending First 📊":
-        if "AI_Prob" in df_filtered.columns: df_stocks_display = df_filtered.sort_values(by=['Sector_Bonus', 'AI_Prob', 'VolX'], ascending=[False, False, False])
-        else: df_stocks_display = df_filtered.sort_values(by=['Sector_Bonus', 'S', 'VolX'], ascending=[False, False, False])
-    elif sort_mode == "🤖 AI Prob Up ⬆️":
-        if "AI_Prob" in df_filtered.columns: df_stocks_display = df_filtered.sort_values(by=['AI_Prob', 'VolX', sort_key], ascending=[False, False, False])
-        else: df_stocks_display = df_filtered.sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, False])
-    elif sort_mode == "Score Wise Up ⭐": 
-        df_stocks_display = pd.concat([
-            df_filtered[df_filtered[sort_key] >= 0].sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, False]), 
-            df_filtered[df_filtered[sort_key] < 0].sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, True])
-        ])
-    elif sort_mode == "Score Wise Down ⬇️": 
-        df_stocks_display = pd.concat([
-            df_filtered[df_filtered[sort_key] < 0].sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, True]), 
-            df_filtered[df_filtered[sort_key] >= 0].sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, False])
-        ])
-    else:
-        if "AI Predictions" in watchlist_mode: df_stocks_display = df_filtered.sort_values(by=['AI_Prob', 'VolX'], ascending=[False, False])
-        else: df_stocks_display = df_filtered.sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, False])
+        if sort_mode == "% Change Up 🟢": df_stocks_display = df_filtered.sort_values(by=sort_key, ascending=False)
+        elif sort_mode == "% Change Down 🔴": df_stocks_display = df_filtered.sort_values(by=sort_key, ascending=True)
+        elif sort_mode == "Sector Trending First 📊":
+            if "AI_Prob" in df_filtered.columns: df_stocks_display = df_filtered.sort_values(by=['Sector_Bonus', 'AI_Prob', 'VolX'], ascending=[False, False, False])
+            else: df_stocks_display = df_filtered.sort_values(by=['Sector_Bonus', 'S', 'VolX'], ascending=[False, False, False])
+        elif sort_mode == "🤖 AI Prob Up ⬆️":
+            if "AI_Prob" in df_filtered.columns: df_stocks_display = df_filtered.sort_values(by=['AI_Prob', 'VolX', sort_key], ascending=[False, False, False])
+            else: df_stocks_display = df_filtered.sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, False])
+        elif sort_mode == "Score Wise Up ⭐": 
+            df_stocks_display = pd.concat([
+                df_filtered[df_filtered[sort_key] >= 0].sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, False]), 
+                df_filtered[df_filtered[sort_key] < 0].sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, True])
+            ])
+        elif sort_mode == "Score Wise Down ⬇️": 
+            df_stocks_display = pd.concat([
+                df_filtered[df_filtered[sort_key] < 0].sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, True]), 
+                df_filtered[df_filtered[sort_key] >= 0].sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, False])
+            ])
+        else:
+            if "AI Predictions" in watchlist_mode: df_stocks_display = df_filtered.sort_values(by=['AI_Prob', 'VolX'], ascending=[False, False])
+            else: df_stocks_display = df_filtered.sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, False])
             
+    # ============ FUNDAMENTALS ============
     if watchlist_mode == "Fundamentals 🏢":
         st.markdown(f"<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#d29922;'>🏢 Core Fundamentals ({fund_filter})</div>", unsafe_allow_html=True)
         
-        # 🛠️ BUG FIX: వేరియబుల్ క్రియేట్ అవ్వకపోతే ఇక్కడ ఎర్రర్ రాకుండా కాపాడుతుంది
-        try:
-            _ = df_stocks_display
-        except NameError:
-            df_stocks_display = pd.DataFrame(columns=['Fetch_T', 'P', 'S'])
-            
-        # Fetching for top 50 to get good candidates
-        fund_tickers = df_stocks_display['Fetch_T'].tolist()[:50] if not df_stocks_display.empty else NIFTY_50[:50]
-        
+        fund_tickers = df_stocks_display['Fetch_T'].tolist()[:50] if not df_stocks_display.empty else [f"{s}.NS" for s in NIFTY_50[:50]]
         df_fund = fetch_fundamentals_data(fund_tickers)
         if not df_fund.empty:
-            # 🦅 WARREN BUFFETT LOGIC APPLIED HERE 🦅
             if fund_filter == "🦅 Warren Buffett Value Stocks":
                 df_fund = df_fund[
-                    (df_fund['ROE %'] > 15) &              # Consistent strong returns
-                    (df_fund['Debt/Equity'] < 0.5) &       # Low Debt
-                    (df_fund['P/E Ratio'] > 0) &           # Profitable
-                    (df_fund['P/E Ratio'] < 25)            # Not overvalued
+                    (df_fund['ROE %'] > 15) &
+                    (df_fund['Debt/Equity'] < 0.5) &
+                    (df_fund['P/E Ratio'] > 0) &
+                    (df_fund['P/E Ratio'] < 25)
                 ]
             
             html_fund = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-fund" style="background-color: #d29922; color: #161b22;">📊 FUNDAMENTAL & TECHNICAL METRICS</th></tr><tr><th style="text-align:left;">STOCK</th><th>SECTOR</th><th>LTP (₹)</th><th>TECH SCORE</th><th>MKT CAP (Cr)</th><th>P/E</th><th>ROE %</th><th>D/E Ratio</th><th>DIV YIELD</th><th>52W HIGH</th></tr></thead><tbody>'
@@ -2362,7 +2244,6 @@ if not df.empty:
     elif watchlist_mode == "Mutual Funds 📈":
         st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#00BFFF;'>📈 Mutual Funds Screener (Live Morningstar Data)</div>", unsafe_allow_html=True)
         
-        # 🔥 ఫిల్టర్స్ (Category & Year)
         c1, c2 = st.columns(2)
         with c1:
             mf_categories = ["All Categories"] + list(MUTUAL_FUNDS.keys())
@@ -2374,36 +2255,29 @@ if not df.empty:
             df_mf_raw = fetch_mf_performance()
             
         if not df_mf_raw.empty:
-            # 1. సెలెక్ట్ చేసిన ఇయర్ ని బట్టి సార్ట్ చేయడం
             df_mf_raw['Sort_Key'] = pd.to_numeric(df_mf_raw[sort_period].replace('N/A', -999))
             df_mf_raw = df_mf_raw.sort_values(by='Sort_Key', ascending=False)
             
-            # 2. కేటగిరీ ఫిల్టర్ అప్లై చేయడం (ఎలాంటి లిమిట్స్ లేకుండా గ్లోబల్ సార్ట్)
             if selected_mf_cat != "All Categories":
                 df_mf_data = df_mf_raw[df_mf_raw['Category'] == selected_mf_cat]
             else:
                 df_mf_data = df_mf_raw
                 
             df_mf_data = df_mf_data.drop(columns=['Sort_Key'], errors='ignore')
-            
-            # 3. టేబుల్ రెండరింగ్
             st.markdown(render_mf_table(df_mf_data), unsafe_allow_html=True)
             st.markdown(f"<p style='font-size:11px; color:#888;'><i>*Note: Funds are auto-ranked based on <b>{sort_period}</b>. Returns > 20% are highlighted in Bright Green. Data Source: Morningstar.</i></p>", unsafe_allow_html=True)
         else:
             st.error("Failed to fetch Mutual Fund data from Morningstar.") 
-    # ==========================================
-    # 🔥 NEW: MONTH EFFECT ADVANTAGE SECTION 🔥
-    # ==========================================
+            
     elif watchlist_mode == "Month Effect Advantage 📅":
         st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#00BFFF;'>📅 Month Effect Advantage (First 10 Days vs Rest)</div>", unsafe_allow_html=True)
-        st.markdown("<p style='font-size:13px; color:#c9d1d9;'>Top 200 stocks (Nifty 50 + Midcap 150) gata 5 yellalo prati nela <b>modati 10 rojullo</b> kachitamga momentum iche best stocks idigo.</p>", unsafe_allow_html=True)
+        st.markdown("<p style='font-size:13px; color:#c9d1d9;'>Top 200 stocks gata 5 yellalo prati nela <b>modati 10 rojullo</b> kachitamga momentum iche best stocks.</p>", unsafe_allow_html=True)
 
-        @st.cache_data(ttl=86400, show_spinner=False)
+        # 🔥 FIX: Progress bar cache function బయటికి తీసేశాం
         def analyze_month_effect(tickers, years=5):
             results = []
             end_date = datetime.now()
             start_date = end_date - pd.DateOffset(years=years)
-
             chunk_size = 40
             data_frames = []
             
@@ -2413,14 +2287,11 @@ if not df.empty:
             for i in range(0, len(tickers), chunk_size):
                 chunk = tickers[i : i + chunk_size]
                 status_text.write(f"📥 Data download avuthondi... ({min(i+chunk_size, len(tickers))} / {len(tickers)} stocks)")
-                
                 temp_data = yf.download(chunk, start=start_date, end=end_date, progress=False, group_by='ticker', threads=False)
-                
                 if not temp_data.empty:
                     if len(chunk) == 1:
                         temp_data.columns = pd.MultiIndex.from_product([chunk, temp_data.columns])
                     data_frames.append(temp_data)
-                
                 progress_bar.progress(min((i + chunk_size) / len(tickers), 1.0))
                 
             status_text.write("⚙️ Data ni analyze chesthondi... Dayachesi vechi undandi...")
@@ -2437,7 +2308,6 @@ if not df.empty:
                     df_t = data[tkr] if len(tickers) > 1 else data
                     if df_t.empty: continue
                     df_t = df_t.dropna(subset=['Close'])
-
                     df_t['Month'] = df_t.index.month
                     df_t['Year'] = df_t.index.year
                     df_t['Day'] = df_t.index.day
@@ -2451,24 +2321,16 @@ if not df.empty:
 
                     for (y, m), group in monthly_groups:
                         if len(group) < 5: continue
-                        
                         first_10 = group[group['Day'] <= 10]
                         rest = group[group['Day'] > 10]
 
                         if not first_10.empty and not rest.empty:
                             f10_ret = (first_10['Close'].iloc[-1] - first_10['Open'].iloc[0]) / first_10['Open'].iloc[0] * 100
                             r_ret = (rest['Close'].iloc[-1] - rest['Open'].iloc[0]) / rest['Open'].iloc[0] * 100
-
                             first_10_returns.append(f10_ret)
                             rest_returns.append(r_ret)
-
-                            # 🚀 Logic 1: Positive ga close ayithe WIN! (Relaxed for actual momentum)
-                            if f10_ret > 0: 
-                                win_count += 1
-                            
-                            if f10_ret < 0:
-                                losing_returns.append(f10_ret) # Nashtapoyina nelala data
-                                
+                            if f10_ret > 0: win_count += 1
+                            if f10_ret < 0: losing_returns.append(f10_ret)
                             total_months += 1
 
                     if total_months > 0:
@@ -2506,18 +2368,16 @@ if not df.empty:
             me_df = analyze_month_effect(tkr_list)
             
             if not me_df.empty:
-                # 🚀 Logic 3: Relative Strength & Risk Filter (Relaxed)
                 strict_condition = (
-                    (me_df["Win Rate (1st 10 Days) %"] >= 55) &  # Kaneesam 55% times win avvali
-                    (me_df["Avg 1st-10th Return (%)"] > 0.5) &   # Overall return positive ga undali
-                    (me_df["Avg 1st-10th Return (%)"] > me_df["Avg Rest Return (%)"]) & # Migita nela kante better performance
-                    (me_df["Avg Loss on Fail (%)"] >= -6.0) # -6% kanna ekkuva padani stocks (Market volatility ni tattukotaniki)
+                    (me_df["Win Rate (1st 10 Days) %"] >= 55) &
+                    (me_df["Avg 1st-10th Return (%)"] > 0.5) &
+                    (me_df["Avg 1st-10th Return (%)"] > me_df["Avg Rest Return (%)"]) &
+                    (me_df["Avg Loss on Fail (%)"] >= -6.0)
                 )
-                
                 me_df = me_df.sort_values(by=["Win Rate (1st 10 Days) %", "Avg 1st-10th Return (%)"], ascending=[False, False])
 
                 st.markdown("### 🏆 Top 10 Best Stocks (High Probability Swing)")
-                st.markdown("<p style='font-size:12px; color:#3fb950;'>Kevalam <b>kaneesam 55% Win Rate mariyu overall positive returns unde stocks</b>, avi kooda rest of the month kante modati 10 rojullone ekkuva momentum ichevi ikkada filter ayyayi. Deentlo fail ayina kooda pedda loss undadu.</p>", unsafe_allow_html=True)
+                st.markdown("<p style='font-size:12px; color:#3fb950;'>Kevalam <b>kaneesam 55% Win Rate mariyu overall positive returns unde stocks</b>.</p>", unsafe_allow_html=True)
                 
                 top_10 = me_df[strict_condition].head(10)
                 if not top_10.empty:
@@ -2532,12 +2392,10 @@ if not df.empty:
         sc1, sc2 = st.columns([0.7, 0.3])
         with sc2: port_sort = st.selectbox("↕️ Sort Portfolio:", ["Default", "Day P&L ⬆️", "Day P&L ⬇️", "Total P&L ⬆️", "Total P&L ⬇️", "P&L % ⬆️", "P&L % ⬇️"], label_visibility="collapsed")
         
-        # 🔥 FIX: ఇక్కడ df_stocks కి బదులు df_all_stocks ని వాడాలి! అప్పుడే పోర్ట్‌ఫోలియో కి కరెక్ట్ గా లైవ్ డేటా వస్తుంది!
         st.markdown(render_portfolio_table(df_port_saved, df_all_stocks, weekly_trends, port_sort), unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
         
         with st.expander("🤖 View Portfolio Swing Advisor (Action & Levels)", expanded=False):
-            # 🔥 FIX: ఇక్కడ కూడా df_all_stocks వాడాలి
             st.markdown(render_portfolio_swing_advice_table(df_port_saved, df_all_stocks, weekly_trends), unsafe_allow_html=True)
             
         with st.expander("➕ Search & Add Stock to Portfolio", expanded=False):
@@ -2557,43 +2415,44 @@ if not df.empty:
 
             if submit_btn:
                 if new_sym:
-                    if True:
-                        chk_data = yf.download(f"{new_sym}.NS", period="1d", progress=False)
-                        if chk_data.empty: st.error(f"❌ '{new_sym}' not found in NSE!")
+                    chk_data = yf.download(f"{new_sym}.NS", period="1d", progress=False)
+                    if chk_data.empty: 
+                        st.error(f"❌ '{new_sym}' not found in NSE!")
+                    else:
+                        new_date_str = new_date.strftime("%d-%b-%Y")
+                        # 🔥 FIX: copy for safe assignment
+                        df_port_saved = df_port_saved.copy()
+                        
+                        if new_sym in df_port_saved['Symbol'].values: 
+                            old_row = df_port_saved[df_port_saved['Symbol'] == new_sym].iloc[0]
+                            old_qty, old_price = float(old_row['Quantity']), float(old_row['Buy_Price'])
+                            total_qty = old_qty + new_qty
+                            avg_price = ((old_qty * old_price) + (new_qty * new_price)) / total_qty
+                            base_price = avg_price
                         else:
-                            new_date_str = new_date.strftime("%d-%b-%Y")
-                            
-                            # ఆవరేజ్ ప్రైస్ క్యాలిక్యులేషన్
-                            if new_sym in df_port_saved['Symbol'].values: 
-                                old_row = df_port_saved[df_port_saved['Symbol'] == new_sym].iloc[0]
-                                old_qty, old_price = float(old_row['Quantity']), float(old_row['Buy_Price'])
-                                total_qty = old_qty + new_qty
-                                avg_price = ((old_qty * old_price) + (new_qty * new_price)) / total_qty
-                                base_price = avg_price
-                            else:
-                                total_qty = new_qty
-                                base_price = new_price
+                            total_qty = new_qty
+                            base_price = new_price
 
-                            # 🔥 MINERVINI AUTO-CALCULATION LOGIC 🔥
-                            # యూజర్ SL, T1, T2 ఇవ్వకపోతే (0 ఉంటే) ఆటోమేటిక్ గా Buy Price బట్టి 5% రిస్క్, 10-15% టార్గెట్స్ సెట్ చేస్తుంది
-                            calc_sl = new_sl if new_sl > 0 else round(base_price * 0.95, 2)  # 5% Stop Loss
-                            calc_t1 = new_t1 if new_t1 > 0 else round(base_price * 1.10, 2)  # 10% Target 1
-                            calc_t2 = new_t2 if new_t2 > 0 else round(base_price * 1.15, 2)  # 15% Target 2
+                        calc_sl = new_sl if new_sl > 0 else round(base_price * 0.95, 2)
+                        calc_t1 = new_t1 if new_t1 > 0 else round(base_price * 1.10, 2)
+                        calc_t2 = new_t2 if new_t2 > 0 else round(base_price * 1.15, 2)
 
-                            if new_sym in df_port_saved['Symbol'].values: 
-                                df_port_saved.loc[df_port_saved['Symbol'] == new_sym, ['Buy_Price', 'Quantity', 'Date', 'SL', 'T1', 'T2']] = [round(avg_price, 2), total_qty, new_date_str, calc_sl, calc_t1, calc_t2]
-                                st.success(f"✅ {new_sym} యావరేజ్ చేయబడింది! (New Avg: ₹{round(avg_price, 2)}, SL: {calc_sl})")
-                            else:
-                                new_row = pd.DataFrame({"Symbol": [new_sym], "Buy_Price": [new_price], "Quantity": [new_qty], "Date": [new_date_str], "SL": [calc_sl], "T1": [calc_t1], "T2": [calc_t2]})
-                                df_port_saved = pd.concat([df_port_saved, new_row], ignore_index=True)
-                                st.success(f"✅ {new_sym} పోర్ట్‌ఫోలియోలో యాడ్ చేయబడింది! (SL: {calc_sl}, T1: {calc_t1})")
-                            
-                            import time
-                            save_portfolio(df_port_saved); fetch_all_data.clear(); 
-                        st.success(f"✅ {sell_qty} shares of {sell_sym} sold successfully!") # ఇది యాడ్ చేయండి
-                        time.sleep(1.5) # ఒక సెకను ఆగి రీలోడ్ అవ్వడానికి 
+                        if new_sym in df_port_saved['Symbol'].values: 
+                            df_port_saved.loc[df_port_saved['Symbol'] == new_sym, ['Buy_Price', 'Quantity', 'Date', 'SL', 'T1', 'T2']] = [round(avg_price, 2), total_qty, new_date_str, calc_sl, calc_t1, calc_t2]
+                            st.success(f"✅ {new_sym} యావరేజ్ చేయబడింది! (New Avg: ₹{round(avg_price, 2)}, SL: {calc_sl})")
+                        else:
+                            new_row = pd.DataFrame({"Symbol": [new_sym], "Buy_Price": [new_price], "Quantity": [new_qty], "Date": [new_date_str], "SL": [calc_sl], "T1": [calc_t1], "T2": [calc_t2]})
+                            df_port_saved = pd.concat([df_port_saved, new_row], ignore_index=True)
+                            st.success(f"✅ {new_sym} పోర్ట్‌ఫోలియోలో యాడ్ చేయబడింది! (SL: {calc_sl}, T1: {calc_t1})")
+                        
+                        # 🔥 FIX: sell_qty/sell_sym crash తీసేశాం
+                        save_portfolio(df_port_saved)
+                        fetch_all_data.clear()
+                        load_portfolio.clear()
+                        time.sleep(1)
                         st.rerun()
-                else: st.warning("Type a symbol first!")
+                else: 
+                    st.warning("Type a symbol first!")
         
         if not df_port_saved.empty:
             with st.expander("✏️ Edit Existing Holdings (Targets, Qty, Price)", expanded=False):
@@ -2610,7 +2469,10 @@ if not df.empty:
                         "Date": st.column_config.TextColumn("Date")
                     }
                 )
-                if st.button("💾 Save Edited Changes", width="stretch"): save_portfolio(edited_df); fetch_all_data.clear(); st.rerun()
+                if st.button("💾 Save Edited Changes", width="stretch"): 
+                    save_portfolio(edited_df)
+                    fetch_all_data.clear()
+                    st.rerun()
 
             with st.expander("💸 Sell Stock & Book Profit/Loss", expanded=False):
                 with st.form("portfolio_sell_form"):
@@ -2624,7 +2486,9 @@ if not df.empty:
                     
                     if sell_btn and sell_sym != "-- Select --" and sell_price > 0:
                         port_row = df_port_saved[df_port_saved['Symbol'] == sell_sym].iloc[0]
-                        buy_price, current_qty = float(port_row['Buy_Price']), int(port_row['Quantity'])
+                        buy_price = float(port_row['Buy_Price'])
+                        try: current_qty = int(float(port_row['Quantity']))
+                        except: current_qty = 0
                         sell_qty = min(sell_qty, current_qty)
                         pnl_rs = (sell_price - buy_price) * sell_qty
                         pnl_pct = ((sell_price - buy_price) / buy_price) * 100
@@ -2635,31 +2499,32 @@ if not df.empty:
                         df_closed = pd.concat([df_closed, new_closed_row], ignore_index=True)
                         save_closed_trades(df_closed)
                         
+                        df_port_saved = df_port_saved.copy()
                         if sell_qty == current_qty: df_port_saved = df_port_saved[df_port_saved['Symbol'] != sell_sym] 
                         else: df_port_saved.loc[df_port_saved['Symbol'] == sell_sym, 'Quantity'] = current_qty - sell_qty
                         
-                        save_portfolio(df_port_saved); fetch_all_data.clear(); st.rerun()
+                        save_portfolio(df_port_saved)
+                        fetch_all_data.clear()
+                        st.rerun()
 
             with st.expander("📜 View Trade Book (Closed P&L Ledger)", expanded=False):
                 df_closed_view = load_closed_trades()
                 st.markdown(render_closed_trades_table(df_closed_view), unsafe_allow_html=True) 
                 
-                # 🔥 Trade Book Edit & Delete ఆప్షన్ (కొత్తగా యాడ్ చేసింది)
                 if not df_closed_view.empty:
                     st.markdown("<hr style='border-color:#30363d; margin-top:15px;'>", unsafe_allow_html=True)
-                    st.markdown("<p style='font-size:12px; color:#ffd700;'>✏️ <b>Edit / Delete Closed Trades:</b> (తప్పుగా ఎంటర్ అయిన రో ని సెలెక్ట్ చేసి కీబోర్డ్ లో Delete నొక్కండి, ఆ తర్వాత Save నొక్కండి)</p>", unsafe_allow_html=True)
+                    st.markdown("<p style='font-size:12px; color:#ffd700;'>✏️ <b>Edit / Delete Closed Trades:</b> (రో ని సెలెక్ట్ చేసి Delete నొక్కండి, తర్వాత Save నొక్కండి)</p>", unsafe_allow_html=True)
                     
                     edited_closed_df = st.data_editor(
                         df_closed_view, 
                         width="stretch", 
                         hide_index=True,
-                        num_rows="dynamic", # ఇది ఉంటేనే యాప్ లో రోస్ డిలీట్ చేయగలం 
+                        num_rows="dynamic",
                         key="tradebook_editor"
                     )
                     
                     if st.button("💾 Save Trade Book Changes", width="stretch", key="save_tb"): 
                         save_closed_trades(edited_closed_df)
-                        load_closed_trades.clear()
                         st.success("✅ Trade Book అప్డేట్ అయ్యింది!")
                         time.sleep(1)
                         st.rerun()
@@ -2708,7 +2573,7 @@ if not df.empty:
                         strat_name = str(row.get('Strategy_Icon', ''))
                         if strat_name != "": special_icon = strat_name
                         else: special_icon = "🌟" if row.get('Is_W_Pullback', False) else "🚀"
-                    elif watchlist_mode == "Day Trading Stocks 🚀": 
+                    elif watchlist_mode in ["Day Trading Stocks 🚀", "High Score Stocks 🔥"]: 
                         strat_name = str(row.get('Strategy_Icon', '🚀'))
                         if 'BUY' in strat_name: special_icon = "🟢 BUY"
                         elif 'SELL' in strat_name: special_icon = "🔴 SELL"
@@ -2720,19 +2585,16 @@ if not df.empty:
                 st.markdown(html_stk + '</div>', unsafe_allow_html=True)
                 
             if "AI Predictions" in watchlist_mode:
-                # 1. F&O మరియు NIFTY 50 
                 fno_buy = df_buy[df_buy['T'].isin(NIFTY_50 + FNO_STOCKS)]
                 fno_sell = df_sell[df_sell['T'].isin(NIFTY_50 + FNO_STOCKS)]
                 if not fno_buy.empty: render_heatmap_section(fno_buy, "🟢 POSITIVE / BUY (F&O & Nifty 50)", "#3fb950")
                 if not fno_sell.empty: render_heatmap_section(fno_sell, "🔴 NEGATIVE / SELL (F&O & Nifty 50)", "#f85149")
                 
-                # 2. Mid Cap 150
                 mid_buy = df_buy[df_buy['T'].isin(MIDCAP_150)]
                 mid_sell = df_sell[df_sell['T'].isin(MIDCAP_150)]
                 if not mid_buy.empty: render_heatmap_section(mid_buy, "🟢 POSITIVE / BUY (AI Mid Cap)", "#3fb950")
                 if not mid_sell.empty: render_heatmap_section(mid_sell, "🔴 NEGATIVE / SELL (AI Mid Cap)", "#f85149")
                 
-                # 3. Small Cap 250
                 small_buy = df_buy[df_buy['T'].isin(SMALLCAP_250)]
                 small_sell = df_sell[df_sell['T'].isin(SMALLCAP_250)]
                 if not small_buy.empty: render_heatmap_section(small_buy, "🟢 POSITIVE / BUY (AI Small Cap)", "#3fb950")
@@ -2757,17 +2619,16 @@ if not df.empty:
         
         if chart_timeframe in ["Weekly Chart", "Daily Chart"]:
             display_tkrs = []
-            if search_stock != "-- None --": display_tkrs.append(search_fetch_t)
+            if search_stock != "-- None --" and not df[df['T'] == search_stock].empty: 
+                display_tkrs.append(df[df['T'] == search_stock]['Fetch_T'].iloc[0])
             if watchlist_mode not in ["Terminal Tables 🗃️", "My Portfolio 💼", "Commodity 🛢️"]:
                 display_tkrs.extend(df_indices['Fetch_T'].tolist())
                 display_tkrs.extend(df_sectors['Fetch_T'].tolist())
             display_tkrs.extend(st.session_state.pinned_stocks)
-            # 🔥 చార్ట్స్ బ్రౌజర్ ని క్రాష్ చేయకుండా Top 30 మాత్రమే తీసుకుంటున్నాం
             display_tkrs.extend(df_stocks_display['Fetch_T'].head(30).tolist())
             display_tkrs = list(set(display_tkrs)) 
             
             if display_tkrs:
-                # 🔥 కొత్త క్యాచ్ ఫంక్షన్ ని ఇక్కడ వాడుతున్నాం
                 hist_data = fetch_historical_charts_data(display_tkrs, chart_timeframe)
                 
                 for sym in display_tkrs:
@@ -2786,14 +2647,11 @@ if not df.empty:
                                 daily_charts[sym] = df_h
                     except: pass
 
-        if chart_timeframe == "Weekly Chart":
-            chart_dict_to_use = weekly_charts
-        elif chart_timeframe == "Daily Chart":
-            chart_dict_to_use = daily_charts
-        else:
-            chart_dict_to_use = processed_charts
+        if chart_timeframe == "Weekly Chart": chart_dict_to_use = weekly_charts
+        elif chart_timeframe == "Daily Chart": chart_dict_to_use = daily_charts
+        else: chart_dict_to_use = processed_charts
 
-        if search_stock != "-- None --":
+        if search_stock != "-- None --" and not df[df['T'] == search_stock].empty:
             render_chart_grid(pd.DataFrame([df[df['T'] == search_stock].iloc[0]]), show_pin_option=True, key_prefix="search", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
@@ -2821,28 +2679,20 @@ if not df.empty:
                             if is_sec_down: sec_df = sec_df.sort_values(by=sort_col, ascending=True).head(6) 
                             else: sec_df = sec_df.sort_values(by=sort_col, ascending=False).head(6) 
                             render_chart_grid(sec_df, show_pin_option=True, key_prefix="sec_top6", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
-                        else: pass
                 st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
 
         pinned_df = df[df['Fetch_T'].isin(st.session_state.pinned_stocks)].copy()
-        unpinned_df = df_stocks_display[~df_stocks_display['Fetch_T'].isin(pinned_df['Fetch_T'].tolist())]
+        unpinned_df = df_stocks_display[~df_stocks_display['Fetch_T'].isin(pinned_df['Fetch_T'].tolist())] if not df_stocks_display.empty else pd.DataFrame()
         
         if not pinned_df.empty:
             st.markdown("<div style='font-size:16px; font-weight:bold; margin-bottom:5px; color:#ffd700;'>📌 Pinned Priority Charts</div>", unsafe_allow_html=True)
             render_chart_grid(pinned_df, show_pin_option=True, key_prefix="pin", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
             st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
         
-        # 🔥 SMART AUTO-REPLACEMENT: 
-        # if not unpinned_df.empty:
-        #     valid_tickers = [tkr for tkr in unpinned_df['Fetch_T'] if tkr in chart_dict_to_use and not chart_dict_to_use[tkr].empty]
-        #     unpinned_df = unpinned_df[unpinned_df['Fetch_T'].isin(valid_tickers)]
-            
         if not unpinned_df.empty and watchlist_mode != "Fundamentals 🏢":
             if "AI Predictions" in watchlist_mode:
                 df_buy_chart = unpinned_df[unpinned_df[sort_key] >= 0].head(12)
                 df_sell_chart = unpinned_df[unpinned_df[sort_key] < 0].head(12)
-                
-                # టైటిల్ కోసం (F&O లేదా Mid Cap అని డైనమిక్ గా రావడానికి)
                 title_suffix = watchlist_mode.split('(')[-1].replace(')','')
                 
                 if not df_buy_chart.empty:
@@ -2865,7 +2715,7 @@ if not df.empty:
                     st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:20px; margin-bottom:5px; color:#f85149;'>🔴 NEGATIVE / SELL (Swing Trading)</div>", unsafe_allow_html=True)
                     render_chart_grid(df_sell_chart, show_pin_option=True, key_prefix="swing_sell", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
 
-            elif watchlist_mode == "Day Trading Stocks 🚀":
+            elif watchlist_mode in ["Day Trading Stocks 🚀", "High Score Stocks 🔥"]:
                 df_buy_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('BUY', na=False)].head(12)
                 df_sell_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('SELL', na=False)].head(12)
                 
