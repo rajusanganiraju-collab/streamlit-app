@@ -644,7 +644,7 @@ def fetch_all_data():
     
     for i in range(0, len(tkrs), chunk_size):
         chunk = tkrs[i : i + chunk_size]
-        temp_data = yf.download(chunk, period="15mo", progress=False, group_by='ticker', threads=2)
+        temp_data = yf.download(chunk, period="15mo", progress=False, group_by='ticker', threads=5)
         if not temp_data.empty:
             # సింగిల్ స్టాక్ వస్తే MultiIndex ఎర్రర్ రాకుండా సేఫ్టీ చెక్
             if len(chunk) == 1:
@@ -719,24 +719,13 @@ def fetch_all_data():
             ema50_d = float(df['Close'].ewm(span=50, adjust=False).mean().iloc[-1]) if len(df) >= 50 else 0.0
             
             
-            # 🚀 LEGENDARY METRICS (Minervini, Weinstein, Darvas, Zanger)
+            # MINERVINI METRICS
             sma50_d = float(df['Close'].rolling(window=50).mean().iloc[-1]) if len(df) >= 50 else 0.0
             sma150_d = float(df['Close'].rolling(window=150).mean().iloc[-1]) if len(df) >= 150 else 0.0
             sma200_d = float(df['Close'].rolling(window=200).mean().iloc[-1]) if len(df) >= 200 else 0.0
             high_52w = float(df['High'].rolling(window=252).max().iloc[-1]) if len(df) >= 252 else float(df['High'].max())
             low_52w = float(df['Low'].rolling(window=252).min().iloc[-1]) if len(df) >= 252 else float(df['Low'].min())
-            
-            # Weinstein Trend Metrics (Slope check)
             sma200_20d = float(df['Close'].rolling(window=200).mean().iloc[-21]) if len(df) >= 220 else 0.0
-            sma150_20d = float(df['Close'].rolling(window=150).mean().iloc[-21]) if len(df) >= 170 else 0.0
-            
-            # Darvas Box Metrics (Last 20 days tight range calculation)
-            if len(df) >= 25:
-                box_top_20 = float(df['High'].iloc[-21:-1].max())
-                box_bot_20 = float(df['Low'].iloc[-21:-1].min())
-            else:
-                box_top_20 = high_52w
-                box_bot_20 = low_52w
             # VCP CONTRACTION & VOLUME DRY-UP LOGIC (Practical & Relaxed)
             vcp_price_contraction = False
             vcp_vol_dry = False
@@ -839,9 +828,7 @@ def fetch_all_data():
                 "Is_W_Pullback": is_w_pullback, "VWAP": vwap,
                 "ATR": atr, "Narrow_CPR": is_narrow_cpr,
                 "Bull_P": bull_power, "Bear_P": bear_power,
-                "Is_Index": is_index, "Is_Sector": is_sector, "Sector": stock_sector, "Is_Commodity": is_commodity,
-                "Is_Index": is_index, "Is_Sector": is_sector, "Sector": stock_sector, "Is_Commodity": is_commodity,
-                "SMA150_20D": sma150_20d, "Box_Top20": box_top_20, "Box_Bot20": box_bot_20
+                "Is_Index": is_index, "Is_Sector": is_sector, "Sector": stock_sector, "Is_Commodity": is_commodity
             })
         except: continue
     return pd.DataFrame(results)
@@ -1510,11 +1497,9 @@ def render_closed_trades_table(df_closed):
 st.markdown("<hr style='margin:10px 0; border-color:#30363d;'>", unsafe_allow_html=True)
 # 🔥 మార్కెట్ సెగ్మెంట్ రేడియో బటన్ పీకేశాం
 
-with st.spinner("📥 Market Data load avuthondi... Dayachesi 1 nimisham aagandi..."):
-    df = fetch_all_data()
-    
-if df.empty:
-    st.warning("⚠️ Data raledu boss! Yahoo Finance nunchi response ledu. Dayachesi page refresh cheyandi.")
+if True: 
+    df = fetch_all_data() # ఆర్గ్యుమెంట్స్ లేకుండా కాల్ చేస్తున్నాం
+
 if not df.empty and 'LIVE_PRICES' in st.session_state:
     for i, row in df.iterrows():
         clean_sym = str(row['Fetch_T']).replace(".NS", "")
@@ -1570,7 +1555,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
                 )
         elif watchlist_mode == "Swing Trading 📈":
             move_type_filter = st.multiselect("Strategy Filter", 
-                ["All Swing Stocks", "📈 Minervini Trend Template (VCP)", "📉 Strict VCP (Price & Vol Contraction)", "🔥 Minervini MidCap 150", "🚀 Minervini SmallCap 250", "📦 Nicolas Darvas (Box Breakout)", "📈 Stan Weinstein (Stage 2 Uptrend)", "💥 Dan Zanger (Volume Explosion)"], 
+                ["All Swing Stocks", "📈 Minervini Trend Template (VCP)", "📉 Strict VCP (Price & Vol Contraction)", "🔥 Minervini MidCap 150", "🚀 Minervini SmallCap 250"], 
                 default=["📈 Minervini Trend Template (VCP)"], 
                 key="swing_trading_filter_key" 
             )
@@ -1750,18 +1735,13 @@ if not df.empty:
             df_vcp['Strategy_Icon'] = "📉 VCP"
             dfs_to_concat.append(df_vcp)
 
-        # 🔥 కొత్త లెజెండ్స్ కి గేట్‌పాస్ (ఇది లేకపోతే ముందే బ్లాక్ అయిపోతాయి)
-        legend_strats = ["📦 Nicolas Darvas (Box Breakout)", "📈 Stan Weinstein (Stage 2 Uptrend)", "💥 Dan Zanger (Volume Explosion)"]
-        if any(strat in move_type_filter for strat in legend_strats):
-            dfs_to_concat.append(df_filtered[df_filtered['T'].isin(NIFTY_50 + FNO_STOCKS)].copy())
-
         if "All Swing Stocks" in move_type_filter or not move_type_filter:
             dfs_to_concat.append(df_filtered[df_filtered['Is_Swing'] == True])
 
         if dfs_to_concat:
             df_filtered = pd.concat(dfs_to_concat).drop_duplicates(subset=['Fetch_T'], keep='last')
-            # 🔥 FIX: .head(40) తీసేశాం! లెజెండరీ స్ట్రాటజీస్ మొత్తం డేటాని స్వేచ్ఛగా స్కాన్ చేయడానికి.
-            df_filtered = df_filtered.sort_values(by="Day_C", ascending=False)
+            # 🔥 SMART FIX: ముందే ఫిల్టర్ చేసి Top 40 మాత్రమే ఉంచుతున్నాం!
+            df_filtered = df_filtered.sort_values(by="Day_C", ascending=False).head(40)
         else:
             df_filtered = pd.DataFrame(columns=df_filtered.columns)
     else:
@@ -2160,28 +2140,11 @@ if not df.empty:
                     c_buy = base_buy & cond1 & cond2 & cond3 & cond4 & cond5 & cond6 & cond7 & vcp_cond
                     c_sell = pd.Series(False, index=df_filtered.index)
                     icon_str = "📉 VCP"
-
                 elif strat == "🌅 15-Min ORB (Opening Range Breakout)":
                     c_buy = base_buy & (df_filtered['ORB_Tag'] == "ORB_BUY") & (df_filtered['VolX'] >= 1.2)
                     c_sell = base_sell & (df_filtered['ORB_Tag'] == "ORB_SELL") & (df_filtered['VolX'] >= 1.2)
                     icon_str = "🌅 ORB"
 
-                elif strat == "📦 Nicolas Darvas (Box Breakout)":
-                    box_width = (df_filtered['Box_Top20'] - df_filtered['Box_Bot20']) / (df_filtered['Box_Bot20'] + 0.001)
-                    c_buy = base_buy & (df_filtered['P'] > df_filtered['Box_Top20']) & (box_width <= 0.15) & (df_filtered['P'] >= df_filtered['High52W'] * 0.90) & (df_filtered['VolX'] >= 1.5)
-                    c_sell = pd.Series(False, index=df_filtered.index)
-                    icon_str = "📦 Darvas"
-
-                elif strat == "📈 Stan Weinstein (Stage 2 Uptrend)":
-                    c_buy = base_buy & (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['SMA150'] > df_filtered['SMA150_20D']) & (df_filtered['SMA50'] > df_filtered['SMA150']) & (df_filtered['P'] > df_filtered['SMA200']) & (df_filtered['Day_C'] >= 1.5)
-                    c_sell = pd.Series(False, index=df_filtered.index)
-                    icon_str = "📈 Stage 2"
-
-                elif strat == "💥 Dan Zanger (Volume Explosion)":
-                    close_range_strength = (df_filtered['P'] - df_filtered['L']) / (df_filtered['H'] - df_filtered['L'] + 0.001)
-                    c_buy = base_buy & (df_filtered['VolX'] >= 2.5) & (df_filtered['Day_C'] >= 4.0) & (close_range_strength >= 0.75) & (df_filtered['SMA50'] > df_filtered['SMA150'])
-                    c_sell = pd.Series(False, index=df_filtered.index)
-                    icon_str = "💥 Zanger"
                 if apply_fib_strict and strat != "📉 FIB Retracement (0.382)":
                     c_buy = c_buy & fib_buy_mask
                     c_sell = c_sell & fib_sell_mask
