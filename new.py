@@ -1804,30 +1804,36 @@ if not df.empty:
             df_zanger['Strategy_Icon'] = "💥 Zanger"
             dfs_to_concat.append(df_zanger)
             
-        if dfs_to_concat:
-            df_filtered = pd.concat(dfs_to_concat).drop_duplicates(subset=['Fetch_T'], keep='last')
-            sort_metric = "W_C" if is_weekly else "Day_C"
-            # తక్కువ Price Change ఉన్నవి (Consolidating) కూడా కనపడాలి కాబట్టి, సార్టింగ్ S (Score) లేదా VolX బట్టి చేయొచ్చు
-            df_filtered = df_filtered.sort_values(by=sort_metric, ascending=False)
-        else:
-            df_filtered = pd.DataFrame(columns=df_filtered.columns)
         # --- STRATEGY 6: 👑 KING STRATEGY (SMA BOUNCE) ---
         elif strat == "👑 King Strategy (SMA Bounce)":
             # 1. Base Uptrend Confirmation (Long term uptrend lo undali)
             king_c1 = df_filtered['SMA150'] > df_filtered['SMA200']
             king_c2 = df_filtered['SMA50'] > df_filtered['SMA150']
             
-            # 2. SMA Support Daggara Touch Ayyinda? (Low price SMA ki 3% lopu vachi undali, kani LTP matram SMA paine undali)
+            # 2. SMA Support Touch Ayyinda? 
             near_50 = (df_filtered['L'] <= df_filtered['SMA50'] * 1.03) & (df_filtered['P'] >= df_filtered['SMA50'])
             near_150 = (df_filtered['L'] <= df_filtered['SMA150'] * 1.03) & (df_filtered['P'] >= df_filtered['SMA150'])
             near_200 = (df_filtered['L'] <= df_filtered['SMA200'] * 1.03) & (df_filtered['P'] >= df_filtered['SMA200'])
             
             touching_sma = near_50 | near_150 | near_200
             
-            # 3. High Volume Bounce (Support nundi paiki lesthu, manchi volume tho green candle form cheyali)
-            bounce_up = (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] >= 1.0) # Eeroju Open kante paiki velli, kaniisam 1% peragali
-            high_vol = df_filtered['VolX'] >= 1.5 # Volume minimum 1.5x average kante ekkuva undali
+            # 3. High Volume Bounce
+            bounce_up = (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] >= 1.0)
+            high_vol = df_filtered['VolX'] >= 1.5 
             
+            king_cond = has_history & king_c1 & king_c2 & touching_sma & bounce_up & high_vol
+            df_king = df_filtered[king_cond].copy()
+            
+            df_king['Strategy_Icon'] = "👑 King"
+            dfs_to_concat.append(df_king)
+
+        # FINAL CONCAT BLOCK (Idhi anni strategies aipoyaka aakharlo undali)
+        if dfs_to_concat:
+            df_filtered = pd.concat(dfs_to_concat).drop_duplicates(subset=['Fetch_T'], keep='last')
+            sort_metric = "W_C" if is_weekly else "Day_C"
+            df_filtered = df_filtered.sort_values(by=sort_metric, ascending=False)
+        else:
+            df_filtered = pd.DataFrame(columns=df_filtered.columns)
             king_cond = has_history & king_c1 & king_c2 & touching_sma & bounce_up & high_vol
             df_king = df_filtered[king_cond].copy()
             
