@@ -701,7 +701,7 @@ def fetch_all_data():
                 prev_w_c = float(df_w['Close'].iloc[-2])
                 if prev_w_c > 0: weekly_net_chg = ((ltp - prev_w_c) / prev_w_c) * 100
                     
-            if len(df_w) >= 75: 
+            if len(df_w) >= 40: # 75 బదులు 40 పెట్టండి, అప్పుడు 15 నెలల డేటాలో EMA క్యాలిక్యులేట్ అవుతుంది
                 df_w['EMA_10'] = df_w['Close'].ewm(span=10, adjust=False).mean()
                 df_w['EMA_50'] = df_w['Close'].ewm(span=50, adjust=False).mean()
                 latest_w_ema10 = float(df_w['EMA_10'].iloc[-1])
@@ -1703,183 +1703,128 @@ if not df.empty:
             df_filtered = pd.DataFrame(columns=df_filtered.columns)
             
     elif watchlist_mode == "Legendary Strategy 🏆":
-        df_filtered = df_stocks.copy()
+        # F&O తో పాటు Midcap 150 ని కూడా అనుమతించడం వల్ల బెస్ట్ VCP & Zanger బ్రేకౌట్స్ స్క్రీన్ అవుతాయి
+        strict_allowed = set(NIFTY_50 + FNO_STOCKS + MIDCAP_150)
+        df_filtered = df_all_stocks[df_all_stocks['T'].isin(strict_allowed)].copy()
         dfs_to_concat = []
         
         # =========================================================
-        # 🔥 MINERVINI TREND TEMPLATE (10 CONDITIONS - AUTHOR'S EXACT RULES)
+        # 🔥 MINERVINI TREND TEMPLATE (10 CORE CONDITIONS)
         # =========================================================
         has_200 = df_filtered['SMA200'] > 0
-        
-        # 1. Price > 50 SMA
         min_c1 = df_filtered['P'] > df_filtered['SMA50']
-        # 2. Price > 150 SMA
         min_c2 = df_filtered['P'] > df_filtered['SMA150']
-        # 3. Price > 200 SMA
         min_c3 = (df_filtered['P'] > df_filtered['SMA200']) | (~has_200)
-        # 4. 50 SMA > 150 SMA
         min_c4 = df_filtered['SMA50'] > df_filtered['SMA150']
-        # 5. 🔥 50 SMA > 200 SMA
         min_c5 = (df_filtered['SMA50'] > df_filtered['SMA200']) | (~has_200)
-        # 6. 150 SMA > 200 SMA
         min_c6 = (df_filtered['SMA150'] > df_filtered['SMA200']) | (~has_200)
-        # 7. 200 SMA rising (higher than 30 days ago)
         min_c7 = (df_filtered['SMA200'] > df_filtered['SMA200_20D']) | (~has_200)
-        # 8. Price at least 30% above 52-week low
-        min_c8 = df_filtered['P'] >= (df_filtered['Low52W'] * 1.30)
-        # 9. Price within 25% of 52-week high
+        min_c8 = df_filtered['P'] >= (df_filtered['Low52W'] * 1.25)
         min_c9 = df_filtered['P'] >= (df_filtered['High52W'] * 0.75)
-        
-        # 🔥 BONUS: Relative Performance proxy
-        min_c10 = (df_filtered['P'] > df_filtered['SMA50'] * 1.05) & (df_filtered['C'] > 0)
         
         vcp_base_cond = min_c1 & min_c2 & min_c3 & min_c4 & min_c5 & min_c6 & min_c7 & min_c8 & min_c9
         
         strat = move_type_filter[0] if isinstance(move_type_filter, list) else move_type_filter
-        
         is_intraday = (chart_timeframe == "Intraday (5m)")
         is_weekly = (chart_timeframe == "Weekly Chart")
         
-        # =========================================================
         # 1. 📈 MINERVINI TREND TEMPLATE (VCP)
-        # =========================================================
         if strat == "📈 Minervini Trend Template (VCP)":
             df_min = df_filtered[vcp_base_cond].copy()
             if is_intraday:
-                df_min = df_min[(df_min['VolX'] >= 1.5) & (df_min['Day_C'] >= 1.0)]
+                df_min = df_min[(df_min['VolX'] >= 1.2) & (df_min['Day_C'] >= 0.5)]
             elif is_weekly:
                 df_min = df_min[df_min['W_C'] > 0]
             df_min['Strategy_Icon'] = "📈 M-VCP"
             dfs_to_concat.append(df_min)
             
-        # =========================================================
         # 2. 📉 STRICT VCP (PRICE & VOL CONTRACTION)
-        # =========================================================
         elif strat == "📉 Strict VCP (Price & Vol Contraction)":
-            # 🔥 Base depth must be < 25% (total contraction)
+            # కన్సాలిడేషన్ రేంజ్ 25% లోపు ఉండాలి & 52W High కి 15% లోపు ఉండాలి
             base_range_pct = (df_filtered['Box_Top20'] - df_filtered['Box_Bot20']) / (df_filtered['Box_Bot20'] + 0.001)
             vcp_depth_ok = base_range_pct <= 0.25
+            vcp_price_ok = df_filtered['P'] >= (df_filtered['High52W'] * 0.85)
             
-            # 🔥 Volume dry-up must be strict (VolX < 1.0 = below average)
-            vcp_vol_ok = df_filtered['VolX'] < 1.0
-            
-            # 🔥 Price near pivot (within 12% of 52W high for tight base)
-            vcp_price_ok = df_filtered['P'] >= (df_filtered['High52W'] * 0.88)
-            
-            # Original VCP flags (from fetch_all_data) + strict extra checks
             strict_vcp_cond = (
                 (df_filtered['VCP_Contract'] == True) & 
                 (df_filtered['VCP_Vol_Dry'] == True) & 
                 vcp_depth_ok & 
-                vcp_vol_ok &
                 vcp_price_ok
             )
             
             df_vcp = df_filtered[vcp_base_cond & strict_vcp_cond].copy()
+            # ఇంట్రాడే లో విరుద్ధమైన VolX < 1.0 తీసివేసి, సహజమైన మూమెంటం చెక్ పెట్టాం
             if is_intraday:
-                df_vcp = df_vcp[df_vcp['VolX'] >= 1.5]
+                df_vcp = df_vcp[df_vcp['P'] > df_vcp['VWAP']]
             elif is_weekly:
                 df_vcp = df_vcp[df_vcp['W_C'] > 0]
             df_vcp['Strategy_Icon'] = "📉 VCP"
             dfs_to_concat.append(df_vcp)
             
-        # =========================================================
         # 3. 📦 NICOLAS DARVAS (BOX BREAKOUT)
-        # =========================================================
         elif strat == "📦 Nicolas Darvas (Box Breakout)":
-            # 🔥 Box width should be reasonable (not too wide)
             box_width = (df_filtered['Box_Top20'] - df_filtered['Box_Bot20']) / (df_filtered['Box_Bot20'] + 0.001)
             box_ok = box_width <= 0.20
-            
-            # 🔥 Darvas trend = higher highs and higher lows
             darvas_trend = (df_filtered['P'] > df_filtered['SMA50']) & (df_filtered['SMA50'] > df_filtered['SMA150'])
-            
-            # 🔥 Breakout above box top
-            darvas_breakout = df_filtered['P'] > df_filtered['Box_Top20']
-            
-            # 🔥 Near 52-week high
-            darvas_high = df_filtered['P'] >= df_filtered['High52W'] * 0.92
-            
-            # 🔥 VOLUME CONFIRMATION
-            darvas_vol = df_filtered['VolX'] >= 1.2
+            darvas_breakout = df_filtered['P'] >= (df_filtered['Box_Top20'] * 0.995)
+            darvas_high = df_filtered['P'] >= df_filtered['High52W'] * 0.88
+            darvas_vol = df_filtered['VolX'] >= 1.0
             
             darvas_cond = darvas_trend & darvas_breakout & box_ok & darvas_high & darvas_vol
-            
             df_darvas = df_filtered[darvas_cond].copy()
             if is_intraday:
-                df_darvas = df_darvas[(df_darvas['VolX'] >= 1.5) & (df_darvas['Day_C'] >= 1.0)]
+                df_darvas = df_darvas[(df_darvas['VolX'] >= 1.2) & (df_darvas['Day_C'] >= 0.5)]
             elif is_weekly:
-                df_darvas = df_darvas[(df_darvas['VolX'] >= 1.0) & (df_darvas['W_C'] >= 2.0)]
-            else:
-                df_darvas = df_darvas[df_darvas['VolX'] >= 1.0]
+                df_darvas = df_darvas[df_darvas['W_C'] >= 1.0]
             df_darvas['Strategy_Icon'] = "📦 Darvas"
             dfs_to_concat.append(df_darvas)
             
-        # =========================================================
         # 4. 📈 STAN WEINSTEIN (STAGE 2 UPTREND)
-        # =========================================================
         elif strat == "📈 Stan Weinstein (Stage 2 Uptrend)":
-            # 1. Price above 30-week SMA (≈ 150-day SMA)
+            # 30-వారాల SMA (150-Day SMA) కంటే పైన ఉండాలి, 150 SMA పైకి తిరగాలి
             wein_c1 = df_filtered['P'] > df_filtered['SMA150']
-            
-            # 2. 30-week SMA sloping upward (higher than 20 days ago)
-            wein_c2 = df_filtered['SMA150'] > df_filtered['SMA150_20D']
-            
-            # 3. 🔥 Stage 2 alignment: 50 SMA > 150 SMA (momentum confirmed)
+            wein_c2 = df_filtered['SMA150'] >= (df_filtered['SMA150_20D'] * 0.998)
             wein_c3 = df_filtered['SMA50'] > df_filtered['SMA150']
+            wein_c4 = df_filtered['P'] > df_filtered['SMA50']
+            wein_c5 = (df_filtered['P'] > df_filtered['SMA200']) | (~has_200)
             
-            # 4. 🔥 Two consecutive weekly closes above SMA 30
-            # Proxy: W_EMA10 (weekly trend) above W_EMA50 (weekly long-term)
-            wein_c4 = (df_filtered['P'] > df_filtered['W_EMA10']) & (df_filtered['W_EMA10'] > df_filtered['W_EMA50'])
-            
-            # 5. 🔥 Relative Strength (Mansfield RS) proxy: Price above SMA200 (long-term strength)
-            wein_c5 = df_filtered['P'] > df_filtered['SMA200']
-            
-            # 6. 🔥 Relative volume > 1 (breakout confirmation)
-            wein_c6 = df_filtered['VolX'] >= 1.0
-            
-            weinstein_cond = wein_c1 & wein_c2 & wein_c3 & wein_c4 & wein_c5 & wein_c6
-            
+            # బగ్ ఉన్న W_EMA బదులుగా నేరుగా డైలీ & వాల్యూమ్ కన్ఫర్మేషన్
+            weinstein_cond = wein_c1 & wein_c2 & wein_c3 & wein_c4 & wein_c5
             df_weinstein = df_filtered[weinstein_cond].copy()
+            
             if is_intraday:
-                df_weinstein = df_weinstein[(df_weinstein['VolX'] >= 1.5) & (df_weinstein['Day_C'] >= 1.0)]
+                df_weinstein = df_weinstein[(df_weinstein['VolX'] >= 1.2) & (df_weinstein['Day_C'] >= 0.5)]
             elif is_weekly:
-                df_weinstein = df_weinstein[(df_weinstein['P'] > df_weinstein['W_EMA50']) & (df_weinstein['W_C'] > 1.0)]
+                df_weinstein = df_weinstein[df_weinstein['W_C'] > 0.5]
             else:
-                df_weinstein = df_weinstein[df_weinstein['Day_C'] > 0.5]
+                df_weinstein = df_weinstein[df_weinstein['Day_C'] > 0.0]
             df_weinstein['Strategy_Icon'] = "📈 Stage 2"
             dfs_to_concat.append(df_weinstein)
             
-        # =========================================================
         # 5. 💥 DAN ZANGER (VOLUME EXPLOSION)
-        # =========================================================
         elif strat == "💥 Dan Zanger (Volume Explosion)":
-            # 🔥 VOLUME EXPLOSION 
-            zanger_vol = df_filtered['VolX'] >= 1.5
-            
-            # 🔥 Price above rising 50-day MA
+            # వాల్యూమ్ కనీసం 1.3x లేదా అంతకంటే ఎక్కువ ఉండాలి
+            zanger_vol = df_filtered['VolX'] >= 1.3
             zanger_ma = (df_filtered['P'] > df_filtered['SMA50']) & (df_filtered['SMA50'] > df_filtered['SMA150'])
             
-            # 🔥 Strong close (upper 25% of bar range)
+            # క్యాండిల్ మధ్యస్థం కంటే పైన క్లోజ్ అవ్వాలి (కనీసం Top 40% రేంజ్)
             bar_range = df_filtered['H'] - df_filtered['L']
             close_position = (df_filtered['P'] - df_filtered['L']) / (bar_range + 0.001)
-            zanger_close = close_position >= 0.75  # Upper 25%
+            zanger_close = close_position >= 0.60
             
-            # 🔥 Breakout above resistance
-            zanger_breakout = df_filtered['P'] > df_filtered['Box_Top20']
+            # 20-రోజుల హైకి చేరువగా లేదా పైన బ్రేక్ అవ్వాలి
+            zanger_breakout = df_filtered['P'] >= (df_filtered['Box_Top20'] * 0.99)
             
-            # 🔥 Preceded by volume dry-up
-            zanger_dryup = df_filtered['VCP_Vol_Dry'] == True
-            
-            zanger_cond = zanger_vol & zanger_ma & zanger_close & zanger_breakout & zanger_dryup
-            
+            zanger_cond = zanger_vol & zanger_ma & zanger_close & zanger_breakout
             df_zanger = df_filtered[zanger_cond].copy()
+            
+            # 4.0% బదులుగా సహజమైన 1.5% - 2.0% గెయిన్ ఫిల్టర్ పెట్టాం
             if is_intraday:
-                df_zanger = df_zanger[(df_zanger['VolX'] >= 2.0) & (df_zanger['Day_C'] >= 3.0)]
+                df_zanger = df_zanger[(df_zanger['VolX'] >= 1.5) & (df_zanger['Day_C'] >= 1.5)]
             elif is_weekly:
-                df_zanger = df_zanger[(df_zanger['VolX'] >= 1.5) & (df_zanger['W_C'] >= 5.0)]
+                df_zanger = df_zanger[(df_zanger['VolX'] >= 1.2) & (df_zanger['W_C'] >= 3.0)]
             else:
-                df_zanger = df_zanger[(df_zanger['VolX'] >= 1.5) & (df_zanger['Day_C'] >= 4.0)]
+                df_zanger = df_zanger[(df_zanger['VolX'] >= 1.3) & (df_zanger['Day_C'] >= 2.0)]
             df_zanger['Strategy_Icon'] = "💥 Zanger"
             dfs_to_concat.append(df_zanger)
             
