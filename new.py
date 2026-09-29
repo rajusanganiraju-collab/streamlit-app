@@ -2215,7 +2215,6 @@ if not df.empty:
                     open_low_match = (df_filtered['O'] - df_filtered['L']) <= (df_filtered['P'] * 0.002)
                     gap_up = df_filtered['O'] > df_filtered['Prev_C']
                     high_vol = df_filtered['VolX'] >= 1.5
-                    
                     c_buy = base_buy & open_low_match & gap_up & high_vol & (df_filtered['Day_C'] > 0.5)
                     c_sell = base_sell & ((df_filtered['H'] - df_filtered['O']) <= (df_filtered['P'] * 0.002)) & (df_filtered['O'] < df_filtered['Prev_C']) & high_vol & (df_filtered['Day_C'] < -0.5)
                     icon_str = "🚀 Gap&Go"
@@ -2225,7 +2224,6 @@ if not df.empty:
                     pdh_break = (df_filtered['P'] > df_filtered['Prev_H']) & (df_filtered['P'] > df_filtered['VWAP'])
                     pdl_break = (df_filtered['P'] < df_filtered['Prev_L']) & (df_filtered['P'] < df_filtered['VWAP'])
                     vol_confirm = df_filtered['VolX'] >= 2.0
-                    
                     c_buy = base_buy & pdh_break & vol_confirm
                     c_sell = base_sell & pdl_break & vol_confirm
                     icon_str = "💥 PD Break"
@@ -2234,10 +2232,8 @@ if not df.empty:
                 elif strat == "🧲 VWAP Bounce (Low Risk Entry)":
                     near_vwap_buy = (df_filtered['P'] > df_filtered['VWAP']) & (df_filtered['P'] <= (df_filtered['VWAP'] * 1.003)) & (df_filtered['L'] <= (df_filtered['VWAP'] * 1.001))
                     near_vwap_sell = (df_filtered['P'] < df_filtered['VWAP']) & (df_filtered['P'] >= (df_filtered['VWAP'] * 0.997)) & (df_filtered['H'] >= (df_filtered['VWAP'] * 0.999))
-                    
                     overall_trend_up = df_filtered['Day_C'] > 1.0
                     overall_trend_dn = df_filtered['Day_C'] < -1.0
-                    
                     c_buy = base_buy & near_vwap_buy & overall_trend_up & (df_filtered['VolX'] > 1.0)
                     c_sell = base_sell & near_vwap_sell & overall_trend_dn & (df_filtered['VolX'] > 1.0)
                     icon_str = "🧲 VWAP Bounce"
@@ -2247,7 +2243,6 @@ if not df.empty:
                     c_buy = base_buy & (df_filtered['Narrow_CPR'] == True) & (df_filtered['ORB_Tag'] == "ORB_BUY") & (df_filtered['VolX'] >= 1.2)
                     c_sell = base_sell & (df_filtered['Narrow_CPR'] == True) & (df_filtered['ORB_Tag'] == "ORB_SELL") & (df_filtered['VolX'] >= 1.2)
                     icon_str = "🎯 CPR Trend"
-               
                 top_buy = df_filtered[c_buy].sort_values(by=['VolX', 'Day_C'], ascending=[False, False]).head(5).copy()
                 if not top_buy.empty: top_buy['Strategy_Icon'] = f"{icon_str} BUY"
                 top_sell = df_filtered[c_sell].sort_values(by=['VolX', 'Day_C'], ascending=[False, True]).head(5).copy()
