@@ -1785,12 +1785,18 @@ if not df.empty:
             df_hg['Strategy_Icon'] = "🧲 Holy Grail"
             dfs_to_concat.append(df_hg)
 
+        # --- 4: 📉 RSI(2) MEAN REVERSION (LARRY CONNORS) ---
         elif strat == "📉 RSI(2) Mean Reversion (Larry Connors)":
-            lc_trend = df_filtered['P'] > df_filtered['SMA200']
-            lc_dip = df_filtered['P'] < df_filtered['W_EMA10']
-            lc_reversal = (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] > 0.5)
-            lc_severe_dip = df_filtered['P'] <= (df_filtered['Box_Top20'] * 0.90) 
-            lc_cond = has_history & lc_trend & lc_dip & lc_severe_dip & lc_reversal
+            # 1. లాంగ్ టర్మ్ అప్ ట్రెండ్ (200 లేదా 150 SMA పైన ఉండాలి)
+            lc_trend = (df_filtered['P'] > df_filtered['SMA200']) | (df_filtered['P'] > df_filtered['SMA150'])
+            
+            # 2. రీసెంట్ హై నుండి 3% కంటే ఎక్కువ కరెక్షన్ (RSI 2 Oversold Zone)
+            lc_dip = df_filtered['P'] <= (df_filtered['Box_Top20'] * 0.97)
+            
+            # 3. ఇంట్రాడే బౌన్స్ / రివర్సల్ (గ్రీన్ క్యాండిల్ తో కొనుగోలుదారులు రావడం)
+            lc_reversal = (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] > 0.2)
+            
+            lc_cond = has_history & lc_trend & lc_dip & lc_reversal
             df_lc = df_filtered[lc_cond].copy()
             df_lc['Strategy_Icon'] = "📉 RSI Reversal"
             dfs_to_concat.append(df_lc)
