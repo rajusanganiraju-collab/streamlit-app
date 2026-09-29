@@ -1157,12 +1157,18 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
             y_padding = (max_val - min_val) * 0.15 if (max_val - min_val) != 0 else min_val * 0.005 
             
             # 🔥 PERFECT TIMEZONE FIX 🔥
+            df_chart = df_chart.copy()
             if df_chart.index.tz is not None:
-                df_chart.index = df_chart.index.tz_localize(None)
-            
-            # Error వల్ల 5:30 hours యాడ్ అయ్యి మార్కెట్ టైమ్ (3:30 PM) దాటితే, ఆటోమాటిక్ గా వెనక్కి తెస్తుంది
-            if len(df_chart) > 0 and (df_chart.index.hour.max() >= 16 or (df_chart.index.hour.max() == 15 and df_chart.index.minute.max() > 30)):
-                df_chart.index = df_chart.index - pd.Timedelta(hours=5, minutes=30)
+                df_chart.index = df_chart.index.tz_convert('Asia/Kolkata').tz_localize(None)
+                
+            if len(df_chart) > 0:
+                first_hour = df_chart.index[0].hour
+                # రోజులో ఫస్ట్ క్యాండిల్ 9 AM కి బదులుగా 2 PM (14) పైన వస్తే, దానికి +5:30 యాడ్ అయిందని అర్థం
+                if first_hour >= 14:
+                    df_chart.index = df_chart.index - pd.Timedelta(hours=5, minutes=30)
+                # ఒకవేళ తెల్లవారుజామున 3 లేదా 4 వస్తే, దానికి -5:30 మైనస్ అయిందని అర్థం
+                elif first_hour <= 4:
+                    df_chart.index = df_chart.index + pd.Timedelta(hours=5, minutes=30)
 
             chart_times = pd.to_datetime(df_chart.index)
             
