@@ -2946,3 +2946,40 @@ if not df.empty:
                 if not df_sell_chart.empty:
                     st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:20px; margin-bottom:5px; color:#f85149;'>🔴 NEGATIVE / SELL ({watchlist_mode})</div>", unsafe_allow_html=True)
                     render_chart_grid(df_sell_chart, show_pin_option=True, key_prefix="main_sell", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
+# =========================================================
+# --- 📚 STRATEGY HELP GUIDE IN TELUGU (ALWAYS VISIBLE) ---
+# =========================================================
+if watchlist_mode == "Legendary Strategy 🏆":
+    st.markdown("<hr style='border-color:#30363d; margin-top:30px;'>", unsafe_allow_html=True)
+    with st.expander("📚 ఈ స్ట్రాటజీలను ఎలా వాడాలి? (Telugu Trading Guide)", expanded=False):
+        st.markdown("""
+        <div style='background-color:#161b22; padding:15px; border-radius:10px; border: 1px solid #30363d;'>
+        <h4 style='color:#00BFFF; margin-top:0px;'>1. 🔥 First Hour Vol Breakout (ORB + VWAP)</h4>
+        <ul style='color:#c9d1d9; font-size:14px;'>
+            <li><b>ఎప్పుడు వాడాలి:</b> ఇంట్రాడే లేదా 1-2 రోజుల కోసం. మార్నింగ్ 10:15 AM తర్వాత ఫిల్టర్ చూడాలి.</li>
+            <li><b>ఎలా కొనాలి:</b> ప్రైస్ కచ్చితంగా VWAP లైన్ పైన ఉండాలి. ఈరోజు ఓపెన్ అయిన ప్రైస్ కిందకి పడకుండా సపోర్ట్ తీసుకుని (Open Drive) పైకి వెళ్తుంటే వెంటనే 5-నిమిషాల చార్ట్‌లో ఎంట్రీ తీసుకోవచ్చు.</li>
+            <li><b>స్టాప్ లాస్ & టార్గెట్:</b> VWAP లైన్ కింద స్టాప్ లాస్ పెట్టుకోవాలి. ఇంట్రాడే అయితే 1:2 లాభం రాగానే బుక్ చేసుకోవచ్చు.</li>
+        </ul>
+
+        <h4 style='color:#3fb950; margin-top:15px;'>2. 💥 Inside Bar Vol Breakout (NR7)</h4>
+        <ul style='color:#c9d1d9; font-size:14px;'>
+            <li><b>ఎప్పుడు వాడాలి:</b> 2-5 రోజుల క్విక్ స్వింగ్ ట్రేడింగ్ కోసం.</li>
+            <li><b>ఎలా కొనాలి:</b> నిన్న ఒకే రేంజ్ లో ఆగిపోయిన చిన్న క్యాండిల్ (Inside Bar) హై ని, ఈరోజు ప్రైస్ వాల్యూమ్ తో బ్రేక్ చేస్తుంటే బ్రేక్ అవుట్ లో కొనాలి.</li>
+            <li><b>స్టాప్ లాస్ & టార్గెట్:</b> నిన్నటి చిన్న క్యాండిల్ లో (Low) కింద స్టాప్ లాస్. ఇది బ్రేక్అవుట్ కాబట్టి 10% - 15% టార్గెట్ ఆశించవచ్చు.</li>
+        </ul>
+
+        <h4 style='color:#FFD700; margin-top:15px;'>3. 🧲 The 20-EMA Holy Grail Pullback</h4>
+        <ul style='color:#c9d1d9; font-size:14px;'>
+            <li><b>ఎప్పుడు వాడాలి:</b> పటిష్టమైన అప్‌ట్రెండ్‌లో ఉన్న స్టాక్ కాస్త పడి సపోర్ట్ తీసుకుంటున్నప్పుడు (Buy on Dips).</li>
+            <li><b>ఎలా కొనాలి:</b> ప్రైస్ పడుతూ వచ్చి 20-EMA (లేదా 10-Week EMA) ని టచ్ చేసి ఆగిపోయి, అక్కడి నుండి గ్రీన్ క్యాండిల్ వేస్తూ పైకి వెళ్తుంటే ఎంటర్ అవ్వాలి.</li>
+            <li><b>స్టాప్ లాస్ & టార్గెట్:</b> సపోర్ట్ తీసుకున్న గ్రీన్ క్యాండిల్ లో (Low) కింద స్టాప్ లాస్. పడకముందు ఉన్న పాత హై (Swing High) ఫస్ట్ టార్గెట్.</li>
+        </ul>
+
+        <h4 style='color:#f85149; margin-top:15px;'>4. 📉 RSI(2) Mean Reversion (Larry Connors)</h4>
+        <ul style='color:#c9d1d9; font-size:14px;'>
+            <li><b>ఎప్పుడు వాడాలి:</b> 2-4 రోజుల ఫాస్ట్ స్వింగ్ కోసం (భయం లో ఉన్నప్పుడు కొనడం).</li>
+            <li><b>ఎలా కొనాలి:</b> లాంగ్ టర్మ్ అప్‌ట్రెండ్‌లో ఉండి, వరుసగా 2-3 రోజులు పడిన స్టాక్స్.. ఈరోజు గ్రీన్ లో క్లోజ్ అవుతుంటే మార్కెట్ ముగిసే సమయంలో (3:20 PM కి) కొనాలి.</li>
+            <li><b>స్టాప్ లాస్ & టార్గెట్:</b> ప్రైస్ పైకి వెళ్లి 5-డే SMA పైన క్లోజ్ అవ్వగానే అమ్మేయాలి (లారీ కానర్స్ రూల్). రిస్క్ మేనేజ్మెంట్ కోసం కొన్న ధర నుండి 2% లేదా 3% కింద స్టాప్ లాస్ పెట్టుకోవాలి.</li>
+        </ul>
+        </div>
+        """, unsafe_allow_html=True)
