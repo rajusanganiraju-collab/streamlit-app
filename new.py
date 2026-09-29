@@ -1829,7 +1829,7 @@ if not df.empty:
                 lc_trend = df_filtered['P'] > df_filtered['SMA200']
                 lc_dip = df_filtered['P'] < df_filtered['W_EMA10']
                 lc_reversal = (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] > 0.5)
-                lc_severe_dip = df_filtered['P'] <= (df_filtered['Box_Top20'] * 0.90) 
+                lc_severe_dip = df_filtered['P'] <= (df_filtered['Box_Top20'] * 0.97) 
                 lc_cond = has_history & lc_trend & lc_dip & lc_severe_dip & lc_reversal
                 df_lc = df_filtered[lc_cond].copy()
                 df_lc['Strategy_Icon'] = "📉 RSI Reversal"
