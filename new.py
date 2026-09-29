@@ -1785,36 +1785,29 @@ if not df.empty:
             dfs_to_concat.append(df_vcp)
             
         # --- STRATEGY 3: 📦 NICOLAS DARVAS (BOX BREAKOUT) ---
-                elif strat == "📦 Nicolas Darvas (Box Breakout)":
-                    box_width = ((df_filtered['Box_Top20'] - df_filtered['Box_Bot20']) / (df_filtered['Box_Bot20'] + 0.001)) <= 0.20
-                    darvas_trend = (df_filtered['P'] > df_filtered['SMA50']) 
-                    darvas_breakout = df_filtered['P'] >= df_filtered['Box_Top20']
-                    darvas_high = df_filtered['P'] >= (df_filtered['High52W'] * 0.85) # 52W High కు 15% లోపు ఉంటే సరిపోతుంది
-                    darvas_vol = df_filtered['VolX'] >= 1.2 
-                    
-                    darvas_cond = darvas_trend & darvas_breakout & box_width & darvas_high & darvas_vol
-                    c_buy = base_buy & darvas_cond & (df_filtered['Day_C'] > 1.0)
-                    c_sell = pd.Series(False, index=df_filtered.index)
-                    icon_str = "📦 Darvas"
+        elif strat == "📦 Nicolas Darvas (Box Breakout)":
+            box_width = ((df_filtered['Box_Top20'] - df_filtered['Box_Bot20']) / (df_filtered['Box_Bot20'] + 0.001)) <= 0.20
+            darvas_trend = df_filtered['P'] > df_filtered['SMA50']
+            darvas_breakout = df_filtered['P'] >= df_filtered['Box_Top20']
+            darvas_high = df_filtered['P'] >= (df_filtered['High52W'] * 0.85)
+            darvas_vol = df_filtered['VolX'] >= 1.2 
+            
+            darvas_cond = darvas_trend & darvas_breakout & box_width & darvas_high & darvas_vol
+            df_darvas = df_filtered[darvas_cond].copy()
+            df_darvas['Strategy_Icon'] = "📦 Darvas"
+            dfs_to_concat.append(df_darvas)
 
-                # --- STRATEGY 3.1: 📦 NICOLAS DARVAS MODIFIED ---
-                elif strat == "📦 Nicolas Darvas Modified":
-                    # బ్రేక్అవుట్ జరగాలి (ప్రైస్ Box_Top20 కంటే పైన ఉండాలి)
-                    darvas_mod_breakout = df_filtered['P'] > df_filtered['Box_Top20']
-                    
-                    # 0.75% రూల్: ప్రైస్ బాక్స్ టాప్ నుండి 0.75% కంటే ఎక్కువ దూరంగా ఉండకూడదు (No Chasing)
-                    darvas_mod_nochase = df_filtered['P'] <= (df_filtered['Box_Top20'] * 1.0075)
-                    
-                    # వాల్యూమ్ కన్ఫర్మేషన్ (యావరేజ్ వాల్యూమ్ కంటే ఎక్కువ ఉండాలి)
-                    darvas_mod_vol = df_filtered['VolX'] >= 1.2
-                    
-                    # బేస్ ట్రెండ్ (దీర్ఘకాలంలో ట్రెండ్ పాజిటివ్ గా ఉండాలి)
-                    darvas_mod_trend = (df_filtered['P'] > df_filtered['SMA50'])
-                    
-                    darvas_mod_cond = darvas_mod_trend & darvas_mod_breakout & darvas_mod_nochase & darvas_mod_vol
-                    c_buy = base_buy & darvas_mod_cond & (df_filtered['Day_C'] > 0.5)
-                    c_sell = pd.Series(False, index=df_filtered.index)
-                    icon_str = "📦 Darvas Mod"
+        # --- STRATEGY 3.1: 📦 NICOLAS DARVAS MODIFIED ---
+        elif strat == "📦 Nicolas Darvas Modified":
+            darvas_mod_breakout = df_filtered['P'] > df_filtered['Box_Top20']
+            darvas_mod_nochase = df_filtered['P'] <= (df_filtered['Box_Top20'] * 1.0075)
+            darvas_mod_vol = df_filtered['VolX'] >= 1.2
+            darvas_mod_trend = df_filtered['P'] > df_filtered['SMA50']
+            
+            darvas_mod_cond = darvas_mod_trend & darvas_mod_breakout & darvas_mod_nochase & darvas_mod_vol
+            df_darvas_mod = df_filtered[darvas_mod_cond].copy()
+            df_darvas_mod['Strategy_Icon'] = "📦 Darvas Mod"
+            dfs_to_concat.append(df_darvas_mod)
             
         # --- STRATEGY 4: 📈 STAN WEINSTEIN ---
         elif strat == "📈 Stan Weinstein (Stage 2 Uptrend)":
