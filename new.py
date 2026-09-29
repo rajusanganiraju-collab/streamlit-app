@@ -1786,11 +1786,11 @@ if not df.empty:
             
         # --- STRATEGY 3: 📦 NICOLAS DARVAS (BOX BREAKOUT) ---
         elif strat == "📦 Nicolas Darvas (Box Breakout)":
-            box_width = ((df_filtered['Box_Top20'] - df_filtered['Box_Bot20']) / (df_filtered['Box_Bot20'] + 0.001)) <= 0.20
+            box_width = ((df_filtered['Box_Top20'] - df_filtered['Box_Bot20']) / (df_filtered['Box_Bot20'] + 0.001)) <= 0.25
             darvas_trend = df_filtered['P'] > df_filtered['SMA50']
             darvas_breakout = df_filtered['P'] >= df_filtered['Box_Top20']
-            darvas_high = df_filtered['P'] >= (df_filtered['High52W'] * 0.85)
-            darvas_vol = df_filtered['VolX'] >= 1.2 
+            darvas_high = df_filtered['P'] >= (df_filtered['High52W'] * 0.80)
+            darvas_vol = df_filtered['VolX'] >= 1.0 
             
             darvas_cond = darvas_trend & darvas_breakout & box_width & darvas_high & darvas_vol
             df_darvas = df_filtered[darvas_cond].copy()
@@ -1799,9 +1799,16 @@ if not df.empty:
 
         # --- STRATEGY 3.1: 📦 NICOLAS DARVAS MODIFIED ---
         elif strat == "📦 Nicolas Darvas Modified":
-            darvas_mod_breakout = df_filtered['P'] > df_filtered['Box_Top20']
-            darvas_mod_nochase = df_filtered['P'] <= (df_filtered['Box_Top20'] * 1.0075)
-            darvas_mod_vol = df_filtered['VolX'] >= 1.2
+            # 1. బాక్స్ టాప్ బ్రేక్ అవ్వాలి
+            darvas_mod_breakout = df_filtered['P'] >= df_filtered['Box_Top20']
+            
+            # 2. నో-ఛేజ్ రూల్: ఇండియన్ మార్కెట్ కోసం 2% వరకు అనుమతి (అతిగా పెరిగిన వాటిని వదిలేస్తుంది)
+            darvas_mod_nochase = df_filtered['P'] <= (df_filtered['Box_Top20'] * 1.020)
+            
+            # 3. వాల్యూమ్ యావరేజ్ కంటే ఎక్కువ ఉండాలి
+            darvas_mod_vol = df_filtered['VolX'] >= 1.0
+            
+            # 4. ప్రైస్ 50 SMA పైన ఉండాలి
             darvas_mod_trend = df_filtered['P'] > df_filtered['SMA50']
             
             darvas_mod_cond = darvas_mod_trend & darvas_mod_breakout & darvas_mod_nochase & darvas_mod_vol
