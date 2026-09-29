@@ -2206,53 +2206,7 @@ if not df.empty:
                     c_buy = base_buy & (df_filtered['ORB_Tag'] == "ORB_BUY") & (df_filtered['VolX'] >= 1.2)
                     c_sell = base_sell & (df_filtered['ORB_Tag'] == "ORB_SELL") & (df_filtered['VolX'] >= 1.2)
                     icon_str = "🌅 ORB"
-                # 1. GAP & GO (OPEN = LOW) STRATEGY
-elif strat == "🚀 Gap & Go (Open = Low)":
-    # Open షుమారుగా Low కి సమానంగా ఉండాలి (0.2% బఫర్)
-    open_low_match = (df_filtered['O'] - df_filtered['L']) <= (df_filtered['P'] * 0.002)
-    gap_up = df_filtered['O'] > df_filtered['Prev_C']
-    high_vol = df_filtered['VolX'] >= 1.5
-    
-    c_buy = base_buy & open_low_match & gap_up & high_vol & (df_filtered['Day_C'] > 0.5)
-    c_sell = base_sell & ((df_filtered['H'] - df_filtered['O']) <= (df_filtered['P'] * 0.002)) & (df_filtered['O'] < df_filtered['Prev_C']) & high_vol & (df_filtered['Day_C'] < -0.5)
-    icon_str = "🚀 Gap&Go"
-
-# 2. PREVIOUS DAY HIGH/LOW BREAKOUT
-elif strat == "💥 PDH / PDL Breakout":
-    # ప్రైస్ నిన్నటి High పైన ఉండాలి, వాల్యూమ్ స్ట్రాంగ్ ఉండాలి
-    pdh_break = (df_filtered['P'] > df_filtered['Prev_H']) & (df_filtered['P'] > df_filtered['VWAP'])
-    pdl_break = (df_filtered['P'] < df_filtered['Prev_L']) & (df_filtered['P'] < df_filtered['VWAP'])
-    vol_confirm = df_filtered['VolX'] >= 2.0  # వాల్యూమ్ డబుల్ ఉండాలి
-    
-    c_buy = base_buy & pdh_break & vol_confirm
-    c_sell = base_sell & pdl_break & vol_confirm
-    icon_str = "💥 PD Break"
-
-# 3. VWAP BOUNCE (PULLBACK)
-elif strat == "🧲 VWAP Bounce (Low Risk Entry)":
-    # ప్రైస్ VWAP కి 0.3% పైన మాత్రమే ఉండాలి (దగ్గరగా సపోర్ట్ తీసుకుంటుంది)
-    near_vwap_buy = (df_filtered['P'] > df_filtered['VWAP']) & (df_filtered['P'] <= (df_filtered['VWAP'] * 1.003)) & (df_filtered['L'] <= (df_filtered['VWAP'] * 1.001))
-    near_vwap_sell = (df_filtered['P'] < df_filtered['VWAP']) & (df_filtered['P'] >= (df_filtered['VWAP'] * 0.997)) & (df_filtered['H'] >= (df_filtered['VWAP'] * 0.999))
-    
-    overall_trend_up = df_filtered['Day_C'] > 1.0
-    overall_trend_dn = df_filtered['Day_C'] < -1.0
-    
-    c_buy = base_buy & near_vwap_buy & overall_trend_up & (df_filtered['VolX'] > 1.0)
-    c_sell = base_sell & near_vwap_sell & overall_trend_dn & (df_filtered['VolX'] > 1.0)
-    icon_str = "🧲 VWAP Bounce"
-
-# 4. TRENDING DAY (NARROW CPR + ORB)
-elif strat == "🎯 Narrow CPR Trending Day":
-    # నారో CPR ఉండి, ప్రైస్ పాజిటివ్ గా ఉంటే భారీ మూవ్ ఎక్స్‌పెక్ట్ చేయొచ్చు
-    c_buy = base_buy & (df_filtered['Narrow_CPR'] == True) & (df_filtered['ORB_Tag'] == "ORB_BUY") & (df_filtered['VolX'] >= 1.2)
-    c_sell = base_sell & (df_filtered['Narrow_CPR'] == True) & (df_filtered['ORB_Tag'] == "ORB_SELL") & (df_filtered['VolX'] >= 1.2)
-    icon_str = "🎯 CPR Trend"
-
-                if apply_fib_strict and strat != "📉 FIB Retracement (0.382)":
-                    c_buy = c_buy & fib_buy_mask
-                    c_sell = c_sell & fib_sell_mask
-                    icon_str = icon_str + " + 📉FIB"
-
+               
                 top_buy = df_filtered[c_buy].sort_values(by=['VolX', 'Day_C'], ascending=[False, False]).head(5).copy()
                 if not top_buy.empty: top_buy['Strategy_Icon'] = f"{icon_str} BUY"
                 top_sell = df_filtered[c_sell].sort_values(by=['VolX', 'Day_C'], ascending=[False, True]).head(5).copy()
