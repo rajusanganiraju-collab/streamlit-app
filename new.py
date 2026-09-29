@@ -1537,16 +1537,17 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
                 key="swing_trading_filter_key" 
             )
         elif watchlist_mode == "Legendary Strategy 🏆":
-            # Mundu Day Trading aa leka Swing Trading aa ani aduguthundi
             trade_style = st.radio("Trading Style:", ["Day Trading 🚀", "Swing Trading 📈"], horizontal=True)
             
             if trade_style == "Day Trading 🚀":
                 strat_opts = [
+                    "All Day Trading Moves 🚀",
                     "🔥 First Hour Vol Breakout (ORB+VWAP)",
                     "💥 Inside Bar Vol Breakout (NR7)"
                 ]
             else:
                 strat_opts = [
+                    "All Swing Trading Moves 📈",
                     "🧲 The 20-EMA Holy Grail Pullback",
                     "📉 RSI(2) Mean Reversion (Larry Connors)",
                     "📈 Minervini Trend Template (VCP)",
@@ -1558,7 +1559,6 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
                     "👑 King Strategy (SMA Bounce)"
                 ]
             
-            # Select chesina style batti dropdown lo options vasthayi
             move_type_filter = [st.selectbox("Select Strategy", strat_opts, key="legendary_filter_key")]
         elif watchlist_mode == "Fundamentals 🏢":
             fund_filter = st.selectbox("Fundamentals Filter", ["Top Ranked Stocks ⭐", "🦅 Warren Buffett Value Stocks", "Swing Trading Candidates 📈", "Nifty 50 Stocks", "My Portfolio 💼"], index=0)
@@ -1755,138 +1755,146 @@ if not df.empty:
         min_c7 = df_filtered['P'] >= (df_filtered['High52W'] * 0.75) 
         vcp_base_cond = has_history & min_c1 & min_c2 & min_c3 & min_c4 & min_c5 & min_c6 & min_c7
         
-        strat = move_type_filter[0] if isinstance(move_type_filter, list) else move_type_filter
+        strat_selection = move_type_filter[0] if isinstance(move_type_filter, list) else move_type_filter
         is_intraday = (chart_timeframe == "Intraday (5m)")
         is_weekly = (chart_timeframe == "Weekly Chart")
 
-        # =========================================================
-        # 🏆 NEW HIGH-PROBABILITY STRATEGIES (TOP 4)
-        # =========================================================
-        # --- 1: 🔥 FIRST HOUR VOL BREAKOUT (ORB + VWAP) ---
-        if strat == "🔥 First Hour Vol Breakout (ORB+VWAP)":
-            orb_trend = (df_filtered['P'] > df_filtered['VWAP']) & (df_filtered['Day_C'] > 1.0)
-            orb_vol = df_filtered['VolX'] >= 1.5
-            
-            # ORB_Tag కి బదులుగా Open Drive లాజిక్ (ఓపెన్ అయిన దగ్గరే సపోర్ట్ తీసుకుని పైకి దూసుకెళ్లడం)
-            orb_breakout = (df_filtered['P'] > df_filtered['O']) & ((df_filtered['O'] - df_filtered['L']) <= (df_filtered['P'] * 0.005))
-            
-            orb_cond = has_history & orb_trend & orb_vol & orb_breakout
-            df_orb = df_filtered[orb_cond].copy()
-            df_orb['Strategy_Icon'] = "🔥 1-Hr Breakout"
-            dfs_to_concat.append(df_orb)
+        # --- ALL MOVES LOGIC ---
+        if strat_selection == "All Day Trading Moves 🚀":
+            strats_to_run = [
+                "🔥 First Hour Vol Breakout (ORB+VWAP)",
+                "💥 Inside Bar Vol Breakout (NR7)"
+            ]
+        elif strat_selection == "All Swing Trading Moves 📈":
+            strats_to_run = [
+                "🧲 The 20-EMA Holy Grail Pullback",
+                "📉 RSI(2) Mean Reversion (Larry Connors)",
+                "📈 Minervini Trend Template (VCP)",
+                "📉 Strict VCP (Price & Vol Contraction)",
+                "📦 Nicolas Darvas (Box Breakout)",
+                "📦 Nicolas Darvas Modified",
+                "📈 Stan Weinstein (Stage 2 Uptrend)",
+                "💥 Dan Zanger (Volume Explosion)",
+                "👑 King Strategy (SMA Bounce)"
+            ]
+        else:
+            strats_to_run = [strat_selection]
 
-        elif strat == "💥 Inside Bar Vol Breakout (NR7)":
-            ib_trend = df_filtered['P'] > df_filtered['SMA50']
-            ib_vol = df_filtered['VolX'] >= 1.2
-            ib_narrow = (df_filtered['H'] - df_filtered['L']) / (df_filtered['L'] + 0.001) <= 0.02
-            ib_break = df_filtered['P'] > df_filtered['O']
-            ib_cond = has_history & ib_trend & ib_vol & ib_narrow & ib_break
-            df_ib = df_filtered[ib_cond].copy()
-            df_ib['Strategy_Icon'] = "💥 Inside Bar"
-            dfs_to_concat.append(df_ib)
+        # --- LOOPING THROUGH STRATEGIES ---
+        for strat in strats_to_run:
+            if strat == "🔥 First Hour Vol Breakout (ORB+VWAP)":
+                orb_trend = (df_filtered['P'] > df_filtered['VWAP']) & (df_filtered['Day_C'] > 1.0)
+                orb_vol = df_filtered['VolX'] >= 1.5
+                orb_breakout = df_filtered['ORB_Tag'] == "ORB_BUY"
+                orb_cond = has_history & orb_trend & orb_vol & orb_breakout
+                df_orb = df_filtered[orb_cond].copy()
+                df_orb['Strategy_Icon'] = "🔥 1-Hr Breakout"
+                dfs_to_concat.append(df_orb)
 
-        elif strat == "🧲 The 20-EMA Holy Grail Pullback":
-            hg_trend = (df_filtered['P'] > df_filtered['SMA50']) & (df_filtered['SMA50'] > df_filtered['SMA150'])
-            hg_pullback = (df_filtered['L'] <= df_filtered['W_EMA10'] * 1.02) & (df_filtered['P'] >= df_filtered['W_EMA10'])
-            hg_bounce = (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] > 0.5)
-            hg_vol = df_filtered['VolX'] >= 1.0
-            hg_cond = has_history & hg_trend & hg_pullback & hg_bounce & hg_vol
-            df_hg = df_filtered[hg_cond].copy()
-            df_hg['Strategy_Icon'] = "🧲 Holy Grail"
-            dfs_to_concat.append(df_hg)
+            elif strat == "💥 Inside Bar Vol Breakout (NR7)":
+                ib_trend = df_filtered['P'] > df_filtered['SMA50']
+                ib_vol = df_filtered['VolX'] >= 1.2
+                ib_narrow = (df_filtered['H'] - df_filtered['L']) / (df_filtered['L'] + 0.001) <= 0.02
+                ib_break = df_filtered['P'] > df_filtered['O']
+                ib_cond = has_history & ib_trend & ib_vol & ib_narrow & ib_break
+                df_ib = df_filtered[ib_cond].copy()
+                df_ib['Strategy_Icon'] = "💥 Inside Bar"
+                dfs_to_concat.append(df_ib)
 
-        # --- 4: 📉 RSI(2) MEAN REVERSION (LARRY CONNORS) ---
-        elif strat == "📉 RSI(2) Mean Reversion (Larry Connors)":
-            # 1. లాంగ్ టర్మ్ అప్ ట్రెండ్ (200 లేదా 150 SMA పైన ఉండాలి)
-            lc_trend = (df_filtered['P'] > df_filtered['SMA200']) | (df_filtered['P'] > df_filtered['SMA150'])
-            
-            # 2. రీసెంట్ హై నుండి 3% కంటే ఎక్కువ కరెక్షన్ (RSI 2 Oversold Zone)
-            lc_dip = df_filtered['P'] <= (df_filtered['Box_Top20'] * 0.97)
-            
-            # 3. ఇంట్రాడే బౌన్స్ / రివర్సల్ (గ్రీన్ క్యాండిల్ తో కొనుగోలుదారులు రావడం)
-            lc_reversal = (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] > 0.2)
-            
-            lc_cond = has_history & lc_trend & lc_dip & lc_reversal
-            df_lc = df_filtered[lc_cond].copy()
-            df_lc['Strategy_Icon'] = "📉 RSI Reversal"
-            dfs_to_concat.append(df_lc)
+            elif strat == "🧲 The 20-EMA Holy Grail Pullback":
+                hg_trend = (df_filtered['P'] > df_filtered['SMA50']) & (df_filtered['SMA50'] > df_filtered['SMA150'])
+                hg_pullback = (df_filtered['L'] <= df_filtered['W_EMA10'] * 1.02) & (df_filtered['P'] >= df_filtered['W_EMA10'])
+                hg_bounce = (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] > 0.5)
+                hg_vol = df_filtered['VolX'] >= 1.0
+                hg_cond = has_history & hg_trend & hg_pullback & hg_bounce & hg_vol
+                df_hg = df_filtered[hg_cond].copy()
+                df_hg['Strategy_Icon'] = "🧲 Holy Grail"
+                dfs_to_concat.append(df_hg)
 
-        # =========================================================
-        # 📦 EXISTING LEGENDARY STRATEGIES
-        # =========================================================
-        elif strat == "📈 Minervini Trend Template (VCP)":
-            df_min = df_filtered[vcp_base_cond].copy()
-            df_min['Strategy_Icon'] = "📈 M-VCP"
-            dfs_to_concat.append(df_min)
-            
-        elif strat == "📉 Strict VCP (Price & Vol Contraction)":
-            recent_tightness = ((df_filtered['Box_Top20'] - df_filtered['Box_Bot20']) / (df_filtered['Box_Bot20'] + 0.001)) <= 0.25
-            vcp_vol_dry_strict = df_filtered['VCP_Vol_Dry'] == True
-            vcp_price_ok = df_filtered['P'] >= (df_filtered['High52W'] * 0.80)
-            strict_vcp_cond = (df_filtered['VCP_Contract'] == True) & recent_tightness & vcp_vol_dry_strict & vcp_price_ok
-            df_vcp = df_filtered[vcp_base_cond & strict_vcp_cond].copy()
-            df_vcp['Strategy_Icon'] = "📉 VCP"
-            dfs_to_concat.append(df_vcp)
+            elif strat == "📉 RSI(2) Mean Reversion (Larry Connors)":
+                lc_trend = df_filtered['P'] > df_filtered['SMA200']
+                lc_dip = df_filtered['P'] < df_filtered['W_EMA10']
+                lc_reversal = (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] > 0.5)
+                lc_severe_dip = df_filtered['P'] <= (df_filtered['Box_Top20'] * 0.90) 
+                lc_cond = has_history & lc_trend & lc_dip & lc_severe_dip & lc_reversal
+                df_lc = df_filtered[lc_cond].copy()
+                df_lc['Strategy_Icon'] = "📉 RSI Reversal"
+                dfs_to_concat.append(df_lc)
 
-        elif strat == "📦 Nicolas Darvas (Box Breakout)":
-            box_width = ((df_filtered['Box_Top20'] - df_filtered['Box_Bot20']) / (df_filtered['Box_Bot20'] + 0.001)) <= 0.25
-            darvas_trend = df_filtered['P'] > df_filtered['SMA50']
-            darvas_breakout = df_filtered['P'] >= df_filtered['Box_Top20']
-            darvas_high = df_filtered['P'] >= (df_filtered['High52W'] * 0.80)
-            darvas_vol = df_filtered['VolX'] >= 1.0 
-            darvas_cond = has_history & darvas_trend & darvas_breakout & box_width & darvas_high & darvas_vol
-            df_darvas = df_filtered[darvas_cond].copy()
-            df_darvas['Strategy_Icon'] = "📦 Darvas"
-            dfs_to_concat.append(df_darvas)
+            elif strat == "📈 Minervini Trend Template (VCP)":
+                df_min = df_filtered[vcp_base_cond].copy()
+                df_min['Strategy_Icon'] = "📈 M-VCP"
+                dfs_to_concat.append(df_min)
+                
+            elif strat == "📉 Strict VCP (Price & Vol Contraction)":
+                recent_tightness = ((df_filtered['Box_Top20'] - df_filtered['Box_Bot20']) / (df_filtered['Box_Bot20'] + 0.001)) <= 0.25
+                vcp_vol_dry_strict = df_filtered['VCP_Vol_Dry'] == True
+                vcp_price_ok = df_filtered['P'] >= (df_filtered['High52W'] * 0.80)
+                strict_vcp_cond = (df_filtered['VCP_Contract'] == True) & recent_tightness & vcp_vol_dry_strict & vcp_price_ok
+                df_vcp = df_filtered[vcp_base_cond & strict_vcp_cond].copy()
+                df_vcp['Strategy_Icon'] = "📉 VCP"
+                dfs_to_concat.append(df_vcp)
 
-        elif strat == "📦 Nicolas Darvas Modified":
-            darvas_mod_breakout = df_filtered['P'] >= df_filtered['Box_Top20']
-            darvas_mod_nochase = df_filtered['P'] <= (df_filtered['Box_Top20'] * 1.020)
-            darvas_mod_vol = df_filtered['VolX'] >= 1.0
-            darvas_mod_trend = df_filtered['P'] > df_filtered['SMA50']
-            darvas_mod_cond = has_history & darvas_mod_trend & darvas_mod_breakout & darvas_mod_nochase & darvas_mod_vol
-            df_darvas_mod = df_filtered[darvas_mod_cond].copy()
-            df_darvas_mod['Strategy_Icon'] = "📦 Darvas Mod"
-            dfs_to_concat.append(df_darvas_mod)
+            elif strat == "📦 Nicolas Darvas (Box Breakout)":
+                box_width = ((df_filtered['Box_Top20'] - df_filtered['Box_Bot20']) / (df_filtered['Box_Bot20'] + 0.001)) <= 0.25
+                darvas_trend = df_filtered['P'] > df_filtered['SMA50']
+                darvas_breakout = df_filtered['P'] >= df_filtered['Box_Top20']
+                darvas_high = df_filtered['P'] >= (df_filtered['High52W'] * 0.80)
+                darvas_vol = df_filtered['VolX'] >= 1.0 
+                darvas_cond = has_history & darvas_trend & darvas_breakout & box_width & darvas_high & darvas_vol
+                df_darvas = df_filtered[darvas_cond].copy()
+                df_darvas['Strategy_Icon'] = "📦 Darvas"
+                dfs_to_concat.append(df_darvas)
 
-        elif strat == "📈 Stan Weinstein (Stage 2 Uptrend)":
-            wein_c1 = df_filtered['P'] > df_filtered['SMA150'] 
-            wein_c2 = df_filtered['SMA150'] > df_filtered['SMA150_20D'] 
-            wein_c3 = df_filtered['SMA50'] > df_filtered['SMA150'] 
-            wein_c4 = df_filtered['P'] >= (df_filtered['High52W'] * 0.75) 
-            wein_c5 = df_filtered['P'] >= (df_filtered['Low52W'] * 1.30)
-            weinstein_cond = has_history & wein_c1 & wein_c2 & wein_c3 & wein_c4 & wein_c5
-            df_weinstein = df_filtered[weinstein_cond].copy()
-            df_weinstein['Strategy_Icon'] = "📈 Stage 2"
-            dfs_to_concat.append(df_weinstein)
-            
-        elif strat == "💥 Dan Zanger (Volume Explosion)":
-            zanger_vol = df_filtered['VolX'] >= 1.5 
-            zanger_ma = (df_filtered['P'] > df_filtered['SMA50']) & (df_filtered['SMA50'] > df_filtered['SMA150'])
-            bar_range = df_filtered['H'] - df_filtered['L']
-            close_position = (df_filtered['P'] - df_filtered['L']) / (bar_range + 0.001)
-            zanger_close = close_position >= 0.70
-            zanger_breakout = df_filtered['P'] >= (df_filtered['Box_Top20'] * 0.98)
-            zanger_dryup = df_filtered['VCP_Vol_Dry'] == True
-            zanger_cond = has_history & zanger_vol & zanger_ma & zanger_close & zanger_breakout & zanger_dryup
-            df_zanger = df_filtered[zanger_cond].copy()
-            df_zanger['Strategy_Icon'] = "💥 Zanger"
-            dfs_to_concat.append(df_zanger)
-            
-        elif strat == "👑 King Strategy (SMA Bounce)":
-            king_c1 = df_filtered['SMA150'] > df_filtered['SMA200']
-            king_c2 = df_filtered['SMA50'] > df_filtered['SMA150']
-            near_50 = (df_filtered['L'] <= df_filtered['SMA50'] * 1.03) & (df_filtered['P'] >= df_filtered['SMA50'])
-            near_150 = (df_filtered['L'] <= df_filtered['SMA150'] * 1.03) & (df_filtered['P'] >= df_filtered['SMA150'])
-            near_200 = (df_filtered['L'] <= df_filtered['SMA200'] * 1.03) & (df_filtered['P'] >= df_filtered['SMA200'])
-            touching_sma = near_50 | near_150 | near_200
-            bounce_up = (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] >= 1.0)
-            high_vol = df_filtered['VolX'] >= 1.5 
-            king_cond = has_history & king_c1 & king_c2 & touching_sma & bounce_up & high_vol
-            df_king = df_filtered[king_cond].copy()
-            df_king['Strategy_Icon'] = "👑 King"
-            dfs_to_concat.append(df_king)
-            
+            elif strat == "📦 Nicolas Darvas Modified":
+                darvas_mod_breakout = df_filtered['P'] >= df_filtered['Box_Top20']
+                darvas_mod_nochase = df_filtered['P'] <= (df_filtered['Box_Top20'] * 1.020)
+                darvas_mod_vol = df_filtered['VolX'] >= 1.0
+                darvas_mod_trend = df_filtered['P'] > df_filtered['SMA50']
+                darvas_mod_cond = has_history & darvas_mod_trend & darvas_mod_breakout & darvas_mod_nochase & darvas_mod_vol
+                df_darvas_mod = df_filtered[darvas_mod_cond].copy()
+                df_darvas_mod['Strategy_Icon'] = "📦 Darvas Mod"
+                dfs_to_concat.append(df_darvas_mod)
+
+            elif strat == "📈 Stan Weinstein (Stage 2 Uptrend)":
+                wein_c1 = df_filtered['P'] > df_filtered['SMA150'] 
+                wein_c2 = df_filtered['SMA150'] > df_filtered['SMA150_20D'] 
+                wein_c3 = df_filtered['SMA50'] > df_filtered['SMA150'] 
+                wein_c4 = df_filtered['P'] >= (df_filtered['High52W'] * 0.75) 
+                wein_c5 = df_filtered['P'] >= (df_filtered['Low52W'] * 1.30)
+                weinstein_cond = has_history & wein_c1 & wein_c2 & wein_c3 & wein_c4 & wein_c5
+                df_weinstein = df_filtered[weinstein_cond].copy()
+                df_weinstein['Strategy_Icon'] = "📈 Stage 2"
+                dfs_to_concat.append(df_weinstein)
+                
+            elif strat == "💥 Dan Zanger (Volume Explosion)":
+                zanger_vol = df_filtered['VolX'] >= 1.5 
+                zanger_ma = (df_filtered['P'] > df_filtered['SMA50']) & (df_filtered['SMA50'] > df_filtered['SMA150'])
+                bar_range = df_filtered['H'] - df_filtered['L']
+                close_position = (df_filtered['P'] - df_filtered['L']) / (bar_range + 0.001)
+                zanger_close = close_position >= 0.70
+                zanger_breakout = df_filtered['P'] >= (df_filtered['Box_Top20'] * 0.98)
+                zanger_dryup = df_filtered['VCP_Vol_Dry'] == True
+                zanger_cond = has_history & zanger_vol & zanger_ma & zanger_close & zanger_breakout & zanger_dryup
+                df_zanger = df_filtered[zanger_cond].copy()
+                df_zanger['Strategy_Icon'] = "💥 Zanger"
+                dfs_to_concat.append(df_zanger)
+                
+            elif strat == "👑 King Strategy (SMA Bounce)":
+                king_c1 = df_filtered['SMA150'] > df_filtered['SMA200']
+                king_c2 = df_filtered['SMA50'] > df_filtered['SMA150']
+                near_50 = (df_filtered['L'] <= df_filtered['SMA50'] * 1.03) & (df_filtered['P'] >= df_filtered['SMA50'])
+                near_150 = (df_filtered['L'] <= df_filtered['SMA150'] * 1.03) & (df_filtered['P'] >= df_filtered['SMA150'])
+                near_200 = (df_filtered['L'] <= df_filtered['SMA200'] * 1.03) & (df_filtered['P'] >= df_filtered['SMA200'])
+                touching_sma = near_50 | near_150 | near_200
+                bounce_up = (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] >= 1.0)
+                high_vol = df_filtered['VolX'] >= 1.5 
+                king_cond = has_history & king_c1 & king_c2 & touching_sma & bounce_up & high_vol
+                df_king = df_filtered[king_cond].copy()
+                df_king['Strategy_Icon'] = "👑 King"
+                dfs_to_concat.append(df_king)
+        
+        # Anni strategies loop ayyaka kalipi oka DataFrame ga isthundi
         if dfs_to_concat:
             df_filtered = pd.concat(dfs_to_concat).drop_duplicates(subset=['Fetch_T'], keep='last')
             sort_metric = "W_C" if is_weekly else "Day_C"
