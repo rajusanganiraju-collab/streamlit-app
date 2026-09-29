@@ -1537,19 +1537,29 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
                 key="swing_trading_filter_key" 
             )
         elif watchlist_mode == "Legendary Strategy 🏆":
-            move_type_filter = [st.selectbox("Select Strategy", [
-                "🔥 First Hour Vol Breakout (ORB+VWAP)",
-                "💥 Inside Bar Vol Breakout (NR7)",
-                "🧲 The 20-EMA Holy Grail Pullback",
-                "📉 RSI(2) Mean Reversion (Larry Connors)",
-                "📈 Minervini Trend Template (VCP)",
-                "📉 Strict VCP (Price & Vol Contraction)",
-                "📦 Nicolas Darvas (Box Breakout)",
-                "📦 Nicolas Darvas Modified",
-                "📈 Stan Weinstein (Stage 2 Uptrend)",
-                "💥 Dan Zanger (Volume Explosion)",
-                "👑 King Strategy (SMA Bounce)"
-            ], key="legendary_filter_key")]
+            # Mundu Day Trading aa leka Swing Trading aa ani aduguthundi
+            trade_style = st.radio("Trading Style:", ["Day Trading 🚀", "Swing Trading 📈"], horizontal=True)
+            
+            if trade_style == "Day Trading 🚀":
+                strat_opts = [
+                    "🔥 First Hour Vol Breakout (ORB+VWAP)",
+                    "💥 Inside Bar Vol Breakout (NR7)"
+                ]
+            else:
+                strat_opts = [
+                    "🧲 The 20-EMA Holy Grail Pullback",
+                    "📉 RSI(2) Mean Reversion (Larry Connors)",
+                    "📈 Minervini Trend Template (VCP)",
+                    "📉 Strict VCP (Price & Vol Contraction)",
+                    "📦 Nicolas Darvas (Box Breakout)",
+                    "📦 Nicolas Darvas Modified",
+                    "📈 Stan Weinstein (Stage 2 Uptrend)",
+                    "💥 Dan Zanger (Volume Explosion)",
+                    "👑 King Strategy (SMA Bounce)"
+                ]
+            
+            # Select chesina style batti dropdown lo options vasthayi
+            move_type_filter = [st.selectbox("Select Strategy", strat_opts, key="legendary_filter_key")]
         elif watchlist_mode == "Fundamentals 🏢":
             fund_filter = st.selectbox("Fundamentals Filter", ["Top Ranked Stocks ⭐", "🦅 Warren Buffett Value Stocks", "Swing Trading Candidates 📈", "Nifty 50 Stocks", "My Portfolio 💼"], index=0)
             
