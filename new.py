@@ -671,8 +671,8 @@ def fetch_all_data():
             sma150_20d = float(df['Close'].rolling(window=150).mean().iloc[-21]) if len(df) >= 170 else 0.0
             
             if len(df) >= 25:
-                box_top_20 = float(df['High'].iloc[-21:-1].max())
-                box_bot_20 = float(df['Low'].iloc[-21:-1].min())
+                box_top_20 = float(df['High'].iloc[-13:-1].max())
+                box_bot_20 = float(df['Low'].iloc[-13:-1].min())
             else:
                 box_top_20 = high_52w
                 box_bot_20 = low_52w
