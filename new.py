@@ -1151,28 +1151,28 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
     title_html = f"<a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; line-height:1.2;'><b>{display_sym}</b>{strat_tag}<br><span style='font-size:12px; color:#cccccc;'>₹{row['P']:.2f} &nbsp;<span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span></span></a>"
     
     try:
-                if not df_chart.empty and 'Low' in df_chart.columns and 'High' in df_chart.columns:
-                    min_val = df_chart['Low'].min()
-                    max_val = df_chart['High'].max()
-                    y_padding = (max_val - min_val) * 0.15 if (max_val - min_val) != 0 else min_val * 0.005 
-                    
-                    # 🔥 PERFECT TIMEZONE FIX 🔥
-                    if df_chart.index.tz is not None:
-                        df_chart.index = df_chart.index.tz_localize(None)
-                    
-                    # Error వల్ల 5:30 hours యాడ్ అయ్యి మార్కెట్ టైమ్ (3:30 PM) దాటితే, ఆటోమాటిక్ గా వెనక్కి తెస్తుంది
-                    if len(df_chart) > 0 and (df_chart.index.hour.max() >= 16 or (df_chart.index.hour.max() == 15 and df_chart.index.minute.max() > 30)):
-                        df_chart.index = df_chart.index - pd.Timedelta(hours=5, minutes=30)
+        if not df_chart.empty and 'Low' in df_chart.columns and 'High' in df_chart.columns:
+            min_val = df_chart['Low'].min()
+            max_val = df_chart['High'].max()
+            y_padding = (max_val - min_val) * 0.15 if (max_val - min_val) != 0 else min_val * 0.005 
+            
+            # 🔥 PERFECT TIMEZONE FIX 🔥
+            if df_chart.index.tz is not None:
+                df_chart.index = df_chart.index.tz_localize(None)
+            
+            # Error వల్ల 5:30 hours యాడ్ అయ్యి మార్కెట్ టైమ్ (3:30 PM) దాటితే, ఆటోమాటిక్ గా వెనక్కి తెస్తుంది
+            if len(df_chart) > 0 and (df_chart.index.hour.max() >= 16 or (df_chart.index.hour.max() == 15 and df_chart.index.minute.max() > 30)):
+                df_chart.index = df_chart.index - pd.Timedelta(hours=5, minutes=30)
 
-                    chart_times = pd.to_datetime(df_chart.index)
-                    
-                    hover_data = (
-                        "🕒 " + chart_times.strftime('%d-%b %I:%M %p') + 
-                        "<br>🟢 O: ₹" + df_chart['Open'].round(2).astype(str) + 
-                        "<br>📈 H: ₹" + df_chart['High'].round(2).astype(str) + 
-                        "<br>📉 L: ₹" + df_chart['Low'].round(2).astype(str) + 
-                        "<br>🔴 C: ₹" + df_chart['Close'].round(2).astype(str)
-                    )
+            chart_times = pd.to_datetime(df_chart.index)
+            
+            hover_data = (
+                "🕒 " + chart_times.strftime('%d-%b %I:%M %p') + 
+                "<br>🟢 O: ₹" + df_chart['Open'].round(2).astype(str) + 
+                "<br>📈 H: ₹" + df_chart['High'].round(2).astype(str) + 
+                "<br>📉 L: ₹" + df_chart['Low'].round(2).astype(str) + 
+                "<br>🔴 C: ₹" + df_chart['Close'].round(2).astype(str)
+            )
             
             hover_kwargs = {}
             if show_crosshair:
