@@ -1796,26 +1796,27 @@ if not df.empty:
             df_darvas = df_filtered[darvas_cond].copy()
             df_darvas['Strategy_Icon'] = "📦 Darvas"
             dfs_to_concat.append(df_darvas)
+        
 
         # --- STRATEGY 3.1: 📦 NICOLAS DARVAS MODIFIED ---
-                elif strat == "📦 Nicolas Darvas Modified":
+        elif strat == "📦 Nicolas Darvas Modified":
                     # బ్రేక్అవుట్ జరగాలి (ప్రైస్ బాక్స్ టాప్ కంటే పైన ఉండాలి)
-                    darvas_mod_breakout = df_filtered['P'] > df_filtered['Box_Top20']
+            darvas_mod_breakout = df_filtered['P'] > df_filtered['Box_Top20']
                     
-                    # 0.75% రూల్: ప్రైస్ బాక్స్ టాప్ నుండి 0.75% కంటే ఎక్కువ దూరంగా ఉండకూడదు (No Chasing)
-                    darvas_mod_nochase = df_filtered['P'] <= (df_filtered['Box_Top20'] * 1.0075)
+            # 0.75% రూల్: ప్రైస్ బాక్స్ టాప్ నుండి 0.75% కంటే ఎక్కువ దూరంగా ఉండకూడదు (No Chasing)
+            darvas_mod_nochase = df_filtered['P'] <= (df_filtered['Box_Top20'] * 1.0075)
                     
-                    # వాల్యూమ్ కన్ఫర్మేషన్ (యావరేజ్ వాల్యూమ్ కంటే ఎక్కువ ఉండాలి)
-                    darvas_mod_vol = df_filtered['VolX'] >= 1.2
+            # వాల్యూమ్ కన్ఫర్మేషన్ (యావరేజ్ వాల్యూమ్ కంటే ఎక్కువ ఉండాలి)
+            darvas_mod_vol = df_filtered['VolX'] >= 1.2
                     
-                    # బేస్ ట్రెండ్ (దీర్ఘకాలంలో ట్రెండ్ పాజిటివ్ గా ఉండాలి)
-                    darvas_mod_trend = (df_filtered['P'] > df_filtered['SMA50'])
+            # బేస్ ట్రెండ్ (దీర్ఘకాలంలో ట్రెండ్ పాజిటివ్ గా ఉండాలి)
+            darvas_mod_trend = (df_filtered['P'] > df_filtered['SMA50'])
                     
-                    darvas_mod_cond = has_history & darvas_mod_trend & darvas_mod_breakout & darvas_mod_nochase & darvas_mod_vol
+            darvas_mod_cond = has_history & darvas_mod_trend & darvas_mod_breakout & darvas_mod_nochase & darvas_mod_vol
                     
-                    df_darvas_mod = df_filtered[darvas_mod_cond].copy()
-                    df_darvas_mod['Strategy_Icon'] = "📦 Darvas Mod"
-                    dfs_to_concat.append(df_darvas_mod)
+            df_darvas_mod = df_filtered[darvas_mod_cond].copy()
+            df_darvas_mod['Strategy_Icon'] = "📦 Darvas Mod"
+            dfs_to_concat.append(df_darvas_mod)
             
         # --- STRATEGY 4: 📈 STAN WEINSTEIN ---
         elif strat == "📈 Stan Weinstein (Stage 2 Uptrend)":
