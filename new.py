@@ -2022,15 +2022,18 @@ if not df.empty:
         else:
             df_filtered['Sector_Bonus'] = 0
             
-        if watchlist_mode == "🤖 Today's AI Predictions" and "🧲 10-EMA Retest (Best Entry)" in move_type_filter:
+        if watchlist_mode == "🤖 AI Predictions (F&O)" and "🧲 10-EMA Retest (Best Entry)" in move_type_filter:
             df_filtered = df_filtered[
                 (df_filtered['Strategy_Icon'].str.contains('UP', na=False) & (df_filtered['Retest_Tag'] == 'BUY_RETEST')) |
                 (df_filtered['Strategy_Icon'].str.contains('DOWN', na=False) & (df_filtered['Retest_Tag'] == 'SELL_RETEST'))
             ]
         
-        if watchlist_mode == "🤖 Today's AI Predictions" and len(move_type_filter) > 0 and "All Moves" not in move_type_filter:
-            base_buy = (df_filtered['P'] > df_filtered['W_EMA10']) & (df_filtered['P'] > df_filtered['W_EMA50']) & (df_filtered['P'] > df_filtered['VWAP'])
-            base_sell = (df_filtered['P'] < df_filtered['W_EMA10']) & (df_filtered['P'] < df_filtered['W_EMA50']) & (df_filtered['P'] < df_filtered['VWAP'])
+        if watchlist_mode == "🤖 AI Predictions (F&O)" and len(move_type_filter) > 0 and "All Moves" not in move_type_filter:
+            df_filtered = df_stocks.copy()
+            
+            # W_EMA50 కండిషన్ తీసేసి బేస్ లాజిక్ సింపుల్ చేసాము
+            base_buy = (df_filtered['P'] > df_filtered['W_EMA10']) & (df_filtered['P'] > df_filtered['VWAP'])
+            base_sell = (df_filtered['P'] < df_filtered['W_EMA10']) & (df_filtered['P'] < df_filtered['VWAP'])
             
             nifty_dist = 0.25 
             nifty_row = df_indices[df_indices['T'] == 'NIFTY']
