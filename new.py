@@ -1468,23 +1468,6 @@ if not df.empty:
 # --- 7. UI SETTINGS ---
 # =========================================================
 
-watchlist_mode = st.selectbox("Watchlist", [
-    "🤖 AI Predictions (F&O)", 
-    "🤖 AI Predictions (Mid Cap)", 
-    "🤖 AI Predictions (Small Cap)", 
-    "Day Trading Stocks 🚀",
-    "High Score Stocks 🔥",
-    "Swing Trading 📈", 
-    "Legendary Strategy 🏆", 
-    "Nifty 50 Heatmap", 
-    "Terminal Tables 🗃️",
-    "My Portfolio 💼", 
-    "Commodity 🛢️", 
-    "Fundamentals 🏢", 
-    "Mutual Funds 📈", 
-    "Month Effect Advantage 📅"
-], index=0, label_visibility="collapsed")
-
 refresh_time = 15000 if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"] else 5000
 
 if not st.session_state.pause_refresh:
@@ -1506,7 +1489,26 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
     with sc1:
         if "AI Predictions" in watchlist_mode:
                 move_type_filter = st.multiselect("Strategy Filter",
-                    ["All Moves", "🔥 Live Power Mover (Last 2 Candles)", "🚀 All-Day Volume Spikes (Max Fire)", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)", "📈 Minervini Trend Template (VCP)", "🌅 15-Min ORB (Opening Range Breakout)"], 
+                    [
+                        "All Moves", 
+                        "🚀 Gap & Go (Open = Low)", 
+                        "💥 PDH / PDL Breakout", 
+                        "🧲 VWAP Bounce (Low Risk Entry)", 
+                        "🎯 Narrow CPR Trending Day",
+                        "🔥 Live Power Mover (Last 2 Candles)", 
+                        "🚀 All-Day Volume Spikes (Max Fire)", 
+                        "⚡ Intraday Pro Breakout (Top 5)", 
+                        "🌊 One Sided Only", 
+                        "🔄 VWAP Reversal", 
+                        "🎯 Reversals Only", 
+                        "🏹 Rubber Band Stretch", 
+                        "🏄‍♂️ Momentum Ignition", 
+                        "💥 Narrow CPR Breakout", 
+                        "🧲 10-EMA Retest (Best Entry)", 
+                        "📉 FIB Retracement (0.382)", 
+                        "📈 Minervini Trend Template (VCP)", 
+                        "🌅 15-Min ORB (Opening Range Breakout)"
+                    ], 
                     default=["All Moves"],
                     key="day_trading_filter_key"
                 )
@@ -2045,6 +2047,7 @@ if not df.empty:
                         open_drive_bear[idx] = True
 
             strategies_list = [
+                "🚀 Gap & Go (Open = Low)", "💥 PDH / PDL Breakout", "🧲 VWAP Bounce (Low Risk Entry)", "🎯 Narrow CPR Trending Day",
                 "🔥 Live Power Mover (Last 2 Candles)", "🚀 All-Day Volume Spikes (Max Fire)", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", 
                 "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)", "📈 Minervini Trend Template (VCP)", "🌅 15-Min ORB (Opening Range Breakout)"
             ]
