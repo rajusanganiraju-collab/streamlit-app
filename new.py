@@ -1670,7 +1670,9 @@ if not df.empty:
                 
         df_filtered['Strategy_Icon'] = ai_predictions
         df_filtered['AI_Prob'] = ai_probs
-        df_filtered = df_filtered[(df_filtered['Strategy_Icon'] != "Neutral") & (df_filtered['S'] >= 11)]
+        # స్ట్రాటజీ సెలెక్ట్ చేసినప్పుడు అన్ని స్టాక్స్ (S>=11 లిమిట్ లేకుండా) స్కాన్ అవ్వడానికి
+        if "All Moves" in move_type_filter or len(move_type_filter) == 0:
+            df_filtered = df_filtered[(df_filtered['Strategy_Icon'] != "Neutral") & (df_filtered['S'] >= 11)]
     elif watchlist_mode == "Day Trading Stocks 🚀":
         df_filtered = df_stocks[df_stocks['C'].abs() >= 1.0].copy()
     elif watchlist_mode == "High Score Stocks 🔥":
@@ -2029,8 +2031,7 @@ if not df.empty:
             ]
         
         if watchlist_mode == "🤖 AI Predictions (F&O)" and len(move_type_filter) > 0 and "All Moves" not in move_type_filter:
-            df_filtered = df_stocks.copy()
-            
+                       
             # W_EMA50 కండిషన్ తీసేసి బేస్ లాజిక్ సింపుల్ చేసాము
             base_buy = (df_filtered['P'] > df_filtered['W_EMA10']) & (df_filtered['P'] > df_filtered['VWAP'])
             base_sell = (df_filtered['P'] < df_filtered['W_EMA10']) & (df_filtered['P'] < df_filtered['VWAP'])
