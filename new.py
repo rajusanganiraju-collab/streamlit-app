@@ -1468,6 +1468,26 @@ if not df.empty:
 # --- 7. UI SETTINGS ---
 # =========================================================
 
+watchlist_mode = st.selectbox("Watchlist", [
+    "🤖 AI Predictions (F&O)", 
+    "🤖 AI Predictions (Mid Cap)", 
+    "🤖 AI Predictions (Small Cap)", 
+    "High Score Stocks 🔥",
+    "Swing Trading 📈", 
+    "Legendary Strategy 🏆", 
+    "Nifty 50 Heatmap", 
+    "Terminal Tables 🗃️",
+    "My Portfolio 💼", 
+    "Commodity 🛢️", 
+    "Fundamentals 🏢", 
+    "Mutual Funds 📈", 
+    "Month Effect Advantage 📅"
+], index=0, label_visibility="collapsed")
+
+refresh_time = 15000 if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"] else 5000
+
+if not st.session_state.pause_refresh:
+    st_autorefresh(interval=refresh_time, key="datarefresh")
 refresh_time = 15000 if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"] else 5000
 
 if not st.session_state.pause_refresh:
