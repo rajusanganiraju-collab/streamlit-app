@@ -1752,10 +1752,14 @@ if not df.empty:
         # =========================================================
         # 🏆 NEW HIGH-PROBABILITY STRATEGIES (TOP 4)
         # =========================================================
+        # --- 1: 🔥 FIRST HOUR VOL BREAKOUT (ORB + VWAP) ---
         if strat == "🔥 First Hour Vol Breakout (ORB+VWAP)":
             orb_trend = (df_filtered['P'] > df_filtered['VWAP']) & (df_filtered['Day_C'] > 1.0)
             orb_vol = df_filtered['VolX'] >= 1.5
-            orb_breakout = df_filtered['ORB_Tag'] == "ORB_BUY"
+            
+            # ORB_Tag కి బదులుగా Open Drive లాజిక్ (ఓపెన్ అయిన దగ్గరే సపోర్ట్ తీసుకుని పైకి దూసుకెళ్లడం)
+            orb_breakout = (df_filtered['P'] > df_filtered['O']) & ((df_filtered['O'] - df_filtered['L']) <= (df_filtered['P'] * 0.005))
+            
             orb_cond = has_history & orb_trend & orb_vol & orb_breakout
             df_orb = df_filtered[orb_cond].copy()
             df_orb['Strategy_Icon'] = "🔥 1-Hr Breakout"
