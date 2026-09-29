@@ -1490,9 +1490,6 @@ if not st.session_state.pause_refresh:
     st_autorefresh(interval=refresh_time, key="datarefresh")
 refresh_time = 15000 if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"] else 5000
 
-if not st.session_state.pause_refresh:
-    st_autorefresh(interval=refresh_time, key="datarefresh")
-
 view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], index=1 if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"] else 0, horizontal=True, label_visibility="collapsed")
 move_type_filter = ["🌊 One Sided Only", "🎯 Reversals Only", "🏹 Rubber Band Stretch"] 
 fund_filter = "Top Ranked Stocks ⭐"
