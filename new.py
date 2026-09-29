@@ -1147,7 +1147,8 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 if fetch_sym in st.session_state.pinned_stocks: st.session_state.pinned_stocks.remove(fetch_sym)
             st.rerun()
     
-    title_html = f"<a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; line-height:1.2;'><b>{display_sym}</b><br><span style='font-size:12px; color:#cccccc;'>₹{row['P']:.2f} &nbsp;<span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span></span></a>"
+    strat_tag = f" <span style='font-size:10px; background:rgba(0,191,255,0.2); border:1px solid #00BFFF; padding:1px 4px; border-radius:3px; color:#00BFFF;'>{row.get('Strategy_Icon', '')}</span>" if row.get('Strategy_Icon') and row.get('Strategy_Icon') != "Neutral" else ""
+    title_html = f"<a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; line-height:1.2;'><b>{display_sym}</b>{strat_tag}<br><span style='font-size:12px; color:#cccccc;'>₹{row['P']:.2f} &nbsp;<span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span></span></a>"
     
     try:
         if not df_chart.empty and 'Low' in df_chart.columns and 'High' in df_chart.columns:
@@ -2030,8 +2031,7 @@ if not df.empty:
                 (df_filtered['Strategy_Icon'].str.contains('DOWN', na=False) & (df_filtered['Retest_Tag'] == 'SELL_RETEST'))
             ]
         
-        if watchlist_mode == "🤖 AI Predictions (F&O)" and len(move_type_filter) > 0 and "All Moves" not in move_type_filter:
-                       
+        if "AI Predictions" in watchlist_mode:
             # W_EMA50 కండిషన్ తీసేసి బేస్ లాజిక్ సింపుల్ చేసాము
             base_buy = (df_filtered['P'] > df_filtered['W_EMA10']) & (df_filtered['P'] > df_filtered['VWAP'])
             base_sell = (df_filtered['P'] < df_filtered['W_EMA10']) & (df_filtered['P'] < df_filtered['VWAP'])
@@ -2661,8 +2661,15 @@ if not df.empty:
                     
                     special_icon = f"⭐{int(row['S'])}"
                     if "AI Predictions" in watchlist_mode:
-                        if sort_mode == "🤖 AI Prob Up ⬆️": special_icon = f"🤖{int(row.get('AI_Prob', 0))}%"
-                        else: special_icon = f"⭐{int(row['S'])}"
+                        strat_name = str(row.get('Strategy_Icon', '')).strip()
+                        if strat_name and strat_name != "Neutral":
+                            # పెద్ద పేర్లను చిన్న బ్యాడ్జ్ గా మార్చడం (కార్డ్ లో సరిగ్గా పట్టడానికి)
+                            clean_strat = strat_name.replace(" BUY", "").replace(" SELL", "").replace("AI PREDICTS: UP", "🚀 AI").replace("AI PREDICTS: DOWN", "🩸 AI")
+                            special_icon = clean_strat
+                        elif sort_mode == "🤖 AI Prob Up ⬆️":
+                            special_icon = f"🤖{int(row.get('AI_Prob', 0))}%"
+                        else:
+                            special_icon = f"⭐{int(row['S'])}"
                     elif watchlist_mode == "Swing Trading 📈": 
                         strat_name = str(row.get('Strategy_Icon', ''))
                         if strat_name != "": special_icon = strat_name
