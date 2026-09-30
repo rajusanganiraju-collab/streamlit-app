@@ -2452,7 +2452,13 @@ if not df.empty:
         df_filtered['Intraday_PB'] = np.where(df_filtered['Day_C'] >= 0, pb_buy, pb_sell)
         
         # 🔥 Sort Mode check chestunnam
-        if sort_mode == "Pullback % (High to Low) 📉": df_stocks_display = df_filtered.sort_values(by='Intraday_PB', ascending=False)
+        if sort_mode == "Pullback % (High to Low) 📉":
+            if chart_timeframe == "Intraday (5m)":
+                df_stocks_display = df_filtered.sort_values(by='Intraday_PB', ascending=False)
+            else:
+                # Swing trading kosam 52W Pullback tho sort cheyali
+                df_filtered['Pullback_52W'] = pd.to_numeric(df_filtered['Pullback_52W'], errors='coerce').fillna(0)
+                df_stocks_display = df_filtered.sort_values(by='Pullback_52W', ascending=False)
         elif sort_mode == "% Change Up 🟢": df_stocks_display = df_filtered.sort_values(by=sort_key, ascending=False)
         elif sort_mode == "% Change Down 🔴": df_stocks_display = df_filtered.sort_values(by=sort_key, ascending=True)
         elif sort_mode == "Sector Trending First 📊":
