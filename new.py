@@ -2914,16 +2914,16 @@ if not df.empty:
                 if not df_buy.empty: render_heatmap_section(df_buy, f"🟢 POSITIVE / BUY ({watchlist_mode})", "#3fb950")
                 if not df_sell.empty: render_heatmap_section(df_sell, f"🔴 NEGATIVE / SELL ({watchlist_mode})", "#f85149")
             
-            if "AI Predictions" in watchlist_mode:
-                with st.expander("🤖 View AI Predictive Radar (Probability Based)", expanded=True): st.markdown(render_highscore_terminal_table(df_stocks_display), unsafe_allow_html=True)
-            elif watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"]:
-                with st.expander(f"🌊 View {watchlist_mode} Radar (Ranked Table)", expanded=True):
-                    st.markdown(render_swing_terminal_table(df_stocks_display), unsafe_allow_html=True)
-            elif watchlist_mode in ["High Score Stocks 🔥", "Day Trading Stocks 🚀"]:
-                with st.expander("🔥 View Day Trading Radar (Ranked Table)", expanded=True): st.markdown(render_highscore_terminal_table(df_stocks_display), unsafe_allow_html=True)
-            elif watchlist_mode != "Commodity 🛢️":
-                with st.expander("🎯 View Trading Levels (Targets & Stop Loss)", expanded=True): st.markdown(render_levels_table(df_stocks_display), unsafe_allow_html=True)
-
+                if "AI Predictions" in watchlist_mode:
+                    with st.expander("🤖 View AI Predictive Radar (Probability Based)", expanded=True): st.markdown(render_highscore_terminal_table(df_stocks_display), unsafe_allow_html=True)
+                elif watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"]:
+                    with st.expander(f"🌊 View {watchlist_mode} Radar (Ranked Table)", expanded=True):
+                        st.markdown(render_swing_terminal_table(df_stocks_display), unsafe_allow_html=True)
+                elif watchlist_mode in ["High Score Stocks 🔥", "Day Trading Stocks 🚀"]:
+                    with st.expander("🔥 View Day Trading Radar (Ranked Table)", expanded=True): st.markdown(render_highscore_terminal_table(df_stocks_display), unsafe_allow_html=True)
+                elif watchlist_mode != "Commodity 🛢️":
+                    with st.expander("🎯 View Trading Levels (Targets & Stop Loss)", expanded=True): st.markdown(render_levels_table(df_stocks_display), unsafe_allow_html=True)
+                
         else: st.info("No items found.")
             
     else: 
