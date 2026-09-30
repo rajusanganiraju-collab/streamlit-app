@@ -2750,10 +2750,14 @@ if not df.empty:
                         elif 'SELL' in strat_name: special_icon = "🔴 SELL"
                         elif strat_name != "": special_icon = strat_name
                         else: special_icon = "🚀"
+                                            
                     elif watchlist_mode == "Commodity 🛢️": special_icon = "🛢️"
                         
-                    html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">{special_icon}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if pct_val>0 else ""}{pct_val:.2f}%</div></a>'
-                st.markdown(html_stk + '</div>', unsafe_allow_html=True)
+                    # 52W Pullback పర్సంటేజ్ హీట్ మ్యాప్ లో చూపించడానికి
+                    pb_val = row.get('Pullback_52W', 0)
+                    pb_html = f" | <span style='color:#FFD700; font-size:11px;'>📉-{pb_val:.0f}%</span>" if pb_val >= 3.0 else ""
+                    
+                    html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">{special_icon}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if pct_val>0 else ""}{pct_val:.2f}%{pb_html}</div></a>'
                 
             if "AI Predictions" in watchlist_mode:
                 fno_buy = df_buy[df_buy['T'].isin(NIFTY_50 + FNO_STOCKS)]
