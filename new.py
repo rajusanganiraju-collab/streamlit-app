@@ -774,7 +774,7 @@ def fetch_all_data():
                 "Bull_P": bull_power, "Bear_P": bear_power,
                 "Is_Index": is_index, "Is_Sector": is_sector, "Sector": stock_sector, "Is_Commodity": is_commodity,
                 "SMA150_20D": sma150_20d, "Box_Top20": box_top_20, "Box_Bot20": box_bot_20,
-                "Pullback_52W": pullback_52w_pct,
+                "Pullback_52W": pullback_52w_pct
             })
         except: continue
     return pd.DataFrame(results)
