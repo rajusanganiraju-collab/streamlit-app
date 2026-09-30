@@ -1151,9 +1151,15 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
     
     strat_tag = f" <span style='font-size:10px; background:rgba(0,191,255,0.2); border:1px solid #00BFFF; padding:1px 4px; border-radius:3px; color:#00BFFF;'>{row.get('Strategy_Icon', '')}</span>" if row.get('Strategy_Icon') and row.get('Strategy_Icon') != "Neutral" else ""
     
-    # 52W Pullback పర్సంటేజ్ చార్ట్ పైన చూపించడానికి
-    pb_val = row.get('Pullback_52W', 0)
-    pb_tag = f" &nbsp;<span style='color:#FF8C00; font-size:11px;'>📉 -{pb_val:.1f}% from 52WH</span>" if pb_val >= 3.0 else ""
+    # 🔥 డైనమిక్ పుల్‌బ్యాక్ లాజిక్ (5m vs Daily/Weekly)
+    if timeframe == "Intraday (5m)":
+        day_high = float(row.get('H', 0))
+        ltp_now = float(row.get('P', 0))
+        intraday_pb = ((day_high - ltp_now) / day_high) * 100 if day_high > 0 else 0
+        pb_tag = f" &nbsp;<span style='color:#FF8C00; font-size:11px;'>📉 -{intraday_pb:.1f}% from Day High</span>" if intraday_pb >= 0.5 else ""
+    else:
+        pb_val = float(row.get('Pullback_52W', 0))
+        pb_tag = f" &nbsp;<span style='color:#FF8C00; font-size:11px;'>📉 -{pb_val:.1f}% from 52WH</span>" if pb_val >= 3.0 else ""
     
     title_html = f"<a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; line-height:1.2;'><b>{display_sym}</b>{strat_tag}<br><span style='font-size:12px; color:#cccccc;'>₹{row['P']:.2f} &nbsp;<span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span>{pb_tag}</span></a>"
     
@@ -1563,7 +1569,8 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
                 strat_opts = [
                     "All Day Trading Moves 🚀",
                     "🔥 First Hour Vol Breakout (ORB+VWAP)",
-                    "💥 Inside Bar Vol Breakout (NR7)"
+                    "💥 Inside Bar Vol Breakout (NR7)",
+                    "🧲 Intraday Dip & Support Bounce"
                 ]
             else:
                 strat_opts = [
@@ -1821,7 +1828,24 @@ if not df.empty:
                 df_ib = df_filtered[ib_cond].copy()
                 df_ib['Strategy_Icon'] = "💥 Inside Bar"
                 dfs_to_concat.append(df_ib)
-
+            elif strat == "🧲 Intraday Dip & Support Bounce":
+                # 1. Day high nundi 0.8% nundi 3% varaku dip ayyi undali
+                day_pullback = ((df_filtered['H'] - df_filtered['P']) / df_filtered['H']) * 100
+                dip_in_range = (day_pullback >= 0.8) & (day_pullback <= 3.0)
+                
+                # 2. VWAP leda EMA daggara support tisukovali
+                near_vwap = (df_filtered['P'] >= df_filtered['VWAP'] * 0.998) & (df_filtered['L'] <= df_filtered['VWAP'] * 1.002)
+                near_ema10 = (df_filtered['P'] >= df_filtered['W_EMA10'] * 0.998) & (df_filtered['L'] <= df_filtered['W_EMA10'] * 1.002)
+                near_support = near_vwap | near_ema10
+                
+                # 3. High volume tho bounce ayyi undali
+                bounce_candle = (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] > 0)
+                vol_surge = df_filtered['VolX'] >= 1.3
+                
+                intra_bounce_cond = has_history & dip_in_range & near_support & bounce_candle & vol_surge
+                df_intra_bounce = df_filtered[intra_bounce_cond].copy()
+                df_intra_bounce['Strategy_Icon'] = "🧲 Dip Bounce"
+                dfs_to_concat.append(df_intra_bounce)
             elif strat == "🧲 The 20-EMA Holy Grail Pullback":
                 hg_trend = (df_filtered['P'] > df_filtered['SMA50']) & (df_filtered['SMA50'] > df_filtered['SMA150'])
                 hg_pullback = (df_filtered['L'] <= df_filtered['W_EMA10'] * 1.02) & (df_filtered['P'] >= df_filtered['W_EMA10'])
