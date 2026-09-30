@@ -1601,7 +1601,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
             fund_filter = st.selectbox("Fundamentals Filter", ["Top Ranked Stocks ⭐", "🦅 Warren Buffett Value Stocks", "Swing Trading Candidates 📈", "Nifty 50 Stocks", "My Portfolio 💼"], index=0)
             
     with sc2:
-        sort_mode = st.selectbox("Sort By", ["Score Wise Up ⭐", "Custom Sort", "Sector Trending First 📊", "Score Wise Down ⬇️", "🤖 AI Prob Up ⬆️", "% Change Up 🟢", "% Change Down 🔴"], index=0)
+        sort_mode = st.selectbox("Sort By", ["Pullback % (High to Low) 📉", "Score Wise Up ⭐", "Custom Sort", "Sector Trending First 📊", "Score Wise Down ⬇️", "🤖 AI Prob Up ⬆️", "% Change Up 🟢", "% Change Down 🔴"], index=0)
         
     with sc3:
         search_stock = st.selectbox("Search Stock", ["-- None --"] + all_names)
@@ -2446,7 +2446,14 @@ if not df.empty:
         
         if 'Sector_Bonus' not in df_filtered.columns: df_filtered['Sector_Bonus'] = 0
         
-        if sort_mode == "% Change Up 🟢": df_stocks_display = df_filtered.sort_values(by=sort_key, ascending=False)
+        # 🔥 Day High / Day Low nundi entha percentage pullback vachindo ikkada calculate chestunnam
+        pb_buy = np.where(df_filtered['H'] > 0, ((df_filtered['H'] - df_filtered['P']) / df_filtered['H']) * 100, 0)
+        pb_sell = np.where(df_filtered['L'] > 0, ((df_filtered['P'] - df_filtered['L']) / df_filtered['L']) * 100, 0)
+        df_filtered['Intraday_PB'] = np.where(df_filtered['Day_C'] >= 0, pb_buy, pb_sell)
+        
+        # 🔥 Sort Mode check chestunnam
+        if sort_mode == "Pullback % (High to Low) 📉": df_stocks_display = df_filtered.sort_values(by='Intraday_PB', ascending=False)
+        elif sort_mode == "% Change Up 🟢": df_stocks_display = df_filtered.sort_values(by=sort_key, ascending=False)
         elif sort_mode == "% Change Down 🔴": df_stocks_display = df_filtered.sort_values(by=sort_key, ascending=True)
         elif sort_mode == "Sector Trending First 📊":
             if "AI_Prob" in df_filtered.columns: df_stocks_display = df_filtered.sort_values(by=['Sector_Bonus', 'AI_Prob', 'VolX'], ascending=[False, False, False])
