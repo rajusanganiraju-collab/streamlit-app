@@ -1150,7 +1150,12 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
             st.rerun()
     
     strat_tag = f" <span style='font-size:10px; background:rgba(0,191,255,0.2); border:1px solid #00BFFF; padding:1px 4px; border-radius:3px; color:#00BFFF;'>{row.get('Strategy_Icon', '')}</span>" if row.get('Strategy_Icon') and row.get('Strategy_Icon') != "Neutral" else ""
-    title_html = f"<a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; line-height:1.2;'><b>{display_sym}</b>{strat_tag}<br><span style='font-size:12px; color:#cccccc;'>₹{row['P']:.2f} &nbsp;<span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span></span></a>"
+    
+    # 52W Pullback పర్సంటేజ్ చార్ట్ పైన చూపించడానికి
+    pb_val = row.get('Pullback_52W', 0)
+    pb_tag = f" &nbsp;<span style='color:#FF8C00; font-size:11px;'>📉 -{pb_val:.1f}% from 52WH</span>" if pb_val >= 3.0 else ""
+    
+    title_html = f"<a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; line-height:1.2;'><b>{display_sym}</b>{strat_tag}<br><span style='font-size:12px; color:#cccccc;'>₹{row['P']:.2f} &nbsp;<span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span>{pb_tag}</span></a>"
     
     try:
         if not df_chart.empty and 'Low' in df_chart.columns and 'High' in df_chart.columns:
