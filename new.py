@@ -1842,34 +1842,39 @@ if not df.empty:
                 buy_mask = pd.Series(False, index=df_filtered.index)
                 sell_mask = pd.Series(False, index=df_filtered.index)
                 
-                # Prathi stock yokka 5-min chart data ni loop chestundi
-                for idx, r in df_filtered.iterrows():
-                    tkr = r['Fetch_T']
-                    if tkr in processed_charts and len(processed_charts[tkr]) >= 2:
-                        df_hist = processed_charts[tkr]
-                        c1 = df_hist.iloc[-1] # Present 5-min candle
-                        c2 = df_hist.iloc[-2] # Previous 5-min candle
-                        
-                        # --- CROSS UP (BUY) ---
-                        # Pata candle VWAP kinda undi, kotha candle VWAP paiki vachinda?
-                        cross_up = (c2['Close'] <= c2['VWAP']) and (c1['Close'] > c1['VWAP'])
-                        # Leda oke candle VWAP kinda open ayyi paiki close ayyinda?
-                        cross_up_candle = (c1['Open'] <= c1['VWAP']) and (c1['Close'] > c1['VWAP'])
-                        
-                        # --- CROSS DOWN (SELL) ---
-                        # Pata candle VWAP paina undi, kotha candle VWAP kinda paddada?
-                        cross_dn = (c2['Close'] >= c2['VWAP']) and (c1['Close'] < c1['VWAP'])
-                        # Leda oke candle VWAP paina open ayyi kinda close ayyinda?
-                        cross_dn_candle = (c1['Open'] >= c1['VWAP']) and (c1['Close'] < c1['VWAP'])
-                        
-                        if cross_up or cross_up_candle:
-                            buy_mask[idx] = True
-                        if cross_dn or cross_dn_candle:
-                            sell_mask[idx] = True
+                # 1. Munduga High Volume (>= 1.3x) unna stocks ni matrame filter cheddam
+                high_vol_stocks = df_filtered[df_filtered['VolX'] >= 1.3]['Fetch_T'].tolist()
+                
+                if high_vol_stocks:
+                    # 2. Aa high volume stocks ki matrame 5-min data fetch cheddam (Speed kosam)
+                    temp_5m_data = fetch_cached_5m_data(high_vol_stocks)
+                    
+                    for idx, r in df_filtered.iterrows():
+                        tkr = r['Fetch_T']
+                        if tkr in high_vol_stocks:
+                            try:
+                                df_raw = temp_5m_data[tkr] if isinstance(temp_5m_data.columns, pd.MultiIndex) else temp_5m_data
+                                df_hist = process_5m_data(df_raw)
+                                
+                                if not df_hist.empty and len(df_hist) >= 2:
+                                    c1 = df_hist.iloc[-1] # Present 5-min candle
+                                    c2 = df_hist.iloc[-2] # Previous 5-min candle
+                                    
+                                    # --- CROSS UP (BUY) ---
+                                    cross_up = (c2['Close'] <= c2['VWAP']) and (c1['Close'] > c1['VWAP'])
+                                    cross_up_candle = (c1['Open'] <= c1['VWAP']) and (c1['Close'] > c1['VWAP'])
+                                    
+                                    # --- CROSS DOWN (SELL) ---
+                                    cross_dn = (c2['Close'] >= c2['VWAP']) and (c1['Close'] < c1['VWAP'])
+                                    cross_dn_candle = (c1['Open'] >= c1['VWAP']) and (c1['Close'] < c1['VWAP'])
+                                    
+                                    if cross_up or cross_up_candle: buy_mask[idx] = True
+                                    if cross_dn or cross_dn_candle: sell_mask[idx] = True
+                            except: pass
                             
-                # Volume kachithamga 1.3x unte matrame filter chestundi
-                c_buy = has_history & buy_mask & (df_filtered['VolX'] >= 1.3)
-                c_sell = has_history & sell_mask & (df_filtered['VolX'] >= 1.3)
+                # 3. Final conditions apply cheyadam
+                c_buy = has_history & buy_mask 
+                c_sell = has_history & sell_mask 
                 
                 df_vwap_cross_buy = df_filtered[c_buy].copy()
                 if not df_vwap_cross_buy.empty:
