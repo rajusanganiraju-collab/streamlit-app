@@ -1579,7 +1579,8 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
                     "All Day Trading Moves 🚀",
                     "🔥 First Hour Vol Breakout (ORB+VWAP)",
                     "💥 Inside Bar Vol Breakout (NR7)",
-                    "🧲 Intraday Dip & Support Bounce"
+                    "🧲 Intraday Dip & Support Bounce",
+                    "⚡ Sudden VWAP Cross (Any Time)"  # <--- Idi kothaga add chesam
                 ]
             else:
                 strat_opts = [
@@ -1837,6 +1838,48 @@ if not df.empty:
                 df_ib = df_filtered[ib_cond].copy()
                 df_ib['Strategy_Icon'] = "💥 Inside Bar"
                 dfs_to_concat.append(df_ib)
+            elif strat == "⚡ Sudden VWAP Cross (Any Time)":
+                buy_mask = pd.Series(False, index=df_filtered.index)
+                sell_mask = pd.Series(False, index=df_filtered.index)
+                
+                # Prathi stock yokka 5-min chart data ni loop chestundi
+                for idx, r in df_filtered.iterrows():
+                    tkr = r['Fetch_T']
+                    if tkr in processed_charts and len(processed_charts[tkr]) >= 2:
+                        df_hist = processed_charts[tkr]
+                        c1 = df_hist.iloc[-1] # Present 5-min candle
+                        c2 = df_hist.iloc[-2] # Previous 5-min candle
+                        
+                        # --- CROSS UP (BUY) ---
+                        # Pata candle VWAP kinda undi, kotha candle VWAP paiki vachinda?
+                        cross_up = (c2['Close'] <= c2['VWAP']) and (c1['Close'] > c1['VWAP'])
+                        # Leda oke candle VWAP kinda open ayyi paiki close ayyinda?
+                        cross_up_candle = (c1['Open'] <= c1['VWAP']) and (c1['Close'] > c1['VWAP'])
+                        
+                        # --- CROSS DOWN (SELL) ---
+                        # Pata candle VWAP paina undi, kotha candle VWAP kinda paddada?
+                        cross_dn = (c2['Close'] >= c2['VWAP']) and (c1['Close'] < c1['VWAP'])
+                        # Leda oke candle VWAP paina open ayyi kinda close ayyinda?
+                        cross_dn_candle = (c1['Open'] >= c1['VWAP']) and (c1['Close'] < c1['VWAP'])
+                        
+                        if cross_up or cross_up_candle:
+                            buy_mask[idx] = True
+                        if cross_dn or cross_dn_candle:
+                            sell_mask[idx] = True
+                            
+                # Volume kachithamga 1.3x unte matrame filter chestundi
+                c_buy = has_history & buy_mask & (df_filtered['VolX'] >= 1.3)
+                c_sell = has_history & sell_mask & (df_filtered['VolX'] >= 1.3)
+                
+                df_vwap_cross_buy = df_filtered[c_buy].copy()
+                if not df_vwap_cross_buy.empty:
+                    df_vwap_cross_buy['Strategy_Icon'] = "🟢 VWAP Cross"
+                    dfs_to_concat.append(df_vwap_cross_buy)
+                    
+                df_vwap_cross_sell = df_filtered[c_sell].copy()
+                if not df_vwap_cross_sell.empty:
+                    df_vwap_cross_sell['Strategy_Icon'] = "🔴 VWAP Cross"
+                    dfs_to_concat.append(df_vwap_cross_sell)
             elif strat == "🧲 Intraday Dip & Support Bounce":
                 # 1. Day high nundi 0.8% nundi 3% varaku dip ayyi undali
                 day_pullback = ((df_filtered['H'] - df_filtered['P']) / df_filtered['H']) * 100
