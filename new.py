@@ -2861,7 +2861,7 @@ if not df.empty:
                 df_buy = df_stocks_display[df_stocks_display[sort_key] >= 0]
                 df_sell = df_stocks_display[df_stocks_display[sort_key] < 0]
 
-            def render_heatmap_section(df_sec, title, title_color):
+    def render_heatmap_section(df_sec, title, title_color):
                 st.markdown(f"<div style='font-size:16px; font-weight:bold; margin: 15px 0 5px 0; color:{title_color};'>{title}</div>", unsafe_allow_html=True)
                 html_stk = '<div class="heatmap-grid">'
                 for _, row in df_sec.iterrows():
@@ -2872,69 +2872,10 @@ if not df.empty:
                     if "AI Predictions" in watchlist_mode:
                         strat_name = str(row.get('Strategy_Icon', '')).strip()
                         if strat_name and strat_name != "Neutral":
-                            # పెద్ద పేర్లను చిన్న బ్యాడ్జ్ గా మార్చడం (కార్డ్ లో సరిగ్గా పట్టడానికి)
                             clean_strat = strat_name.replace(" BUY", "").replace(" SELL", "").replace("AI PREDICTS: UP", "🚀 AI").replace("AI PREDICTS: DOWN", "🩸 AI")
                             special_icon = clean_strat
                         elif sort_mode == "🤖 AI Prob Up ⬆️":
                             special_icon = f"🤖{int(row.get('AI_Prob', 0))}%"
-            elif watchlist_mode in ["Day Trading Stocks 🚀", "High Score Stocks 🔥"]:
-                df_buy_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('BUY', na=False)].head(12)
-                df_sell_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('SELL', na=False)].head(12)
-                
-                if not df_buy_chart.empty:
-                    st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:10px; margin-bottom:5px; color:#3fb950;'>🟢 POSITIVE / BUY ({watchlist_mode})</div>", unsafe_allow_html=True)
-                    render_chart_grid(df_buy_chart, show_pin_option=True, key_prefix="day_buy", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
-
-                if not df_sell_chart.empty:
-                    st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:20px; margin-bottom:5px; color:#f85149;'>🔴 NEGATIVE / SELL ({watchlist_mode})</div>", unsafe_allow_html=True)
-                    render_chart_grid(df_sell_chart, show_pin_option=True, key_prefix="day_sell", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
-
-            elif watchlist_mode == "Legendary Strategy 🏆":
-                if trade_style == "Swing Trading 📈":
-                    df_setups = unpinned_df.head(24)
-                    if not df_setups.empty:
-                        st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:10px; margin-bottom:5px; color:#3fb950;'>🟢 BULLISH SWING SETUPS (Above 200 EMA)</div>", unsafe_allow_html=True)
-                        render_chart_grid(df_setups, show_pin_option=True, key_prefix="leg_swing", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
-                else:
-                    df_buy_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('BUY|Breakout|Bounce|Cross', na=False, case=False)].head(12)
-                    df_sell_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('SELL|Breakdown', na=False, case=False)].head(12)
-                    
-                    if not df_buy_chart.empty:
-                        st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:10px; margin-bottom:5px; color:#3fb950;'>🟢 POSITIVE / BUY (Day Trading)</div>", unsafe_allow_html=True)
-                        render_chart_grid(df_buy_chart, show_pin_option=True, key_prefix="leg_day_buy", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
-                    if not df_sell_chart.empty:
-                        st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:20px; margin-bottom:5px; color:#f85149;'>🔴 NEGATIVE / SELL (Day Trading)</div>", unsafe_allow_html=True)
-                        render_chart_grid(df_sell_chart, show_pin_option=True, key_prefix="leg_day_sell", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
-                    
-                    if not df_buy_chart.empty:
-                        st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:10px; margin-bottom:5px; color:#3fb950;'>🟢 POSITIVE / BUY (Day Trading)</div>", unsafe_allow_html=True)
-                        render_chart_grid(df_buy_chart, show_pin_option=True, key_prefix="leg_day_buy", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
-                    if not df_sell_chart.empty:
-                        st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:20px; margin-bottom:5px; color:#f85149;'>🔴 NEGATIVE / SELL (Day Trading)</div>", unsafe_allow_html=True)
-                        render_chart_grid(df_sell_chart, show_pin_option=True, key_prefix="leg_day_sell", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
-            # 🔥 కింది బ్లాక్ కొత్తగా యాడ్ చేయండి 🔥
-            elif watchlist_mode == "Legendary Strategy 🏆":
-                if trade_style == "Swing Trading 📈":
-                    df_setups = unpinned_df.head(24)
-                    if not df_setups.empty:
-                        st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:10px; margin-bottom:5px; color:#3fb950;'>🟢 BULLISH SWING SETUPS (Above 200 EMA)</div>", unsafe_allow_html=True)
-                        render_chart_grid(df_setups, show_pin_option=True, key_prefix="leg_swing", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
-                else:
-                    df_buy_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('BUY|Breakout|Bounce|Cross', na=False, case=False)].head(12)
-                    df_sell_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('SELL|Breakdown', na=False, case=False)].head(12)
-                    
-                    if not df_buy_chart.empty:
-                        st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:10px; margin-bottom:5px; color:#3fb950;'>🟢 POSITIVE / BUY (Day Trading)</div>", unsafe_allow_html=True)
-                        render_chart_grid(df_buy_chart, show_pin_option=True, key_prefix="leg_day_buy", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
-                    if not df_sell_chart.empty:
-                        st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:20px; margin-bottom:5px; color:#f85149;'>🔴 NEGATIVE / SELL (Day Trading)</div>", unsafe_allow_html=True)
-                        render_chart_grid(df_sell_chart, show_pin_option=True, key_prefix="leg_day_sell", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
-            
-            else:
-                df_buy_chart = unpinned_df[unpinned_df[sort_key] >= 0].head(12)
-                # ... పాత కోడ్ కంటిన్యూ అవుతుంది ...
-                        else:
-                            special_icon = f"⭐{int(row['S'])}"
                     elif watchlist_mode == "Swing Trading 📈": 
                         strat_name = str(row.get('Strategy_Icon', ''))
                         if strat_name != "": special_icon = strat_name
@@ -2945,14 +2886,14 @@ if not df.empty:
                         elif 'SELL' in strat_name: special_icon = "🔴 SELL"
                         elif strat_name != "": special_icon = strat_name
                         else: special_icon = "🚀"
-                                            
-                    elif watchlist_mode == "Commodity 🛢️": special_icon = "🛢️"
+                    elif watchlist_mode == "Commodity 🛢️": special_icon = "🛢️️"
                         
-                    # 52W Pullback పర్సంటేజ్ హీట్ మ్యాప్ లో చూపించడానికి
                     pb_val = row.get('Pullback_52W', 0)
                     pb_html = f" | <span style='color:#FFD700; font-size:11px;'>📉-{pb_val:.0f}%</span>" if pb_val >= 3.0 else ""
                     
                     html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">{special_icon}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if pct_val>0 else ""}{pct_val:.2f}%{pb_html}</div></a>'
+                
+                st.markdown(html_stk + '</div>', unsafe_allow_html=True)
                 
             if "AI Predictions" in watchlist_mode:
                 fno_buy = df_buy[df_buy['T'].isin(NIFTY_50 + FNO_STOCKS)]
@@ -2978,48 +2919,11 @@ if not df.empty:
             elif watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"]:
                 with st.expander(f"🌊 View {watchlist_mode} Radar (Ranked Table)", expanded=True):
                     st.markdown(render_swing_terminal_table(df_stocks_display), unsafe_allow_html=True)
-                
-                # --- 📚 STRATEGY HELP GUIDE IN TELUGU ---
-                if watchlist_mode == "Legendary Strategy 🏆":
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    with st.expander("📚 ఈ స్ట్రాటజీలను ఎలా వాడాలి? (Telugu Trading Guide)", expanded=False):
-                        st.markdown("""
-                        <div style='background-color:#161b22; padding:15px; border-radius:10px; border: 1px solid #30363d;'>
-                        <h4 style='color:#00BFFF; margin-top:0px;'>1. 🔥 First Hour Vol Breakout (ORB + VWAP)</h4>
-                        <ul style='color:#c9d1d9; font-size:14px;'>
-                            <li><b>ఎప్పుడు వాడాలి:</b> ఇంట్రాడే లేదా 1-2 రోజుల కోసం. మార్నింగ్ 10:15 AM తర్వాత ఫిల్టర్ చూడాలి.</li>
-                            <li><b>ఎలా కొనాలి:</b> ప్రైస్ కచ్చితంగా VWAP లైన్ పైన ఉండాలి. ఈరోజు ఓపెన్ అయిన ప్రైస్ కిందకి పడకుండా సపోర్ట్ తీసుకుని (Open Drive) పైకి వెళ్తుంటే వెంటనే 5-నిమిషాల చార్ట్‌లో ఎంట్రీ తీసుకోవచ్చు.</li>
-                            <li><b>స్టాప్ లాస్ & టార్గెట్:</b> VWAP లైన్ కింద స్టాప్ లాస్ పెట్టుకోవాలి. ఇంట్రాడే అయితే 1:2 లాభం రాగానే బుక్ చేసుకోవచ్చు.</li>
-                        </ul>
-
-                        <h4 style='color:#3fb950; margin-top:15px;'>2. 💥 Inside Bar Vol Breakout (NR7)</h4>
-                        <ul style='color:#c9d1d9; font-size:14px;'>
-                            <li><b>ఎప్పుడు వాడాలి:</b> 2-5 రోజుల క్విక్ స్వింగ్ ట్రేడింగ్ కోసం.</li>
-                            <li><b>ఎలా కొనాలి:</b> నిన్న ఒకే రేంజ్ లో ఆగిపోయిన చిన్న క్యాండిల్ (Inside Bar) హై ని, ఈరోజు ప్రైస్ వాల్యూమ్ తో బ్రేక్ చేస్తుంటే బ్రేక్ అవుట్ లో కొనాలి.</li>
-                            <li><b>స్టాప్ లాస్ & టార్గెట్:</b> నిన్నటి చిన్న క్యాండిల్ లో (Low) కింద స్టాప్ లాస్. ఇది బ్రేక్అవుట్ కాబట్టి 10% - 15% టార్గెట్ ఆశించవచ్చు.</li>
-                        </ul>
-
-                        <h4 style='color:#FFD700; margin-top:15px;'>3. 🧲 The 20-EMA Holy Grail Pullback</h4>
-                        <ul style='color:#c9d1d9; font-size:14px;'>
-                            <li><b>ఎప్పుడు వాడాలి:</b> పటిష్టమైన అప్‌ట్రెండ్‌లో ఉన్న స్టాక్ కాస్త పడి సపోర్ట్ తీసుకుంటున్నప్పుడు (Buy on Dips).</li>
-                            <li><b>ఎలా కొనాలి:</b> ప్రైస్ పడుతూ వచ్చి 20-EMA (లేదా 10-Week EMA) ని టచ్ చేసి ఆగిపోయి, అక్కడి నుండి గ్రీన్ క్యాండిల్ వేస్తూ పైకి వెళ్తుంటే ఎంటర్ అవ్వాలి.</li>
-                            <li><b>స్టాప్ లాస్ & టార్గెట్:</b> సపోర్ట్ తీసుకున్న గ్రీన్ క్యాండిల్ లో (Low) కింద స్టాప్ లాస్. పడకముందు ఉన్న పాత హై (Swing High) ఫస్ట్ టార్గెట్.</li>
-                        </ul>
-
-                        <h4 style='color:#f85149; margin-top:15px;'>4. 📉 RSI(2) Mean Reversion (Larry Connors)</h4>
-                        <ul style='color:#c9d1d9; font-size:14px;'>
-                            <li><b>ఎప్పుడు వాడాలి:</b> 2-4 రోజుల ఫాస్ట్ స్వింగ్ కోసం (భయం లో ఉన్నప్పుడు కొనడం).</li>
-                            <li><b>ఎలా కొనాలి:</b> లాంగ్ టర్మ్ అప్‌ట్రెండ్‌లో ఉండి, వరుసగా 2-3 రోజులు పడిన స్టాక్స్.. ఈరోజు గ్రీన్ లో క్లోజ్ అవుతుంటే మార్కెట్ ముగిసే సమయంలో (3:20 PM కి) కొనాలి.</li>
-                            <li><b>స్టాప్ లాస్ & టార్గెట్:</b> ప్రైస్ పైకి వెళ్లి 5-డే SMA పైన క్లోజ్ అవ్వగానే అమ్మేయాలి (లారీ కానర్స్ రూల్). రిస్క్ మేనేజ్మెంట్ కోసం కొన్న ధర నుండి 2% లేదా 3% కింద స్టాప్ లాస్ పెట్టుకోవాలి.</li>
-                        </ul>
-                        </div>
-                        """, unsafe_allow_html=True)
             elif watchlist_mode in ["High Score Stocks 🔥", "Day Trading Stocks 🚀"]:
                 with st.expander("🔥 View Day Trading Radar (Ranked Table)", expanded=True): st.markdown(render_highscore_terminal_table(df_stocks_display), unsafe_allow_html=True)
             elif watchlist_mode != "Commodity 🛢️":
                 with st.expander("🎯 View Trading Levels (Targets & Stop Loss)", expanded=True): st.markdown(render_levels_table(df_stocks_display), unsafe_allow_html=True)
 
-        
         else: st.info("No items found.")
             
     else: 
@@ -3124,7 +3028,7 @@ if not df.empty:
                     st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:20px; margin-bottom:5px; color:#f85149;'>🔴 NEGATIVE / SELL (Swing Trading)</div>", unsafe_allow_html=True)
                     render_chart_grid(df_sell_chart, show_pin_option=True, key_prefix="swing_sell", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
 
-            elif watchlist_mode == "Day Trading Stocks 🚀":
+            elif watchlist_mode in ["Day Trading Stocks 🚀", "High Score Stocks 🔥"]:
                 df_buy_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('BUY', na=False)].head(12)
                 df_sell_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('SELL', na=False)].head(12)
                 
@@ -3135,7 +3039,24 @@ if not df.empty:
                 if not df_sell_chart.empty:
                     st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:20px; margin-bottom:5px; color:#f85149;'>🔴 NEGATIVE / SELL ({watchlist_mode})</div>", unsafe_allow_html=True)
                     render_chart_grid(df_sell_chart, show_pin_option=True, key_prefix="day_sell", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
+            
+            elif watchlist_mode == "Legendary Strategy 🏆":
+                if trade_style == "Swing Trading 📈":
+                    df_setups = unpinned_df.head(24)
+                    if not df_setups.empty:
+                        st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:10px; margin-bottom:5px; color:#3fb950;'>🟢 BULLISH SWING SETUPS (Above 200 EMA)</div>", unsafe_allow_html=True)
+                        render_chart_grid(df_setups, show_pin_option=True, key_prefix="leg_swing", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
+                else:
+                    df_buy_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('BUY|Breakout|Bounce|Cross', na=False, case=False)].head(12)
+                    df_sell_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('SELL|Breakdown', na=False, case=False)].head(12)
                     
+                    if not df_buy_chart.empty:
+                        st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:10px; margin-bottom:5px; color:#3fb950;'>🟢 POSITIVE / BUY (Day Trading)</div>", unsafe_allow_html=True)
+                        render_chart_grid(df_buy_chart, show_pin_option=True, key_prefix="leg_day_buy", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
+                    if not df_sell_chart.empty:
+                        st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:20px; margin-bottom:5px; color:#f85149;'>🔴 NEGATIVE / SELL (Day Trading)</div>", unsafe_allow_html=True)
+                        render_chart_grid(df_sell_chart, show_pin_option=True, key_prefix="leg_day_sell", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
+            
             else:
                 df_buy_chart = unpinned_df[unpinned_df[sort_key] >= 0].head(12)
                 df_sell_chart = unpinned_df[unpinned_df[sort_key] < 0].head(12)
@@ -3147,6 +3068,7 @@ if not df.empty:
                 if not df_sell_chart.empty:
                     st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:20px; margin-bottom:5px; color:#f85149;'>🔴 NEGATIVE / SELL ({watchlist_mode})</div>", unsafe_allow_html=True)
                     render_chart_grid(df_sell_chart, show_pin_option=True, key_prefix="main_sell", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
+
 # =========================================================
 # --- 📚 STRATEGY HELP GUIDE IN TELUGU (ALWAYS VISIBLE) ---
 # =========================================================
