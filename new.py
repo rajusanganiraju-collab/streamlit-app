@@ -676,7 +676,7 @@ def fetch_all_data():
             else:
                 box_top_20 = high_52w
                 box_bot_20 = low_52w
-                pullback_52w_pct = ((high_52w - ltp) / high_52w) * 100 if high_52w > 0 else 0
+            pullback_52w_pct = ((high_52w - ltp) / high_52w) * 100 if high_52w > 0 else 0
 
             vcp_price_contraction = False
             vcp_vol_dry = False
