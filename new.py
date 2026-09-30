@@ -1151,23 +1151,24 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
     
     strat_tag = f" <span style='font-size:10px; background:rgba(0,191,255,0.2); border:1px solid #00BFFF; padding:1px 4px; border-radius:3px; color:#00BFFF;'>{row.get('Strategy_Icon', '')}</span>" if row.get('Strategy_Icon') and row.get('Strategy_Icon') != "Neutral" else ""
     
-    # 🔥 డైనమిక్ పుల్‌బ్యాక్ లాజిక్ (పాజిటివ్ & నెగటివ్ స్టాక్స్ కి వేరువేరుగా)
+    # 🔥 డైనమిక్ పుల్‌బ్యాక్ లాజిక్ (ప్రతి స్టాక్‌కి కనబడేలా >= 0.1% కండిషన్ తో)
     if timeframe == "Intraday (5m)":
         day_high = float(row.get('H', 0))
         day_low = float(row.get('L', 0))
         ltp_now = float(row.get('P', 0))
         
         if pct_val >= 0:
-            # పాజిటివ్ స్టాక్ అయితే: డే హై నుండి ఎంత డిప్ అయ్యింది?
             intraday_pb = ((day_high - ltp_now) / day_high) * 100 if day_high > 0 else 0
-            pb_tag = f" &nbsp;<span style='color:#FF8C00; font-size:11px;'>📉 -{intraday_pb:.1f}% from Day High</span>" if intraday_pb >= 0.5 else ""
+            # 3.0 తీసేసి 0.1 పెట్టాను
+            pb_tag = f" &nbsp;<span style='color:#FF8C00; font-size:11px;'>📉 -{intraday_pb:.1f}% from Day High</span>" if intraday_pb >= 0.1 else ""
         else:
-            # నెగటివ్ స్టాక్ అయితే: డే లో నుండి ఎంత పైకి బౌన్స్ (పుల్‌బ్యాక్) అయ్యింది?
             intraday_bounce = ((ltp_now - day_low) / day_low) * 100 if day_low > 0 else 0
-            pb_tag = f" &nbsp;<span style='color:#00BFFF; font-size:11px;'>📈 +{intraday_bounce:.1f}% from Day Low</span>" if intraday_bounce >= 0.5 else ""
+            # 0.5 తీసేసి 0.1 పెట్టాను
+            pb_tag = f" &nbsp;<span style='color:#00BFFF; font-size:11px;'>📈 +{intraday_bounce:.1f}% from Day Low</span>" if intraday_bounce >= 0.1 else ""
     else:
         pb_val = float(row.get('Pullback_52W', 0))
-        pb_tag = f" &nbsp;<span style='color:#FF8C00; font-size:11px;'>📉 -{pb_val:.1f}% from 52WH</span>" if pb_val >= 3.0 else ""
+        # ఇక్కడ కూడా 3.0 తీసేసి 0.1 పెట్టాను
+        pb_tag = f" &nbsp;<span style='color:#FF8C00; font-size:11px;'>📉 -{pb_val:.1f}% from 52WH</span>" if pb_val >= 0.1 else ""
     
     title_html = f"<a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; line-height:1.2;'><b>{display_sym}</b>{strat_tag}<br><span style='font-size:12px; color:#cccccc;'>₹{row['P']:.2f} &nbsp;<span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span>{pb_tag}</span></a>"
     
