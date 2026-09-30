@@ -2886,7 +2886,7 @@ if not df.empty:
                         elif 'SELL' in strat_name: special_icon = "🔴 SELL"
                         elif strat_name != "": special_icon = strat_name
                         else: special_icon = "🚀"
-                    elif watchlist_mode == "Commodity 🛢️": special_icon = "🛢️️"
+                    elif watchlist_mode == "Commodity 🛢️": special_icon = "🛢"
                         
                     pb_val = row.get('Pullback_52W', 0)
                     pb_html = f" | <span style='color:#FFD700; font-size:11px;'>📉-{pb_val:.0f}%</span>" if pb_val >= 3.0 else ""
