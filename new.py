@@ -2578,28 +2578,21 @@ if not df.empty:
             ])
         elif sort_mode == "Intraday Bounce/Pullback 📈📉":
             df_temp = df_filtered.copy()
-            # Calculate % Bounce from Day Low
+            # 1. Calculate Bounce from Day Low and Drop from Day High
             df_temp['Bounce_DL'] = np.where(df_temp['L'] > 0, ((df_temp['P'] - df_temp['L']) / df_temp['L']) * 100, 0)
-            # Calculate % Drop from Day High
             df_temp['Drop_DH'] = np.where(df_temp['H'] > 0, ((df_temp['H'] - df_temp['P']) / df_temp['H']) * 100, 0)
             
-            # Identify BUY vs SELL stocks based on Strategy Icon or Net Change
-            is_buy = df_temp['Strategy_Icon'].str.contains('BUY|VCP|ORB_BUY|🟢|🚀', case=False, na=False) | (df_temp[sort_key] >= 0)
+            # 2. Perfect SELL identification using your red icons
+            is_sell = df_temp['Strategy_Icon'].str.contains('🔴|🩸|SELL|Bear', case=False, na=False)
+            is_buy = ~is_sell
             
-            # Assign the appropriate metric to a new column 'Sort_Metric'
+            # 3. Apply respective metric (Bounce for Buy, Drop for Sell)
             df_temp['Sort_Metric'] = np.where(is_buy, df_temp['Bounce_DL'], df_temp['Drop_DH'])
             
-            # Separate BUY and SELL stocks
-            df_buy = df_temp[is_buy].copy()
-            df_sell = df_temp[~is_buy].copy()
+            # 4. Sort internally and combine
+            df_buy = df_temp[is_buy].sort_values(by=['Sort_Metric', 'VolX'], ascending=[False, False])
+            df_sell = df_temp[is_sell].sort_values(by=['Sort_Metric', 'VolX'], ascending=[False, False])
             
-            # Sort BUY stocks by highest Bounce_DL (descending)
-            df_buy = df_buy.sort_values(by=['Sort_Metric', 'VolX'], ascending=[False, False])
-            
-            # Sort SELL stocks by highest Drop_DH (descending)
-            df_sell = df_sell.sort_values(by=['Sort_Metric', 'VolX'], ascending=[False, False])
-            
-            # Combine them back together
             df_stocks_display = pd.concat([df_buy, df_sell])
         else:
             if "AI Predictions" in watchlist_mode: df_stocks_display = df_filtered.sort_values(by=['AI_Prob', 'VolX'], ascending=[False, False])
