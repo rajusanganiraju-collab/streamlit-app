@@ -1601,7 +1601,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
             fund_filter = st.selectbox("Fundamentals Filter", ["Top Ranked Stocks ⭐", "🦅 Warren Buffett Value Stocks", "Swing Trading Candidates 📈", "Nifty 50 Stocks", "My Portfolio 💼"], index=0)
             
     with sc2:
-        sort_mode = st.selectbox("Sort By", ["Score Wise Up ⭐", "Custom Sort", "Sector Trending First 📊", "Score Wise Down ⬇️", "🤖 AI Prob Up ⬆️", "% Change Up 🟢", "% Change Down 🔴"], index=0)
+        sort_mode = st.selectbox("Sort By", ["Score Wise Up ⭐", "Custom Sort", "Sector Trending First 📊", "Score Wise Down ⬇️", "🤖 AI Prob Up ⬆️", "% Change Up 🟢", "% Change Down 🔴", "Intraday Bounce/Pullback 📈📉"], index=0)
         
     with sc3:
         search_stock = st.selectbox("Search Stock", ["-- None --"] + all_names)
@@ -2576,6 +2576,23 @@ if not df.empty:
                 df_filtered[df_filtered[sort_key] < 0].sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, True]), 
                 df_filtered[df_filtered[sort_key] >= 0].sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, False])
             ])
+        elif sort_mode == "Intraday Bounce/Pullback 📈📉":
+            df_temp = df_filtered.copy()
+            # Calculate % from Day Low (Bounce) and % from Day High (Drop)
+            df_temp['Bounce_DL'] = np.where(df_temp['L'] > 0, ((df_temp['P'] - df_temp['L']) / df_temp['L']) * 100, 0)
+            df_temp['Drop_DH'] = np.where(df_temp['H'] > 0, ((df_temp['H'] - df_temp['P']) / df_temp['H']) * 100, 0)
+            
+            # Identify BUY vs SELL stocks based on Strategy Icon or Net Change
+            is_buy = df_temp['Strategy_Icon'].str.contains('BUY|VCP|ORB_BUY|🟢|🚀', case=False, na=False) | (df_temp[sort_key] >= 0)
+            
+            # Apply the specific metric (Bounce for BUY, Drop for SELL)
+            df_temp['Sort_Metric'] = np.where(is_buy, df_temp['Bounce_DL'], df_temp['Drop_DH'])
+            
+            # Sort BUYs by highest Bounce from DL, and SELLs by highest Drop from DH
+            df_buy = df_temp[is_buy].sort_values(by=['Sort_Metric', 'VolX'], ascending=[False, False])
+            df_sell = df_temp[~is_buy].sort_values(by=['Sort_Metric', 'VolX'], ascending=[False, False])
+            
+            df_stocks_display = pd.concat([df_buy, df_sell])
         else:
             if "AI Predictions" in watchlist_mode: df_stocks_display = df_filtered.sort_values(by=['AI_Prob', 'VolX'], ascending=[False, False])
             else: df_stocks_display = df_filtered.sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, False])
