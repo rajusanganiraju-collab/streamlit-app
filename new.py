@@ -1826,8 +1826,16 @@ if not df.empty:
                 orb_breakout = (df_filtered['P'] > df_filtered['O']) & ((df_filtered['O'] - df_filtered['L']) <= (df_filtered['P'] * 0.005))
                 orb_cond = has_history & orb_trend & orb_vol & orb_breakout
                 df_orb = df_filtered[orb_cond].copy()
-                df_orb['Strategy_Icon'] = "🔥 1-Hr Breakout"
+                df_orb['Strategy_Icon'] = "🟢 1-Hr Breakout"
                 dfs_to_concat.append(df_orb)
+
+                # Sell logic for ORB - Breakdown
+                orb_sell_trend = (df_filtered['P'] < df_filtered['VWAP']) & (df_filtered['Day_C'] < -1.0)
+                orb_sell_breakdown = (df_filtered['P'] < df_filtered['O']) & ((df_filtered['H'] - df_filtered['O']) <= (df_filtered['P'] * 0.005))
+                orb_sell_cond = has_history & orb_sell_trend & orb_vol & orb_sell_breakdown
+                df_orb_sell = df_filtered[orb_sell_cond].copy()
+                df_orb_sell['Strategy_Icon'] = "🔴 1-Hr Breakout"
+                dfs_to_concat.append(df_orb_sell)
 
             elif strat == "💥 Inside Bar Vol Breakout (NR7)":
                 ib_trend = df_filtered['P'] > df_filtered['SMA50']
@@ -1836,8 +1844,16 @@ if not df.empty:
                 ib_break = df_filtered['P'] > df_filtered['O']
                 ib_cond = has_history & ib_trend & ib_vol & ib_narrow & ib_break
                 df_ib = df_filtered[ib_cond].copy()
-                df_ib['Strategy_Icon'] = "💥 Inside Bar"
+                df_ib['Strategy_Icon'] = "🟢 Inside Bar"
                 dfs_to_concat.append(df_ib)
+
+                # Sell logic for Inside Bar - Breakdown
+                ib_sell_trend = df_filtered['P'] < df_filtered['SMA50']
+                ib_sell_break = df_filtered['P'] < df_filtered['O']
+                ib_sell_cond = has_history & ib_sell_trend & ib_vol & ib_narrow & ib_sell_break
+                df_ib_sell = df_filtered[ib_sell_cond].copy()
+                df_ib_sell['Strategy_Icon'] = "🔴 Inside Bar"
+                dfs_to_concat.append(df_ib_sell)
             elif strat == "⚡ Sudden VWAP Cross (Any Time)":
                 buy_mask = pd.Series(False, index=df_filtered.index)
                 sell_mask = pd.Series(False, index=df_filtered.index)
@@ -1889,20 +1905,32 @@ if not df.empty:
                 # 1. Day high nundi 0.8% nundi 3% varaku dip ayyi undali
                 day_pullback = ((df_filtered['H'] - df_filtered['P']) / df_filtered['H']) * 100
                 dip_in_range = (day_pullback >= 0.8) & (day_pullback <= 3.0)
-                
+
                 # 2. VWAP leda EMA daggara support tisukovali
                 near_vwap = (df_filtered['P'] >= df_filtered['VWAP'] * 0.998) & (df_filtered['L'] <= df_filtered['VWAP'] * 1.002)
                 near_ema10 = (df_filtered['P'] >= df_filtered['W_EMA10'] * 0.998) & (df_filtered['L'] <= df_filtered['W_EMA10'] * 1.002)
                 near_support = near_vwap | near_ema10
-                
+
                 # 3. High volume tho bounce ayyi undali
                 bounce_candle = (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] > 0)
                 vol_surge = df_filtered['VolX'] >= 1.3
-                
+
                 intra_bounce_cond = has_history & dip_in_range & near_support & bounce_candle & vol_surge
                 df_intra_bounce = df_filtered[intra_bounce_cond].copy()
-                df_intra_bounce['Strategy_Icon'] = "🧲 Dip Bounce"
+                df_intra_bounce['Strategy_Icon'] = "🟢 Dip Bounce"
                 dfs_to_concat.append(df_intra_bounce)
+
+                # Sell logic for Dip Bounce - Resistance Rejection
+                day_rally = ((df_filtered['P'] - df_filtered['L']) / df_filtered['L']) * 100
+                rally_in_range = (day_rally >= 0.8) & (day_rally <= 3.0)
+                near_vwap_resist = (df_filtered['P'] <= df_filtered['VWAP'] * 1.002) & (df_filtered['H'] >= df_filtered['VWAP'] * 0.998)
+                near_ema10_resist = (df_filtered['P'] <= df_filtered['W_EMA10'] * 1.002) & (df_filtered['H'] >= df_filtered['W_EMA10'] * 0.998)
+                near_resistance = near_vwap_resist | near_ema10_resist
+                reject_candle = (df_filtered['P'] < df_filtered['O']) & (df_filtered['Day_C'] < 0)
+                intra_reject_cond = has_history & rally_in_range & near_resistance & reject_candle & vol_surge
+                df_intra_reject = df_filtered[intra_reject_cond].copy()
+                df_intra_reject['Strategy_Icon'] = "🔴 Dip Reject"
+                dfs_to_concat.append(df_intra_reject)
             elif strat == "🧲 The 20-EMA Holy Grail Pullback":
                 hg_trend = (df_filtered['P'] > df_filtered['SMA50']) & (df_filtered['SMA50'] > df_filtered['SMA150'])
                 hg_pullback = (df_filtered['L'] <= df_filtered['W_EMA10'] * 1.02) & (df_filtered['P'] >= df_filtered['W_EMA10'])
@@ -1910,23 +1938,50 @@ if not df.empty:
                 hg_vol = df_filtered['VolX'] >= 1.0
                 hg_cond = has_history & hg_trend & hg_pullback & hg_bounce & hg_vol
                 df_hg = df_filtered[hg_cond].copy()
-                df_hg['Strategy_Icon'] = "🧲 Holy Grail"
+                df_hg['Strategy_Icon'] = "🟢 Holy Grail"
                 dfs_to_concat.append(df_hg)
+
+                # Sell logic for Holy Grail - EMA Breakdown
+                hg_sell_trend = (df_filtered['P'] < df_filtered['SMA50']) & (df_filtered['SMA50'] < df_filtered['SMA150'])
+                hg_sell_breakdown = (df_filtered['P'] < df_filtered['W_EMA10'] * 0.98)
+                hg_sell_cond = has_history & hg_sell_trend & hg_sell_breakdown
+                df_hg_sell = df_filtered[hg_sell_cond].copy()
+                df_hg_sell['Strategy_Icon'] = "🔴 Holy Grail"
+                dfs_to_concat.append(df_hg_sell)
 
             elif strat == "📉 RSI(2) Mean Reversion (Larry Connors)":
                 lc_trend = df_filtered['P'] > df_filtered['SMA200']
                 lc_dip = df_filtered['P'] < df_filtered['W_EMA10']
                 lc_reversal = (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] > 0.5)
-                lc_severe_dip = df_filtered['P'] <= (df_filtered['Box_Top20'] * 0.97) 
+                lc_severe_dip = df_filtered['P'] <= (df_filtered['Box_Top20'] * 0.97)
                 lc_cond = has_history & lc_trend & lc_dip & lc_severe_dip & lc_reversal
                 df_lc = df_filtered[lc_cond].copy()
-                df_lc['Strategy_Icon'] = "📉 RSI Reversal"
+                df_lc['Strategy_Icon'] = "🟢 RSI Reversal"
                 dfs_to_concat.append(df_lc)
+
+                # Sell logic for RSI - Overbought Reversal
+                lc_sell_trend = df_filtered['P'] < df_filtered['SMA200']
+                lc_sell_spike = df_filtered['P'] > df_filtered['W_EMA10']
+                lc_sell_down = (df_filtered['P'] < df_filtered['O']) & (df_filtered['Day_C'] < -0.5)
+                lc_sell_severe_spike = df_filtered['P'] >= (df_filtered['Box_Top20'] * 1.03)
+                lc_sell_cond = has_history & lc_sell_trend & lc_sell_spike & lc_sell_down & lc_sell_severe_spike
+                df_lc_sell = df_filtered[lc_sell_cond].copy()
+                df_lc_sell['Strategy_Icon'] = "🔴 RSI Reversal"
+                dfs_to_concat.append(df_lc_sell)
 
             elif strat == "📈 Minervini Trend Template (VCP)":
                 df_min = df_filtered[vcp_base_cond].copy()
-                df_min['Strategy_Icon'] = "📈 M-VCP"
+                df_min['Strategy_Icon'] = "🟢 M-VCP"
                 dfs_to_concat.append(df_min)
+
+                # Sell logic for VCP - Downtrend
+                vcp_sell_c1 = df_filtered['P'] < df_filtered['SMA50']
+                vcp_sell_c2 = df_filtered['SMA50'] < df_filtered['SMA150']
+                vcp_sell_c3 = df_filtered['SMA150'] < df_filtered['SMA200']
+                vcp_sell_cond = has_history & vcp_sell_c1 & vcp_sell_c2 & vcp_sell_c3
+                df_vcp_sell = df_filtered[vcp_sell_cond].copy()
+                df_vcp_sell['Strategy_Icon'] = "🔴 M-VCP"
+                dfs_to_concat.append(df_vcp_sell)
                 
             elif strat == "📉 Strict VCP (Price & Vol Contraction)":
                 recent_tightness = ((df_filtered['Box_Top20'] - df_filtered['Box_Bot20']) / (df_filtered['Box_Bot20'] + 0.001)) <= 0.25
@@ -1934,19 +1989,36 @@ if not df.empty:
                 vcp_price_ok = df_filtered['P'] >= (df_filtered['High52W'] * 0.80)
                 strict_vcp_cond = (df_filtered['VCP_Contract'] == True) & recent_tightness & vcp_vol_dry_strict & vcp_price_ok
                 df_vcp = df_filtered[vcp_base_cond & strict_vcp_cond].copy()
-                df_vcp['Strategy_Icon'] = "📉 VCP"
+                df_vcp['Strategy_Icon'] = "🟢 VCP"
                 dfs_to_concat.append(df_vcp)
+
+                # Sell logic for Strict VCP
+                strict_vcp_sell_c1 = df_filtered['P'] < df_filtered['SMA50']
+                strict_vcp_sell_c2 = df_filtered['SMA50'] < df_filtered['SMA150']
+                strict_vcp_sell_c3 = df_filtered['SMA150'] < df_filtered['SMA200']
+                strict_vcp_sell_cond = has_history & strict_vcp_sell_c1 & strict_vcp_sell_c2 & strict_vcp_sell_c3
+                df_vcp_sell = df_filtered[strict_vcp_sell_cond].copy()
+                df_vcp_sell['Strategy_Icon'] = "🔴 VCP"
+                dfs_to_concat.append(df_vcp_sell)
 
             elif strat == "📦 Nicolas Darvas (Box Breakout)":
                 box_width = ((df_filtered['Box_Top20'] - df_filtered['Box_Bot20']) / (df_filtered['Box_Bot20'] + 0.001)) <= 0.25
                 darvas_trend = df_filtered['P'] > df_filtered['SMA50']
                 darvas_breakout = df_filtered['P'] >= df_filtered['Box_Top20']
                 darvas_high = df_filtered['P'] >= (df_filtered['High52W'] * 0.80)
-                darvas_vol = df_filtered['VolX'] >= 1.0 
+                darvas_vol = df_filtered['VolX'] >= 1.0
                 darvas_cond = has_history & darvas_trend & darvas_breakout & box_width & darvas_high & darvas_vol
                 df_darvas = df_filtered[darvas_cond].copy()
-                df_darvas['Strategy_Icon'] = "📦 Darvas"
+                df_darvas['Strategy_Icon'] = "🟢 Darvas"
                 dfs_to_concat.append(df_darvas)
+
+                # Sell logic for Darvas - Box Breakdown
+                darvas_breakdown = df_filtered['P'] <= df_filtered['Box_Bot20']
+                darvas_sell_trend = df_filtered['P'] < df_filtered['SMA50']
+                darvas_sell_cond = has_history & darvas_breakdown & darvas_sell_trend & box_width
+                df_darvas_sell = df_filtered[darvas_sell_cond].copy()
+                df_darvas_sell['Strategy_Icon'] = "🔴 Darvas"
+                dfs_to_concat.append(df_darvas_sell)
 
             elif strat == "📦 Nicolas Darvas Modified":
                 darvas_mod_breakout = df_filtered['P'] >= df_filtered['Box_Top20']
@@ -1955,22 +2027,40 @@ if not df.empty:
                 darvas_mod_trend = df_filtered['P'] > df_filtered['SMA50']
                 darvas_mod_cond = has_history & darvas_mod_trend & darvas_mod_breakout & darvas_mod_nochase & darvas_mod_vol
                 df_darvas_mod = df_filtered[darvas_mod_cond].copy()
-                df_darvas_mod['Strategy_Icon'] = "📦 Darvas Mod"
+                df_darvas_mod['Strategy_Icon'] = "🟢 Darvas Mod"
                 dfs_to_concat.append(df_darvas_mod)
 
+                # Sell logic for Darvas Modified
+                darvas_mod_breakdown = df_filtered['P'] <= df_filtered['Box_Bot20']
+                darvas_mod_sell_trend = df_filtered['P'] < df_filtered['SMA50']
+                darvas_mod_sell_cond = has_history & darvas_mod_breakdown & darvas_mod_sell_trend
+                df_darvas_mod_sell = df_filtered[darvas_mod_sell_cond].copy()
+                df_darvas_mod_sell['Strategy_Icon'] = "🔴 Darvas Mod"
+                dfs_to_concat.append(df_darvas_mod_sell)
+
             elif strat == "📈 Stan Weinstein (Stage 2 Uptrend)":
-                wein_c1 = df_filtered['P'] > df_filtered['SMA150'] 
-                wein_c2 = df_filtered['SMA150'] > df_filtered['SMA150_20D'] 
-                wein_c3 = df_filtered['SMA50'] > df_filtered['SMA150'] 
-                wein_c4 = df_filtered['P'] >= (df_filtered['High52W'] * 0.75) 
+                wein_c1 = df_filtered['P'] > df_filtered['SMA150']
+                wein_c2 = df_filtered['SMA150'] > df_filtered['SMA150_20D']
+                wein_c3 = df_filtered['SMA50'] > df_filtered['SMA150']
+                wein_c4 = df_filtered['P'] >= (df_filtered['High52W'] * 0.75)
                 wein_c5 = df_filtered['P'] >= (df_filtered['Low52W'] * 1.30)
                 weinstein_cond = has_history & wein_c1 & wein_c2 & wein_c3 & wein_c4 & wein_c5
                 df_weinstein = df_filtered[weinstein_cond].copy()
-                df_weinstein['Strategy_Icon'] = "📈 Stage 2"
+                df_weinstein['Strategy_Icon'] = "🟢 Stage 2"
                 dfs_to_concat.append(df_weinstein)
+
+                # Sell logic for Stage 4 Downtrend
+                wein_sell_c1 = df_filtered['P'] < df_filtered['SMA150']
+                wein_sell_c2 = df_filtered['SMA150'] < df_filtered['SMA150_20D']
+                wein_sell_c3 = df_filtered['SMA50'] < df_filtered['SMA150']
+                wein_sell_c4 = df_filtered['P'] <= (df_filtered['Low52W'] * 1.10)
+                wein_sell_cond = has_history & wein_sell_c1 & wein_sell_c2 & wein_sell_c3 & wein_sell_c4
+                df_weinstein_sell = df_filtered[wein_sell_cond].copy()
+                df_weinstein_sell['Strategy_Icon'] = "🔴 Stage 4"
+                dfs_to_concat.append(df_weinstein_sell)
                 
             elif strat == "💥 Dan Zanger (Volume Explosion)":
-                zanger_vol = df_filtered['VolX'] >= 1.5 
+                zanger_vol = df_filtered['VolX'] >= 1.5
                 zanger_ma = (df_filtered['P'] > df_filtered['SMA50']) & (df_filtered['SMA50'] > df_filtered['SMA150'])
                 bar_range = df_filtered['H'] - df_filtered['L']
                 close_position = (df_filtered['P'] - df_filtered['L']) / (bar_range + 0.001)
@@ -1979,8 +2069,17 @@ if not df.empty:
                 zanger_dryup = df_filtered['VCP_Vol_Dry'] == True
                 zanger_cond = has_history & zanger_vol & zanger_ma & zanger_close & zanger_breakout & zanger_dryup
                 df_zanger = df_filtered[zanger_cond].copy()
-                df_zanger['Strategy_Icon'] = "💥 Zanger"
+                df_zanger['Strategy_Icon'] = "🟢 Zanger"
                 dfs_to_concat.append(df_zanger)
+
+                # Sell logic for Zanger - Reversal
+                zanger_sell_ma = (df_filtered['P'] < df_filtered['SMA50']) & (df_filtered['SMA50'] < df_filtered['SMA150'])
+                zanger_sell_close = close_position <= 0.30
+                zanger_sell_breakdown = df_filtered['P'] <= (df_filtered['Box_Bot20'] * 1.02)
+                zanger_sell_cond = has_history & zanger_sell_ma & zanger_sell_close & zanger_sell_breakdown
+                df_zanger_sell = df_filtered[zanger_sell_cond].copy()
+                df_zanger_sell['Strategy_Icon'] = "🔴 Zanger"
+                dfs_to_concat.append(df_zanger_sell)
                 
             elif strat == "👑 King Strategy (SMA Bounce)":
                 king_c1 = df_filtered['SMA150'] > df_filtered['SMA200']
@@ -1990,11 +2089,24 @@ if not df.empty:
                 near_200 = (df_filtered['L'] <= df_filtered['SMA200'] * 1.03) & (df_filtered['P'] >= df_filtered['SMA200'])
                 touching_sma = near_50 | near_150 | near_200
                 bounce_up = (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] >= 1.0)
-                high_vol = df_filtered['VolX'] >= 1.5 
+                high_vol = df_filtered['VolX'] >= 1.5
                 king_cond = has_history & king_c1 & king_c2 & touching_sma & bounce_up & high_vol
                 df_king = df_filtered[king_cond].copy()
-                df_king['Strategy_Icon'] = "👑 King"
+                df_king['Strategy_Icon'] = "🟢 King"
                 dfs_to_concat.append(df_king)
+
+                # Sell logic for King - SMA Breakdown
+                king_sell_c1 = df_filtered['SMA150'] < df_filtered['SMA200']
+                king_sell_c2 = df_filtered['SMA50'] < df_filtered['SMA150']
+                break_50 = (df_filtered['P'] < df_filtered['SMA50'] * 0.97)
+                break_150 = (df_filtered['P'] < df_filtered['SMA150'] * 0.97)
+                break_200 = (df_filtered['P'] < df_filtered['SMA200'] * 0.97)
+                breaking_sma = break_50 | break_150 | break_200
+                bounce_down = (df_filtered['P'] < df_filtered['O']) & (df_filtered['Day_C'] <= -1.0)
+                king_sell_cond = has_history & king_sell_c1 & king_sell_c2 & breaking_sma & bounce_down
+                df_king_sell = df_filtered[king_sell_cond].copy()
+                df_king_sell['Strategy_Icon'] = "🔴 King"
+                dfs_to_concat.append(df_king_sell)
         
         # Anni strategies loop ayyaka kalipi oka DataFrame ga isthundi
         if dfs_to_concat:
