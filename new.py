@@ -3060,97 +3060,19 @@ if not df.empty:
                 if not df_sell.empty: render_heatmap_section(df_sell, f"🔴 NEGATIVE / SELL ({watchlist_mode})", "#f85149")
             
             if "AI Predictions" in watchlist_mode:
-                with st.expander("🤖 View AI Predictive Radar (Probability Based)", expanded=True): st.markdown(render_highscore_terminal_table(df_stocks_display), unsafe_allow_html=True)
+                with st.expander("🤖 View AI Predictive Radar (Probability Based)", expanded=True): 
+                    st.markdown(render_highscore_terminal_table(df_stocks_display), unsafe_allow_html=True)
             elif watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"]:
                 with st.expander(f"🌊 View {watchlist_mode} Radar (Ranked Table)", expanded=True):
                     st.markdown(render_swing_terminal_table(df_stocks_display), unsafe_allow_html=True)
+            elif watchlist_mode in ["High Score Stocks 🔥", "Day Trading Stocks 🚀"]:
+                with st.expander("🔥 View Day Trading Radar (Ranked Table)", expanded=True): 
+                    st.markdown(render_highscore_terminal_table(df_stocks_display), unsafe_allow_html=True)
+            elif watchlist_mode != "Commodity 🛢️":
+                with st.expander("🎯 View Trading Levels (Targets & Stop Loss)", expanded=True): 
+                    st.markdown(render_levels_table(df_stocks_display), unsafe_allow_html=True)
                 
-                # =========================================================
-# --- 📚 STRATEGY HELP GUIDE IN TELUGU (DYNAMIC) ---
-# =========================================================
-
-if "AI Predictions" in watchlist_mode or watchlist_mode == "Day Trading Stocks 🚀":
-    st.markdown("<hr style='border-color:#30363d; margin-top:30px;'>", unsafe_allow_html=True)
-    with st.expander("📚 ఈ డే ట్రేడింగ్ స్ట్రాటజీలను ఎలా వాడాలి? (Telugu Day Trading Guide)", expanded=False):
-        st.markdown("""
-        <div style='background-color:#161b22; padding:15px; border-radius:10px; border: 1px solid #30363d;'>
-        <h4 style='color:#00BFFF; margin-top:0px;'>🤖 AI Predictions Core Logic</h4>
-        <p style='color:#c9d1d9; font-size:14px; margin-bottom:15px;'>ఆల్గారిథమ్ వాల్యూమ్, VWAP దూరం, బుల్స్/బేర్స్ పవర్ (Bulls Power > 80), మరియు ఓపెన్=లో (O=L) లాంటి కండిషన్స్ ని చెక్ చేసి లైవ్ లో ఒక స్కోర్ ఇస్తుంది. ఈ స్కోర్ 70% దాటితేనే "🚀 AI PREDICTS: UP" లేదా "🩸 AI PREDICTS: DOWN" అని చూపిస్తుంది.</p>
-
-        <h4 style='color:#3fb950; margin-top:15px;'>1. 🔥 First Hour Vol Breakout (ORB+VWAP)</h4>
-        <ul style='color:#c9d1d9; font-size:14px;'>
-            <li><b>ఎప్పుడు వాడాలి:</b> మార్నింగ్ 9:30 AM నుండి 10:30 AM మధ్యలో.</li>
-            <li><b>లాజిక్ & ఎంట్రీ:</b> స్టాక్ కచ్చితంగా VWAP పైన ఉండాలి. ఉదయం ఓపెన్ అయిన ప్రైస్ కిందకి పడకుండా (Open Drive) పైకి వెళ్తూ, 1.5 రెట్ల (1.5x) వాల్యూమ్ తో బ్రేక్అవుట్ ఇస్తుంటే కొనాలి. VWAP కింద స్టాప్ లాస్.</li>
-        </ul>
-
-        <h4 style='color:#FFD700; margin-top:15px;'>2. ⚡ Sudden VWAP Cross (Any Time)</h4>
-        <ul style='color:#c9d1d9; font-size:14px;'>
-            <li><b>ఎప్పుడు వాడాలి:</b> రోజంతా ఎప్పుడైనా (ముఖ్యంగా మధ్యాహ్నం 1:00 PM తర్వాత బెస్ట్).</li>
-            <li><b>లాజిక్ & ఎంట్రీ:</b> అప్పటిదాకా VWAP కింద నెగటివ్ లో ఉన్న స్టాక్, సడెన్ గా పెద్ద వాల్యూమ్ తో (>= 1.3x) ఒకే 5-నిమిషాల క్యాండిల్ లో VWAP ని కింద నుండి పైకి క్రాస్ చేస్తే కొనాలి. క్రాస్ చేసిన క్యాండిల్ కిందే స్టాప్ లాస్.</li>
-        </ul>
-
-        <h4 style='color:#FF8C00; margin-top:15px;'>3. 🧲 Intraday Dip & Support Bounce</h4>
-        <ul style='color:#c9d1d9; font-size:14px;'>
-            <li><b>ఎప్పుడు వాడాలి:</b> మార్నింగ్ పెరిగి కాస్త వెనక్కి తగ్గినప్పుడు (Low Risk Entry కోసం).</li>
-            <li><b>లాజిక్ & ఎంట్రీ:</b> డే హై నుండి స్టాక్ 1% నుండి 3% వరకు పడి, కరెక్ట్ గా VWAP లైన్ లేదా 10-EMA లైన్ దగ్గర సపోర్ట్ తీసుకుని గ్రీన్ క్యాండిల్ వేస్తూ బౌన్స్ అవుతుంటే కొనాలి. సపోర్ట్ కిందే స్టాప్ లాస్.</li>
-        </ul>
-
-        <h4 style='color:#d29922; margin-top:15px;'>4. 💥 Inside Bar Vol Breakout (NR7)</h4>
-        <ul style='color:#c9d1d9; font-size:14px;'>
-            <li><b>ఎప్పుడు వాడాలి:</b> మొమెంటం బ్రేక్అవుట్స్ క్యాచ్ చేయడానికి.</li>
-            <li><b>లాజిక్ & ఎంట్రీ:</b> నిన్న ఒకే చిన్న రేంజ్ లో కదలకుండా ఉన్న (Inside Bar / Narrow Range) స్టాక్, ఈరోజు ఆ రేంజ్ ని వాల్యూమ్ తో బ్రేక్ చేస్తుంటే బ్రేక్అవుట్ ఎంట్రీ తీసుకోవాలి.</li>
-        </ul>
-
-        <h4 style='color:#2ea043; margin-top:15px;'>5. 🚀 Gap & Go (Open = Low)</h4>
-        <ul style='color:#c9d1d9; font-size:14px;'>
-            <li><b>ఎప్పుడు వాడాలి:</b> స్ట్రాంగ్ పాజిటివ్ ట్రెండ్ ఉన్న రోజుల్లో.</li>
-            <li><b>లాజిక్ & ఎంట్రీ:</b> గ్యాప్ అప్ తో ఓపెన్ అయిన స్టాక్, ఆ ఓపెన్ ప్రైస్ నే కనిష్టంగా (Open = Low) మార్చుకుని కిందకి రాకుండా పైకే వెళ్తుంటే ఈ స్కానర్ చూపిస్తుంది. ఈ స్టాక్స్ రోజంతా ట్రెండింగ్ లో ఉంటాయి.</li>
-        </ul>
-        </div>
-        """, unsafe_allow_html=True)
-
-elif watchlist_mode == "Legendary Strategy 🏆" or watchlist_mode == "Swing Trading 📈":
-    st.markdown("<hr style='border-color:#30363d; margin-top:30px;'>", unsafe_allow_html=True)
-    with st.expander("📚 ఈ స్వింగ్ ట్రేడింగ్ స్ట్రాటజీలను ఎలా వాడాలి? (Telugu Swing Trading Guide)", expanded=False):
-        st.markdown("""
-        <div style='background-color:#161b22; padding:15px; border-radius:10px; border: 1px solid #30363d;'>
-        <h4 style='color:#00BFFF; margin-top:0px;'>1. 👑 King Strategy (SMA Bounce)</h4>
-        <ul style='color:#c9d1d9; font-size:14px;'>
-            <li><b>ఎప్పుడు వాడాలి:</b> మంచి క్వాలిటీ స్టాక్స్ ని తక్కువ ధరకు (Buy on Dips) కొనేందుకు.</li>
-            <li><b>లాజిక్ & ఎంట్రీ:</b> లాంగ్ టర్మ్ ట్రెండ్ (50 SMA > 150 SMA > 200 SMA) పైన ఉండాలి. స్టాక్ పడుతూ వచ్చి 50, 150 లేదా 200 SMA దగ్గర సపోర్ట్ తీసుకుని లైవ్ లో వాల్యూమ్ తో బౌన్స్ అయితే కొనాలి.</li>
-        </ul>
-
-        <h4 style='color:#3fb950; margin-top:15px;'>2. 📈 Minervini Trend Template & Strict VCP</h4>
-        <ul style='color:#c9d1d9; font-size:14px;'>
-            <li><b>ఎప్పుడు వాడాలి:</b> పక్కా అప్‌ట్రెండ్ లో కన్సాలిడేట్ అవుతున్న స్టాక్స్ పట్టుకునేందుకు (Stage 2).</li>
-            <li><b>లాజిక్ & ఎంట్రీ:</b> 150 SMA & 200 SMA పైకి వంగి ఉండాలి (స్లోప్). ధర 52-వారాల హైకి 25% లోపలే ఉండాలి. స్ట్రిక్ట్ VCP అయితే గత కొన్ని రోజులుగా వాల్యూమ్ డ్రై అయిపోయి, బాక్స్ రేంజ్ బాగా సన్నబడి (Contraction) బ్రేక్అవుట్ కి రెడీగా ఉండాలి.</li>
-        </ul>
-
-        <h4 style='color:#FFD700; margin-top:15px;'>3. 📦 Nicolas Darvas & Modified Box</h4>
-        <ul style='color:#c9d1d9; font-size:14px;'>
-            <li><b>ఎప్పుడు వాడాలి:</b> 52-Week లేదా ఆల్-టైమ్ హై దగ్గర కొనేందుకు (Buy High, Sell Higher).</li>
-            <li><b>లాజిక్ & ఎంట్రీ:</b> ధర 50 SMA పైన ఉండాలి. కొన్ని రోజులుగా ఒక బాక్స్ రేంజ్ లో ఉండి, ఈరోజు వాల్యూమ్ తో బాక్స్ పై భాగాన్ని (Box Top) బ్రేక్ చేస్తే కొనాలి. (మోడిఫైడ్ వెర్షన్ అయితే.. బ్రేక్అవుట్ కోసం వెయిట్ చేయకుండా 0.5% దగ్గరలో ఉండగానే అలర్ట్ ఇస్తుంది).</li>
-        </ul>
-
-        <h4 style='color:#FF8C00; margin-top:15px;'>4. 🧲 The 20-EMA Holy Grail Pullback</h4>
-        <ul style='color:#c9d1d9; font-size:14px;'>
-            <li><b>ఎప్పుడు వాడాలి:</b> వేగంగా పెరుగుతున్న స్టాక్స్ కొద్దిగా పుల్ బ్యాక్ (వెనక్కి తగ్గినప్పుడు) ఇచ్చినప్పుడు.</li>
-            <li><b>లాజిక్ & ఎంట్రీ:</b> ట్రెండ్ బాగుండి (50 SMA > 150 SMA), రీసెంట్ గా పడి 10-Week EMA లేదా 20-Day EMA సపోర్ట్ ని టచ్ చేసి ఈరోజు బౌన్స్ ఇస్తుంటే క్యాచ్ చేయాలి. ఆ సపోర్ట్ కిందే స్టాప్ లాస్.</li>
-        </ul>
-
-        <h4 style='color:#d29922; margin-top:15px;'>5. 💥 Dan Zanger (Volume Explosion)</h4>
-        <ul style='color:#c9d1d9; font-size:14px;'>
-            <li><b>ఎప్పుడు వాడాలి:</b> సడెన్ గా ఆపరేటర్లు / ఇన్‌స్టిట్యూషన్స్ ఎంటర్ అయిన స్టాక్స్ పసిగట్టేందుకు.</li>
-            <li><b>లాజిక్ & ఎంట్రీ:</b> వాల్యూమ్ డ్రై అయిపోయి ప్రశాంతంగా ఉన్న స్టాక్ లో, ఈరోజు సడెన్ గా 1.5 రెట్ల (1.5x) వాల్యూమ్ తో పేలి బాక్స్ బ్రేక్అవుట్ ఇస్తే వెంటనే ఎంటర్ అవ్వాలి.</li>
-        </ul>
-
-        <h4 style='color:#f85149; margin-top:15px;'>6. 📉 RSI(2) Mean Reversion (Larry Connors)</h4>
-        <ul style='color:#c9d1d9; font-size:14px;'>
-            <li><b>ఎప్పుడు వాడాలి:</b> ఫాస్ట్ స్వింగ్స్ కోసం (2-4 రోజులు ట్రేడ్).</li>
-            <li><b>లాజిక్ & ఎంట్రీ:</b> 200 SMA పైన సేఫ్ ట్రెండ్ లో ఉన్న స్టాక్, ఏదైనా పానిక్ న్యూస్ వల్ల సడెన్ గా పడి 10-EMA కిందకి వస్తే దాన్ని ఫిల్టర్ చేస్తుంది. ఈరోజు మార్కెట్ ముగిసే టైంకి రికవర్ అయ్యి గ్రీన్ క్యాండిల్ వేస్తుంటే కొనాలి (Buy the Blood). మళ్ళీ ధర 5-Day SMA దాటగానే అమ్మేయాలి.</li>
-        </ul>
-        </div>
-        """, unsafe_allow_html=True)
+                
             elif watchlist_mode in ["High Score Stocks 🔥", "Day Trading Stocks 🚀"]:
                 with st.expander("🔥 View Day Trading Radar (Ranked Table)", expanded=True): st.markdown(render_highscore_terminal_table(df_stocks_display), unsafe_allow_html=True)
             elif watchlist_mode != "Commodity 🛢️":
@@ -3289,39 +3211,88 @@ elif watchlist_mode == "Legendary Strategy 🏆" or watchlist_mode == "Swing Tra
                     st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:20px; margin-bottom:5px; color:#f85149;'>🔴 NEGATIVE / SELL ({watchlist_mode})</div>", unsafe_allow_html=True)
                     render_chart_grid(df_sell_chart, show_pin_option=True, key_prefix="main_sell", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
 # =========================================================
-# --- 📚 STRATEGY HELP GUIDE IN TELUGU (ALWAYS VISIBLE) ---
+# --- 📚 STRATEGY HELP GUIDE IN TELUGU (DYNAMIC) ---
 # =========================================================
-if watchlist_mode == "Legendary Strategy 🏆":
+
+if "AI Predictions" in watchlist_mode or watchlist_mode == "Day Trading Stocks 🚀":
     st.markdown("<hr style='border-color:#30363d; margin-top:30px;'>", unsafe_allow_html=True)
-    with st.expander("📚 ఈ స్ట్రాటజీలను ఎలా వాడాలి? (Telugu Trading Guide)", expanded=False):
+    with st.expander("📚 ఈ డే ట్రేడింగ్ స్ట్రాటజీలను ఎలా వాడాలి? (Telugu Day Trading Guide)", expanded=False):
         st.markdown("""
         <div style='background-color:#161b22; padding:15px; border-radius:10px; border: 1px solid #30363d;'>
-        <h4 style='color:#00BFFF; margin-top:0px;'>1. 🔥 First Hour Vol Breakout (ORB + VWAP)</h4>
+        <h4 style='color:#00BFFF; margin-top:0px;'>🤖 AI Predictions Core Logic</h4>
+        <p style='color:#c9d1d9; font-size:14px; margin-bottom:15px;'>ఆల్గారిథమ్ వాల్యూమ్, VWAP దూరం, బుల్స్/బేర్స్ పవర్ (Bulls Power > 80), మరియు ఓపెన్=లో (O=L) లాంటి కండిషన్స్ ని చెక్ చేసి లైవ్ లో ఒక స్కోర్ ఇస్తుంది. ఈ స్కోర్ 70% దాటితేనే "🚀 AI PREDICTS: UP" లేదా "🩸 AI PREDICTS: DOWN" అని చూపిస్తుంది.</p>
+
+        <h4 style='color:#3fb950; margin-top:15px;'>1. 🔥 First Hour Vol Breakout (ORB+VWAP)</h4>
         <ul style='color:#c9d1d9; font-size:14px;'>
-            <li><b>ఎప్పుడు వాడాలి:</b> ఇంట్రాడే లేదా 1-2 రోజుల కోసం. మార్నింగ్ 10:15 AM తర్వాత ఫిల్టర్ చూడాలి.</li>
-            <li><b>ఎలా కొనాలి:</b> ప్రైస్ కచ్చితంగా VWAP లైన్ పైన ఉండాలి. ఈరోజు ఓపెన్ అయిన ప్రైస్ కిందకి పడకుండా సపోర్ట్ తీసుకుని (Open Drive) పైకి వెళ్తుంటే వెంటనే 5-నిమిషాల చార్ట్‌లో ఎంట్రీ తీసుకోవచ్చు.</li>
-            <li><b>స్టాప్ లాస్ & టార్గెట్:</b> VWAP లైన్ కింద స్టాప్ లాస్ పెట్టుకోవాలి. ఇంట్రాడే అయితే 1:2 లాభం రాగానే బుక్ చేసుకోవచ్చు.</li>
+            <li><b>ఎప్పుడు వాడాలి:</b> మార్నింగ్ 9:30 AM నుండి 10:30 AM మధ్యలో.</li>
+            <li><b>లాజిక్ & ఎంట్రీ:</b> స్టాక్ కచ్చితంగా VWAP పైన ఉండాలి. ఉదయం ఓపెన్ అయిన ప్రైస్ కిందకి పడకుండా (Open Drive) పైకి వెళ్తూ, 1.5 రెట్ల (1.5x) వాల్యూమ్ తో బ్రేక్అవుట్ ఇస్తుంటే కొనాలి. VWAP కింద స్టాప్ లాస్.</li>
         </ul>
 
-        <h4 style='color:#3fb950; margin-top:15px;'>2. 💥 Inside Bar Vol Breakout (NR7)</h4>
+        <h4 style='color:#FFD700; margin-top:15px;'>2. ⚡ Sudden VWAP Cross (Any Time)</h4>
         <ul style='color:#c9d1d9; font-size:14px;'>
-            <li><b>ఎప్పుడు వాడాలి:</b> 2-5 రోజుల క్విక్ స్వింగ్ ట్రేడింగ్ కోసం.</li>
-            <li><b>ఎలా కొనాలి:</b> నిన్న ఒకే రేంజ్ లో ఆగిపోయిన చిన్న క్యాండిల్ (Inside Bar) హై ని, ఈరోజు ప్రైస్ వాల్యూమ్ తో బ్రేక్ చేస్తుంటే బ్రేక్ అవుట్ లో కొనాలి.</li>
-            <li><b>స్టాప్ లాస్ & టార్గెట్:</b> నిన్నటి చిన్న క్యాండిల్ లో (Low) కింద స్టాప్ లాస్. ఇది బ్రేక్అవుట్ కాబట్టి 10% - 15% టార్గెట్ ఆశించవచ్చు.</li>
+            <li><b>ఎప్పుడు వాడాలి:</b> రోజంతా ఎప్పుడైనా (ముఖ్యంగా మధ్యాహ్నం 1:00 PM తర్వాత బెస్ట్).</li>
+            <li><b>లాజిక్ & ఎంట్రీ:</b> అప్పటిదాకా VWAP కింద నెగటివ్ లో ఉన్న స్టాక్, సడెన్ గా పెద్ద వాల్యూమ్ తో (>= 1.3x) ఒకే 5-నిమిషాల క్యాండిల్ లో VWAP ని కింద నుండి పైకి క్రాస్ చేస్తే కొనాలి. క్రాస్ చేసిన క్యాండిల్ కిందే స్టాప్ లాస్.</li>
         </ul>
 
-        <h4 style='color:#FFD700; margin-top:15px;'>3. 🧲 The 20-EMA Holy Grail Pullback</h4>
+        <h4 style='color:#FF8C00; margin-top:15px;'>3. 🧲 Intraday Dip & Support Bounce</h4>
         <ul style='color:#c9d1d9; font-size:14px;'>
-            <li><b>ఎప్పుడు వాడాలి:</b> పటిష్టమైన అప్‌ట్రెండ్‌లో ఉన్న స్టాక్ కాస్త పడి సపోర్ట్ తీసుకుంటున్నప్పుడు (Buy on Dips).</li>
-            <li><b>ఎలా కొనాలి:</b> ప్రైస్ పడుతూ వచ్చి 20-EMA (లేదా 10-Week EMA) ని టచ్ చేసి ఆగిపోయి, అక్కడి నుండి గ్రీన్ క్యాండిల్ వేస్తూ పైకి వెళ్తుంటే ఎంటర్ అవ్వాలి.</li>
-            <li><b>స్టాప్ లాస్ & టార్గెట్:</b> సపోర్ట్ తీసుకున్న గ్రీన్ క్యాండిల్ లో (Low) కింద స్టాప్ లాస్. పడకముందు ఉన్న పాత హై (Swing High) ఫస్ట్ టార్గెట్.</li>
+            <li><b>ఎప్పుడు వాడాలి:</b> మార్నింగ్ పెరిగి కాస్త వెనక్కి తగ్గినప్పుడు (Low Risk Entry కోసం).</li>
+            <li><b>లాజిక్ & ఎంట్రీ:</b> డే హై నుండి స్టాక్ 1% నుండి 3% వరకు పడి, కరెక్ట్ గా VWAP లైన్ లేదా 10-EMA లైన్ దగ్గర సపోర్ట్ తీసుకుని గ్రీన్ క్యాండిల్ వేస్తూ బౌన్స్ అవుతుంటే కొనాలి. సపోర్ట్ కిందే స్టాప్ లాస్.</li>
         </ul>
 
-        <h4 style='color:#f85149; margin-top:15px;'>4. 📉 RSI(2) Mean Reversion (Larry Connors)</h4>
+        <h4 style='color:#d29922; margin-top:15px;'>4. 💥 Inside Bar Vol Breakout (NR7)</h4>
         <ul style='color:#c9d1d9; font-size:14px;'>
-            <li><b>ఎప్పుడు వాడాలి:</b> 2-4 రోజుల ఫాస్ట్ స్వింగ్ కోసం (భయం లో ఉన్నప్పుడు కొనడం).</li>
-            <li><b>ఎలా కొనాలి:</b> లాంగ్ టర్మ్ అప్‌ట్రెండ్‌లో ఉండి, వరుసగా 2-3 రోజులు పడిన స్టాక్స్.. ఈరోజు గ్రీన్ లో క్లోజ్ అవుతుంటే మార్కెట్ ముగిసే సమయంలో (3:20 PM కి) కొనాలి.</li>
-            <li><b>స్టాప్ లాస్ & టార్గెట్:</b> ప్రైస్ పైకి వెళ్లి 5-డే SMA పైన క్లోజ్ అవ్వగానే అమ్మేయాలి (లారీ కానర్స్ రూల్). రిస్క్ మేనేజ్మెంట్ కోసం కొన్న ధర నుండి 2% లేదా 3% కింద స్టాప్ లాస్ పెట్టుకోవాలి.</li>
+            <li><b>ఎప్పుడు వాడాలి:</b> మొమెంటం బ్రేక్అవుట్స్ క్యాచ్ చేయడానికి.</li>
+            <li><b>లాజిక్ & ఎంట్రీ:</b> నిన్న ఒకే చిన్న రేంజ్ లో కదలకుండా ఉన్న (Inside Bar / Narrow Range) స్టాక్, ఈరోజు ఆ రేంజ్ ని వాల్యూమ్ తో బ్రేక్ చేస్తుంటే బ్రేక్అవుట్ ఎంట్రీ తీసుకోవాలి.</li>
+        </ul>
+
+        <h4 style='color:#2ea043; margin-top:15px;'>5. 🚀 Gap & Go (Open = Low)</h4>
+        <ul style='color:#c9d1d9; font-size:14px;'>
+            <li><b>ఎప్పుడు వాడాలి:</b> స్ట్రాంగ్ పాజిటివ్ ట్రెండ్ ఉన్న రోజుల్లో.</li>
+            <li><b>లాజిక్ & ఎంట్రీ:</b> గ్యాప్ అప్ తో ఓపెన్ అయిన స్టాక్, ఆ ఓపెన్ ప్రైస్ నే కనిష్టంగా (Open = Low) మార్చుకుని కిందకి రాకుండా పైకే వెళ్తుంటే ఈ స్కానర్ చూపిస్తుంది. ఈ స్టాక్స్ రోజంతా ట్రెండింగ్ లో ఉంటాయి.</li>
+        </ul>
+        </div>
+        """, unsafe_allow_html=True)
+
+elif watchlist_mode == "Legendary Strategy 🏆" or watchlist_mode == "Swing Trading 📈":
+    st.markdown("<hr style='border-color:#30363d; margin-top:30px;'>", unsafe_allow_html=True)
+    with st.expander("📚 ఈ స్వింగ్ ట్రేడింగ్ స్ట్రాటజీలను ఎలా వాడాలి? (Telugu Swing Trading Guide)", expanded=False):
+        st.markdown("""
+        <div style='background-color:#161b22; padding:15px; border-radius:10px; border: 1px solid #30363d;'>
+        <h4 style='color:#00BFFF; margin-top:0px;'>1. 👑 King Strategy (SMA Bounce)</h4>
+        <ul style='color:#c9d1d9; font-size:14px;'>
+            <li><b>ఎప్పుడు వాడాలి:</b> మంచి క్వాలిటీ స్టాక్స్ ని తక్కువ ధరకు (Buy on Dips) కొనేందుకు.</li>
+            <li><b>లాజిక్ & ఎంట్రీ:</b> లాంగ్ టర్మ్ ట్రెండ్ (50 SMA > 150 SMA > 200 SMA) పైన ఉండాలి. స్టాక్ పడుతూ వచ్చి 50, 150 లేదా 200 SMA దగ్గర సపోర్ట్ తీసుకుని లైవ్ లో వాల్యూమ్ తో బౌన్స్ అయితే కొనాలి.</li>
+        </ul>
+
+        <h4 style='color:#3fb950; margin-top:15px;'>2. 📈 Minervini Trend Template & Strict VCP</h4>
+        <ul style='color:#c9d1d9; font-size:14px;'>
+            <li><b>ఎప్పుడు వాడాలి:</b> పక్కా అప్‌ట్రెండ్ లో కన్సాలిడేట్ అవుతున్న స్టాక్స్ పట్టుకునేందుకు (Stage 2).</li>
+            <li><b>లాజిక్ & ఎంట్రీ:</b> 150 SMA & 200 SMA పైకి వంగి ఉండాలి (స్లోప్). ధర 52-వారాల హైకి 25% లోపలే ఉండాలి. స్ట్రిక్ట్ VCP అయితే గత కొన్ని రోజులుగా వాల్యూమ్ డ్రై అయిపోయి, బాక్స్ రేంజ్ బాగా సన్నబడి (Contraction) బ్రేక్అవుట్ కి రెడీగా ఉండాలి.</li>
+        </ul>
+
+        <h4 style='color:#FFD700; margin-top:15px;'>3. 📦 Nicolas Darvas & Modified Box</h4>
+        <ul style='color:#c9d1d9; font-size:14px;'>
+            <li><b>ఎప్పుడు వాడాలి:</b> 52-Week లేదా ఆల్-టైమ్ హై దగ్గర కొనేందుకు (Buy High, Sell Higher).</li>
+            <li><b>లాజిక్ & ఎంట్రీ:</b> ధర 50 SMA పైన ఉండాలి. కొన్ని రోజులుగా ఒక బాక్స్ రేంజ్ లో ఉండి, ఈరోజు వాల్యూమ్ తో బాక్స్ పై భాగాన్ని (Box Top) బ్రేక్ చేస్తే కొనాలి. (మోడిఫైడ్ వెర్షన్ అయితే.. బ్రేక్అవుట్ కోసం వెయిట్ చేయకుండా 0.5% దగ్గరలో ఉండగానే అలర్ట్ ఇస్తుంది).</li>
+        </ul>
+
+        <h4 style='color:#FF8C00; margin-top:15px;'>4. 🧲 The 20-EMA Holy Grail Pullback</h4>
+        <ul style='color:#c9d1d9; font-size:14px;'>
+            <li><b>ఎప్పుడు వాడాలి:</b> వేగంగా పెరుగుతున్న స్టాక్స్ కొద్దిగా పుల్ బ్యాక్ (వెనక్కి తగ్గినప్పుడు) ఇచ్చినప్పుడు.</li>
+            <li><b>లాజిక్ & ఎంట్రీ:</b> ట్రెండ్ బాగుండి (50 SMA > 150 SMA), రీసెంట్ గా పడి 10-Week EMA లేదా 20-Day EMA సపోర్ట్ ని టచ్ చేసి ఈరోజు బౌన్స్ ఇస్తుంటే క్యాచ్ చేయాలి. ఆ సపోర్ట్ కిందే స్టాప్ లాస్.</li>
+        </ul>
+
+        <h4 style='color:#d29922; margin-top:15px;'>5. 💥 Dan Zanger (Volume Explosion)</h4>
+        <ul style='color:#c9d1d9; font-size:14px;'>
+            <li><b>ఎప్పుడు వాడాలి:</b> సడెన్ గా ఆపరేటర్లు / ఇన్‌స్టిట్యూషన్స్ ఎంటర్ అయిన స్టాక్స్ పసిగట్టేందుకు.</li>
+            <li><b>లాజిక్ & ఎంట్రీ:</b> వాల్యూమ్ డ్రై అయిపోయి ప్రశాంతంగా ఉన్న స్టాక్ లో, ఈరోజు సడెన్ గా 1.5 రెట్ల (1.5x) వాల్యూమ్ తో పేలి బాక్స్ బ్రేక్అవుట్ ఇస్తే వెంటనే ఎంటర్ అవ్వాలి.</li>
+        </ul>
+
+        <h4 style='color:#f85149; margin-top:15px;'>6. 📉 RSI(2) Mean Reversion (Larry Connors)</h4>
+        <ul style='color:#c9d1d9; font-size:14px;'>
+            <li><b>ఎప్పుడు వాడాలి:</b> ఫాస్ట్ స్వింగ్స్ కోసం (2-4 రోజులు ట్రేడ్).</li>
+            <li><b>లాజిక్ & ఎంట్రీ:</b> 200 SMA పైన సేఫ్ ట్రెండ్ లో ఉన్న స్టాక్, ఏదైనా పానిక్ న్యూస్ వల్ల సడెన్ గా పడి 10-EMA కిందకి వస్తే దాన్ని ఫిల్టర్ చేస్తుంది. ఈరోజు మార్కెట్ ముగిసే టైంకి రికవర్ అయ్యి గ్రీన్ క్యాండిల్ వేస్తుంటే కొనాలి (Buy the Blood). మళ్ళీ ధర 5-Day SMA దాటగానే అమ్మేయాలి.</li>
         </ul>
         </div>
         """, unsafe_allow_html=True)
