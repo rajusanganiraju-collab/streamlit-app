@@ -3195,11 +3195,11 @@ if not df.empty:
                     
             else:
                 if watchlist_mode == "Legendary Strategy 🏆":
-                    df_sell_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4|🩸', na=False)].head(12)
-                    df_buy_chart = unpinned_df[(~unpinned_df['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4|🩸', na=False)) & (unpinned_df['Strategy_Icon'].str.contains('🟢|📈|🔥|🚀|BUY|UP|Stage 2', na=False))].head(12)
+                    df_sell_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4|🩸', na=False)].head(40) # 12 nundi 40 ki marchandi
+                    df_buy_chart = unpinned_df[(~unpinned_df['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4|🩸', na=False)) & (unpinned_df['Strategy_Icon'].str.contains('🟢|📈|🔥|🚀|BUY|UP|Stage 2', na=False))].head(40) # 12 nundi 40 ki marchandi
                 else:
-                    df_buy_chart = unpinned_df[unpinned_df[sort_key] >= 0].head(12)
-                    df_sell_chart = unpinned_df[unpinned_df[sort_key] < 0].head(12)
+                    df_buy_chart = unpinned_df[unpinned_df[sort_key] >= 0].head(40) # 12 nundi 40 ki
+                    df_sell_chart = unpinned_df[unpinned_df[sort_key] < 0].head(40) # 12 nundi 40 ki
                 
                 if not df_buy_chart.empty:
                     st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:10px; margin-bottom:5px; color:#3fb950;'>🟢 POSITIVE / BUY ({watchlist_mode})</div>", unsafe_allow_html=True)
