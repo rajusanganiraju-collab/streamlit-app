@@ -1610,7 +1610,8 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
             "Sort By", 
             [
                 "Score Wise Up ⭐", 
-                "52W Pullback Max 📉 (Deep Discount)",  # 👈 కొత్త ఆప్షన్
+                "Intraday Pullback Max 📉 (DH / DL)",  # 👈 ఈ కొత్త ఆప్షన్ యాడ్ చేయండి
+                "52W Pullback Max 📉 (Deep Discount)", 
                 "Custom Sort", 
                 "Sector Trending First 📊", 
                 "Score Wise Down ⬇️", 
@@ -2676,7 +2677,26 @@ if not df.empty:
         
         if 'Sector_Bonus' not in df_filtered.columns: df_filtered['Sector_Bonus'] = 0
         
-        if sort_mode == "52W Pullback Max 📉 (Deep Discount)":
+        # 🔥 Intraday Pullback (DH) & Bounce (DL) Calculations
+        df_filtered['Intra_DH_PB'] = np.where(df_filtered['H'] > 0, ((df_filtered['H'] - df_filtered['P']) / df_filtered['H']) * 100, 0.0)
+        df_filtered['Intra_DL_Bounce'] = np.where(df_filtered['L'] > 0, ((df_filtered['P'] - df_filtered['L']) / df_filtered['L']) * 100, 0.0)
+
+        if sort_mode == "Intraday Pullback Max 📉 (DH / DL)":
+            # SELL / Weak stocks ni gurtinche mask
+            if df_filtered['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4|🩸', na=False).any():
+                is_sell_mask = df_filtered['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4|🩸', na=False)
+            else:
+                is_sell_mask = df_filtered['Day_C'] < 0
+
+            # BUY side: Day high nundi ekkuva padinavi (DH Pullback Max) top loki vastayi
+            buy_subset = df_filtered[~is_sell_mask].sort_values(by=['Intra_DH_PB', 'S'], ascending=[False, False])
+            
+            # SELL side: Day low nundi ekkuva bounce ayinavi (DL Bounce Max) top loki vastayi
+            sell_subset = df_filtered[is_sell_mask].sort_values(by=['Intra_DL_Bounce', 'S'], ascending=[False, False])
+            
+            df_stocks_display = pd.concat([buy_subset, sell_subset])
+
+        elif sort_mode == "52W Pullback Max 📉 (Deep Discount)":
             df_stocks_display = df_filtered.sort_values(by=['Pullback_52W', 'S'], ascending=[False, False])
         elif sort_mode == "% Change Up 🟢": 
             df_stocks_display = df_filtered.sort_values(by=sort_key, ascending=False)
