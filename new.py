@@ -1579,7 +1579,6 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
         elif watchlist_mode == "Legendary Strategy 🏆":
             strat_opts = [
                 "All Swing Trading Moves 📈",
-                "🎯 52WH Pullback & 52WL Breakdown (Top 32)",
                 "🧲 The 20-EMA Holy Grail Pullback",
                 "📉 RSI(2) Mean Reversion (Larry Connors)",
                 "📈 Minervini Trend Template (VCP)",
@@ -1596,20 +1595,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
             fund_filter = st.selectbox("Fundamentals Filter", ["Top Ranked Stocks ⭐", "🦅 Warren Buffett Value Stocks", "Swing Trading Candidates 📈", "Nifty 50 Stocks", "My Portfolio 💼"], index=0)
             
     with sc2:
-        sort_mode = st.selectbox(
-            "Sort By", 
-        [
-            "Score Wise Up ⭐", 
-            "52W Pullback Max 📉 (Deep Discount)",  # 👈 కొత్త ఆప్షన్
-            "Custom Sort", 
-            "Sector Trending First 📊", 
-            "Score Wise Down ⬇️", 
-            "🤖 AI Prob Up ⬆️", 
-            "% Change Up 🟢", 
-            "% Change Down 🔴"
-        ], 
-        index=0
-    )
+        sort_mode = st.selectbox("Sort By", ["Score Wise Up ⭐", "Custom Sort", "Sector Trending First 📊", "Score Wise Down ⬇️", "🤖 AI Prob Up ⬆️", "% Change Up 🟢", "% Change Down 🔴"], index=0)
         
     with sc3:
         search_stock = st.selectbox("Search Stock", ["-- None --"] + all_names)
@@ -2092,25 +2078,7 @@ if not df.empty:
                 df_zanger_sell = df_filtered[zanger_sell_cond].copy()
                 df_zanger_sell['Strategy_Icon'] = "🔴 Zanger"
                 dfs_to_concat.append(df_zanger_sell)
-            # SMA150 కండిషన్ తీసేసి లేదా 200 SMA పైన ఉన్నా వచ్చేలా రిలాక్స్ చేయడం:
-                buy_trend = (df_filtered['Pullback_52W'] >= 5.0) & ((df_filtered['P'] > df_filtered['SMA200']) | (df_filtered['SMA200'] == 0))
-                df_52wh_buy = df_filtered[has_history & buy_trend].copy()
-                if not df_52wh_buy.empty:
-                    df_52wh_buy['Strategy_Icon'] = "🟢 52WH Pullback"
-                    # అత్యధికంగా పడిన స్టాక్ (Pullback_52W ఎక్కువ ఉన్నది) 1వ స్థానంలోకి వస్తుంది
-                    df_52wh_buy = df_52wh_buy.sort_values(by='Pullback_52W', ascending=False).head(32)
-                    dfs_to_concat.append(df_52wh_buy)
-
-                # --- 🔴 SELL SIDE (52-Week Low వైపు క్రాష్ అవుతున్న బలహీనమైన స్టాక్స్) ---
-                # 52WL కి 10% దగ్గరగా లేదా 200 SMA కింద ఉన్న స్టాక్స్
-                dist_from_52wl = ((df_filtered['P'] - df_filtered['Low52W']) / df_filtered['Low52W']) * 100
-                sell_trend = (df_filtered['P'] < df_filtered['SMA200']) & (dist_from_52wl <= 15.0)
-                df_52wl_sell = df_filtered[has_history & sell_trend].copy()
-                if not df_52wl_sell.empty:
-                    df_52wl_sell['Strategy_Icon'] = "🔴 52WL Breakdown"
-                    # 52WL కి అత్యంత దగ్గరగా పడిపోతున్న 32 స్టాక్స్
-                    df_52wl_sell = df_52wl_sell.sort_values(by='Pullback_52W', ascending=False).head(32)
-                    dfs_to_concat.append(df_52wl_sell)    
+                
             elif strat == "⏳ Anticipation SMA Base (20/50/150/200)":
                 # 1. Trend condition (SMA 150 > SMA 200 ayyi undali)
                 base_trend = (df_filtered['SMA150'] > df_filtered['SMA200']) | (df_filtered['SMA200'] == 0)
@@ -2667,12 +2635,8 @@ if not df.empty:
         
         if 'Sector_Bonus' not in df_filtered.columns: df_filtered['Sector_Bonus'] = 0
         
-        if sort_mode == "52W Pullback Max 📉 (Deep Discount)":
-            df_stocks_display = df_filtered.sort_values(by=['Pullback_52W', 'S'], ascending=[False, False])
-        elif sort_mode == "% Change Up 🟢": 
-            df_stocks_display = df_filtered.sort_values(by=sort_key, ascending=False)
-        elif sort_mode == "% Change Down 🔴": 
-            df_stocks_display = df_filtered.sort_values(by=sort_key, ascending=True)
+        if sort_mode == "% Change Up 🟢": df_stocks_display = df_filtered.sort_values(by=sort_key, ascending=False)
+        elif sort_mode == "% Change Down 🔴": df_stocks_display = df_filtered.sort_values(by=sort_key, ascending=True)
         elif sort_mode == "Sector Trending First 📊":
             if "AI_Prob" in df_filtered.columns: df_stocks_display = df_filtered.sort_values(by=['Sector_Bonus', 'AI_Prob', 'VolX'], ascending=[False, False, False])
             else: df_stocks_display = df_filtered.sort_values(by=['Sector_Bonus', 'S', 'VolX'], ascending=[False, False, False])
