@@ -662,6 +662,7 @@ def fetch_all_data():
                 bear_power = ((high - ltp) / high_low_range) * 100
 
             ema50_d = float(df['Close'].ewm(span=50, adjust=False).mean().iloc[-1]) if len(df) >= 50 else 0.0
+            sma20_d = float(df['Close'].rolling(window=20).mean().iloc[-1]) if len(df) >= 20 else 0.0
             sma50_d = float(df['Close'].rolling(window=50).mean().iloc[-1]) if len(df) >= 50 else 0.0
             sma150_d = float(df['Close'].rolling(window=150).mean().iloc[-1]) if len(df) >= 150 else 0.0
             sma200_d = float(df['Close'].rolling(window=200).mean().iloc[-1]) if len(df) >= 200 else 0.0
@@ -767,7 +768,7 @@ def fetch_all_data():
                 "VCP_Contract": vcp_price_contraction, "VCP_Vol_Dry": vcp_vol_dry,
                 "Fetch_T": symbol, "T": disp_name, "P": ltp, "O": open_p, "H": high, "L": low, "Prev_C": prev_c,
                 "Prev_H": prev_h, "Prev_L": prev_l, "W_EMA10": latest_w_ema10, "W_EMA50": latest_w_ema50, "D_EMA50": ema50_d,
-                "SMA50": sma50_d, "SMA150": sma150_d, "SMA200": sma200_d, "High52W": high_52w, "Low52W": low_52w, "SMA200_20D": sma200_20d,
+                "SMA20": sma20_d, "SMA50": sma50_d, "SMA150": sma150_d, "SMA200": sma200_d, "High52W": high_52w, "Low52W": low_52w, "SMA200_20D": sma200_20d,
                 "Day_C": day_chg, "C": net_chg, "W_C": float(weekly_net_chg), "S": score, "VolX": vol_x, "Is_Swing": is_swing,
                 "Is_W_Pullback": is_w_pullback, "VWAP": vwap,
                 "ATR": atr, "Narrow_CPR": is_narrow_cpr,
@@ -1586,7 +1587,8 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
                 "📦 Nicolas Darvas Modified",
                 "📈 Stan Weinstein (Stage 2 Uptrend)",
                 "💥 Dan Zanger (Volume Explosion)",
-                "👑 King Strategy (SMA Bounce)"
+                "👑 King Strategy (SMA Bounce)",
+                "⏳ Anticipation SMA Base (20/50/150/200)"
             ]
             move_type_filter = [st.selectbox("Select Strategy", strat_opts, key="legendary_filter_key")]
         elif watchlist_mode == "Fundamentals 🏢":
@@ -2077,32 +2079,44 @@ if not df.empty:
                 df_zanger_sell['Strategy_Icon'] = "🔴 Zanger"
                 dfs_to_concat.append(df_zanger_sell)
                 
-            elif strat == "👑 King Strategy (SMA Bounce)":
-                king_c1 = df_filtered['SMA150'] > df_filtered['SMA200']
-                king_c2 = df_filtered['SMA50'] > df_filtered['SMA150']
-                near_50 = (df_filtered['L'] <= df_filtered['SMA50'] * 1.03) & (df_filtered['P'] >= df_filtered['SMA50'])
-                near_150 = (df_filtered['L'] <= df_filtered['SMA150'] * 1.03) & (df_filtered['P'] >= df_filtered['SMA150'])
-                near_200 = (df_filtered['L'] <= df_filtered['SMA200'] * 1.03) & (df_filtered['P'] >= df_filtered['SMA200'])
-                touching_sma = near_50 | near_150 | near_200
-                bounce_up = (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] >= 1.0)
-                high_vol = df_filtered['VolX'] >= 1.5
-                king_cond = has_history & king_c1 & king_c2 & touching_sma & bounce_up & high_vol
-                df_king = df_filtered[king_cond].copy()
-                df_king['Strategy_Icon'] = "🟢 King"
-                dfs_to_concat.append(df_king)
+            elif strat == "⏳ Anticipation SMA Base (20/50/150/200)":
+                # ట్రెండ్ కండిషన్ (కనీసం 150 SMA పైకి వంగి లేదా 200 SMA పైన ఉండాలి)
+                base_trend = (df_filtered['SMA150'] > df_filtered['SMA200']) | (df_filtered['SMA200'] == 0)
+                
+                # వాల్యూమ్ తక్కువ ఉండాలి (Dry up - 0.8x కన్నా తక్కువ), క్యాండిల్ చిన్నగా (Consolidation) ఉండాలి
+                low_vol = df_filtered['VolX'] <= 0.8
+                small_candle = df_filtered['Day_C'].abs() <= 1.5
+                base_cond = has_history & base_trend & low_vol & small_candle
 
-                # Sell logic for King - SMA Breakdown
-                king_sell_c1 = df_filtered['SMA150'] < df_filtered['SMA200']
-                king_sell_c2 = df_filtered['SMA50'] < df_filtered['SMA150']
-                break_50 = (df_filtered['P'] < df_filtered['SMA50'] * 0.97)
-                break_150 = (df_filtered['P'] < df_filtered['SMA150'] * 0.97)
-                break_200 = (df_filtered['P'] < df_filtered['SMA200'] * 0.97)
-                breaking_sma = break_50 | break_150 | break_200
-                bounce_down = (df_filtered['P'] < df_filtered['O']) & (df_filtered['Day_C'] <= -1.0)
-                king_sell_cond = has_history & king_sell_c1 & king_sell_c2 & breaking_sma & bounce_down
-                df_king_sell = df_filtered[king_sell_cond].copy()
-                df_king_sell['Strategy_Icon'] = "🔴 King"
-                dfs_to_concat.append(df_king_sell)
+                # 20, 50, 150, 200 SMA దగ్గర 2% రేంజ్ లో సపోర్ట్ తీసుకుంటున్నవి (SMA కి కొద్దిగా పైన)
+                near_20 = (df_filtered['P'] >= df_filtered['SMA20'] * 0.99) & (df_filtered['L'] <= df_filtered['SMA20'] * 1.02)
+                near_50 = (df_filtered['P'] >= df_filtered['SMA50'] * 0.99) & (df_filtered['L'] <= df_filtered['SMA50'] * 1.02)
+                near_150 = (df_filtered['P'] >= df_filtered['SMA150'] * 0.99) & (df_filtered['L'] <= df_filtered['SMA150'] * 1.02)
+                near_200 = (df_filtered['P'] >= df_filtered['SMA200'] * 0.99) & (df_filtered['L'] <= df_filtered['SMA200'] * 1.02)
+
+                # 20 SMA - టాప్ 8 (వాల్యూమ్ ఎంత డ్రై అయితే అంత పైకి వస్తాయి)
+                df_20 = df_filtered[base_cond & near_20].copy()
+                if not df_20.empty:
+                    df_20['Strategy_Icon'] = "🟢 20-SMA Base"
+                    dfs_to_concat.append(df_20.sort_values(by='VolX', ascending=True).head(8))
+
+                # 50 SMA - టాప్ 8 (20 SMA లో వచ్చిన స్టాక్స్ మళ్ళీ రిపీట్ కాకుండా)
+                df_50 = df_filtered[base_cond & near_50 & ~df_filtered.index.isin(df_20.index)].copy()
+                if not df_50.empty:
+                    df_50['Strategy_Icon'] = "🟢 50-SMA Base"
+                    dfs_to_concat.append(df_50.sort_values(by='VolX', ascending=True).head(8))
+
+                # 150 SMA - టాప్ 8
+                df_150 = df_filtered[base_cond & near_150 & ~df_filtered.index.isin(df_20.index) & ~df_filtered.index.isin(df_50.index)].copy()
+                if not df_150.empty:
+                    df_150['Strategy_Icon'] = "🟢 150-SMA Base"
+                    dfs_to_concat.append(df_150.sort_values(by='VolX', ascending=True).head(8))
+
+                # 200 SMA - టాప్ 8
+                df_200 = df_filtered[base_cond & near_200 & ~df_filtered.index.isin(df_20.index) & ~df_filtered.index.isin(df_50.index) & ~df_filtered.index.isin(df_150.index)].copy()
+                if not df_200.empty:
+                    df_200['Strategy_Icon'] = "🟢 200-SMA Base"
+                    dfs_to_concat.append(df_200.sort_values(by='VolX', ascending=True).head(8))
         
         # Anni strategies loop ayyaka kalipi oka DataFrame ga isthundi
         if dfs_to_concat:
