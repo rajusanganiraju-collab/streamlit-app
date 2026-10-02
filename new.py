@@ -1595,7 +1595,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
             fund_filter = st.selectbox("Fundamentals Filter", ["Top Ranked Stocks ⭐", "🦅 Warren Buffett Value Stocks", "Swing Trading Candidates 📈", "Nifty 50 Stocks", "My Portfolio 💼"], index=0)
             
     with sc2:
-        sort_mode = st.selectbox("Sort By", ["52W High Pullback 📉", "Score Wise Up ⭐", "Custom Sort", "Sector Trending First 📊", "Score Wise Down ⬇️", "🤖 AI Prob Up ⬆️", "% Change Up 🟢", "% Change Down 🔴"], index=0)
+        sort_mode = st.selectbox("Sort By", ["Score Wise Up ⭐", "Custom Sort", "Sector Trending First 📊", "Score Wise Down ⬇️", "🤖 AI Prob Up ⬆️", "% Change Up 🟢", "% Change Down 🔴"], index=0)
         
     with sc3:
         search_stock = st.selectbox("Search Stock", ["-- None --"] + all_names)
@@ -2090,29 +2090,29 @@ if not df.empty:
                 near_150 = (df_filtered['P'] >= df_filtered['SMA150'] * 0.98) & (df_filtered['P'] <= df_filtered['SMA150'] * 1.02)
                 near_200 = (df_filtered['P'] >= df_filtered['SMA200'] * 0.98) & (df_filtered['P'] <= df_filtered['SMA200'] * 1.02)
 
-                # 20 SMA - Highest Pullback unna 8 stocks
+                # 20 SMA - Exactly 8 stocks
                 df_20 = df_filtered[base_cond & near_20].copy()
                 if not df_20.empty:
                     df_20['Strategy_Icon'] = "🟢 20-SMA Base"
-                    dfs_to_concat.append(df_20.sort_values(by='Pullback_52W', ascending=False).head(8))
+                    dfs_to_concat.append(df_20.sort_values(by='S', ascending=False).head(8))
 
-                # 50 SMA - Highest Pullback unna 8 stocks
+                # 50 SMA - Exactly 8 stocks (Repeat aveyykunda)
                 df_50 = df_filtered[base_cond & near_50 & ~df_filtered.index.isin(df_20.index)].copy()
                 if not df_50.empty:
                     df_50['Strategy_Icon'] = "🟢 50-SMA Base"
-                    dfs_to_concat.append(df_50.sort_values(by='Pullback_52W', ascending=False).head(8))
+                    dfs_to_concat.append(df_50.sort_values(by='S', ascending=False).head(8))
 
-                # 150 SMA - Highest Pullback unna 8 stocks
+                # 150 SMA - Exactly 8 stocks
                 df_150 = df_filtered[base_cond & near_150 & ~df_filtered.index.isin(df_20.index) & ~df_filtered.index.isin(df_50.index)].copy()
                 if not df_150.empty:
                     df_150['Strategy_Icon'] = "🟢 150-SMA Base"
-                    dfs_to_concat.append(df_150.sort_values(by='Pullback_52W', ascending=False).head(8))
+                    dfs_to_concat.append(df_150.sort_values(by='S', ascending=False).head(8))
 
-                # 200 SMA - Highest Pullback unna 8 stocks
+                # 200 SMA - Exactly 8 stocks
                 df_200 = df_filtered[base_cond & near_200 & ~df_filtered.index.isin(df_20.index) & ~df_filtered.index.isin(df_50.index) & ~df_filtered.index.isin(df_150.index)].copy()
                 if not df_200.empty:
                     df_200['Strategy_Icon'] = "🟢 200-SMA Base"
-                    dfs_to_concat.append(df_200.sort_values(by='Pullback_52W', ascending=False).head(8))
+                    dfs_to_concat.append(df_200.sort_values(by='S', ascending=False).head(8))
         
         # ---> FINAL CONCAT BLOCK <---
         if dfs_to_concat:
@@ -2635,23 +2635,8 @@ if not df.empty:
         
         if 'Sector_Bonus' not in df_filtered.columns: df_filtered['Sector_Bonus'] = 0
         
-        # 🔥 పక్కాగా పని చేసే బై/సెల్ సెపరేషన్ లాజిక్ (Day_C ఆధారంగా)
-        is_buy_mask = df_filtered['Day_C'] >= 0
-        
-        if sort_mode == "52W High Pullback 📉": 
-            df_buy_sorted = df_filtered[is_buy_mask].sort_values(by=['Pullback_52W', 'S'], ascending=[False, False])
-            df_sell_sorted = df_filtered[~is_buy_mask].sort_values(by=['Pullback_52W', 'S'], ascending=[False, False])
-            df_stocks_display = pd.concat([df_buy_sorted, df_sell_sorted])
-
-        elif sort_mode == "Intraday Pullback (DH / DL) 🎯":
-            df_buy_sorted = df_filtered[is_buy_mask].sort_values(by=['DH_Pullback', 'VolX'], ascending=[False, False])
-            df_sell_sorted = df_filtered[~is_buy_mask].sort_values(by=['DL_Bounce', 'VolX'], ascending=[False, False])
-            df_stocks_display = pd.concat([df_buy_sorted, df_sell_sorted])
-
-        elif sort_mode == "% Change Up 🟢": 
-            df_stocks_display = df_filtered.sort_values(by=sort_key, ascending=False)
-        elif sort_mode == "% Change Down 🔴": 
-            df_stocks_display = df_filtered.sort_values(by=sort_key, ascending=True)
+        if sort_mode == "% Change Up 🟢": df_stocks_display = df_filtered.sort_values(by=sort_key, ascending=False)
+        elif sort_mode == "% Change Down 🔴": df_stocks_display = df_filtered.sort_values(by=sort_key, ascending=True)
         elif sort_mode == "Sector Trending First 📊":
             if "AI_Prob" in df_filtered.columns: df_stocks_display = df_filtered.sort_values(by=['Sector_Bonus', 'AI_Prob', 'VolX'], ascending=[False, False, False])
             else: df_stocks_display = df_filtered.sort_values(by=['Sector_Bonus', 'S', 'VolX'], ascending=[False, False, False])
@@ -3104,14 +3089,8 @@ if not df.empty:
                 display_tkrs.extend(df_indices['Fetch_T'].tolist())
                 display_tkrs.extend(df_sectors['Fetch_T'].tolist())
             display_tkrs.extend(st.session_state.pinned_stocks)
-            
-            # 🔥 BUY లోంచి టాప్ 40, SELL లోంచి టాప్ 40 విడివిడిగా డేటా డౌన్‌లోడ్ అవుతుంది
-            if not df_stocks_display.empty:
-                b_mask = df_stocks_display['Strategy_Icon'].str.contains('🟢|BUY|UP|VCP|Stage 2|Darvas|Base', na=False) | (df_stocks_display['Day_C'] >= 0)
-                display_tkrs.extend(df_stocks_display[b_mask]['Fetch_T'].head(40).tolist())
-                display_tkrs.extend(df_stocks_display[~b_mask]['Fetch_T'].head(40).tolist())
-            
-            display_tkrs = list(set(display_tkrs))
+            display_tkrs.extend(df_stocks_display['Fetch_T'].head(30).tolist())
+            display_tkrs = list(set(display_tkrs)) 
             
             if display_tkrs:
                 hist_data = fetch_historical_charts_data(display_tkrs, chart_timeframe)
