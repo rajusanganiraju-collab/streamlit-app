@@ -1544,10 +1544,11 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
                 move_type_filter = st.multiselect("Strategy Filter",
                     [
                         "All Moves", 
-                        "🔥 First Hour Vol Breakout (ORB+VWAP)",  # <-- Added
-                        "💥 Inside Bar Vol Breakout (NR7)",        # <-- Added
-                        "🧲 Intraday Dip & Support Bounce",        # <-- Added
-                        "⚡ Sudden VWAP Cross (Any Time)",         # <-- Added
+                        "All Day Trading Moves 🚀", 
+                        "🔥 First Hour Vol Breakout (ORB+VWAP)", 
+                        "💥 Inside Bar Vol Breakout (NR7)", 
+                        "🧲 Intraday Dip & Support Bounce", 
+                        "⚡ Sudden VWAP Cross (Any Time)", 
                         "🚀 Gap & Go (Open = Low)", 
                         "💥 PDH / PDL Breakout", 
                         "🧲 VWAP Bounce (Low Risk Entry)", 
@@ -1575,30 +1576,18 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
                 key="swing_trading_filter_key" 
             )
         elif watchlist_mode == "Legendary Strategy 🏆":
-            trade_style = st.radio("Trading Style:", ["Day Trading 🚀", "Swing Trading 📈"], horizontal=True)
-            
-            if trade_style == "Day Trading 🚀":
-                strat_opts = [
-                    "All Day Trading Moves 🚀",
-                    "🔥 First Hour Vol Breakout (ORB+VWAP)",
-                    "💥 Inside Bar Vol Breakout (NR7)",
-                    "🧲 Intraday Dip & Support Bounce",
-                    "⚡ Sudden VWAP Cross (Any Time)"  # <--- Idi kothaga add chesam
-                ]
-            else:
-                strat_opts = [
-                    "All Swing Trading Moves 📈",
-                    "🧲 The 20-EMA Holy Grail Pullback",
-                    "📉 RSI(2) Mean Reversion (Larry Connors)",
-                    "📈 Minervini Trend Template (VCP)",
-                    "📉 Strict VCP (Price & Vol Contraction)",
-                    "📦 Nicolas Darvas (Box Breakout)",
-                    "📦 Nicolas Darvas Modified",
-                    "📈 Stan Weinstein (Stage 2 Uptrend)",
-                    "💥 Dan Zanger (Volume Explosion)",
-                    "👑 King Strategy (SMA Bounce)"
-                ]
-            
+            strat_opts = [
+                "All Swing Trading Moves 📈",
+                "🧲 The 20-EMA Holy Grail Pullback",
+                "📉 RSI(2) Mean Reversion (Larry Connors)",
+                "📈 Minervini Trend Template (VCP)",
+                "📉 Strict VCP (Price & Vol Contraction)",
+                "📦 Nicolas Darvas (Box Breakout)",
+                "📦 Nicolas Darvas Modified",
+                "📈 Stan Weinstein (Stage 2 Uptrend)",
+                "💥 Dan Zanger (Volume Explosion)",
+                "👑 King Strategy (SMA Bounce)"
+            ]
             move_type_filter = [st.selectbox("Select Strategy", strat_opts, key="legendary_filter_key")]
         elif watchlist_mode == "Fundamentals 🏢":
             fund_filter = st.selectbox("Fundamentals Filter", ["Top Ranked Stocks ⭐", "🦅 Warren Buffett Value Stocks", "Swing Trading Candidates 📈", "Nifty 50 Stocks", "My Portfolio 💼"], index=0)
@@ -1799,13 +1788,7 @@ if not df.empty:
         is_intraday = (chart_timeframe == "Intraday (5m)")
         is_weekly = (chart_timeframe == "Weekly Chart")
 
-        # --- ALL MOVES LOGIC ---
-        if strat_selection == "All Day Trading Moves 🚀":
-            strats_to_run = [
-                "🔥 First Hour Vol Breakout (ORB+VWAP)",
-                "💥 Inside Bar Vol Breakout (NR7)"
-            ]
-        elif strat_selection == "All Swing Trading Moves 📈":
+        if strat_selection == "All Swing Trading Moves 📈":
             strats_to_run = [
                 "🧲 The 20-EMA Holy Grail Pullback",
                 "📉 RSI(2) Mean Reversion (Larry Connors)",
@@ -2367,7 +2350,14 @@ if not df.empty:
             apply_fib_strict = "📉 FIB Retracement (0.382)" in move_type_filter
             other_strats_selected = [s for s in move_type_filter if s not in ["📉 FIB Retracement (0.382)", "All Moves"]]
             
-            strats_to_run = strategies_list if (not move_type_filter or "All Moves" in move_type_filter) else move_type_filter
+            if "All Day Trading Moves 🚀" in move_type_filter:
+                strats_to_run = [
+                    "🔥 First Hour Vol Breakout (ORB+VWAP)", "💥 Inside Bar Vol Breakout (NR7)", 
+                    "🧲 Intraday Dip & Support Bounce", "⚡ Sudden VWAP Cross (Any Time)"
+                ]
+            else:
+                strats_to_run = strategies_list if (not move_type_filter or "All Moves" in move_type_filter) else move_type_filter
+                
             if apply_fib_strict and (len(other_strats_selected) > 0 or "All Moves" in move_type_filter):
                 strats_to_run = [s for s in strats_to_run if s != "📉 FIB Retracement (0.382)"]
 
