@@ -1798,7 +1798,7 @@ if not df.empty:
         min_c4 = df_filtered['SMA150'] > df_filtered['SMA200']
         min_c5 = df_filtered['SMA200'] > df_filtered['SMA200_20D'] 
         min_c6 = df_filtered['P'] >= (df_filtered['Low52W'] * 1.25) 
-        min_c7 = df_filtered['P'] >= (df_filtered['High52W'] * 0.75) 
+        min_c7 = df_filtered['P'] >= (df_filtered['High52W'] * 0.70) 
         vcp_base_cond = has_history & min_c1 & min_c2 & min_c3 & min_c4 & min_c5 & min_c6 & min_c7
         
         strat_selection = move_type_filter[0] if isinstance(move_type_filter, list) else move_type_filter
