@@ -1974,17 +1974,19 @@ if not df.empty:
 
             elif strat == "📈 Minervini Trend Template (VCP)":
                 df_min = df_filtered[vcp_base_cond].copy()
-                df_min['Strategy_Icon'] = "🟢 M-VCP"
-                dfs_to_concat.append(df_min)
+                if not df_min.empty:
+                    df_min['Strategy_Icon'] = "🟢 M-VCP"
+                    dfs_to_concat.append(df_min)
 
-                # Sell logic for VCP - Downtrend
+                # Sell logic for VCP - Downtrend (Stage 4)
                 vcp_sell_c1 = df_filtered['P'] < df_filtered['SMA50']
                 vcp_sell_c2 = df_filtered['SMA50'] < df_filtered['SMA150']
                 vcp_sell_c3 = df_filtered['SMA150'] < df_filtered['SMA200']
                 vcp_sell_cond = has_history & vcp_sell_c1 & vcp_sell_c2 & vcp_sell_c3
                 df_vcp_sell = df_filtered[vcp_sell_cond].copy()
-                df_vcp_sell['Strategy_Icon'] = "🔴 M-VCP"
-                dfs_to_concat.append(df_vcp_sell)
+                if not df_vcp_sell.empty:
+                    df_vcp_sell['Strategy_Icon'] = "🔴 M-VCP"
+                    dfs_to_concat.append(df_vcp_sell)
                 
             elif strat == "📉 Strict VCP (Price & Vol Contraction)":
                 recent_tightness = ((df_filtered['Box_Top20'] - df_filtered['Box_Bot20']) / (df_filtered['Box_Bot20'] + 0.001)) <= 0.25
@@ -2556,7 +2558,12 @@ if not df.empty:
                     cond6 = df_filtered['P'] >= (df_filtered['Low52W'] * 1.30)
                     cond7 = df_filtered['P'] >= (df_filtered['High52W'] * 0.75)
                     c_buy = base_buy & cond1 & cond2 & cond3 & cond4 & cond5 & cond6 & cond7
-                    c_sell = pd.Series(False, index=df_filtered.index)
+                    
+                    # Sell Logic - 50 SMA Breakdown
+                    sell_c1 = df_filtered['P'] < df_filtered['SMA50']
+                    sell_c2 = df_filtered['SMA50'] < df_filtered['SMA150']
+                    c_sell = base_sell & sell_c1 & sell_c2
+                    
                     icon_str = "📈 M-VCP"
                 elif strat == "📉 Strict VCP (Price & Vol Contraction)":
                     cond1 = (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['P'] > df_filtered['SMA200'])
