@@ -2092,10 +2092,8 @@ if not df.empty:
                 df_zanger_sell = df_filtered[zanger_sell_cond].copy()
                 df_zanger_sell['Strategy_Icon'] = "🔴 Zanger"
                 dfs_to_concat.append(df_zanger_sell)
-            elif strat == "🎯 52WH Pullback & 52WL Breakdown (Top 32)":
-                # --- 🟢 BUY SIDE (52WH నుండి Deep Pullback & Support లో ఉన్నవి) ---
-                # 52WH నుండి 5% కంటే ఎక్కువ పడిపోయిన అప్‌ట్రెండ్ స్టాక్స్ (TATACOMM లాంటివి)
-                buy_trend = (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['Pullback_52W'] >= 5.0)
+            # SMA150 కండిషన్ తీసేసి లేదా 200 SMA పైన ఉన్నా వచ్చేలా రిలాక్స్ చేయడం:
+                buy_trend = (df_filtered['Pullback_52W'] >= 5.0) & ((df_filtered['P'] > df_filtered['SMA200']) | (df_filtered['SMA200'] == 0))
                 df_52wh_buy = df_filtered[has_history & buy_trend].copy()
                 if not df_52wh_buy.empty:
                     df_52wh_buy['Strategy_Icon'] = "🟢 52WH Pullback"
