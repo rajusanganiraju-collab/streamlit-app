@@ -1597,20 +1597,20 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
             fund_filter = st.selectbox("Fundamentals Filter", ["Top Ranked Stocks ⭐", "🦅 Warren Buffett Value Stocks", "Swing Trading Candidates 📈", "Nifty 50 Stocks", "My Portfolio 💼"], index=0)
             
     with sc2:
-    sort_mode = st.selectbox(
-        "Sort By", 
-        [
-            "Score Wise Up ⭐", 
-            "52W Pullback Max 📉 (Deep Discount)",  # 👈 కొత్త ఆప్షన్
-            "Custom Sort", 
-            "Sector Trending First 📊", 
-            "Score Wise Down ⬇️", 
-            "🤖 AI Prob Up ⬆️", 
-            "% Change Up 🟢", 
-            "% Change Down 🔴"
-        ], 
-        index=0
-    )
+        sort_mode = st.selectbox(
+            "Sort By", 
+            [
+                "Score Wise Up ⭐", 
+                "52W Pullback Max 📉 (Deep Discount)",  # 👈 కొత్త ఆప్షన్
+                "Custom Sort", 
+                "Sector Trending First 📊", 
+                "Score Wise Down ⬇️", 
+                "🤖 AI Prob Up ⬆️", 
+                "% Change Up 🟢", 
+                "% Change Down 🔴"
+            ], 
+            index=0
+        )
         
     with sc3:
         search_stock = st.selectbox("Search Stock", ["-- None --"] + all_names)
