@@ -2989,9 +2989,9 @@ if not df.empty:
             st.markdown(html_sec + '</div><hr class="custom-hr">', unsafe_allow_html=True)
 
         if not df_stocks_display.empty:
-            if watchlist_mode == "Day Trading Stocks 🚀":
-                df_buy = df_stocks_display[df_stocks_display['Strategy_Icon'].str.contains('BUY', na=False)]
-                df_sell = df_stocks_display[df_stocks_display['Strategy_Icon'].str.contains('SELL', na=False)]
+            if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆", "Day Trading Stocks 🚀"] or "AI Predictions" in watchlist_mode:
+                df_buy = df_stocks_display[df_stocks_display['Strategy_Icon'].str.contains('🟢|BUY|UP|VCP|Stage 2|Darvas', na=False)]
+                df_sell = df_stocks_display[df_stocks_display['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4', na=False)]
             else:
                 df_buy = df_stocks_display[df_stocks_display[sort_key] >= 0]
                 df_sell = df_stocks_display[df_stocks_display[sort_key] < 0]
@@ -3179,8 +3179,8 @@ if not df.empty:
         
         if not unpinned_df.empty and watchlist_mode != "Fundamentals 🏢":
             if "AI Predictions" in watchlist_mode:
-                df_buy_chart = unpinned_df[unpinned_df[sort_key] >= 0].head(12)
-                df_sell_chart = unpinned_df[unpinned_df[sort_key] < 0].head(12)
+                df_buy_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('🟢|BUY|UP|VCP|Stage 2|Darvas', na=False)].head(12)
+                df_sell_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4', na=False)].head(12)
                 title_suffix = watchlist_mode.split('(')[-1].replace(')','')
                 
                 if not df_buy_chart.empty:
@@ -3192,8 +3192,8 @@ if not df.empty:
                     render_chart_grid(df_sell_chart, show_pin_option=True, key_prefix="ai_sell", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
                     
             elif watchlist_mode == "Swing Trading 📈":
-                df_buy_chart = unpinned_df[unpinned_df[sort_key] >= 0].head(12)
-                df_sell_chart = unpinned_df[unpinned_df[sort_key] < 0].head(12)
+                df_buy_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('🟢|BUY|UP|VCP|Stage 2|Darvas', na=False)].head(12)
+                df_sell_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4', na=False)].head(12)
                 
                 if not df_buy_chart.empty:
                     st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:10px; margin-bottom:5px; color:#3fb950;'>🟢 POSITIVE / BUY (Swing Trading)</div>", unsafe_allow_html=True)
@@ -3216,8 +3216,12 @@ if not df.empty:
                     render_chart_grid(df_sell_chart, show_pin_option=True, key_prefix="day_sell", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
                     
             else:
-                df_buy_chart = unpinned_df[unpinned_df[sort_key] >= 0].head(12)
-                df_sell_chart = unpinned_df[unpinned_df[sort_key] < 0].head(12)
+                if watchlist_mode == "Legendary Strategy 🏆":
+                    df_buy_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('🟢|BUY|UP|VCP|Stage 2|Darvas', na=False)].head(12)
+                    df_sell_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4', na=False)].head(12)
+                else:
+                    df_buy_chart = unpinned_df[unpinned_df[sort_key] >= 0].head(12)
+                    df_sell_chart = unpinned_df[unpinned_df[sort_key] < 0].head(12)
                 
                 if not df_buy_chart.empty:
                     st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:10px; margin-bottom:5px; color:#3fb950;'>🟢 POSITIVE / BUY ({watchlist_mode})</div>", unsafe_allow_html=True)
