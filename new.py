@@ -2080,19 +2080,19 @@ if not df.empty:
                 dfs_to_concat.append(df_zanger_sell)
                 
             elif strat == "⏳ Anticipation SMA Base (20/50/150/200)":
-                # ట్రెండ్ కండిషన్ (కనీసం 150 SMA పైకి వంగి లేదా 200 SMA పైన ఉండాలి)
+                # ట్రెండ్ కండిషన్
                 base_trend = (df_filtered['SMA150'] > df_filtered['SMA200']) | (df_filtered['SMA200'] == 0)
                 
-                # వాల్యూమ్ తక్కువ ఉండాలి (Dry up - 0.8x కన్నా తక్కువ), క్యాండిల్ చిన్నగా (Consolidation) ఉండాలి
-                low_vol = df_filtered['VolX'] <= 0.8
-                small_candle = df_filtered['Day_C'].abs() <= 1.5
+                # రిలాక్స్ చేయబడిన కండిషన్స్ (VolX 1.0 కి, Day_C 2.0 కి మార్చాం)
+                low_vol = df_filtered['VolX'] <= 1.0 
+                small_candle = df_filtered['Day_C'].abs() <= 2.0
                 base_cond = has_history & base_trend & low_vol & small_candle
 
-                # 20, 50, 150, 200 SMA దగ్గర 2% రేంజ్ లో సపోర్ట్ తీసుకుంటున్నవి (SMA కి కొద్దిగా పైన)
-                near_20 = (df_filtered['P'] >= df_filtered['SMA20'] * 0.99) & (df_filtered['L'] <= df_filtered['SMA20'] * 1.02)
-                near_50 = (df_filtered['P'] >= df_filtered['SMA50'] * 0.99) & (df_filtered['L'] <= df_filtered['SMA50'] * 1.02)
-                near_150 = (df_filtered['P'] >= df_filtered['SMA150'] * 0.99) & (df_filtered['L'] <= df_filtered['SMA150'] * 1.02)
-                near_200 = (df_filtered['P'] >= df_filtered['SMA200'] * 0.99) & (df_filtered['L'] <= df_filtered['SMA200'] * 1.02)
+                # సపోర్ట్ రేంజ్ ని కొద్దిగా పెంచాం (0.98 To 1.03)
+                near_20 = (df_filtered['P'] >= df_filtered['SMA20'] * 0.98) & (df_filtered['L'] <= df_filtered['SMA20'] * 1.03)
+                near_50 = (df_filtered['P'] >= df_filtered['SMA50'] * 0.98) & (df_filtered['L'] <= df_filtered['SMA50'] * 1.03)
+                near_150 = (df_filtered['P'] >= df_filtered['SMA150'] * 0.98) & (df_filtered['L'] <= df_filtered['SMA150'] * 1.03)
+                near_200 = (df_filtered['P'] >= df_filtered['SMA200'] * 0.98) & (df_filtered['L'] <= df_filtered['SMA200'] * 1.03)
 
                 # 20 SMA - టాప్ 8 (వాల్యూమ్ ఎంత డ్రై అయితే అంత పైకి వస్తాయి)
                 df_20 = df_filtered[base_cond & near_20].copy()
@@ -3170,6 +3170,8 @@ if not df.empty:
                 if not df_sell_chart.empty:
                     st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:20px; margin-bottom:5px; color:#f85149;'>🔴 NEGATIVE / SELL ({title_suffix})</div>", unsafe_allow_html=True)
                     render_chart_grid(df_sell_chart, show_pin_option=True, key_prefix="ai_sell", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
+                if unpinned_df.empty:
+                st.info("ℹ️ No stocks matched this strategy's strict criteria at the moment. (ఏ స్టాక్స్ ఈ కండిషన్స్ ని మ్యాచ్ చేయలేదు)")
                     
             elif watchlist_mode == "Swing Trading 📈":
                 df_buy_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('🟢|BUY|UP|VCP|Stage 2|Darvas', na=False)].head(12)
