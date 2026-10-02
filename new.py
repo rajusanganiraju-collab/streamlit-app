@@ -2366,7 +2366,7 @@ if not df.empty:
                 c_buy = pd.Series(False, index=df_filtered.index)
                 c_sell = pd.Series(False, index=df_filtered.index)
                 icon_str = ""
-                for strat in strats_to_run:
+            for strat in strats_to_run:
                 c_buy = pd.Series(False, index=df_filtered.index)
                 c_sell = pd.Series(False, index=df_filtered.index)
                 icon_str = ""
