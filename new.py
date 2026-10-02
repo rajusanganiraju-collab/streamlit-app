@@ -1578,7 +1578,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
             )
         elif watchlist_mode == "Legendary Strategy 🏆":
             strat_opts = [
-                 "All Swing Trading Moves 📈",
+                "All Swing Trading Moves 📈",
                 "🎯 52WH Pullback & 52WL Breakdown (Top 32)",
                 "🧲 The 20-EMA Holy Grail Pullback",
                 "📉 RSI(2) Mean Reversion (Larry Connors)",
@@ -1591,7 +1591,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
                 "👑 King Strategy (SMA Bounce)",
                 "⏳ Anticipation SMA Base (20/50/150/200)"
             ]
-                move_type_filter = [st.selectbox("Select Strategy", strat_opts, key="legendary_filter_key")]
+            move_type_filter = [st.selectbox("Select Strategy", strat_opts, key="legendary_filter_key")]
         elif watchlist_mode == "Fundamentals 🏢":
             fund_filter = st.selectbox("Fundamentals Filter", ["Top Ranked Stocks ⭐", "🦅 Warren Buffett Value Stocks", "Swing Trading Candidates 📈", "Nifty 50 Stocks", "My Portfolio 💼"], index=0)
             
