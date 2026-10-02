@@ -1544,6 +1544,10 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
                 move_type_filter = st.multiselect("Strategy Filter",
                     [
                         "All Moves", 
+                        "🔥 First Hour Vol Breakout (ORB+VWAP)",  # <-- Added
+                        "💥 Inside Bar Vol Breakout (NR7)",        # <-- Added
+                        "🧲 Intraday Dip & Support Bounce",        # <-- Added
+                        "⚡ Sudden VWAP Cross (Any Time)",         # <-- Added
                         "🚀 Gap & Go (Open = Low)", 
                         "💥 PDH / PDL Breakout", 
                         "🧲 VWAP Bounce (Low Risk Entry)", 
@@ -1559,7 +1563,6 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
                         "💥 Narrow CPR Breakout", 
                         "🧲 10-EMA Retest (Best Entry)", 
                         "📉 FIB Retracement (0.382)", 
-                        "📈 Minervini Trend Template (VCP)", 
                         "🌅 15-Min ORB (Opening Range Breakout)"
                     ], 
                     default=["All Moves"],
@@ -2336,9 +2339,10 @@ if not df.empty:
                         open_drive_bear[idx] = True
 
             strategies_list = [
+                "🔥 First Hour Vol Breakout (ORB+VWAP)", "💥 Inside Bar Vol Breakout (NR7)", "⚡ Sudden VWAP Cross (Any Time)", "🧲 Intraday Dip & Support Bounce",
                 "🚀 Gap & Go (Open = Low)", "💥 PDH / PDL Breakout", "🧲 VWAP Bounce (Low Risk Entry)", "🎯 Narrow CPR Trending Day",
                 "🔥 Live Power Mover (Last 2 Candles)", "🚀 All-Day Volume Spikes (Max Fire)", "⚡ Intraday Pro Breakout (Top 5)", "🌊 One Sided Only", "🔄 VWAP Reversal", "🎯 Reversals Only", 
-                "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)", "📈 Minervini Trend Template (VCP)", "🌅 15-Min ORB (Opening Range Breakout)"
+                "🏹 Rubber Band Stretch", "🏄‍♂️ Momentum Ignition", "💥 Narrow CPR Breakout", "🧲 10-EMA Retest (Best Entry)", "📉 FIB Retracement (0.382)", "🌅 15-Min ORB (Opening Range Breakout)"
             ]
             
             fib_range = (df_filtered['H'] - df_filtered['L'])
@@ -2362,6 +2366,24 @@ if not df.empty:
                 c_buy = pd.Series(False, index=df_filtered.index)
                 c_sell = pd.Series(False, index=df_filtered.index)
                 icon_str = ""
+            for strat in strats_to_run:
+            c_buy = pd.Series(False, index=df_filtered.index)
+            c_sell = pd.Series(False, index=df_filtered.index)
+            icon_str = ""
+
+            # ---> IKKADA 3rd CODE BLOCK PASTE CHEYALI <---
+            if strat == "🔥 First Hour Vol Breakout (ORB+VWAP)":
+                orb_trend = (df_filtered['P'] > df_filtered['VWAP']) & (df_filtered['Day_C'] > 1.0)
+                # ... (migatha logic antha) ...
+
+            elif strat == "🧲 Intraday Dip & Support Bounce":
+                # ... (migatha logic antha) ...
+
+
+            # ---> IDI MEE PATHA CODE (Deeniki 'elif' ani marchali) <---
+            elif strat == "🔥 Live Power Mover (Last 2 Candles)":
+                buy_mask = pd.Series(False, index=df_filtered.index)
+                sell_mask = pd.Series(False, index=df_filtered.index)
 
                 if strat == "🔥 Live Power Mover (Last 2 Candles)":
                     buy_mask = pd.Series(False, index=df_filtered.index)
