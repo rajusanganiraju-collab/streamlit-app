@@ -2080,39 +2080,39 @@ if not df.empty:
                 dfs_to_concat.append(df_zanger_sell)
                 
             elif strat == "⏳ Anticipation SMA Base (20/50/150/200)":
-                # 1. ట్రెండ్ కండిషన్ మాత్రమే (SMA 150 > SMA 200 అయ్యి ఉండాలి)
+                # 1. Trend condition (SMA 150 > SMA 200 ayyi undali)
                 base_trend = (df_filtered['SMA150'] > df_filtered['SMA200']) | (df_filtered['SMA200'] == 0)
                 base_cond = has_history & base_trend
 
-                # 2. SMA కి దగ్గరగా ఉండాలి (ప్రస్తుత ధర SMA కి 2% పైన లేదా 2% కింద రేంజ్ లో ఉంటే క్యాచ్ చేస్తుంది)
+                # 2. SMA ki 2% range lo support teeskunevi
                 near_20 = (df_filtered['P'] >= df_filtered['SMA20'] * 0.98) & (df_filtered['P'] <= df_filtered['SMA20'] * 1.02)
                 near_50 = (df_filtered['P'] >= df_filtered['SMA50'] * 0.98) & (df_filtered['P'] <= df_filtered['SMA50'] * 1.02)
                 near_150 = (df_filtered['P'] >= df_filtered['SMA150'] * 0.98) & (df_filtered['P'] <= df_filtered['SMA150'] * 1.02)
                 near_200 = (df_filtered['P'] >= df_filtered['SMA200'] * 0.98) & (df_filtered['P'] <= df_filtered['SMA200'] * 1.02)
 
-                # 20 SMA - (స్కోర్ బట్టి టాప్ 10)
+                # 20 SMA - Exactly 8 stocks
                 df_20 = df_filtered[base_cond & near_20].copy()
                 if not df_20.empty:
                     df_20['Strategy_Icon'] = "🟢 20-SMA Base"
-                    dfs_to_concat.append(df_20.sort_values(by='S', ascending=False).head(10))
+                    dfs_to_concat.append(df_20.sort_values(by='S', ascending=False).head(8))
 
-                # 50 SMA - (20 SMA లో వచ్చిన స్టాక్స్ రిపీట్ కాకుండా)
+                # 50 SMA - Exactly 8 stocks (Repeat aveyykunda)
                 df_50 = df_filtered[base_cond & near_50 & ~df_filtered.index.isin(df_20.index)].copy()
                 if not df_50.empty:
                     df_50['Strategy_Icon'] = "🟢 50-SMA Base"
-                    dfs_to_concat.append(df_50.sort_values(by='S', ascending=False).head(10))
+                    dfs_to_concat.append(df_50.sort_values(by='S', ascending=False).head(8))
 
-                # 150 SMA
+                # 150 SMA - Exactly 8 stocks
                 df_150 = df_filtered[base_cond & near_150 & ~df_filtered.index.isin(df_20.index) & ~df_filtered.index.isin(df_50.index)].copy()
                 if not df_150.empty:
                     df_150['Strategy_Icon'] = "🟢 150-SMA Base"
-                    dfs_to_concat.append(df_150.sort_values(by='S', ascending=False).head(10))
+                    dfs_to_concat.append(df_150.sort_values(by='S', ascending=False).head(8))
 
-                # 200 SMA
+                # 200 SMA - Exactly 8 stocks
                 df_200 = df_filtered[base_cond & near_200 & ~df_filtered.index.isin(df_20.index) & ~df_filtered.index.isin(df_50.index) & ~df_filtered.index.isin(df_150.index)].copy()
                 if not df_200.empty:
                     df_200['Strategy_Icon'] = "🟢 200-SMA Base"
-                    dfs_to_concat.append(df_200.sort_values(by='S', ascending=False).head(10))
+                    dfs_to_concat.append(df_200.sort_values(by='S', ascending=False).head(8))
         
         # ---> FINAL CONCAT BLOCK <---
         if dfs_to_concat:
