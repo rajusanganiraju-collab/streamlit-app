@@ -2094,12 +2094,13 @@ if not df.empty:
                 df_zanger_sell['Strategy_Icon'] = "🔴 Zanger"
                 dfs_to_concat.append(df_zanger_sell)
             elif strat == "🎯 52WH Pullback & 52WL Breakdown (Top 32)":
-                # --- 🟢 BUY SIDE (52WH nundi Deep Pullback & Support lo unnavi) ---
-                buy_trend = (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['Pullback_52W'] >= 5.0)
+                # --- 🟢 BUY SIDE (Sell logic ki quite opposite - Near 52WH Breakout) ---
+                buy_trend = (df_filtered['P'] > df_filtered['SMA200']) & (df_filtered['Pullback_52W'] <= 15.0)
                 df_52wh_buy = df_filtered[has_history & buy_trend].copy()
                 if not df_52wh_buy.empty:
                     df_52wh_buy['Strategy_Icon'] = "🟢 52WH Pullback"
-                    df_52wh_buy = df_52wh_buy.sort_values(by='Pullback_52W', ascending=False).head(32)
+                    # Strong momentum unna stocks top lo raavadaniki Score ('S') tho sort chestunnam
+                    df_52wh_buy = df_52wh_buy.sort_values(by='S', ascending=False).head(32)
                     dfs_to_concat.append(df_52wh_buy)
 
                 # --- 🔴 SELL SIDE (52-Week Low vaipu crash avuthunna weak stocks) ---
