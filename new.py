@@ -2116,11 +2116,11 @@ if not df.empty:
                 base_trend = (df_filtered['SMA150'] > df_filtered['SMA200']) | (df_filtered['SMA200'] == 0)
                 base_cond = has_history & base_trend
 
-                # 2. SMA ki 2% range lo support teeskunevi
-                near_20 = (df_filtered['P'] >= df_filtered['SMA20'] * 0.98) & (df_filtered['P'] <= df_filtered['SMA20'] * 1.02)
-                near_50 = (df_filtered['P'] >= df_filtered['SMA50'] * 0.98) & (df_filtered['P'] <= df_filtered['SMA50'] * 1.02)
-                near_150 = (df_filtered['P'] >= df_filtered['SMA150'] * 0.98) & (df_filtered['P'] <= df_filtered['SMA150'] * 1.02)
-                near_200 = (df_filtered['P'] >= df_filtered['SMA200'] * 0.98) & (df_filtered['P'] <= df_filtered['SMA200'] * 1.02)
+                # 2. SMA ki 3% range lo support teeskunevi
+                near_20 = (df_filtered['P'] >= df_filtered['SMA20'] * 0.97) & (df_filtered['P'] <= df_filtered['SMA20'] * 1.03)
+                near_50 = (df_filtered['P'] >= df_filtered['SMA50'] * 0.97) & (df_filtered['P'] <= df_filtered['SMA50'] * 1.03)
+                near_150 = (df_filtered['P'] >= df_filtered['SMA150'] * 0.97) & (df_filtered['P'] <= df_filtered['SMA150'] * 1.03)
+                near_200 = (df_filtered['P'] >= df_filtered['SMA200'] * 0.97) & (df_filtered['P'] <= df_filtered['SMA200'] * 1.03)
 
                 # 20 SMA - Exactly 8 stocks
                 df_20 = df_filtered[base_cond & near_20].copy()
