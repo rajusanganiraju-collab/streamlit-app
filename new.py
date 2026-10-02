@@ -1167,14 +1167,17 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
             # "from Day Low" ni "DL" ga marchanu
             pb_tag = f" &nbsp;<span style='color:#00BFFF; font-size:11px;'>📈 +{intraday_bounce:.1f}% DL</span>" if intraday_bounce >= 0.1 else ""
     else:
-        pb_val = float(row.get('Pullback_52W', 0))
         strat_icon = str(row.get('Strategy_Icon', ''))
         
-        # SELL / Breakdown స్టాక్స్ కి 52-Week Low (52WL) చూపిస్తుంది
-        if "🔴" in strat_icon or "SELL" in strat_icon or "Breakdown" in strat_icon or "Stage 4" in strat_icon:
-            pb_tag = f" &nbsp;<span style='color:#f85149; font-size:11px;'>🩸 +{pb_val:.1f}% 52WL</span>" if pb_val >= 0.1 else ""
+        # SELL / Weak stocks ki 52-Week Low (52WL) nundi distance live ga calculate cheyadam
+        if "🔴" in strat_icon or "SELL" in strat_icon or "Stage 4" in strat_icon or "Breakdown" in strat_icon or "Holy Grail" in strat_icon:
+            low_52w = float(row.get('Low52W', 0))
+            ltp_now = float(row.get('P', 0))
+            dist_52wl = ((ltp_now - low_52w) / low_52w) * 100 if low_52w > 0 else 0
+            pb_tag = f" &nbsp;<span style='color:#f85149; font-size:11px;'>🩸 +{dist_52wl:.1f}% 52WL</span>" if dist_52wl >= 0.1 else ""
         else:
-            # BUY స్టాక్స్ కి 52-Week High (52WH) చూపిస్తుంది
+            # BUY stocks ki 52-Week High (52WH) nundi distance
+            pb_val = float(row.get('Pullback_52W', 0))
             pb_tag = f" &nbsp;<span style='color:#FF8C00; font-size:11px;'>📉 -{pb_val:.1f}% 52WH</span>" if pb_val >= 0.1 else ""
     
     title_html = f"<a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; line-height:1.2;'><b>{display_sym}</b>{strat_tag}<br><span style='font-size:12px; color:#cccccc;'>₹{row['P']:.2f} &nbsp;<span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span>{pb_tag}</span></a>"
