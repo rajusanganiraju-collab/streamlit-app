@@ -2635,16 +2635,14 @@ if not df.empty:
         
         if 'Sector_Bonus' not in df_filtered.columns: df_filtered['Sector_Bonus'] = 0
         
-        # BUY మరియు SELL మాస్క్ (రెండింటినీ వేరు చేయడానికి)
-        is_buy_mask = df_filtered['Strategy_Icon'].str.contains('🟢|BUY|UP|VCP|Stage 2|Darvas|Base', na=False) | (df_filtered['Day_C'] >= 0)
+        # 🔥 పక్కాగా పని చేసే బై/సెల్ సెపరేషన్ లాజిక్ (Day_C ఆధారంగా)
+        is_buy_mask = df_filtered['Day_C'] >= 0
         
-        # 🔥 1. 52W High Pullback ఫిల్టర్: BUY & SELL ని విడివిడిగా సార్ట్ చేస్తున్నాం
         if sort_mode == "52W High Pullback 📉": 
             df_buy_sorted = df_filtered[is_buy_mask].sort_values(by=['Pullback_52W', 'S'], ascending=[False, False])
             df_sell_sorted = df_filtered[~is_buy_mask].sort_values(by=['Pullback_52W', 'S'], ascending=[False, False])
             df_stocks_display = pd.concat([df_buy_sorted, df_sell_sorted])
 
-        # 2. Intraday Pullback (DH / DL) ఫిల్టర్
         elif sort_mode == "Intraday Pullback (DH / DL) 🎯":
             df_buy_sorted = df_filtered[is_buy_mask].sort_values(by=['DH_Pullback', 'VolX'], ascending=[False, False])
             df_sell_sorted = df_filtered[~is_buy_mask].sort_values(by=['DL_Bounce', 'VolX'], ascending=[False, False])
