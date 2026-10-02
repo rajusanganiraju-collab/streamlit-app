@@ -3212,6 +3212,10 @@ if not df.empty:
                 if not df_sell_chart.empty:
                     st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:20px; margin-bottom:5px; color:#f85149;'>🔴 NEGATIVE / SELL ({watchlist_mode})</div>", unsafe_allow_html=True)
                     render_chart_grid(df_sell_chart, show_pin_option=True, key_prefix="main_sell", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
+
+                # కింద ఉన్న రెండు లైన్లకు పైన ఉన్న if కండిషన్స్‌కి సరిపడా స్పేస్ ఇవ్వండి
+                if unpinned_df.empty:
+                    st.info("ℹ️ No stocks matched this strategy's strict criteria at the moment. (ఏ స్టాక్స్ ఈ కండిషన్స్ ని మ్యాచ్ చేయలేదు)")
 # =========================================================
 # --- 📚 STRATEGY HELP GUIDE IN TELUGU (DYNAMIC) ---
 # =========================================================
