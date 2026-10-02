@@ -2997,8 +2997,13 @@ if not df.empty:
 
         if not df_stocks_display.empty:
             if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆", "Day Trading Stocks 🚀"] or "AI Predictions" in watchlist_mode:
-                df_buy = df_stocks_display[df_stocks_display['Strategy_Icon'].str.contains('🟢|BUY|UP|VCP|Stage 2|Darvas', na=False)]
-                df_sell = df_stocks_display[df_stocks_display['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4', na=False)]
+                # 🔴 లేదా SELL ఉన్నవి పక్కాగా సెల్ లోకి వెళ్తాయి
+                df_sell = df_stocks_display[df_stocks_display['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4|🩸', na=False)]
+                # 🔴 లేనివి మరియు 🟢 లేదా BUY ఉన్నవి మాత్రమే బై లోకి వస్తాయి
+                df_buy = df_stocks_display[(~df_stocks_display['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4|🩸', na=False)) & (df_stocks_display['Strategy_Icon'].str.contains('🟢|📈|🔥|🚀|BUY|UP|Stage 2', na=False))]
+            else:
+                df_buy = df_stocks_display[df_stocks_display[sort_key] >= 0]
+                df_sell = df_stocks_display[df_stocks_display[sort_key] < 0]
             else:
                 df_buy = df_stocks_display[df_stocks_display[sort_key] >= 0]
                 df_sell = df_stocks_display[df_stocks_display[sort_key] < 0]
@@ -3224,8 +3229,8 @@ if not df.empty:
                     
             else:
                 if watchlist_mode == "Legendary Strategy 🏆":
-                    df_buy_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('🟢|BUY|UP|VCP|Stage 2|Darvas', na=False)].head(12)
-                    df_sell_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4', na=False)].head(12)
+                    df_sell_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4|🩸', na=False)].head(12)
+                    df_buy_chart = unpinned_df[(~unpinned_df['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4|🩸', na=False)) & (unpinned_df['Strategy_Icon'].str.contains('🟢|📈|🔥|🚀|BUY|UP|Stage 2', na=False))].head(12)
                 else:
                     df_buy_chart = unpinned_df[unpinned_df[sort_key] >= 0].head(12)
                     df_sell_chart = unpinned_df[unpinned_df[sort_key] < 0].head(12)
