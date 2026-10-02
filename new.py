@@ -2134,11 +2134,6 @@ if not df.empty:
             df_filtered = df_filtered.sort_values(by=sort_metric, ascending=False)
         else:
             df_filtered = pd.DataFrame(columns=df_filtered.columns)
-            king_cond = has_history & king_c1 & king_c2 & touching_sma & bounce_up & high_vol
-            df_king = df_filtered[king_cond].copy()
-            
-            df_king['Strategy_Icon'] = "👑 King"
-            dfs_to_concat.append(df_king)
 
     all_display_tickers = list(set(df_indices['Fetch_T'].tolist() + df_sectors['Fetch_T'].tolist() + df_filtered['Fetch_T'].tolist() + st.session_state.pinned_stocks))
     
