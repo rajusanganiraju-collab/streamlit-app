@@ -3094,8 +3094,11 @@ if not df.empty:
                 display_tkrs.extend(df_indices['Fetch_T'].tolist())
                 display_tkrs.extend(df_sectors['Fetch_T'].tolist())
             display_tkrs.extend(st.session_state.pinned_stocks)
-            display_tkrs.extend(df_stocks_display['Fetch_T'].head(30).tolist())
-            display_tkrs = list(set(display_tkrs)) 
+            
+            # 👇 Ikkada 30 badulu 100 pettali 👇
+            display_tkrs.extend(df_stocks_display['Fetch_T'].head(100).tolist()) 
+            
+            display_tkrs = list(set(display_tkrs))
             
             if display_tkrs:
                 hist_data = fetch_historical_charts_data(display_tkrs, chart_timeframe)
