@@ -3004,9 +3004,6 @@ if not df.empty:
             else:
                 df_buy = df_stocks_display[df_stocks_display[sort_key] >= 0]
                 df_sell = df_stocks_display[df_stocks_display[sort_key] < 0]
-            else:
-                df_buy = df_stocks_display[df_stocks_display[sort_key] >= 0]
-                df_sell = df_stocks_display[df_stocks_display[sort_key] < 0]
 
             def render_heatmap_section(df_sec, title, title_color):
                 st.markdown(f"<div style='font-size:16px; font-weight:bold; margin: 15px 0 5px 0; color:{title_color};'>{title}</div>", unsafe_allow_html=True)
