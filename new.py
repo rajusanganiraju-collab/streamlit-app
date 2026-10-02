@@ -2009,39 +2009,47 @@ if not df.empty:
             elif strat == "📦 Nicolas Darvas (Box Breakout)":
                 box_width = ((df_filtered['Box_Top20'] - df_filtered['Box_Bot20']) / (df_filtered['Box_Bot20'] + 0.001)) <= 0.25
                 darvas_trend = df_filtered['P'] > df_filtered['SMA50']
-                darvas_breakout = df_filtered['P'] >= df_filtered['Box_Top20']
+                # Breakout కి 0.5% దగ్గరలో ఉన్నా క్యాచ్ చేయడానికి (Early Radar)
+                darvas_breakout = df_filtered['P'] >= (df_filtered['Box_Top20'] * 0.995)
                 darvas_high = df_filtered['P'] >= (df_filtered['High52W'] * 0.80)
-                darvas_vol = df_filtered['VolX'] >= 1.0
+                # వాల్యూమ్ ని కొంచెం రిలాక్స్ చేసాము
+                darvas_vol = df_filtered['VolX'] >= 0.8 
+                
                 darvas_cond = has_history & darvas_trend & darvas_breakout & box_width & darvas_high & darvas_vol
                 df_darvas = df_filtered[darvas_cond].copy()
-                df_darvas['Strategy_Icon'] = "🟢 Darvas"
-                dfs_to_concat.append(df_darvas)
+                if not df_darvas.empty:
+                    df_darvas['Strategy_Icon'] = "🟢 Darvas"
+                    dfs_to_concat.append(df_darvas)
 
                 # Sell logic for Darvas - Box Breakdown
-                darvas_breakdown = df_filtered['P'] <= df_filtered['Box_Bot20']
+                darvas_breakdown = df_filtered['P'] <= (df_filtered['Box_Bot20'] * 1.005)
                 darvas_sell_trend = df_filtered['P'] < df_filtered['SMA50']
                 darvas_sell_cond = has_history & darvas_breakdown & darvas_sell_trend & box_width
                 df_darvas_sell = df_filtered[darvas_sell_cond].copy()
-                df_darvas_sell['Strategy_Icon'] = "🔴 Darvas"
-                dfs_to_concat.append(df_darvas_sell)
+                if not df_darvas_sell.empty:
+                    df_darvas_sell['Strategy_Icon'] = "🔴 Darvas"
+                    dfs_to_concat.append(df_darvas_sell)
 
             elif strat == "📦 Nicolas Darvas Modified":
-                darvas_mod_breakout = df_filtered['P'] >= df_filtered['Box_Top20']
+                darvas_mod_breakout = df_filtered['P'] >= (df_filtered['Box_Top20'] * 0.995)
                 darvas_mod_nochase = df_filtered['P'] <= (df_filtered['Box_Top20'] * 1.020)
-                darvas_mod_vol = df_filtered['VolX'] >= 1.0
+                darvas_mod_vol = df_filtered['VolX'] >= 0.8
                 darvas_mod_trend = df_filtered['P'] > df_filtered['SMA50']
+                
                 darvas_mod_cond = has_history & darvas_mod_trend & darvas_mod_breakout & darvas_mod_nochase & darvas_mod_vol
                 df_darvas_mod = df_filtered[darvas_mod_cond].copy()
-                df_darvas_mod['Strategy_Icon'] = "🟢 Darvas Mod"
-                dfs_to_concat.append(df_darvas_mod)
+                if not df_darvas_mod.empty:
+                    df_darvas_mod['Strategy_Icon'] = "🟢 Darvas Mod"
+                    dfs_to_concat.append(df_darvas_mod)
 
                 # Sell logic for Darvas Modified
-                darvas_mod_breakdown = df_filtered['P'] <= df_filtered['Box_Bot20']
+                darvas_mod_breakdown = df_filtered['P'] <= (df_filtered['Box_Bot20'] * 1.005)
                 darvas_mod_sell_trend = df_filtered['P'] < df_filtered['SMA50']
                 darvas_mod_sell_cond = has_history & darvas_mod_breakdown & darvas_mod_sell_trend
                 df_darvas_mod_sell = df_filtered[darvas_mod_sell_cond].copy()
-                df_darvas_mod_sell['Strategy_Icon'] = "🔴 Darvas Mod"
-                dfs_to_concat.append(df_darvas_mod_sell)
+                if not df_darvas_mod_sell.empty:
+                    df_darvas_mod_sell['Strategy_Icon'] = "🔴 Darvas Mod"
+                    dfs_to_concat.append(df_darvas_mod_sell)
 
             elif strat == "📈 Stan Weinstein (Stage 2 Uptrend)":
                 wein_c1 = df_filtered['P'] > df_filtered['SMA150']
