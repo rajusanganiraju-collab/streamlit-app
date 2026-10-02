@@ -2118,19 +2118,10 @@ if not df.empty:
                     df_200['Strategy_Icon'] = "🟢 200-SMA Base"
                     dfs_to_concat.append(df_200.sort_values(by='VolX', ascending=True).head(8))
         
-        # Anni strategies loop ayyaka kalipi oka DataFrame ga isthundi
+        # ---> FINAL CONCAT BLOCK (ఇది 'for' లూప్ తర్వాత, దానికి స్ట్రెయిట్ గా ఉండాలి) <---
         if dfs_to_concat:
             df_filtered = pd.concat(dfs_to_concat).drop_duplicates(subset=['Fetch_T'], keep='last')
-            sort_metric = "W_C" if is_weekly else "Day_C"
-            df_filtered = df_filtered.sort_values(by=sort_metric, ascending=False)
-        else:
-            df_filtered = pd.DataFrame(columns=df_filtered.columns)
-             
-    
-        # FINAL CONCAT BLOCK (Idhi anni strategies aipoyaka aakharlo undali)
-        if dfs_to_concat:
-            df_filtered = pd.concat(dfs_to_concat).drop_duplicates(subset=['Fetch_T'], keep='last')
-            sort_metric = "W_C" if is_weekly else "Day_C"
+            sort_metric = "W_C" if chart_timeframe == "Weekly Chart" else "Day_C"
             df_filtered = df_filtered.sort_values(by=sort_metric, ascending=False)
         else:
             df_filtered = pd.DataFrame(columns=df_filtered.columns)
