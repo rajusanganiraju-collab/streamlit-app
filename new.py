@@ -2366,26 +2366,80 @@ if not df.empty:
                 c_buy = pd.Series(False, index=df_filtered.index)
                 c_sell = pd.Series(False, index=df_filtered.index)
                 icon_str = ""
-            for strat in strats_to_run:
-            c_buy = pd.Series(False, index=df_filtered.index)
-            c_sell = pd.Series(False, index=df_filtered.index)
-            icon_str = ""
+                for strat in strats_to_run:
+                c_buy = pd.Series(False, index=df_filtered.index)
+                c_sell = pd.Series(False, index=df_filtered.index)
+                icon_str = ""
 
-            # ---> IKKADA 3rd CODE BLOCK PASTE CHEYALI <---
-            if strat == "🔥 First Hour Vol Breakout (ORB+VWAP)":
-                orb_trend = (df_filtered['P'] > df_filtered['VWAP']) & (df_filtered['Day_C'] > 1.0)
-                # ... (migatha logic antha) ...
+                if strat == "🔥 First Hour Vol Breakout (ORB+VWAP)":
+                    orb_trend = (df_filtered['P'] > df_filtered['VWAP']) & (df_filtered['Day_C'] > 1.0)
+                    orb_vol = df_filtered['VolX'] >= 1.5
+                    orb_breakout = (df_filtered['P'] > df_filtered['O']) & ((df_filtered['O'] - df_filtered['L']) <= (df_filtered['P'] * 0.005))
+                    c_buy = base_buy & orb_trend & orb_vol & orb_breakout
 
-            elif strat == "🧲 Intraday Dip & Support Bounce":
-                # ... (migatha logic antha) ...
+                    orb_sell_trend = (df_filtered['P'] < df_filtered['VWAP']) & (df_filtered['Day_C'] < -1.0)
+                    orb_sell_breakdown = (df_filtered['P'] < df_filtered['O']) & ((df_filtered['H'] - df_filtered['O']) <= (df_filtered['P'] * 0.005))
+                    c_sell = base_sell & orb_sell_trend & orb_vol & orb_sell_breakdown
+                    icon_str = "🚀 1-Hr BO"
 
+                elif strat == "💥 Inside Bar Vol Breakout (NR7)":
+                    ib_trend = df_filtered['P'] > df_filtered['SMA50']
+                    ib_vol = df_filtered['VolX'] >= 1.2
+                    ib_narrow = (df_filtered['H'] - df_filtered['L']) / (df_filtered['L'] + 0.001) <= 0.02
+                    ib_break = df_filtered['P'] > df_filtered['O']
+                    c_buy = base_buy & ib_trend & ib_vol & ib_narrow & ib_break
 
-            # ---> IDI MEE PATHA CODE (Deeniki 'elif' ani marchali) <---
-            elif strat == "🔥 Live Power Mover (Last 2 Candles)":
-                buy_mask = pd.Series(False, index=df_filtered.index)
-                sell_mask = pd.Series(False, index=df_filtered.index)
+                    ib_sell_trend = df_filtered['P'] < df_filtered['SMA50']
+                    ib_sell_break = df_filtered['P'] < df_filtered['O']
+                    c_sell = base_sell & ib_sell_trend & ib_vol & ib_narrow & ib_sell_break
+                    icon_str = "💥 NR7 BO"
 
-                if strat == "🔥 Live Power Mover (Last 2 Candles)":
+                elif strat == "⚡ Sudden VWAP Cross (Any Time)":
+                    buy_mask = pd.Series(False, index=df_filtered.index)
+                    sell_mask = pd.Series(False, index=df_filtered.index)
+                    high_vol_stocks = df_filtered[df_filtered['VolX'] >= 1.3]['Fetch_T'].tolist()
+                    if high_vol_stocks:
+                        temp_5m_data = fetch_cached_5m_data(high_vol_stocks)
+                        for idx, r in df_filtered.iterrows():
+                            tkr = r['Fetch_T']
+                            if tkr in high_vol_stocks:
+                                try:
+                                    df_raw = temp_5m_data[tkr] if isinstance(temp_5m_data.columns, pd.MultiIndex) else temp_5m_data
+                                    df_hist = process_5m_data(df_raw)
+                                    if not df_hist.empty and len(df_hist) >= 2:
+                                        c1 = df_hist.iloc[-1]
+                                        c2 = df_hist.iloc[-2]
+                                        cross_up = (c2['Close'] <= c2['VWAP']) and (c1['Close'] > c1['VWAP'])
+                                        cross_up_candle = (c1['Open'] <= c1['VWAP']) and (c1['Close'] > c1['VWAP'])
+                                        cross_dn = (c2['Close'] >= c2['VWAP']) and (c1['Close'] < c1['VWAP'])
+                                        cross_dn_candle = (c1['Open'] >= c1['VWAP']) and (c1['Close'] < c1['VWAP'])
+                                        if cross_up or cross_up_candle: buy_mask[idx] = True
+                                        if cross_dn or cross_dn_candle: sell_mask[idx] = True
+                                except: pass
+                    c_buy = base_buy & buy_mask
+                    c_sell = base_sell & sell_mask
+                    icon_str = "⚡ VWAP Cross"
+
+                elif strat == "🧲 Intraday Dip & Support Bounce":
+                    day_pullback = ((df_filtered['H'] - df_filtered['P']) / df_filtered['H']) * 100
+                    dip_in_range = (day_pullback >= 0.8) & (day_pullback <= 3.0)
+                    near_vwap = (df_filtered['P'] >= df_filtered['VWAP'] * 0.998) & (df_filtered['L'] <= df_filtered['VWAP'] * 1.002)
+                    near_ema10 = (df_filtered['P'] >= df_filtered['W_EMA10'] * 0.998) & (df_filtered['L'] <= df_filtered['W_EMA10'] * 1.002)
+                    near_support = near_vwap | near_ema10
+                    bounce_candle = (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] > 0)
+                    vol_surge = df_filtered['VolX'] >= 1.3
+                    c_buy = base_buy & dip_in_range & near_support & bounce_candle & vol_surge
+
+                    day_rally = ((df_filtered['P'] - df_filtered['L']) / df_filtered['L']) * 100
+                    rally_in_range = (day_rally >= 0.8) & (day_rally <= 3.0)
+                    near_vwap_resist = (df_filtered['P'] <= df_filtered['VWAP'] * 1.002) & (df_filtered['H'] >= df_filtered['VWAP'] * 0.998)
+                    near_ema10_resist = (df_filtered['P'] <= df_filtered['W_EMA10'] * 1.002) & (df_filtered['H'] >= df_filtered['W_EMA10'] * 0.998)
+                    near_resistance = near_vwap_resist | near_ema10_resist
+                    reject_candle = (df_filtered['P'] < df_filtered['O']) & (df_filtered['Day_C'] < 0)
+                    c_sell = base_sell & rally_in_range & near_resistance & reject_candle & vol_surge
+                    icon_str = "🧲 Dip Bounce"
+
+                elif strat == "🔥 Live Power Mover (Last 2 Candles)":
                     buy_mask = pd.Series(False, index=df_filtered.index)
                     sell_mask = pd.Series(False, index=df_filtered.index)
                     
