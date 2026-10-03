@@ -709,14 +709,16 @@ def fetch_all_data():
                 if prev_w_c > 0: weekly_net_chg = ((ltp - prev_w_c) / prev_w_c) * 100
                     
             if len(df_w) >= 40: 
-                df_w.ta.ema(length=10, append=True)
-                df_w.ta.ema(length=50, append=True)
-                latest_w_ema10 = float(df_w['EMA_10'].iloc[-1]) if 'EMA_10' in df_w.columns else 0.0
-                latest_w_ema50 = float(df_w['EMA_50'].iloc[-1]) if 'EMA_50' in df_w.columns else 0.0
+                # మనం పాత పద్ధతిలోనే EMA క్యాలిక్యులేట్ చేద్దాం, ఇది పక్కాగా పనిచేస్తుంది.
+                df_w['EMA_10'] = df_w['Close'].ewm(span=10, adjust=False).mean()
+                df_w['EMA_50'] = df_w['Close'].ewm(span=50, adjust=False).mean()
+                latest_w_ema10 = float(df_w['EMA_10'].iloc[-1])
+                latest_w_ema50 = float(df_w['EMA_50'].iloc[-1])
                 
-                df_w['Trend_Up'] = np.where(df_w['EMA_10'] > df_w['EMA_50'], 1, 0) if ('EMA_10' in df_w.columns and 'EMA_50' in df_w.columns) else 0
+                df_w['Trend_Up'] = np.where(df_w['EMA_10'] > df_w['EMA_50'], 1, 0)
                 continuous_4w = df_w['Trend_Up'].rolling(window=4).min().iloc[-1] == 1 if len(df_w) >= 4 else False
                 
+                # ADX కోసం మాత్రం pandas_ta వాడుకుందాం. దానికి కాలమ్ పేరు 'ADX_14' అనే వస్తుంది కాబట్టి ప్రాబ్లం లేదు.
                 df_w.ta.adx(length=14, append=True)
                 w_adx = float(df_w['ADX_14'].iloc[-1]) if 'ADX_14' in df_w.columns else 0.0
                 recent_w_low = df_w['Low'].iloc[-2:].min()
@@ -728,8 +730,14 @@ def fetch_all_data():
 
             if len(df) >= 100:
                 ema20_w = latest_w_ema10 if latest_w_ema10 > 0 else 0
-                df.ta.rsi(length=14, append=True)
-                current_rsi = float(df['RSI_14'].iloc[-1]) if 'RSI_14' in df.columns else 100.0
+                # RSI కాలమ్ క్రియేట్ అయినప్పుడు 'RSI_14' అని వస్తుందో లేదో అని సేఫ్ సైడ్ గా డీఫాల్ట్ ఇస్తున్నాం.
+                try:
+                    df.ta.rsi(length=14, append=True)
+                    rsi_col = [col for col in df.columns if col.startswith('RSI')][0]
+                    current_rsi = float(df[rsi_col].iloc[-1])
+                except:
+                    current_rsi = 100.0
+                    
                 if (ltp > ema50_d) and (ltp > ema20_w) and (current_rsi >= 55) and (net_chg > 0):
                     is_swing = True
 
