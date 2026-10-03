@@ -3362,4 +3362,4 @@ def render_live_ui():
             </ul>
             </div>
             """, unsafe_allow_html=True)
-    render_live_ui()
+render_live_ui()
