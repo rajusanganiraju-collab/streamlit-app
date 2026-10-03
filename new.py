@@ -1481,20 +1481,6 @@ df_cached = fetch_all_data()
 all_names = []
 if not df_cached.empty:
     all_names = sorted(df_cached[(~df_cached['Is_Sector']) & (~df_cached['Is_Index']) & (~df_cached['Is_Commodity'])]['T'].unique().tolist())
-        live_prices_snapshot = dict(LIVE_PRICES_GLOBAL)
-    for i, row in df.iterrows():
-        clean_sym = str(row['Fetch_T']).replace(".NS", "")
-        if clean_sym in live_prices_snapshot:
-            new_ltp = live_prices_snapshot[clean_sym]
-            df.at[i, 'P'] = new_ltp
-            open_p = df.at[i, 'O']
-            prev_c = df.at[i, 'Prev_C']
-            if open_p > 0: df.at[i, 'Day_C'] = ((new_ltp - open_p) / open_p) * 100
-            if prev_c > 0: df.at[i, 'C'] = ((new_ltp - prev_c) / prev_c) * 100
-
-all_names = []
-if not df.empty:
-    all_names = sorted(df[(~df['Is_Sector']) & (~df['Is_Index']) & (~df['Is_Commodity'])]['T'].unique().tolist())
 
 # =========================================================
 # --- 7. UI SETTINGS ---
