@@ -13,7 +13,6 @@ import time
 import threading
 import concurrent.futures
 from datetime import datetime, time as dt_time
-from streamlit_autorefresh import st_autorefresh
 from dhanhq import dhanhq, marketfeed
 
 try:
@@ -1530,11 +1529,7 @@ watchlist_mode = st.selectbox("Watchlist", [
     "Month Effect Advantage 📅"
 ], index=0, label_visibility="collapsed")
 
-refresh_time = 15000 if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"] else 5000
-
-if not st.session_state.pause_refresh:
-    st_autorefresh(interval=refresh_time, key="datarefresh")
-refresh_time = 15000 if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"] else 5000
+refresh_sec = 15 if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"] else 5
 
 view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], index=1 if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"] else 0, horizontal=True, label_visibility="collapsed")
 move_type_filter = ["🌊 One Sided Only", "🎯 Reversals Only", "🏹 Rubber Band Stretch"] 
