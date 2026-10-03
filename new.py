@@ -1602,7 +1602,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
         with cc2: show_crosshair = st.toggle("⌖ Show Crosshair", value=False)
         with cc3: show_vol = st.toggle("📊 Show Vol Bars", value=False)
 
-    if not df.empty and (view_mode == "Chart 📈" or watchlist_mode == "Commodity 🛢️"):
+    if not df_cached.empty and (view_mode == "Chart 📈" or watchlist_mode == "Commodity 🛢️"):
         st.markdown("<hr style='margin:10px 0; border-color:#30363d;'>", unsafe_allow_html=True)
         st.markdown("<div style='color:#ffd700; font-size:14px; margin-bottom:5px;'>🔔 Add Custom Price Alert Line</div>", unsafe_allow_html=True)
         ac1, ac2, ac3, ac4, ac5 = st.columns([2, 2, 2, 1, 1])
@@ -1613,7 +1613,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
         with ac5:
             if st.button("➕ Add", width="stretch"):
                 if alert_sym_disp != "-- None --" and alert_price > 0:
-                    f_sym = df[df['T'] == alert_sym_disp]['Fetch_T'].iloc[0]
+                    f_sym = df_cached[df_cached['T'] == alert_sym_disp]['Fetch_T'].iloc[0]
                     st.session_state.custom_alerts[f_sym] = {'price': alert_price, 'type': alert_cond, 'enabled': alert_enable, 'name': alert_sym_disp}
                     st.rerun()
 
