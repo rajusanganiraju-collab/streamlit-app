@@ -5,7 +5,7 @@ numpy
 plotly
 gspread
 google-auth
-streamlit-autorefresh
 scikit-learn
 dhanhq
 mstarpy
+pandas_ta
