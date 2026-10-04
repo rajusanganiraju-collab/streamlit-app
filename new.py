@@ -1079,10 +1079,12 @@ def render_money_tracker():
         
         try:
             raw_dues = dues_ws.get_all_records()
-            df_raw_dues = pd.DataFrame(raw_dues) if raw_dues else pd.DataFrame(columns=['Item_Name', 'Type', 'Account', 'Category', 'Amount', 'Frequency', 'Next_Due_Date'])
+            # 💡 FIX: Added Start_Date and End_Date
+            df_raw_dues = pd.DataFrame(raw_dues) if raw_dues else pd.DataFrame(columns=['Item_Name', 'Type', 'Account', 'Category', 'Amount', 'Frequency', 'Next_Due_Date', 'Start_Date', 'End_Date'])
             df_raw_dues.columns = df_raw_dues.columns.str.strip().str.title()
         except:
-            df_raw_dues = pd.DataFrame(columns=['Item_Name', 'Type', 'Account', 'Category', 'Amount', 'Frequency', 'Next_Due_Date'])
+            # 💡 FIX: Added Start_Date and End_Date for fallback
+            df_raw_dues = pd.DataFrame(columns=['Item_Name', 'Type', 'Account', 'Category', 'Amount', 'Frequency', 'Next_Due_Date', 'Start_Date', 'End_Date'])
             
         edited_dues_df = st.data_editor(
             df_raw_dues,
@@ -1098,7 +1100,8 @@ def render_money_tracker():
             if not edited_dues_df.empty:
                 dues_ws.update([edited_dues_df.columns.values.tolist()] + edited_dues_df.values.tolist())
             else:
-                dues_ws.append_row(['Item_Name', 'Type', 'Account', 'Category', 'Amount', 'Frequency', 'Next_Due_Date'])
+                # 💡 FIX: Added Start_Date and End_Date
+                dues_ws.append_row(['Item_Name', 'Type', 'Account', 'Category', 'Amount', 'Frequency', 'Next_Due_Date', 'Start_Date', 'End_Date'])
             
             st.success("✅ ఆటో-పే రూల్స్ సేవ్ అయ్యాయి!")
             time.sleep(1)
