@@ -936,22 +936,40 @@ def render_money_tracker():
     
     total_income = pd.to_numeric(df_month[df_month['Type'] == 'Income']['Amount'], errors='coerce').sum() if not df_month.empty else 0
     total_expense = pd.to_numeric(df_month[df_month['Type'] == 'Expense']['Amount'], errors='coerce').sum() if not df_month.empty else 0
-    net_total = total_income - total_expense
+    
+    # 🔥 Upcoming Dues for this Month (ఈ నెలలో కట్టాల్సిన భవిష్యత్ EMIs/Bills)
+    upcoming_expense = 0
+    try:
+        dues_data = dues_ws.get_all_records()
+        if dues_data:
+            df_d = pd.DataFrame(dues_data)
+            df_d_exp = df_d[df_d['Type'].astype(str).str.strip() == 'Expense'].copy()
+            df_d_exp['Next_Due_Date'] = pd.to_datetime(df_d_exp['Next_Due_Date'], format='%d-%b-%Y', errors='coerce')
+            df_d_exp['Month_Year'] = df_d_exp['Next_Due_Date'].dt.strftime('%B %Y')
+            upcoming_expense = pd.to_numeric(df_d_exp[df_d_exp['Month_Year'] == selected_month]['Amount'], errors='coerce').sum()
+    except Exception as e:
+        pass
+        
+    net_total = total_income - total_expense - upcoming_expense
     
     summary_html = f"""
     <div class="money-container">
         <div class="summary-board">
             <div class="sum-col">
-                <div class="sum-title">EXPENSE</div>
-                <div class="sum-exp">₹{total_expense:,.2f}</div>
-            </div>
-            <div class="sum-col">
                 <div class="sum-title">INCOME</div>
-                <div class="sum-inc">₹{total_income:,.2f}</div>
+                <div class="sum-inc">₹{total_income:,.0f}</div>
             </div>
             <div class="sum-col">
-                <div class="sum-title">TOTAL</div>
-                <div class="sum-tot">₹{net_total:,.2f}</div>
+                <div class="sum-title">SPENT</div>
+                <div class="sum-exp">₹{total_expense:,.0f}</div>
+            </div>
+            <div class="sum-col">
+                <div class="sum-title">UPCOMING EMIs</div>
+                <div class="sum-exp" style="color:#FF8C00;">₹{upcoming_expense:,.0f}</div>
+            </div>
+            <div class="sum-col">
+                <div class="sum-title">NET BALANCE</div>
+                <div class="sum-tot">₹{net_total:,.0f}</div>
             </div>
         </div>
     </div>
