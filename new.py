@@ -266,7 +266,7 @@ def fetch_historical_from_gcs():
         
         # NOTE: ఇక్కడ "my-trading-data-bucket" ప్లేస్ లో మీ బకెట్ పేరు రాయండి
         client = storage.Client(credentials=credentials, project=creds_dict.get("project_id"))
-        bucket = client.bucket("my-trading-data-bucket") 
+        bucket = client.bucket("raju-market-data-2026") 
         blob = bucket.blob("historical_data.parquet")
         
         parquet_bytes = blob.download_as_bytes()
