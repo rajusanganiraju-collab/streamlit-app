@@ -825,7 +825,7 @@ def sync_automatic_dues():
         
         df_dues = pd.DataFrame(dues_records)
         df_dues['Next_Due_Date'] = pd.to_datetime(df_dues['Next_Due_Date'], format='%d-%b-%Y', errors='coerce')
-        today = pd.Timestamp.now().normalize()
+        today = pd.Timestamp.now(tz='Asia/Kolkata').tz_localize(None).normalize()
         
         updates_made = False
         new_expenses = []
