@@ -12,6 +12,8 @@ import requests
 import time
 import threading
 import concurrent.futures
+import io
+from google.cloud import storage
 from datetime import datetime, time as dt_time
 from dhanhq import dhanhq, marketfeed
 
@@ -254,36 +256,68 @@ MUTUAL_FUNDS = {
     ]
 }
 
-@st.cache_data(ttl=86400, show_spinner=False)
-def fetch_mf_performance():
-    tasks = []
-    for cat, funds_list in MUTUAL_FUNDS.items():
-        for name in funds_list:
-            tasks.append((name, cat))
-            
-    def fetch_single(name, cat):
-        short_name = name.replace(" Direct Plan Growth", "").replace(" Direct Growth", "")
-        try:
-            search_url = f"https://api.mfapi.in/mf/search?q={name}"
-            search_res = requests.get(search_url, timeout=10).json()
-            if not search_res: raise ValueError("Not Found")
-            
-            direct_results = [r for r in search_res if 'direct' in r['schemeName'].lower() and 'growth' in r['schemeName'].lower()]
-            code = direct_results[0]['schemeCode'] if direct_results else search_res[0]['schemeCode']
-            
-            url = f"https://api.mfapi.in/mf/{code}"
-            res = requests.get(url, timeout=12)
-            if res.status_code == 200:
-                data = res.json()
-                nav_data = data.get("data", [])
-                if not nav_data: raise ValueError("No Data")
-                
-                df = pd.DataFrame(nav_data)
-                df['date'] = pd.to_datetime(df['date'], dayfirst=True, errors='coerce')
-                df['nav'] = pd.to_numeric(df['nav'], errors='coerce')
-                df = df.dropna(subset=['nav', 'date'])
-                df = df[df['nav'] > 0]
-                if df.empty: raise ValueError("Empty")
+# --- GCS నుండి డేటా చదివే ఫంక్షన్ ---
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_historical_from_gcs():
+    try:
+        creds_json = st.secrets["gcp_service_account"]
+        creds_dict = json.loads(creds_json)
+        credentials = Credentials.from_service_account_info(creds_dict)
+        
+        # NOTE: ఇక్కడ "my-trading-data-bucket" ప్లేస్ లో మీ బకెట్ పేరు రాయండి
+        client = storage.Client(credentials=credentials, project=creds_dict.get("project_id"))
+        bucket = client.bucket("my-trading-data-bucket") 
+        blob = bucket.blob("historical_data.parquet")
+        
+        parquet_bytes = blob.download_as_bytes()
+        df = pd.read_parquet(io.BytesIO(parquet_bytes), engine="pyarrow")
+        return df
+    except Exception as e:
+        st.error(f"GCS Error: {e}")
+        return pd.DataFrame()
+
+# --- చార్ట్స్ కోసం డేటా ఇచ్చే ఫంక్షన్ ---
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_historical_charts_data(tkrs, timeframe):
+    data = fetch_historical_from_gcs()
+    if data.empty: return pd.DataFrame()
+    
+    available_tkrs = [t for t in tkrs if t in data.columns.levels[0]]
+    if not available_tkrs: return pd.DataFrame()
+    
+    df_list = []
+    for tkr in available_tkrs:
+        tdf = data[tkr].dropna(subset=['Close'])
+        if timeframe == "Weekly Chart":
+            # డైలీ క్యాండిల్స్ ని వీక్లీ క్యాండిల్స్ గా మారుస్తున్నాం
+            tdf = tdf.resample('W').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).dropna()
+        df_list.append(tdf)
+        
+    df_final = pd.concat(df_list, axis=1, keys=available_tkrs)
+    if len(available_tkrs) == 1:
+        df_final.columns = pd.MultiIndex.from_product([available_tkrs, df_final.columns])
+    return df_final
+
+# --- DAILY DATA FETCH ---
+@st.cache_data(ttl=60, show_spinner=False) 
+def fetch_all_data():
+    data = fetch_historical_from_gcs()
+    if data.empty: return pd.DataFrame()
+
+    # 🔥 అసలైన మ్యాజిక్: పాత డేటాకి లైవ్ LTP ని సెట్ చేయడం
+    with LIVE_PRICES_LOCK:
+        live_prices_snapshot = dict(LIVE_PRICES_GLOBAL)
+
+    fetched_symbols = data.columns.levels[0] if isinstance(data.columns, pd.MultiIndex) else data.columns
+
+    for sym in fetched_symbols:
+        clean_sym = str(sym).replace(".NS", "")
+        if clean_sym in live_prices_snapshot:
+            # నిన్నటి క్యాండిల్ (లేదా ఈరోజుటి ఇన్కంప్లీట్ క్యాండిల్) క్లోజ్ ప్రైస్ ని లైవ్ ప్రైస్ తో మారుస్తున్నాం
+            data.loc[data.index[-1], (sym, 'Close')] = live_prices_snapshot[clean_sym]
+
+    results = []
+    minutes = get_minutes_passed()
                 
                 df = df.sort_values('date').set_index('date')
                 last_price = float(df['nav'].iloc[-1])
