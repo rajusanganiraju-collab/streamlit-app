@@ -2399,10 +2399,7 @@ def render_live_ui():
                     strats_to_run = [s for s in strats_to_run if s != "📉 FIB Retracement (0.382)"]
     
                 all_dfs = []
-                for strat in strats_to_run:
-                    c_buy = pd.Series(False, index=df_filtered.index)
-                    c_sell = pd.Series(False, index=df_filtered.index)
-                    icon_str = ""
+                
                 for strat in strats_to_run:
                     c_buy = pd.Series(False, index=df_filtered.index)
                     c_sell = pd.Series(False, index=df_filtered.index)
