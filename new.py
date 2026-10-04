@@ -1731,7 +1731,9 @@ watchlist_mode = st.selectbox("Watchlist", [
     "Mutual Funds 📈", 
     "Month Effect Advantage 📅"
 ], index=0, label_visibility="collapsed")
-
+if watchlist_mode == "My Money Tracker 💰":
+    render_money_tracker()
+    st.stop()
 refresh_sec = 15 if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"] else 5
 
 view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], index=1 if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"] else 0, horizontal=True, label_visibility="collapsed")
