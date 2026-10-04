@@ -818,6 +818,48 @@ def fetch_fundamentals_data(symbols_list):
 import calendar
 import time
 
+def sync_automatic_dues():
+    try:
+        dues_records = dues_ws.get_all_records()
+        if not dues_records: return
+        
+        df_dues = pd.DataFrame(dues_records)
+        df_dues['Next_Due_Date'] = pd.to_datetime(df_dues['Next_Due_Date'], format='%d-%b-%Y', errors='coerce')
+        today = pd.Timestamp.now().normalize()
+        
+        updates_made = False
+        new_expenses = []
+        
+        for idx, row in df_dues.iterrows():
+            due_date = row['Next_Due_Date']
+            if pd.isna(due_date): continue
+            
+            if today >= due_date:
+                # Add to expenses
+                new_expenses.append([
+                    today.strftime('%d-%b-%Y'), row['Type'], row['Account'], row['Category'], 
+                    row['Amount'], f"Auto: {row['Item_Name']}"
+                ])
+                
+                # Calculate next due date
+                freq = str(row['Frequency']).strip()
+                if freq == "Monthly": next_date = due_date + pd.DateOffset(months=1)
+                elif freq == "Half-Yearly": next_date = due_date + pd.DateOffset(months=6)
+                elif freq == "Yearly": next_date = due_date + pd.DateOffset(years=1)
+                else: next_date = due_date + pd.DateOffset(months=1)
+                
+                df_dues.at[idx, 'Next_Due_Date'] = next_date.strftime('%d-%b-%Y')
+                updates_made = True
+                
+        if updates_made:
+            if new_expenses: exp_ws.append_rows(new_expenses)
+            df_dues['Next_Due_Date'] = pd.to_datetime(df_dues['Next_Due_Date']).dt.strftime('%d-%b-%Y')
+            df_dues = df_dues.fillna("")
+            dues_ws.clear()
+            dues_ws.update([df_dues.columns.values.tolist()] + df_dues.values.tolist())
+            
+    except Exception as e: pass
+
 def render_money_tracker():
     sync_automatic_dues()
     
@@ -935,7 +977,6 @@ def render_money_tracker():
                     time.sleep(1)
                     st.rerun()
             
-            # 🔥 కింది టేబుల్ వల్లే మనకు సేవ్ అయిన Auto-pays స్క్రీన్ మీద కనిపిస్తాయి
             try:
                 active_dues = dues_ws.get_all_records()
                 if active_dues:
@@ -961,7 +1002,6 @@ def render_money_tracker():
                 icon_letter = str(row['Category'])[0].upper() if row['Category'] else "₹"
                 note_str = f" • <span style='color:#777; font-size:11px;'>{row['Notes']}</span>" if row['Notes'] else ""
                 
-                # 🔥 కింది HTML కోడ్ ని ఒకే లైన్ లో రాశాను. సో దట్ కోడ్ బగ్ పోయి అందంగా బాక్సుల్లా వస్తాయి.
                 tx_html += f'<div class="tx-row"><div class="tx-left"><div class="tx-icon">{icon_letter}</div><div><div class="tx-cat">{row["Category"]}{note_str}</div><div class="tx-acc">💵 {row["Account"]}</div></div></div><div class="{amt_class}">{amt_str}</div></div>'
             tx_html += '</div>'
             st.markdown(tx_html, unsafe_allow_html=True)
