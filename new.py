@@ -557,7 +557,7 @@ def fetch_cached_5m_data(tkrs_list):
         return pd.concat(valid_results.values(), axis=1, keys=valid_results.keys(), sort=False)
     return pd.DataFrame()
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=86400, show_spinner=False) # 👈 86400 అంటే రోజుకి ఒక్కసారే (24 Hours) చార్ట్స్ డేటా లోడ్ అవుతుంది
 def fetch_historical_charts_data(tkrs, timeframe):
     idx_list = [t for t in tkrs if "^" in t or "=" in t]
     stk_list = [t for t in tkrs if t not in idx_list]
@@ -565,8 +565,9 @@ def fetch_historical_charts_data(tkrs, timeframe):
     p, i = ("5y", "1wk") if timeframe == "Weekly Chart" else ("2y", "1d")
     
     res = []
-    if idx_list: res.append(yf.download(idx_list, period=p, interval=i, progress=False, group_by='ticker', threads=5))
-    if stk_list: res.append(yf.download(stk_list, period=p, interval=i, progress=False, group_by='ticker', threads=5))
+    # 👈 ఇక్కడ threads=5 ని threads=15 కి మార్చడం జరిగింది
+    if idx_list: res.append(yf.download(idx_list, period=p, interval=i, progress=False, group_by='ticker', threads=15))
+    if stk_list: res.append(yf.download(stk_list, period=p, interval=i, progress=False, group_by='ticker', threads=15))
     
     if not res: return pd.DataFrame()
     
@@ -582,7 +583,7 @@ def fetch_historical_charts_data(tkrs, timeframe):
     return df
 
 # --- DAILY DATA FETCH ---
-@st.cache_data(ttl=180, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False) # 👈 లోడ్ అవ్వడానికి 5 నిమిషాల గ్యాప్ ఇచ్చాను (యాప్ స్మూత్ గా రన్ అవ్వడానికి)
 def fetch_all_data():
     port_df = load_portfolio()
     port_stocks = [str(sym).upper().strip() for sym in port_df['Symbol'].tolist() if str(sym).strip() != ""]
@@ -594,13 +595,18 @@ def fetch_all_data():
     data_frames = []
     for i in range(0, len(tkrs), chunk_size):
         chunk = tkrs[i : i + chunk_size]
-        temp_data = yf.download(chunk, period="15mo", progress=False, group_by='ticker', threads=5)
+        # 👈 ఇక్కడ threads=5 ని threads=15 కి మార్చడం జరిగింది
+        temp_data = yf.download(chunk, period="15mo", progress=False, group_by='ticker', threads=15)
         if not temp_data.empty:
             if len(chunk) == 1:
                 temp_data.columns = pd.MultiIndex.from_product([chunk, temp_data.columns])
             data_frames.append(temp_data)
             
     if not data_frames: return pd.DataFrame()
+    data = pd.concat(data_frames, axis=1)
+    if data.empty: return pd.DataFrame()
+
+    # (ఇక్కడి నుండి కింద ఉన్న 'results = []' మరియు మిగతా Indicator లాజిక్ అంతా మీ పాత కోడ్ లో ఉన్నది ఉన్నట్లుగానే ఉంచండి)
     data = pd.concat(data_frames, axis=1)
     if data.empty: return pd.DataFrame()
 
