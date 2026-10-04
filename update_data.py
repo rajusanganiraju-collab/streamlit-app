@@ -7,7 +7,7 @@ import json
 
 # GitHub Secrets నుండి సర్వీస్ అకౌంట్ తీసుకుంటుంది
 creds_json = os.environ.get("GCP_CREDENTIALS")
-BUCKET_NAME = "my-trading-data-bucket" # మీ బకెట్ పేరు మార్చండి
+BUCKET_NAME = "raju-market-data-2026" # మీ బకెట్ పేరు మార్చండి
 FILE_NAME = "historical_data.parquet"
 
 # మీ స్టాక్స్ లిస్ట్ (App లో ఉన్నవే)
