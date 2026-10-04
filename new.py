@@ -273,7 +273,7 @@ def fetch_historical_from_gcs():
         df = pd.read_parquet(io.BytesIO(parquet_bytes), engine="pyarrow")
         return df
     except Exception as e:
-        st.error(f"GCS Error: {e}")
+        st.error(f"❌ క్లౌడ్ నుండి డేటా లాగడం ఫెయిల్ అయ్యింది: {e}")
         return pd.DataFrame()
 
 # --- చార్ట్స్ కోసం డేటా ఇచ్చే ఫంక్షన్ ---
@@ -289,7 +289,6 @@ def fetch_historical_charts_data(tkrs, timeframe):
     for tkr in available_tkrs:
         tdf = data[tkr].dropna(subset=['Close'])
         if timeframe == "Weekly Chart":
-            # డైలీ క్యాండిల్స్ ని వీక్లీ క్యాండిల్స్ గా మారుస్తున్నాం
             tdf = tdf.resample('W').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).dropna()
         df_list.append(tdf)
         
@@ -304,7 +303,6 @@ def fetch_all_data():
     data = fetch_historical_from_gcs()
     if data.empty: return pd.DataFrame()
 
-    # 🔥 అసలైన మ్యాజిక్: పాత డేటాకి లైవ్ LTP ని సెట్ చేయడం
     with LIVE_PRICES_LOCK:
         live_prices_snapshot = dict(LIVE_PRICES_GLOBAL)
 
@@ -313,40 +311,183 @@ def fetch_all_data():
     for sym in fetched_symbols:
         clean_sym = str(sym).replace(".NS", "")
         if clean_sym in live_prices_snapshot:
-            # నిన్నటి క్యాండిల్ (లేదా ఈరోజుటి ఇన్కంప్లీట్ క్యాండిల్) క్లోజ్ ప్రైస్ ని లైవ్ ప్రైస్ తో మారుస్తున్నాం
             data.loc[data.index[-1], (sym, 'Close')] = live_prices_snapshot[clean_sym]
 
     results = []
     minutes = get_minutes_passed()
-                
-                df = df.sort_values('date').set_index('date')
-                last_price = float(df['nav'].iloc[-1])
-                
-                def get_cagr(years):
-                    try:
-                        target_date = df.index[-1] - pd.DateOffset(years=years)
-                        closest_date = df.index[df.index <= target_date].max()
-                        if pd.isna(closest_date): return "N/A"
-                        past_price = float(df.loc[closest_date, 'nav'])
-                        cagr = ((last_price / past_price) ** (1 / years)) - 1
-                        return round(cagr * 100, 2)
-                    except: return "N/A"
-                
-                return {"Category": cat, "Fund Name": short_name, "NAV (₹)": round(last_price, 2),
-                    "1Y (%)": get_cagr(1), "3Y CAGR (%)": get_cagr(3), "5Y CAGR (%)": get_cagr(5)}
-        except Exception:
-            pass
-        return {"Category": cat, "Fund Name": short_name, "NAV (₹)": "N/A",
-            "1Y (%)": "N/A", "3Y CAGR (%)": "N/A", "5Y CAGR (%)": "N/A"}
+    nifty_dist = 0.1
+    if "^NSEI" in fetched_symbols:
+        try:
+            n_df = data["^NSEI"].dropna(subset=['Close'])
+            if not n_df.empty:
+                n_ltp = float(n_df['Close'].iloc[-1])
+                n_vwap = (float(n_df['High'].iloc[-1]) + float(n_df['Low'].iloc[-1]) + n_ltp) / 3
+                if n_vwap > 0: nifty_dist = abs(n_ltp - n_vwap) / n_vwap * 100
+        except: pass
 
-    results = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-        futures = [executor.submit(fetch_single, name, cat) for name, cat in tasks]
-        for future in concurrent.futures.as_completed(futures):
-            res = future.result()
-            if res: results.append(res)
+    for symbol in data.columns.levels[0]:
+        try:
+            df = data[symbol].dropna(subset=['Close'])
+            if len(df) < 2: continue
+            
+            ltp = float(df['Close'].iloc[-1])
+            open_p = float(df['Open'].iloc[-1])
+            prev_c = float(df['Close'].iloc[-2])
+            prev_h = float(df['High'].iloc[-2])
+            prev_l = float(df['Low'].iloc[-2])
+            low = float(df['Low'].iloc[-1])
+            high = float(df['High'].iloc[-1])
+            
+            day_chg = ((ltp - open_p) / open_p) * 100 if open_p > 0 else 0
+            net_chg = ((ltp - prev_c) / prev_c) * 100 if prev_c > 0 else 0
+            
+            p_pivot = (prev_h + prev_l + prev_c) / 3
+            p_bc = (prev_h + prev_l) / 2
+            p_tc = (p_pivot - p_bc) + p_pivot
+            cpr_width_pct = abs(p_tc - p_bc) / p_pivot * 100 if p_pivot > 0 else 0
+            is_narrow_cpr = bool(cpr_width_pct <= 0.30) 
+            
+            high_low = df['High'] - df['Low']
+            high_prev_close = (df['High'] - df['Close'].shift(1)).abs()
+            low_prev_close = (df['Low'] - df['Close'].shift(1)).abs()
+            tr = pd.concat([high_low, high_prev_close, low_prev_close], axis=1).max(axis=1)
+            atr = tr.ewm(span=14, adjust=False).mean().iloc[-1]
+
+            if 'Volume' in df.columns and not df['Volume'].isna().all() and len(df) >= 6:
+                avg_vol_5d = df['Volume'].iloc[-6:-1].mean()
+                curr_vol = float(df['Volume'].iloc[-1])
+                vol_x = round(curr_vol / ((avg_vol_5d/375) * minutes), 1) if avg_vol_5d > 0 else 0.0
+            else: 
+                vol_x = 0.0; curr_vol = 0.0
+                
+            vwap = (high + low + ltp) / 3
+            high_low_range = high - low
+            bull_power = 0; bear_power = 0
+            if high_low_range > 0:
+                bull_power = ((ltp - low) / high_low_range) * 100
+                bear_power = ((high - ltp) / high_low_range) * 100
+
+            ema50_d = float(df['Close'].ewm(span=50, adjust=False).mean().iloc[-1]) if len(df) >= 50 else 0.0
+            sma20_d = float(df['Close'].rolling(window=20).mean().iloc[-1]) if len(df) >= 20 else 0.0
+            sma50_d = float(df['Close'].rolling(window=50).mean().iloc[-1]) if len(df) >= 50 else 0.0
+            sma150_d = float(df['Close'].rolling(window=150).mean().iloc[-1]) if len(df) >= 150 else 0.0
+            sma200_d = float(df['Close'].rolling(window=200).mean().iloc[-1]) if len(df) >= 200 else 0.0
+            high_52w = float(df['High'].rolling(window=252).max().iloc[-1]) if len(df) >= 252 else float(df['High'].max())
+            low_52w = float(df['Low'].rolling(window=252).min().iloc[-1]) if len(df) >= 252 else float(df['Low'].min())
+            sma200_20d = float(df['Close'].rolling(window=200).mean().iloc[-21]) if len(df) >= 220 else 0.0
+            sma150_20d = float(df['Close'].rolling(window=150).mean().iloc[-21]) if len(df) >= 170 else 0.0
+            
+            if len(df) >= 25:
+                box_top_20 = float(df['High'].iloc[-13:-1].max())
+                box_bot_20 = float(df['Low'].iloc[-13:-1].min())
+            else:
+                box_top_20 = high_52w
+                box_bot_20 = low_52w
+            pullback_52w_pct = ((high_52w - ltp) / high_52w) * 100 if high_52w > 0 else 0
+
+            vcp_price_contraction = False
+            vcp_vol_dry = False
+            if len(df) >= 60:
+                max_60 = float(df['High'].iloc[-60:].max()); min_60 = float(df['Low'].iloc[-60:].min())
+                range_60 = (max_60 - min_60) / min_60 if min_60 > 0 else 0
+                max_10 = float(df['High'].iloc[-10:].max()); min_10 = float(df['Low'].iloc[-10:].min())
+                range_10 = (max_10 - min_10) / min_10 if min_10 > 0 else 0
+                if (range_60 > 0) and (range_10 <= (range_60 * 0.75)) and (range_10 <= 0.15):
+                    vcp_price_contraction = True
+                if 'Volume' in df.columns and len(df) >= 50:
+                    vol_avg_5 = float(df['Volume'].iloc[-5:].mean())
+                    vol_avg_50 = float(df['Volume'].iloc[-50:].mean())
+                    if vol_avg_5 <= (vol_avg_50 * 1.05):
+                        vcp_vol_dry = True
+            
+            is_swing = False; is_w_pullback = False
+            latest_w_ema10 = 0; latest_w_ema50 = 0
+            
+            df_w = df.resample('W').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).dropna()
+            weekly_net_chg = net_chg
+            if len(df_w) >= 2: 
+                prev_w_c = float(df_w['Close'].iloc[-2])
+                if prev_w_c > 0: weekly_net_chg = ((ltp - prev_w_c) / prev_w_c) * 100
+                    
+            if len(df_w) >= 40:
+                df_w['EMA_10'] = df_w['Close'].ewm(span=10, adjust=False).mean()
+                df_w['EMA_50'] = df_w['Close'].ewm(span=50, adjust=False).mean()
+                latest_w_ema10 = float(df_w['EMA_10'].iloc[-1])
+                latest_w_ema50 = float(df_w['EMA_50'].iloc[-1])
+                df_w['Trend_Up'] = np.where(df_w['EMA_10'] > df_w['EMA_50'], 1, 0)
+                continuous_4w = df_w['Trend_Up'].rolling(window=4).min().iloc[-1] == 1
+                w_tr = pd.concat([df_w['High'] - df_w['Low'], (df_w['High'] - df_w['Close'].shift(1)).abs(), (df_w['Low'] - df_w['Close'].shift(1)).abs()], axis=1).max(axis=1)
+                w_atr14 = w_tr.ewm(alpha=1/14, adjust=False).mean()
+                w_plus_dm = df_w['High'].diff()
+                w_minus_dm = df_w['Low'].shift(1) - df_w['Low']
+                w_plus_dm = w_plus_dm.where((w_plus_dm > w_minus_dm) & (w_plus_dm > 0), 0.0)
+                w_minus_dm = w_minus_dm.where((w_minus_dm > w_plus_dm) & (w_minus_dm > 0), 0.0)
+                w_plus_di = 100 * (w_plus_dm.ewm(alpha=1/14, adjust=False).mean() / w_atr14)
+                w_minus_di = 100 * (w_minus_dm.ewm(alpha=1/14, adjust=False).mean() / w_atr14)
+                w_dx = (w_plus_di - w_minus_di).abs() / (w_plus_di + w_minus_di) * 100
+                w_adx = w_dx.ewm(alpha=1/14, adjust=False).mean().iloc[-1]
+                recent_w_low = df_w['Low'].iloc[-2:].min()
+                touch_ema = recent_w_low <= (latest_w_ema10 * 1.002) 
+                bounce = ltp > latest_w_ema10 
+                catch_early = ltp <= (latest_w_ema10 * 1.02)
+                if continuous_4w and touch_ema and bounce and catch_early and (w_adx >= 15):
+                    is_w_pullback = True
+
+            if len(df) >= 100:
+                ema20_w = latest_w_ema10 if latest_w_ema10 > 0 else 0
+                delta = df['Close'].diff()
+                gain = delta.clip(lower=0).ewm(alpha=1/14, adjust=False).mean()
+                loss = -delta.clip(upper=0).ewm(alpha=1/14, adjust=False).mean()
+                loss = loss.replace(0, np.nan)
+                rs = gain / loss
+                rsi = 100 - (100 / (1 + rs))
+                current_rsi = rsi.fillna(100).iloc[-1]
+                if (ltp > ema50_d) and (ltp > ema20_w) and (current_rsi >= 55) and (net_chg > 0):
+                    is_swing = True
+
+            score = 0
+            stock_dist = abs(ltp - vwap) / vwap * 100 if vwap > 0 else 0
+            effective_nifty = max(nifty_dist, 0.25) 
+            
+            if stock_dist > (effective_nifty * 3): score += 5
+            elif stock_dist > (effective_nifty * 2): score += 3
+            if abs(open_p - low) <= (ltp * 0.003) or abs(open_p - high) <= (ltp * 0.003): score += 3 
+            if vol_x > 1.0: score += 3 
+            if (ltp >= high * 0.998 and day_chg > 0.5) or (ltp <= low * 1.002 and day_chg < -0.5): score += 1
+            if (ltp > (low * 1.01) and ltp > vwap) or (ltp < (high * 0.99) and ltp < vwap): score += 1
+            if bull_power >= 85 and day_chg > 1.0: score += 3 
+            if bear_power >= 85 and day_chg < -1.0: score += 3
+            
+            is_index = symbol in INDICES_MAP
+            is_sector = symbol in SECTOR_INDICES_MAP
+            is_commodity = symbol in COMMODITY_MAP
+            disp_name = INDICES_MAP.get(symbol, SECTOR_INDICES_MAP.get(symbol, COMMODITY_MAP.get(symbol, symbol.replace(".NS", ""))))
+            
+            stock_sector = "OTHER"
+            if not is_index and not is_sector and not is_commodity:
+                for sec, stocks in NIFTY_50_SECTORS.items():
+                    if disp_name in stocks:
+                        stock_sector = sec
+                        break
+            
+            results.append({
+                "VCP_Contract": vcp_price_contraction, "VCP_Vol_Dry": vcp_vol_dry,
+                "Fetch_T": symbol, "T": disp_name, "P": ltp, "O": open_p, "H": high, "L": low, "Prev_C": prev_c,
+                "Prev_H": prev_h, "Prev_L": prev_l, "W_EMA10": latest_w_ema10, "W_EMA50": latest_w_ema50, "D_EMA50": ema50_d,
+                "SMA20": sma20_d, "SMA50": sma50_d, "SMA150": sma150_d, "SMA200": sma200_d, "High52W": high_52w, "Low52W": low_52w, "SMA200_20D": sma200_20d,
+                "Day_C": day_chg, "C": net_chg, "W_C": float(weekly_net_chg), "S": score, "VolX": vol_x, "Is_Swing": is_swing,
+                "Is_W_Pullback": is_w_pullback, "VWAP": vwap,
+                "ATR": atr, "Narrow_CPR": is_narrow_cpr,
+                "Bull_P": bull_power, "Bear_P": bear_power,
+                "Is_Index": is_index, "Is_Sector": is_sector, "Sector": stock_sector, "Is_Commodity": is_commodity,
+                "SMA150_20D": sma150_20d, "Box_Top20": box_top_20, "Box_Bot20": box_bot_20,
+                "Pullback_52W": pullback_52w_pct
+            })
+        except Exception as e: 
+            print(f"Error processing {symbol}: {e}")
+            continue
+            
     return pd.DataFrame(results)
-
 NIFTY_50_SECTORS = {
     "PHARMA": ["SUNPHARMA", "CIPLA", "DRREDDY", "APOLLOHOSP"],
     "IT": ["TCS", "INFY", "HCLTECH", "WIPRO", "TECHM"],
