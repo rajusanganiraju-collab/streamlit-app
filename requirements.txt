@@ -9,3 +9,6 @@ scikit-learn
 dhanhq
 mstarpy
 pandas_ta
+google-cloud-storage
+pyarrow
+fastparquet
