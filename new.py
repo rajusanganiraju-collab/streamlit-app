@@ -985,32 +985,32 @@ def render_money_tracker():
 
     with col_right:
         with st.expander("🔄 Setup Auto-Pay (Loans, Agriculture)", expanded=False):
-    with st.form("auto_pay_form", clear_on_submit=True):
-        a_name = st.text_input("Item Name (e.g., Gold Loan / Bike EMI)")
-        a_type = st.selectbox("Type", ["Expense", "Income"])
-        a_acc = st.selectbox("Account", ["Bank Account", "Cash"])
-        a_cat = st.selectbox("Category", ["EMI / Loans", "Agriculture", "Rent & Bills", "Salary"])
-        a_amt = st.number_input("Amount (₹)", min_value=1)
-        a_freq = st.selectbox("Frequency", ["Monthly", "Half-Yearly", "Yearly"])
+            with st.form("auto_pay_form", clear_on_submit=True):
+                a_name = st.text_input("Item Name (e.g., Gold Loan / Bike EMI)")
+                a_type = st.selectbox("Type", ["Expense", "Income"])
+                a_acc = st.selectbox("Account", ["Bank Account", "Cash"])
+                a_cat = st.selectbox("Category", ["EMI / Loans", "Agriculture", "Rent & Bills", "Salary"])
+                a_amt = st.number_input("Amount (₹)", min_value=1)
+                a_freq = st.selectbox("Frequency", ["Monthly", "Half-Yearly", "Yearly"])
 
-        # EMI / Dates section
-        c_d1, c_d2 = st.columns(2)
-        with c_d1:
-            a_start = st.date_input("Start Date / First EMI")
-        with c_d2:
-            a_end = st.date_input("End Date / Last EMI (Optional)")
+                # EMI / Dates section
+                c_d1, c_d2 = st.columns(2)
+                with c_d1:
+                    a_start = st.date_input("Start Date / First EMI")
+                with c_d2:
+                    a_end = st.date_input("End Date / Last EMI (Optional)")
 
-        if st.form_submit_button("Set Automation"):
-            end_date_str = a_end.strftime('%d-%b-%Y') if a_end else ""
-            dues_ws.append_row([
-                a_name, a_type, a_acc, a_cat, a_amt, a_freq, 
-                a_start.strftime('%d-%b-%Y'), 
-                a_start.strftime('%d-%b-%Y'), 
-                end_date_str
-            ])
-            st.success("Automation Active!")
-            time.sleep(1)
-            st.rerun()
+                if st.form_submit_button("Set Automation"):
+                    end_date_str = a_end.strftime('%d-%b-%Y') if a_end else ""
+                    dues_ws.append_row([
+                        a_name, a_type, a_acc, a_cat, a_amt, a_freq, 
+                        a_start.strftime('%d-%b-%Y'), 
+                        a_start.strftime('%d-%b-%Y'), 
+                        end_date_str
+                    ])
+                    st.success("Automation Active!")
+                    time.sleep(1)
+                    st.rerun()
             
             try:
                 active_dues = dues_ws.get_all_records()
