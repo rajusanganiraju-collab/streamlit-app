@@ -2680,18 +2680,20 @@ def render_live_ui():
             df_filtered['Intra_DL_Bounce'] = np.where(df_filtered['L'] > 0, ((df_filtered['P'] - df_filtered['L']) / df_filtered['L']) * 100, 0.0)
     
             if sort_mode == "Intraday Pullback Max 📉 (DH / DL)":
-                # SELL / Weak stocks ni gurtinche mask
-                if df_filtered['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4|🩸', na=False).any():
-                    is_sell_mask = df_filtered['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4|🩸', na=False)
+                # 🔥 FIX: Watchlist mode ని బట్టి స్ట్రాటజీ సెల్స్ ని కరెక్ట్ గా ఫిల్టర్ చేయడం
+                is_strat_mode = watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆", "Day Trading Stocks 🚀"] or "AI Predictions" in watchlist_mode
+                
+                if is_strat_mode:
+                    is_sell_mask = df_filtered['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4|🩸|52WL', na=False)
                 else:
                     is_sell_mask = df_filtered['Day_C'] < 0
-    
-                # BUY side: Day high nundi ekkuva padinavi (DH Pullback Max) top loki vastayi
+
+                # BUY side: Day high నుండి ఎక్కువ పడినవి (DH Pullback Max) టాప్ లోకి వస్తాయి
                 buy_subset = df_filtered[~is_sell_mask].sort_values(by=['Intra_DH_PB', 'S'], ascending=[False, False])
-                
-                # SELL side: Day low nundi ekkuva bounce ayinavi (DL Bounce Max) top loki vastayi
+
+                # SELL side: Day low నుండి ఎక్కువ బౌన్స్ అయినవి (DL Bounce Max) టాప్ లోకి వస్తాయి
                 sell_subset = df_filtered[is_sell_mask].sort_values(by=['Intra_DL_Bounce', 'S'], ascending=[False, False])
-                
+
                 df_stocks_display = pd.concat([buy_subset, sell_subset])
     
             elif sort_mode == "52W Pullback Max 📉 (Deep Discount)":
