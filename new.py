@@ -59,10 +59,12 @@ def init_connection():
     db_sheet = client.open("Trading_DB")
     p_ws = db_sheet.worksheet("Portfolio")
     t_ws = db_sheet.worksheet("TradeBook")
-    return p_ws, t_ws
+    exp_ws = db_sheet.worksheet("Expenses")
+    dues_ws = db_sheet.worksheet("Fixed_Dues")
+    return p_ws, t_ws, exp_ws, dues_ws
 
 try:
-    port_ws, trade_ws = init_connection()
+    port_ws, trade_ws, exp_ws, dues_ws = init_connection()
 except Exception as e:
     st.error(f"గూగుల్ షీట్ కనెక్ట్ అవ్వలేదు బాస్! Error: {e}")
     st.stop()
@@ -812,6 +814,196 @@ def fetch_fundamentals_data(symbols_list):
     return pd.DataFrame(fund_data)   
 
 # --- RENDER FUNCTIONS ---
+
+import calendar
+import time
+
+def sync_automatic_dues():
+    try:
+        dues_records = dues_ws.get_all_records()
+        if not dues_records: return
+        
+        df_dues = pd.DataFrame(dues_records)
+        df_dues['Next_Due_Date'] = pd.to_datetime(df_dues['Next_Due_Date'], format='%d-%b-%Y', errors='coerce')
+        today = pd.Timestamp.now().normalize()
+        
+        updates_made = False
+        new_expenses = []
+        
+        for idx, row in df_dues.iterrows():
+            due_date = row['Next_Due_Date']
+            if pd.isna(due_date): continue
+            
+            if today >= due_date:
+                # Add to expenses
+                new_expenses.append([
+                    today.strftime('%d-%b-%Y'), row['Type'], row['Account'], row['Category'], 
+                    row['Amount'], f"Auto: {row['Item_Name']}"
+                ])
+                
+                # Calculate next due date
+                freq = str(row['Frequency']).strip()
+                if freq == "Monthly": next_date = due_date + pd.DateOffset(months=1)
+                elif freq == "Half-Yearly": next_date = due_date + pd.DateOffset(months=6)
+                elif freq == "Yearly": next_date = due_date + pd.DateOffset(years=1)
+                else: next_date = due_date + pd.DateOffset(months=1)
+                
+                df_dues.at[idx, 'Next_Due_Date'] = next_date.strftime('%d-%b-%Y')
+                updates_made = True
+                
+        if updates_made:
+            if new_expenses: exp_ws.append_rows(new_expenses)
+            df_dues['Next_Due_Date'] = pd.to_datetime(df_dues['Next_Due_Date']).dt.strftime('%d-%b-%Y')
+            df_dues = df_dues.fillna("")
+            dues_ws.clear()
+            dues_ws.update([df_dues.columns.values.tolist()] + df_dues.values.tolist())
+            
+    except Exception as e: pass
+
+def render_money_tracker():
+    sync_automatic_dues()
+    
+    # 🌟 Custom CSS for MyMoney Premium Dark Theme
+    st.markdown("""
+    <style>
+    .money-container { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    .summary-board { display: flex; justify-content: space-around; background-color: #383838; padding: 15px 5px; border-bottom: 2px solid #1a1a1a; margin-bottom: 15px; border-radius: 8px;}
+    .sum-col { text-align: center; flex: 1; }
+    .sum-title { font-size: 11px; color: #a9a9a9; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
+    .sum-exp { font-size: 16px; color: #F44336; font-weight: bold; }
+    .sum-inc { font-size: 16px; color: #4CAF50; font-weight: bold; }
+    .sum-tot { font-size: 16px; color: #FFD700; font-weight: bold; }
+    
+    .date-header { font-size: 13px; font-weight: bold; color: #FFD700; background-color: #2b2b2b; padding: 5px 10px; border-bottom: 1px solid #444; margin-top: 15px; border-radius: 5px 5px 0 0;}
+    .tx-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 10px; border-bottom: 1px solid #444; background-color: #333333; }
+    .tx-left { display: flex; align-items: center; gap: 12px; }
+    .tx-icon { background-color: #C2185B; color: white; width: 35px; height: 35px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 18px; font-weight: bold; }
+    .tx-cat { font-size: 15px; color: #ffffff; margin-bottom: 2px; }
+    .tx-acc { font-size: 11px; color: #a9a9a9; background-color: #444; padding: 2px 6px; border-radius: 4px; display: inline-block; }
+    .tx-amt-exp { font-size: 15px; color: #F44336; font-weight: bold; text-align: right; }
+    .tx-amt-inc { font-size: 15px; color: #4CAF50; font-weight: bold; text-align: right; }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    try:
+        exp_data = exp_ws.get_all_records()
+        df_exp = pd.DataFrame(exp_data) if exp_data else pd.DataFrame(columns=['Date', 'Type', 'Account', 'Category', 'Amount', 'Notes'])
+    except:
+        df_exp = pd.DataFrame(columns=['Date', 'Type', 'Account', 'Category', 'Amount', 'Notes'])
+        
+    if not df_exp.empty:
+        df_exp['Date_Obj'] = pd.to_datetime(df_exp['Date'], format='%d-%b-%Y', errors='coerce')
+        df_exp = df_exp.dropna(subset=['Date_Obj']).sort_values('Date_Obj', ascending=False)
+        df_exp['Month_Year'] = df_exp['Date_Obj'].dt.strftime('%B %Y')
+    else:
+        df_exp['Date_Obj'] = pd.NaT
+        df_exp['Month_Year'] = ""
+
+    all_months = df_exp['Month_Year'].unique().tolist() if not df_exp.empty else [pd.Timestamp.now().strftime('%B %Y')]
+    
+    c1, c2, c3 = st.columns([1, 2, 1])
+    with c2:
+        selected_month = st.selectbox("📅 Select Month", all_months, label_visibility="collapsed")
+    
+    df_month = df_exp[df_exp['Month_Year'] == selected_month] if not df_exp.empty else df_exp
+    
+    total_income = df_month[df_month['Type'] == 'Income']['Amount'].sum() if not df_month.empty else 0
+    total_expense = df_month[df_month['Type'] == 'Expense']['Amount'].sum() if not df_month.empty else 0
+    net_total = total_income - total_expense
+    
+    summary_html = f"""
+    <div class="money-container">
+        <div class="summary-board">
+            <div class="sum-col">
+                <div class="sum-title">EXPENSE</div>
+                <div class="sum-exp">₹{total_expense:,.2f}</div>
+            </div>
+            <div class="sum-col">
+                <div class="sum-title">INCOME</div>
+                <div class="sum-inc">₹{total_income:,.2f}</div>
+            </div>
+            <div class="sum-col">
+                <div class="sum-title">TOTAL</div>
+                <div class="sum-tot">₹{net_total:,.2f}</div>
+            </div>
+        </div>
+    </div>
+    """
+    st.markdown(summary_html, unsafe_allow_html=True)
+    
+    col_left, col_right = st.columns([1.5, 1])
+    
+    with col_left:
+        with st.expander("➕ Add Record (Income / Expense)"):
+            with st.form("add_money_form", clear_on_submit=True):
+                mc1, mc2 = st.columns(2)
+                with mc1: t_type = st.radio("Type", ["Expense", "Income", "Transfer"], horizontal=True)
+                with mc2: t_date = st.date_input("Date")
+                
+                ac1, ac2 = st.columns(2)
+                with ac1: t_acc = st.selectbox("Account", ["Cash", "Bank Account", "Credit Card"])
+                with ac2: 
+                    cats = ["Food", "Rent", "EMI", "Shopping", "Transport", "Trading Loss"] if t_type == "Expense" else ["Salary", "Business", "Trading Profit", "Agriculture"]
+                    t_cat = st.selectbox("Category", cats)
+                
+                t_note = st.text_area("Add notes...", height=68)
+                t_amt = st.number_input("Amount (₹)", min_value=0.0, step=100.0)
+                
+                if st.form_submit_button("✔️ SAVE", use_container_width=True):
+                    if t_amt > 0:
+                        exp_ws.append_row([t_date.strftime('%d-%b-%Y'), t_type, t_acc, t_cat, t_amt, t_note])
+                        st.success("Record Saved!")
+                        time.sleep(1)
+                        st.rerun()
+
+    with col_right:
+        with st.expander("🔄 Setup Auto-Pay (Loans, Agriculture)"):
+            with st.form("auto_pay_form", clear_on_submit=True):
+                a_name = st.text_input("Item Name (e.g., Gold Loan)")
+                a_type = st.selectbox("Type", ["Expense", "Income"])
+                a_acc = st.selectbox("Account", ["Bank Account", "Cash"])
+                a_cat = st.selectbox("Category", ["EMI / Loans", "Agriculture", "Rent & Bills", "Salary"])
+                a_amt = st.number_input("Amount (₹)", min_value=1)
+                a_freq = st.selectbox("Frequency", ["Monthly", "Half-Yearly", "Yearly"])
+                a_date = st.date_input("Next Due Date")
+                if st.form_submit_button("Set Automation"):
+                    dues_ws.append_row([a_name, a_type, a_acc, a_cat, a_amt, a_freq, a_date.strftime('%d-%b-%Y')])
+                    st.success("Automation Active!")
+                    time.sleep(1)
+                    st.rerun()
+
+    st.markdown("<hr style='border-color:#30363d; margin: 15px 0;'>", unsafe_allow_html=True)
+
+    if not df_month.empty:
+        grouped = df_month.groupby('Date_Obj')
+        for date_obj, group in grouped:
+            day_name = date_obj.strftime('%b %d, %A')
+            st.markdown(f'<div class="date-header">{day_name}</div>', unsafe_allow_html=True)
+            
+            tx_html = '<div class="money-container">'
+            for _, row in group.iterrows():
+                is_exp = row['Type'] == 'Expense'
+                amt_str = f"-₹{row['Amount']:,.2f}" if is_exp else f"₹{row['Amount']:,.2f}"
+                amt_class = "tx-amt-exp" if is_exp else "tx-amt-inc"
+                icon_letter = row['Category'][0].upper() if row['Category'] else "₹"
+                note_str = f" • <span style='color:#777; font-size:11px;'>{row['Notes']}</span>" if row['Notes'] else ""
+                
+                tx_html += f"""
+                <div class="tx-row">
+                    <div class="tx-left">
+                        <div class="tx-icon">{icon_letter}</div>
+                        <div>
+                            <div class="tx-cat">{row['Category']}{note_str}</div>
+                            <div class="tx-acc">💵 {row['Account']}</div>
+                        </div>
+                    </div>
+                    <div class="{amt_class}">{amt_str}</div>
+                </div>
+                """
+            tx_html += '</div>'
+            st.markdown(tx_html, unsafe_allow_html=True)
+    else:
+        st.info("No records found for this month.")
 def render_mf_table(df_mf):
     if df_mf.empty: return "<div style='padding:20px; text-align:center;'>No Mutual Fund data available.</div>"
     html = f'<table class="term-table"><thead><tr><th colspan="7" class="term-head-swing" style="background-color: #005a9e; color: white;">🏆 MUTUAL FUNDS SCREENER (LIVE PERFORMANCE)</th></tr><tr style="background-color: #21262d;"><th style="width:5%;">RANK</th><th style="text-align:left; width:25%;">FUND NAME</th><th style="width:15%; color:#ffd700;">CATEGORY</th><th style="width:10%;">NAV (₹)</th><th style="width:15%;">1Y RETURN</th><th style="width:15%;">3Y CAGR</th><th style="width:15%;">5Y CAGR</th></tr></thead><tbody>'
@@ -1532,7 +1724,8 @@ watchlist_mode = st.selectbox("Watchlist", [
     "Legendary Strategy 🏆", 
     "Nifty 50 Heatmap", 
     "Terminal Tables 🗃️",
-    "My Portfolio 💼", 
+    "My Portfolio 💼",
+    My Money Tracker 💰"
     "Commodity 🛢️", 
     "Fundamentals 🏢", 
     "Mutual Funds 📈", 
@@ -1609,7 +1802,8 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
             
         elif watchlist_mode == "Fundamentals 🏢":
             fund_filter = st.selectbox("Fundamentals Filter", ["Top Ranked Stocks ⭐", "🦅 Warren Buffett Value Stocks", "Swing Trading Candidates 📈", "Nifty 50 Stocks", "My Portfolio 💼"], index=0)
-            
+        elif watchlist_mode == "My Money Tracker 💰":
+            render_money_tracker()    
     with sc2:
         sort_mode = st.selectbox(
             "Sort By", 
