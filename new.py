@@ -888,8 +888,15 @@ def render_money_tracker():
     try:
         exp_data = exp_ws.get_all_records()
         df_exp = pd.DataFrame(exp_data) if exp_data else pd.DataFrame(columns=['Date', 'Type', 'Account', 'Category', 'Amount', 'Notes'])
+        # షీట్‌లో హెడ్డింగ్స్ కి స్పేస్ ఉన్నా, స్మాల్ లెటర్స్ ఉన్నా ఆటోమాటిక్ గా ఫిక్స్ చేస్తుంది
+        df_exp.columns = df_exp.columns.str.strip().str.title()
     except:
         df_exp = pd.DataFrame(columns=['Date', 'Type', 'Account', 'Category', 'Amount', 'Notes'])
+        
+    # ఏ కాలమ్ మిస్ అయినా యాప్ క్రాష్ అవ్వకుండా డమ్మీ కాలమ్స్ క్రియేట్ చేస్తుంది
+    for req_col in ['Date', 'Type', 'Account', 'Category', 'Amount', 'Notes']:
+        if req_col not in df_exp.columns:
+            df_exp[req_col] = ""
         
     if not df_exp.empty:
         df_exp['Date_Obj'] = pd.to_datetime(df_exp['Date'], format='%d-%b-%Y', errors='coerce')
