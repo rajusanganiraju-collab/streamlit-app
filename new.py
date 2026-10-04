@@ -1007,6 +1007,37 @@ def render_money_tracker():
             st.markdown(tx_html, unsafe_allow_html=True)
     else:
         st.info("No records found for this month.")
+    # === EDIT OR DELETE TRANSACTIONS SECTION ===
+    st.markdown("<hr style='border-color:#30363d; margin: 20px 0;'>", unsafe_allow_html=True)
+    with st.expander("✏️ Edit / Delete Transactions (Corrections)", expanded=False):
+        st.markdown("<p style='font-size:13px; color:#ffd700;'>💡 <b>ఎలా మార్చాలి?</b> తప్పుగా పడిన అమౌంట్ మీద క్లిక్ చేసి మార్చండి. లేదా పక్కన ఉన్న చెక్ బాక్స్ సెలెక్ట్ చేసి కీబోర్డ్‌లో Delete నొక్కండి. చివరగా Save బటన్ నొక్కండి.</p>", unsafe_allow_html=True)
+        
+        try:
+            raw_exp = exp_ws.get_all_records()
+            df_raw_exp = pd.DataFrame(raw_exp) if raw_exp else pd.DataFrame(columns=['Date', 'Type', 'Account', 'Category', 'Amount', 'Notes'])
+            df_raw_exp.columns = df_raw_exp.columns.str.strip().str.title()
+        except:
+            df_raw_exp = pd.DataFrame(columns=['Date', 'Type', 'Account', 'Category', 'Amount', 'Notes'])
+            
+        edited_exp_df = st.data_editor(
+            df_raw_exp,
+            width="stretch",
+            hide_index=True,
+            num_rows="dynamic",
+            key="expense_editor_table"
+        )
+        
+        if st.button("💾 Save Corrections", width="stretch", key="save_exp_btn"):
+            edited_exp_df = edited_exp_df.fillna("")
+            exp_ws.clear()
+            if not edited_exp_df.empty:
+                exp_ws.update([edited_exp_df.columns.values.tolist()] + edited_exp_df.values.tolist())
+            else:
+                exp_ws.append_row(['Date', 'Type', 'Account', 'Category', 'Amount', 'Notes'])
+            
+            st.success("✅ కరెక్షన్స్ సేవ్ అయ్యాయి!")
+            time.sleep(1)
+            st.rerun()
 def render_mf_table(df_mf):
     if df_mf.empty: return "<div style='padding:20px; text-align:center;'>No Mutual Fund data available.</div>"
     html = f'<table class="term-table"><thead><tr><th colspan="7" class="term-head-swing" style="background-color: #005a9e; color: white;">🏆 MUTUAL FUNDS SCREENER (LIVE PERFORMANCE)</th></tr><tr style="background-color: #21262d;"><th style="width:5%;">RANK</th><th style="text-align:left; width:25%;">FUND NAME</th><th style="width:15%; color:#ffd700;">CATEGORY</th><th style="width:10%;">NAV (₹)</th><th style="width:15%;">1Y RETURN</th><th style="width:15%;">3Y CAGR</th><th style="width:15%;">5Y CAGR</th></tr></thead><tbody>'
