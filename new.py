@@ -840,7 +840,64 @@ def render_html_table(df_subset, title, color_class):
         html += f'<tr class="{bg_class}"><td class="t-symbol {net_color}"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td><td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td class="{net_color}">{row["C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
     html += "</tbody></table>"
     return html
+def render_portfolio_vs_nifty_chart(df_port):
+    if df_port.empty: return
+    try:
+        port_symbols = [str(sym).upper().strip() + ".NS" for sym in df_port['Symbol'].tolist() if str(sym).strip() != ""]
+        if not port_symbols: return
 
+        with st.spinner("Loading Portfolio vs NIFTY Chart..."):
+            tkrs_to_fetch = list(set(port_symbols + ["^NSEI"]))
+            # Past 1 year data ni fetch chestunnam
+            data_raw = yf.download(tkrs_to_fetch, period="1y", interval="1d", progress=False)
+            if data_raw.empty: return
+            
+            # yfinance returns handle cheyadam
+            if isinstance(data_raw.columns, pd.MultiIndex):
+                data = data_raw.xs('Close', level=0, axis=1)
+            else:
+                data = pd.DataFrame({tkrs_to_fetch[0]: data_raw['Close']})
+            
+            data = data.ffill().bfill()
+            
+            # Portfolio Total Value (Daily) calculate cheyadam
+            port_daily_value = pd.Series(0.0, index=data.index)
+            for _, row in df_port.iterrows():
+                sym = str(row['Symbol']).upper().strip() + ".NS"
+                try: qty = float(row['Quantity'])
+                except: qty = 0
+                if sym in data.columns and qty > 0:
+                    port_daily_value += (data[sym] * qty)
+            
+            # NIFTY Value
+            if "^NSEI" in data.columns:
+                nifty_daily_value = data["^NSEI"]
+            else: return
+            
+            if port_daily_value.iloc[0] == 0 or nifty_daily_value.iloc[0] == 0: return
+
+            # Rendiṭini Percentages loki marchadam (Starting = 0%)
+            port_pct = ((port_daily_value / port_daily_value.iloc[0]) - 1) * 100
+            nifty_pct = ((nifty_daily_value / nifty_daily_value.iloc[0]) - 1) * 100
+
+            # Plotly Chart Design
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=port_pct.index, y=port_pct, mode='lines', name='My Portfolio', line=dict(color='#00BFFF', width=2.5)))
+            fig.add_trace(go.Scatter(x=nifty_pct.index, y=nifty_pct, mode='lines', name='NIFTY 50', line=dict(color='#FFD700', width=2, dash='dash')))
+
+            fig.update_layout(
+                title="<b>Portfolio Basket vs NIFTY 50 (1-Year Growth %)</b>",
+                title_font=dict(color="#ffffff", size=14),
+                plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="#c9d1d9", size=11),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                xaxis=dict(showgrid=False, zeroline=False, showline=True, linecolor="#30363d"),
+                yaxis=dict(showgrid=True, gridcolor="#30363d", zeroline=True, zerolinecolor="#4a4a4a", ticksuffix="%"),
+                margin=dict(l=40, r=20, t=50, b=30), height=320, hovermode="x unified"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+    except Exception as e:
+        pass
 def render_portfolio_table(df_port, df_stocks, weekly_trends, port_sort="Default"):
     if df_port.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>Portfolio is empty. Add a stock using the option below!</div>"
     
@@ -2851,6 +2908,11 @@ def render_live_ui():
             
             st.markdown(render_portfolio_table(df_port_saved, df_all_stocks, weekly_trends, port_sort), unsafe_allow_html=True)
             st.markdown("<br>", unsafe_allow_html=True)
+            
+            # --- 🔥 KOTHAGA ADD CHESINA CHART CODE 🔥 ---
+            with st.expander("📈 Portfolio vs NIFTY 50 Performance (1-Year Growth)", expanded=True):
+                render_portfolio_vs_nifty_chart(df_port_saved)
+            # -----------------------------------------------
             
             with st.expander("🤖 View Portfolio Swing Advisor (Action & Levels)", expanded=False):
                 st.markdown(render_portfolio_swing_advice_table(df_port_saved, df_all_stocks, weekly_trends), unsafe_allow_html=True)
