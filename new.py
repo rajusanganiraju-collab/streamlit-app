@@ -1725,7 +1725,7 @@ watchlist_mode = st.selectbox("Watchlist", [
     "Nifty 50 Heatmap", 
     "Terminal Tables 🗃️",
     "My Portfolio 💼",
-    My Money Tracker 💰",
+    "My Money Tracker 💰",
     "Commodity 🛢️", 
     "Fundamentals 🏢", 
     "Mutual Funds 📈", 
