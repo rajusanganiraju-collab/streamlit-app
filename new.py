@@ -1038,6 +1038,36 @@ def render_money_tracker():
             st.success("✅ కరెక్షన్స్ సేవ్ అయ్యాయి!")
             time.sleep(1)
             st.rerun()
+# === EDIT OR DELETE AUTO-PAY DUES SECTION ===
+    with st.expander("🤖 Edit / Delete Auto-Pay Rules", expanded=False):
+        st.markdown("<p style='font-size:13px; color:#00BFFF;'>💡 <b>ఆటో-పే మార్చండి:</b> రెంట్, లోన్స్ లాంటి ఆటో-పే అమౌంట్స్ ఇక్కడ మార్చొచ్చు. లేదా చెక్ బాక్స్ ద్వారా డిలీట్ చేయొచ్చు.</p>", unsafe_allow_html=True)
+        
+        try:
+            raw_dues = dues_ws.get_all_records()
+            df_raw_dues = pd.DataFrame(raw_dues) if raw_dues else pd.DataFrame(columns=['Item_Name', 'Type', 'Account', 'Category', 'Amount', 'Frequency', 'Next_Due_Date'])
+            df_raw_dues.columns = df_raw_dues.columns.str.strip().str.title()
+        except:
+            df_raw_dues = pd.DataFrame(columns=['Item_Name', 'Type', 'Account', 'Category', 'Amount', 'Frequency', 'Next_Due_Date'])
+            
+        edited_dues_df = st.data_editor(
+            df_raw_dues,
+            width="stretch",
+            hide_index=True,
+            num_rows="dynamic",
+            key="dues_editor_table"
+        )
+        
+        if st.button("💾 Save Auto-Pay Rules", width="stretch", key="save_dues_btn"):
+            edited_dues_df = edited_dues_df.fillna("")
+            dues_ws.clear()
+            if not edited_dues_df.empty:
+                dues_ws.update([edited_dues_df.columns.values.tolist()] + edited_dues_df.values.tolist())
+            else:
+                dues_ws.append_row(['Item_Name', 'Type', 'Account', 'Category', 'Amount', 'Frequency', 'Next_Due_Date'])
+            
+            st.success("✅ ఆటో-పే రూల్స్ సేవ్ అయ్యాయి!")
+            time.sleep(1)
+            st.rerun()
 def render_mf_table(df_mf):
     if df_mf.empty: return "<div style='padding:20px; text-align:center;'>No Mutual Fund data available.</div>"
     html = f'<table class="term-table"><thead><tr><th colspan="7" class="term-head-swing" style="background-color: #005a9e; color: white;">🏆 MUTUAL FUNDS SCREENER (LIVE PERFORMANCE)</th></tr><tr style="background-color: #21262d;"><th style="width:5%;">RANK</th><th style="text-align:left; width:25%;">FUND NAME</th><th style="width:15%; color:#ffd700;">CATEGORY</th><th style="width:10%;">NAV (₹)</th><th style="width:15%;">1Y RETURN</th><th style="width:15%;">3Y CAGR</th><th style="width:15%;">5Y CAGR</th></tr></thead><tbody>'
