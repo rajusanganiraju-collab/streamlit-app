@@ -1802,8 +1802,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
             
         elif watchlist_mode == "Fundamentals 🏢":
             fund_filter = st.selectbox("Fundamentals Filter", ["Top Ranked Stocks ⭐", "🦅 Warren Buffett Value Stocks", "Swing Trading Candidates 📈", "Nifty 50 Stocks", "My Portfolio 💼"], index=0)
-        elif watchlist_mode == "My Money Tracker 💰":
-            render_money_tracker()    
+           
     with sc2:
         sort_mode = st.selectbox(
             "Sort By", 
@@ -3570,4 +3569,8 @@ def render_live_ui():
             </ul>
             </div>
             """, unsafe_allow_html=True)
-render_live_ui()
+if watchlist_mode == "My Money Tracker 💰":
+    st.markdown("<br>", unsafe_allow_html=True)
+    render_money_tracker()
+else:
+    render_live_ui()
