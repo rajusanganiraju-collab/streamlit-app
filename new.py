@@ -1015,11 +1015,38 @@ def render_money_tracker():
             try:
                 active_dues = dues_ws.get_all_records()
                 if active_dues:
+                    df_show = pd.DataFrame(active_dues)
+                    
+                    # IST Time teeskuni enni nelalu undo calculate cheyadam
+                    today_date = pd.Timestamp.now(tz='Asia/Kolkata').tz_localize(None).normalize()
+                    status_col = []
+                    
+                    for idx, r in df_show.iterrows():
+                        end_d_str = r.get('End_Date', '')
+                        freq = str(r.get('Frequency', '')).strip()
+                        
+                        if end_d_str and freq == 'Monthly':
+                            try:
+                                end_dt = pd.to_datetime(end_d_str, format='%d-%b-%Y')
+                                months_left = (end_dt.year - today_date.year) * 12 + (end_dt.month - today_date.month)
+                                
+                                if months_left > 0:
+                                    status_col.append(f"{months_left} Months Left ⏳")
+                                elif months_left == 0:
+                                    status_col.append("Last EMI This Month ⚠️")
+                                else:
+                                    status_col.append("Completed ✅")
+                            except:
+                                status_col.append("Ongoing 🔄")
+                        else:
+                            status_col.append("Ongoing 🔄")
+                            
+                    df_show['EMI_Status'] = status_col
+                    
                     st.markdown("<div style='font-size:14px; color:#FFD700; font-weight:bold; margin-top:10px; margin-bottom:5px;'>⚡ Active Auto-Pay List</div>", unsafe_allow_html=True)
-                    st.dataframe(pd.DataFrame(active_dues), hide_index=True, use_container_width=True)
-            except: pass
-
-    st.markdown("<hr style='border-color:#30363d; margin: 15px 0;'>", unsafe_allow_html=True)
+                    st.dataframe(df_show, hide_index=True, use_container_width=True)
+            except Exception as e: 
+                pass
 
     if not df_month.empty:
         grouped = df_month.groupby('Date_Obj')
