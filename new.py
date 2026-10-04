@@ -66,7 +66,7 @@ except Exception as e:
     st.stop()
 
 # --- 3. DATA LOAD & SAVE FUNCTIONS ---
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=180, show_spinner=False)
 def load_portfolio():
     try:
         records = port_ws.get_all_records()
