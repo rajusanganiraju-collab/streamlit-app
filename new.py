@@ -2309,6 +2309,8 @@ def render_live_ui():
     
         if not df_filtered.empty:
             df_filtered = df_filtered.copy()
+            if 'Strategy_Icon' not in df_filtered.columns:
+                df_filtered['Strategy_Icon'] = ""
             
             df_filtered['AlphaTag'] = df_filtered['Fetch_T'].map(alpha_tags).fillna("")
             df_filtered['Trend_Score'] = pd.to_numeric(df_filtered['Fetch_T'].map(trend_scores), errors='coerce').fillna(0).astype(int)
