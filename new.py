@@ -825,6 +825,8 @@ def sync_automatic_dues():
         
         df_dues = pd.DataFrame(dues_records)
         df_dues['Next_Due_Date'] = pd.to_datetime(df_dues['Next_Due_Date'], format='%d-%b-%Y', errors='coerce')
+        
+        # 1. IST Timezone Update (Cloud lo correct date raavadaniki)
         today = pd.Timestamp.now(tz='Asia/Kolkata').tz_localize(None).normalize()
         
         updates_made = False
@@ -832,10 +834,18 @@ def sync_automatic_dues():
         
         for idx, row in df_dues.iterrows():
             due_date = row['Next_Due_Date']
+            
+            # 2. End Date check kosam
+            end_date = pd.to_datetime(row.get('End_Date', ''), format='%d-%b-%Y', errors='coerce')
+            
             if pd.isna(due_date): continue
             
+            # End Date daatesthe aa Auto-Pay skip cheseyali
+            if pd.notna(end_date) and today > end_date:
+                continue
+            
             if today >= due_date:
-                # Add to expenses
+                # Add to expenses sheet
                 new_expenses.append([
                     today.strftime('%d-%b-%Y'), row['Type'], row['Account'], row['Category'], 
                     row['Amount'], f"Auto: {row['Item_Name']}"
@@ -848,16 +858,28 @@ def sync_automatic_dues():
                 elif freq == "Yearly": next_date = due_date + pd.DateOffset(years=1)
                 else: next_date = due_date + pd.DateOffset(months=1)
                 
-                df_dues.at[idx, 'Next_Due_Date'] = next_date.strftime('%d-%b-%Y')
+                # Next date kuda End Date lopu unte ne update cheyali
+                if pd.isna(end_date) or next_date <= end_date:
+                    df_dues.at[idx, 'Next_Due_Date'] = next_date.strftime('%d-%b-%Y')
+                else:
+                    df_dues.at[idx, 'Next_Due_Date'] = "Completed"
+                    
                 updates_made = True
                 
         if updates_made:
             if new_expenses: exp_ws.append_rows(new_expenses)
-            df_dues['Next_Due_Date'] = pd.to_datetime(df_dues['Next_Due_Date']).dt.strftime('%d-%b-%Y')
+            
+            # 'Completed' kakunda date unte daanni malli string la format cheyali
+            df_dues['Next_Due_Date'] = df_dues['Next_Due_Date'].apply(
+                lambda x: x.strftime('%d-%b-%Y') if pd.notnull(x) and isinstance(x, pd.Timestamp) else x
+            )
+            
             df_dues = df_dues.fillna("")
             dues_ws.clear()
             dues_ws.update([df_dues.columns.values.tolist()] + df_dues.values.tolist())
             
+    except Exception as e: 
+        pass
     except Exception as e: pass
 
 def render_money_tracker():
@@ -963,19 +985,32 @@ def render_money_tracker():
 
     with col_right:
         with st.expander("🔄 Setup Auto-Pay (Loans, Agriculture)", expanded=False):
-            with st.form("auto_pay_form", clear_on_submit=True):
-                a_name = st.text_input("Item Name (e.g., Gold Loan)")
-                a_type = st.selectbox("Type", ["Expense", "Income"])
-                a_acc = st.selectbox("Account", ["Bank Account", "Cash"])
-                a_cat = st.selectbox("Category", ["EMI / Loans", "Agriculture", "Rent & Bills", "Salary"])
-                a_amt = st.number_input("Amount (₹)", min_value=1)
-                a_freq = st.selectbox("Frequency", ["Monthly", "Half-Yearly", "Yearly"])
-                a_date = st.date_input("Next Due Date")
-                if st.form_submit_button("Set Automation"):
-                    dues_ws.append_row([a_name, a_type, a_acc, a_cat, a_amt, a_freq, a_date.strftime('%d-%b-%Y')])
-                    st.success("Automation Active!")
-                    time.sleep(1)
-                    st.rerun()
+    with st.form("auto_pay_form", clear_on_submit=True):
+        a_name = st.text_input("Item Name (e.g., Gold Loan / Bike EMI)")
+        a_type = st.selectbox("Type", ["Expense", "Income"])
+        a_acc = st.selectbox("Account", ["Bank Account", "Cash"])
+        a_cat = st.selectbox("Category", ["EMI / Loans", "Agriculture", "Rent & Bills", "Salary"])
+        a_amt = st.number_input("Amount (₹)", min_value=1)
+        a_freq = st.selectbox("Frequency", ["Monthly", "Half-Yearly", "Yearly"])
+
+        # EMI / Dates section
+        c_d1, c_d2 = st.columns(2)
+        with c_d1:
+            a_start = st.date_input("Start Date / First EMI")
+        with c_d2:
+            a_end = st.date_input("End Date / Last EMI (Optional)")
+
+        if st.form_submit_button("Set Automation"):
+            end_date_str = a_end.strftime('%d-%b-%Y') if a_end else ""
+            dues_ws.append_row([
+                a_name, a_type, a_acc, a_cat, a_amt, a_freq, 
+                a_start.strftime('%d-%b-%Y'), 
+                a_start.strftime('%d-%b-%Y'), 
+                end_date_str
+            ])
+            st.success("Automation Active!")
+            time.sleep(1)
+            st.rerun()
             
             try:
                 active_dues = dues_ws.get_all_records()
