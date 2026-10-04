@@ -818,48 +818,6 @@ def fetch_fundamentals_data(symbols_list):
 import calendar
 import time
 
-def sync_automatic_dues():
-    try:
-        dues_records = dues_ws.get_all_records()
-        if not dues_records: return
-        
-        df_dues = pd.DataFrame(dues_records)
-        df_dues['Next_Due_Date'] = pd.to_datetime(df_dues['Next_Due_Date'], format='%d-%b-%Y', errors='coerce')
-        today = pd.Timestamp.now().normalize()
-        
-        updates_made = False
-        new_expenses = []
-        
-        for idx, row in df_dues.iterrows():
-            due_date = row['Next_Due_Date']
-            if pd.isna(due_date): continue
-            
-            if today >= due_date:
-                # Add to expenses
-                new_expenses.append([
-                    today.strftime('%d-%b-%Y'), row['Type'], row['Account'], row['Category'], 
-                    row['Amount'], f"Auto: {row['Item_Name']}"
-                ])
-                
-                # Calculate next due date
-                freq = str(row['Frequency']).strip()
-                if freq == "Monthly": next_date = due_date + pd.DateOffset(months=1)
-                elif freq == "Half-Yearly": next_date = due_date + pd.DateOffset(months=6)
-                elif freq == "Yearly": next_date = due_date + pd.DateOffset(years=1)
-                else: next_date = due_date + pd.DateOffset(months=1)
-                
-                df_dues.at[idx, 'Next_Due_Date'] = next_date.strftime('%d-%b-%Y')
-                updates_made = True
-                
-        if updates_made:
-            if new_expenses: exp_ws.append_rows(new_expenses)
-            df_dues['Next_Due_Date'] = pd.to_datetime(df_dues['Next_Due_Date']).dt.strftime('%d-%b-%Y')
-            df_dues = df_dues.fillna("")
-            dues_ws.clear()
-            dues_ws.update([df_dues.columns.values.tolist()] + df_dues.values.tolist())
-            
-    except Exception as e: pass
-
 def render_money_tracker():
     sync_automatic_dues()
     
@@ -888,12 +846,10 @@ def render_money_tracker():
     try:
         exp_data = exp_ws.get_all_records()
         df_exp = pd.DataFrame(exp_data) if exp_data else pd.DataFrame(columns=['Date', 'Type', 'Account', 'Category', 'Amount', 'Notes'])
-        # షీట్‌లో హెడ్డింగ్స్ కి స్పేస్ ఉన్నా, స్మాల్ లెటర్స్ ఉన్నా ఆటోమాటిక్ గా ఫిక్స్ చేస్తుంది
         df_exp.columns = df_exp.columns.str.strip().str.title()
     except:
         df_exp = pd.DataFrame(columns=['Date', 'Type', 'Account', 'Category', 'Amount', 'Notes'])
         
-    # ఏ కాలమ్ మిస్ అయినా యాప్ క్రాష్ అవ్వకుండా డమ్మీ కాలమ్స్ క్రియేట్ చేస్తుంది
     for req_col in ['Date', 'Type', 'Account', 'Category', 'Amount', 'Notes']:
         if req_col not in df_exp.columns:
             df_exp[req_col] = ""
@@ -914,8 +870,8 @@ def render_money_tracker():
     
     df_month = df_exp[df_exp['Month_Year'] == selected_month] if not df_exp.empty else df_exp
     
-    total_income = df_month[df_month['Type'] == 'Income']['Amount'].sum() if not df_month.empty else 0
-    total_expense = df_month[df_month['Type'] == 'Expense']['Amount'].sum() if not df_month.empty else 0
+    total_income = pd.to_numeric(df_month[df_month['Type'] == 'Income']['Amount'], errors='coerce').sum() if not df_month.empty else 0
+    total_expense = pd.to_numeric(df_month[df_month['Type'] == 'Expense']['Amount'], errors='coerce').sum() if not df_month.empty else 0
     net_total = total_income - total_expense
     
     summary_html = f"""
@@ -941,7 +897,7 @@ def render_money_tracker():
     col_left, col_right = st.columns([1.5, 1])
     
     with col_left:
-        with st.expander("➕ Add Record (Income / Expense)"):
+        with st.expander("➕ Add Record (Income / Expense)", expanded=False):
             with st.form("add_money_form", clear_on_submit=True):
                 mc1, mc2 = st.columns(2)
                 with mc1: t_type = st.radio("Type", ["Expense", "Income", "Transfer"], horizontal=True)
@@ -964,7 +920,7 @@ def render_money_tracker():
                         st.rerun()
 
     with col_right:
-        with st.expander("🔄 Setup Auto-Pay (Loans, Agriculture)"):
+        with st.expander("🔄 Setup Auto-Pay (Loans, Agriculture)", expanded=False):
             with st.form("auto_pay_form", clear_on_submit=True):
                 a_name = st.text_input("Item Name (e.g., Gold Loan)")
                 a_type = st.selectbox("Type", ["Expense", "Income"])
@@ -978,6 +934,14 @@ def render_money_tracker():
                     st.success("Automation Active!")
                     time.sleep(1)
                     st.rerun()
+            
+            # 🔥 కింది టేబుల్ వల్లే మనకు సేవ్ అయిన Auto-pays స్క్రీన్ మీద కనిపిస్తాయి
+            try:
+                active_dues = dues_ws.get_all_records()
+                if active_dues:
+                    st.markdown("<div style='font-size:14px; color:#FFD700; font-weight:bold; margin-top:10px; margin-bottom:5px;'>⚡ Active Auto-Pay List</div>", unsafe_allow_html=True)
+                    st.dataframe(pd.DataFrame(active_dues), hide_index=True, use_container_width=True)
+            except: pass
 
     st.markdown("<hr style='border-color:#30363d; margin: 15px 0;'>", unsafe_allow_html=True)
 
@@ -990,23 +954,15 @@ def render_money_tracker():
             tx_html = '<div class="money-container">'
             for _, row in group.iterrows():
                 is_exp = row['Type'] == 'Expense'
-                amt_str = f"-₹{row['Amount']:,.2f}" if is_exp else f"₹{row['Amount']:,.2f}"
+                try: amt_val = float(row['Amount'])
+                except: amt_val = 0.0
+                amt_str = f"-₹{amt_val:,.2f}" if is_exp else f"₹{amt_val:,.2f}"
                 amt_class = "tx-amt-exp" if is_exp else "tx-amt-inc"
-                icon_letter = row['Category'][0].upper() if row['Category'] else "₹"
+                icon_letter = str(row['Category'])[0].upper() if row['Category'] else "₹"
                 note_str = f" • <span style='color:#777; font-size:11px;'>{row['Notes']}</span>" if row['Notes'] else ""
                 
-                tx_html += f"""
-                <div class="tx-row">
-                    <div class="tx-left">
-                        <div class="tx-icon">{icon_letter}</div>
-                        <div>
-                            <div class="tx-cat">{row['Category']}{note_str}</div>
-                            <div class="tx-acc">💵 {row['Account']}</div>
-                        </div>
-                    </div>
-                    <div class="{amt_class}">{amt_str}</div>
-                </div>
-                """
+                # 🔥 కింది HTML కోడ్ ని ఒకే లైన్ లో రాశాను. సో దట్ కోడ్ బగ్ పోయి అందంగా బాక్సుల్లా వస్తాయి.
+                tx_html += f'<div class="tx-row"><div class="tx-left"><div class="tx-icon">{icon_letter}</div><div><div class="tx-cat">{row["Category"]}{note_str}</div><div class="tx-acc">💵 {row["Account"]}</div></div></div><div class="{amt_class}">{amt_str}</div></div>'
             tx_html += '</div>'
             st.markdown(tx_html, unsafe_allow_html=True)
     else:
