@@ -1092,29 +1092,54 @@ def render_money_tracker():
     with tab2:
         st.markdown('<div class="overview-title">˅ EXPENSE OVERVIEW</div>', unsafe_allow_html=True)
         
+        # 1. Get Already Spent Expenses (కట్టిన ఖర్చులు)
         df_expense = df_month[df_month['Type'] == 'Expense'].copy()
         if not df_expense.empty:
             df_expense['Amount'] = pd.to_numeric(df_expense['Amount'], errors='coerce').fillna(0)
-            cat_totals = df_expense.groupby('Category')['Amount'].sum().reset_index()
+            cat_totals_spent = df_expense.groupby('Category')['Amount'].sum().reset_index()
+        else:
+            cat_totals_spent = pd.DataFrame(columns=['Category', 'Amount'])
+            
+        # 2. Get Upcoming EMIs/Dues (ఇంకా కట్టాల్సినవి)
+        upcoming_cat_totals = pd.DataFrame(columns=['Category', 'Amount'])
+        try:
+            dues_data = dues_ws.get_all_records()
+            if dues_data:
+                df_d = pd.DataFrame(dues_data)
+                df_d_exp = df_d[df_d['Type'].astype(str).str.strip() == 'Expense'].copy()
+                df_d_exp['Next_Due_Date'] = pd.to_datetime(df_d_exp['Next_Due_Date'], format='%d-%b-%Y', errors='coerce')
+                df_d_exp['Month_Year'] = df_d_exp['Next_Due_Date'].dt.strftime('%B %Y')
+                this_month_dues = df_d_exp[df_d_exp['Month_Year'] == selected_month].copy()
+                
+                if not this_month_dues.empty:
+                    this_month_dues['Amount'] = pd.to_numeric(this_month_dues['Amount'], errors='coerce').fillna(0)
+                    upcoming_cat_totals = this_month_dues.groupby('Category')['Amount'].sum().reset_index()
+        except:
+            pass
+            
+        # 3. Combine both for Total Overview (రెండూ కలపడం)
+        combined_expenses = pd.concat([cat_totals_spent, upcoming_cat_totals])
+        
+        if not combined_expenses.empty and combined_expenses['Amount'].sum() > 0:
+            cat_totals = combined_expenses.groupby('Category')['Amount'].sum().reset_index()
             cat_totals = cat_totals.sort_values('Amount', ascending=False)
             total_cat_exp = cat_totals['Amount'].sum()
             
-            # 💡 FIX: Calculate percentage based on TOTAL INCOME instead of Total Expense
+            # Percentage based on Total Income
             base_amount = total_income if total_income > 0 else total_cat_exp
             overall_pct = (total_cat_exp / base_amount) * 100 if base_amount > 0 else 0
             
-            # Colors matching the premium UI
             colors = ['#F44336', '#E91E63', '#9C27B0', '#673AB7', '#3F51B5', '#2196F3', '#03A9F4', '#00BCD4', '#009688', '#4CAF50']
             
             pie_labels = cat_totals['Category'].tolist()
             pie_values = cat_totals['Amount'].tolist()
             pie_colors = [colors[i % len(colors)] for i in range(len(pie_labels))]
             
-            # 💡 FIX: Add 'Remaining Income' slice to make the chart proportionally correct to Total Income
+            # Adding remaining balance slice
             if total_income > total_cat_exp:
                 pie_labels.append("Remaining Balance")
                 pie_values.append(total_income - total_cat_exp)
-                pie_colors.append("rgba(255, 255, 255, 0.03)") # Hidden/Dark slice for remaining income
+                pie_colors.append("rgba(255, 255, 255, 0.03)") 
             
             # Plotly Donut Chart
             fig = go.Figure(data=[go.Pie(
@@ -1127,8 +1152,7 @@ def render_money_tracker():
                 sort=False
             )])
             
-            # 💡 FIX: Adding exact percentage of expenses inside the center of the circle
-            center_text = f"<span style='font-size:13px; color:#c9d1d9;'>Expenses</span><br><span style='font-size:22px; font-weight:bold; color:#F44336;'>{overall_pct:.1f}%</span>"
+            center_text = f"<span style='font-size:13px; color:#c9d1d9;'>Total Expected<br>Expenses</span><br><span style='font-size:22px; font-weight:bold; color:#F44336;'>{overall_pct:.1f}%</span>"
             fig.add_annotation(text=center_text, x=0.5, y=0.5, showarrow=False)
             
             fig.update_layout(
@@ -1144,7 +1168,6 @@ def render_money_tracker():
             # Rendering individual progress bars 
             analysis_html = '<div class="money-container">'
             for i, r in cat_totals.iterrows():
-                # 💡 FIX: Progress bars now show % of Total Income
                 pct = (r['Amount'] / base_amount) * 100 if base_amount > 0 else 0
                 icon_letter = str(r['Category'])[0].upper()
                 c_idx = i % len(colors)
@@ -1163,7 +1186,6 @@ def render_money_tracker():
                         </div>
                     </div>
                     <div class="progress-bg">
-                        <!-- Progress bar color now matches the specific category color -->
                         <div class="progress-fill" style="width: {min(pct, 100)}%; background-color: {icon_bg};"></div>
                     </div>
                 </div>
