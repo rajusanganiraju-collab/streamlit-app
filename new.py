@@ -940,11 +940,32 @@ def render_money_tracker():
         df_exp['Date_Obj'] = pd.NaT
         df_exp['Month_Year'] = ""
 
-    all_months = df_exp['Month_Year'].unique().tolist() if not df_exp.empty else [pd.Timestamp.now().strftime('%B %Y')]
-    
-    c1, c2, c3 = st.columns([1, 2, 1])
-    with c2:
-        selected_month = st.selectbox("📅 Select Month", all_months, label_visibility="collapsed")
+    # 🔥 FIX: 1. Chronological Sorting & Month Navigation
+    if not df_exp.empty:
+        month_objs = pd.to_datetime(df_exp['Month_Year'].unique(), format='%B %Y').sort_values()
+        all_months = month_objs.dt.strftime('%B %Y').tolist()
+    else:
+        all_months = [pd.Timestamp.now().strftime('%B %Y')]
+
+    if 'm_idx' not in st.session_state:
+        st.session_state.m_idx = len(all_months) - 1  # Default to latest month
+
+    def go_prev(): st.session_state.m_idx = max(0, st.session_state.m_idx - 1)
+    def go_next(): st.session_state.m_idx = min(len(all_months) - 1, st.session_state.m_idx + 1)
+    def update_sel(): st.session_state.m_idx = all_months.index(st.session_state.temp_m)
+
+    c1, c_prev, c_sel, c_next, c_opt, c6 = st.columns([1, 0.5, 2, 0.5, 0.5, 1])
+    with c_prev: st.button("◀", on_click=go_prev, use_container_width=True)
+    with c_sel: 
+        selected_month = st.selectbox("Month", all_months, index=st.session_state.m_idx, key="temp_m", on_change=update_sel, label_visibility="collapsed")
+    with c_next: st.button("▶", on_click=go_next, use_container_width=True)
+    with c_opt:
+        with st.popover("☰"):
+            st.markdown("<h4 style='color:#FFD700; font-size:16px; margin-bottom:5px;'>Display options</h4>", unsafe_allow_html=True)
+            view_mode = st.radio("View mode:", ["DAILY", "WEEKLY", "MONTHLY", "3 MONTHS", "6 MONTHS", "YEARLY"], index=2)
+            show_tot = st.radio("Show total:", ["YES", "NO"], index=0)
+            carry_over = st.radio("Carry over:", ["ON", "OFF"], index=1)
+            st.caption("ℹ️ With Carry over enabled, monthly surplus will be added to the next month.")
     
     df_month = df_exp[df_exp['Month_Year'] == selected_month] if not df_exp.empty else df_exp
     
@@ -1169,6 +1190,8 @@ def render_money_tracker():
             cat_totals_spent = pd.DataFrame(columns=['Category', 'Amount'])
             
         upcoming_cat_totals = pd.DataFrame(columns=['Category', 'Amount'])
+        this_month_dues = pd.DataFrame()
+        
         try:
             dues_data = dues_ws.get_all_records()
             if dues_data:
@@ -1198,10 +1221,7 @@ def render_money_tracker():
             
             pie_labels = cat_totals['Category'].tolist()
             pie_values = cat_totals['Amount'].tolist()
-            
-            # 🔥 FIX: Adding Rupees symbol to the labels so it shows Amount + Percentage
             formatted_labels = [f"{label} (₹{val:,.0f})" for label, val in zip(pie_labels, pie_values)]
-            
             pie_colors = [colors[i % len(colors)] for i in range(len(pie_labels))]
             
             if total_income > total_cat_exp:
@@ -1233,18 +1253,53 @@ def render_money_tracker():
             )
             st.plotly_chart(fig, use_container_width=True)
             
-            analysis_html = '<div class="money-container">'
+            # 🔥 FIX: Rendering Interactive Categories with Expandable Breakdowns
             for i, r in cat_totals.iterrows():
                 pct = (r['Amount'] / base_amount) * 100 if base_amount > 0 else 0
                 icon_letter = str(r['Category'])[0].upper()
                 c_idx = i % len(colors)
                 icon_bg = colors[c_idx]
+                cat_name = r['Category']
                 
-                analysis_html += f"<div class='analysis-card'><div class='analysis-header'><div class='analysis-title'><div class='tx-icon' style='background-color:{icon_bg}; width:30px; height:30px; font-size:16px;'>{icon_letter}</div>{r['Category']}</div><div style='text-align: right;'><span class='analysis-amt'>-₹{r['Amount']:,.2f}</span><span class='analysis-pct' style='margin-left: 10px;'>{pct:.1f}%</span></div></div><div class='progress-bg'><div class='progress-fill' style='width: {min(pct, 100)}%; background-color: {icon_bg};'></div></div></div>"
+                # HTML for the main progress bar
+                bar_html = f"<div class='money-container'><div class='analysis-card' style='margin-bottom: 0px;'><div class='analysis-header'><div class='analysis-title'><div class='tx-icon' style='background-color:{icon_bg}; width:30px; height:30px; font-size:16px;'>{icon_letter}</div>{cat_name}</div><div style='text-align: right;'><span class='analysis-amt'>-₹{r['Amount']:,.2f}</span><span class='analysis-pct' style='margin-left: 10px;'>{pct:.1f}%</span></div></div><div class='progress-bg'><div class='progress-fill' style='width: {min(pct, 100)}%; background-color: {icon_bg};'></div></div></div></div>"
+                st.markdown(bar_html, unsafe_allow_html=True)
                 
-            analysis_html += '</div>'
-            st.markdown(analysis_html, unsafe_allow_html=True)
-            
+                # Clickable Expander for Breakdown (Amount Low to High)
+                with st.expander(f"⬇️ View {cat_name} Split Details"):
+                    cat_details = []
+                    
+                    # 1. Fetch Paid Expenses
+                    paid_items = df_expense[df_expense['Category'] == cat_name]
+                    for _, p_row in paid_items.iterrows():
+                        amt = pd.to_numeric(p_row['Amount'], errors='coerce')
+                        name = p_row.get('Notes', 'Paid Expense')
+                        cat_details.append({'Item': name if name else 'Paid Expense', 'Amount': amt, 'Status': '✅ Paid'})
+                        
+                    # 2. Fetch Upcoming Dues
+                    if not this_month_dues.empty:
+                        up_items = this_month_dues[this_month_dues['Category'] == cat_name]
+                        for _, u_row in up_items.iterrows():
+                            amt = pd.to_numeric(u_row['Amount'], errors='coerce')
+                            name = u_row.get('Item_Name', 'Upcoming Bill')
+                            cat_details.append({'Item': name, 'Amount': amt, 'Status': '⏳ Pending'})
+                            
+                    if cat_details:
+                        df_det = pd.DataFrame(cat_details)
+                        # Sorting Low to High as requested
+                        df_det = df_det.sort_values(by='Amount', ascending=True)
+                        
+                        # Render neat table
+                        det_html = "<table style='width:100%; font-size:13px; color:#c9d1d9; border-collapse: collapse; margin-top:5px;'>"
+                        det_html += "<tr style='border-bottom: 1px solid #444;'><th style='text-align:left; padding:5px;'>Item Name</th><th style='text-align:right; padding:5px;'>Amount</th><th style='text-align:right; padding:5px;'>Status</th></tr>"
+                        for _, d_row in df_det.iterrows():
+                            status_col = "#3fb950" if "Paid" in d_row['Status'] else "#FF8C00"
+                            det_html += f"<tr><td style='padding:5px;'>{d_row['Item']}</td><td style='text-align:right; padding:5px; color:#F44336;'>₹{d_row['Amount']:,.2f}</td><td style='text-align:right; padding:5px; color:{status_col}; font-weight:bold;'>{d_row['Status']}</td></tr>"
+                        det_html += "</table><br>"
+                        st.markdown(det_html, unsafe_allow_html=True)
+                    else:
+                        st.write("No specific details found.")
+                        
         else:
             st.info("No expense data available for analysis this month.")
 
