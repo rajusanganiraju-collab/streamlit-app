@@ -3230,16 +3230,12 @@ def render_live_ui():
                 base_buy = (df_filtered['P'] > df_filtered['W_EMA10']) & (df_filtered['P'] >= df_filtered['VWAP'])
                 base_sell = (df_filtered['P'] < df_filtered['W_EMA10']) & (df_filtered['P'] <= df_filtered['VWAP'])
 
-                all_dfs = [] # <--- ఈ లైన్ మీ కోడ్ లో ఆల్రెడీ ఉంది. దీని పైన పై కోడ్ పెట్టాలి.
-                
-                for strat in strats_to_run:
                 all_dfs = []
                 
                 for strat in strats_to_run:
                     c_buy = pd.Series(False, index=df_filtered.index)
                     c_sell = pd.Series(False, index=df_filtered.index)
                     icon_str = ""
-    
                     if strat == "🔥 First Hour Vol Breakout (ORB+VWAP)":
                         orb_trend = (df_filtered['P'] > df_filtered['VWAP']) & (df_filtered['Day_C'] > 1.0)
                         orb_vol = df_filtered['VolX'] >= 1.5
