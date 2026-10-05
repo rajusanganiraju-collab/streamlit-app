@@ -1013,21 +1013,31 @@ def render_money_tracker():
     with col_right:
         with st.expander("🔄 Setup Auto-Pay (Loans, Agriculture)", expanded=False):
             with st.form("auto_pay_form", clear_on_submit=True):
-                a_name = st.text_input("Item Name (e.g., Gold Loan / Bike EMI)")
+                a_name = st.text_input("Item Name (e.g., Rent / Gold Loan / WiFi)")
                 a_type = st.selectbox("Type", ["Expense", "Income"])
-                a_acc = st.selectbox("Account", ["Bank Account", "Cash"])
-                a_cat = st.selectbox("Category", ["EMI / Loans","Jio Post Paid","Airtel Broad Band","Others","Agriculture", "Rent & Bills", "Salary"])
-                a_amt = st.number_input("Amount (₹)", min_value=1)
-                a_freq = st.selectbox("Frequency", ["Monthly", "Half-Yearly", "Yearly"])
+                
+                c_acc, c_cat = st.columns(2)
+                with c_acc: a_acc = st.selectbox("Account", ["Bank Account", "Cash"])
+                with c_cat: a_cat = st.selectbox("Category", ["Rent & Bills", "EMI / Loans", "Agriculture", "Salary"])
+                
+                c_amt, c_freq = st.columns(2)
+                with c_amt: a_amt = st.number_input("Amount (₹)", min_value=1)
+                with c_freq: a_freq = st.selectbox("Frequency", ["Monthly", "Half-Yearly", "Yearly"])
 
+                st.markdown("<div style='border-top:1px dashed #444; margin:10px 0;'></div>", unsafe_allow_html=True)
+
+                # 🔥 FIX: Added Checkbox to separate EMIs and Regular Bills
                 c_d1, c_d2 = st.columns(2)
                 with c_d1:
-                    a_start = st.date_input("Start Date / First EMI")
+                    a_start = st.date_input("Start Date / Next Due")
                 with c_d2:
-                    a_end = st.date_input("End Date / Last EMI (Optional)")
+                    is_emi = st.checkbox("☑️ Has End Date? (For EMIs)")
+                    a_end = st.date_input("Select End Date")
 
                 if st.form_submit_button("Set Automation"):
-                    end_date_str = a_end.strftime('%d-%b-%Y') if a_end else ""
+                    # లాజిక్: చెక్ బాక్స్ టిక్ చేస్తేనే ఎండ్ డేట్ సేవ్ అవుతుంది, లేకపోతే ఖాళీ (Lifetime)
+                    end_date_str = a_end.strftime('%d-%b-%Y') if is_emi else ""
+                    
                     dues_ws.append_row([
                         a_name, a_type, a_acc, a_cat, a_amt, a_freq, 
                         a_start.strftime('%d-%b-%Y'), 
@@ -1044,18 +1054,24 @@ def render_money_tracker():
                     df_show = pd.DataFrame(active_dues)
                     today_date = pd.Timestamp.now(tz='Asia/Kolkata').tz_localize(None).normalize()
                     status_col = []
+                    
                     for idx, r in df_show.iterrows():
                         end_d_str = r.get('End_Date', '')
                         freq = str(r.get('Frequency', '')).strip()
-                        if end_d_str and freq == 'Monthly':
+                        
+                        # 💡 FIX: 'End Date' ఉంటేనే మంత్స్ క్యాలిక్యులేట్ అవుతుంది, లేకపోతే Ongoing/Lifetime
+                        if end_d_str and str(end_d_str).strip() != "" and freq == 'Monthly':
                             try:
                                 end_dt = pd.to_datetime(end_d_str, format='%d-%b-%Y')
                                 months_left = (end_dt.year - today_date.year) * 12 + (end_dt.month - today_date.month)
                                 if months_left > 0: status_col.append(f"{months_left} Months Left ⏳")
                                 elif months_left == 0: status_col.append("Last EMI This Month ⚠️")
                                 else: status_col.append("Completed ✅")
-                            except: status_col.append("Ongoing 🔄")
-                        else: status_col.append("Ongoing 🔄")
+                            except: 
+                                status_col.append("Ongoing 🔄")
+                        else: 
+                            status_col.append("Lifetime / Ongoing 🔄")
+                            
                     df_show['EMI_Status'] = status_col
                     st.markdown("<div style='font-size:14px; color:#FFD700; font-weight:bold; margin-top:10px; margin-bottom:5px;'>⚡ Active Auto-Pay List</div>", unsafe_allow_html=True)
                     st.dataframe(df_show, hide_index=True, use_container_width=True)
