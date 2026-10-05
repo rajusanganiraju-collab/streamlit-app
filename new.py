@@ -1019,8 +1019,9 @@ def render_money_tracker():
             # Add past savings to current income
             total_income += carry_over_amount
 
-    # 7. Calculate Upcoming Expenses (Dynamic Projection for Any Month)
+    # 7. Calculate Upcoming Dues (Dynamic Projection for BOTH Income & Expense)
     upcoming_expense = 0
+    upcoming_income = 0
     df_this_period_dues = pd.DataFrame()
     active_dues_list = []
     
@@ -1028,11 +1029,10 @@ def render_money_tracker():
         dues_data = dues_ws.get_all_records()
         if dues_data:
             df_d = pd.DataFrame(dues_data)
-            df_d_exp = df_d[df_d['Type'].astype(str).str.strip() == 'Expense'].copy()
-            df_d_exp['Next_Due_Date_Obj'] = pd.to_datetime(df_d_exp['Next_Due_Date'], format='%d-%b-%Y', errors='coerce')
-            df_d_exp['End_Date_Obj'] = pd.to_datetime(df_d_exp['End_Date'], format='%d-%b-%Y', errors='coerce')
+            df_d['Type'] = df_d['Type'].astype(str).str.strip()
+            df_d['Next_Due_Date_Obj'] = pd.to_datetime(df_d['Next_Due_Date'], format='%d-%b-%Y', errors='coerce')
+            df_d['End_Date_Obj'] = pd.to_datetime(df_d['End_Date'], format='%d-%b-%Y', errors='coerce')
             
-            # Period boundaries
             if view_mode == "MONTHLY":
                 p_start = pd.to_datetime(selected_period, format='%B %Y')
                 p_end = p_start + pd.offsets.MonthEnd(1)
@@ -1045,9 +1045,8 @@ def render_money_tracker():
             
             today_val = pd.Timestamp.now(tz='Asia/Kolkata').tz_localize(None).normalize()
             
-            # 💡 Future/Current period ayithe matrame upcoming dues calculate chestham (to avoid duplicate past data)
             if p_end >= today_val:
-                for _, r in df_d_exp.iterrows():
+                for _, r in df_d.iterrows():
                     nxt_dt = r['Next_Due_Date_Obj']
                     end_dt = r['End_Date_Obj']
                     if pd.isna(nxt_dt): continue
@@ -1055,32 +1054,40 @@ def render_money_tracker():
                     freq = str(r.get('Frequency', 'Monthly')).strip()
                     is_active = False
                     
-                    # EMI End date aipothe skip cheseyali
                     if pd.notna(end_dt) and end_dt < p_start:
                         continue 
                         
-                    # Frequency batti current selected month lo eppudu vastundo check cheyadam
-                    if freq == 'Monthly':
+                    if view_mode == "MONTHLY":
+                        if nxt_dt <= p_end:
+                            month_diff = (p_start.year - nxt_dt.year) * 12 + (p_start.month - nxt_dt.month)
+                            if freq == 'Monthly': is_active = True
+                            elif freq == 'Half-Yearly' and month_diff % 6 == 0: is_active = True
+                            elif freq == 'Yearly' and month_diff % 12 == 0: is_active = True
+                    elif view_mode == "YEARLY":
                         if nxt_dt <= p_end: is_active = True
-                    elif freq == 'Yearly':
-                        if view_mode == "MONTHLY" and nxt_dt.month == p_start.month and nxt_dt <= p_end: is_active = True
-                        elif view_mode == "YEARLY" and nxt_dt.year <= p_end.year: is_active = True
                     else:
-                        if p_start <= nxt_dt <= p_end: is_active = True
-                        
+                        if nxt_dt <= p_end: is_active = True
+                            
                     if is_active:
-                        # 💡 Month ki taggatu date ni project cheyadam (e.g. Oct -> Nov)
-                        if freq == 'Monthly' and nxt_dt < p_start:
+                        if nxt_dt < p_start:
                             max_day = pd.Period(year=p_start.year, month=p_start.month, freq='M').days_in_month
                             r['Next_Due_Date_Obj'] = pd.Timestamp(year=p_start.year, month=p_start.month, day=min(nxt_dt.day, max_day))
+                        
+                        if view_mode == "DAILY" and r['Next_Due_Date_Obj'] != p_start:
+                            continue
+                            
                         active_dues_list.append(r)
                 
             df_this_period_dues = pd.DataFrame(active_dues_list)
             if not df_this_period_dues.empty:
-                upcoming_expense = pd.to_numeric(df_this_period_dues['Amount'], errors='coerce').sum()
+                exp_mask = df_this_period_dues['Type'] == 'Expense'
+                inc_mask = df_this_period_dues['Type'] == 'Income'
+                upcoming_expense = pd.to_numeric(df_this_period_dues[exp_mask]['Amount'], errors='coerce').sum()
+                upcoming_income = pd.to_numeric(df_this_period_dues[inc_mask]['Amount'], errors='coerce').sum()
     except Exception as e:
         pass
         
+    total_income += upcoming_income
     net_total = total_income - total_expense - upcoming_expense
     
     summary_html = f"""
@@ -1218,43 +1225,18 @@ def render_money_tracker():
     # 🔥 Adding Tabs for Records vs Analysis (Like the bottom nav in your app)
     tab1, tab2 = st.tabs(["🧾 Records", "📊 Analysis"])
 
-    with tab1:
-        # --- 1. PAST / ALREADY COMPLETED TRANSACTIONS ---
-        if not df_display.empty:
-            grouped = df_display.groupby('Date_Obj')
-            for date_obj, group in grouped:
-                day_name = date_obj.strftime('%b %d, %A')
-                st.markdown(f'<div class="date-header">{day_name}</div>', unsafe_allow_html=True)
-                
-                tx_html = '<div class="money-container">'
-                for _, row in group.iterrows():
-                    is_exp = row['Type'] == 'Expense'
-                    try: amt_val = float(row['Amount'])
-                    except: amt_val = 0.0
-                    amt_str = f"-₹{amt_val:,.2f}" if is_exp else f"₹{amt_val:,.2f}"
-                    amt_class = "tx-amt-exp" if is_exp else "tx-amt-inc"
-                    icon_letter = str(row['Category'])[0].upper() if row['Category'] else "₹"
-                    note_str = f" • <span style='color:#777; font-size:11px;'>{row['Notes']}</span>" if row['Notes'] else ""
-                    
-                    tx_html += f'<div class="tx-row"><div class="tx-left"><div class="tx-icon">{icon_letter}</div><div><div class="tx-cat">{row["Category"]}{note_str}</div><div class="tx-acc">💵 {row["Account"]}</div></div></div><div class="{amt_class}">{amt_str}</div></div>'
-                tx_html += '</div>'
-                st.markdown(tx_html, unsafe_allow_html=True)
-        else:
-            st.info("No completed records found for this month.")
-
-        # --- 2. UPCOMING DUES & EMIs FOR THIS PERIOD ---
+    # --- 2. UPCOMING DUES & INCOMES FOR THIS PERIOD ---
         try:
             upcoming_dues = df_this_period_dues.copy()
             today_val = pd.Timestamp.now(tz='Asia/Kolkata').tz_localize(None).normalize()
             
             if not upcoming_dues.empty:
-                # Eroju kante mundu unde (pending) dates matrame list lo ravadaniki
                 upcoming_dues = upcoming_dues[upcoming_dues['Next_Due_Date_Obj'] >= today_val]
                 
                 if not upcoming_dues.empty:
                     upcoming_dues = upcoming_dues.sort_values('Next_Due_Date_Obj')
                     st.markdown("<div style='margin-top:25px;'></div>", unsafe_allow_html=True)
-                    st.markdown("<div class='date-header' style='background-color:#422700; color:#FF8C00; border-left: 4px solid #FF8C00;'>⏳ Upcoming Dues & Bills (Pending)</div>", unsafe_allow_html=True)
+                    st.markdown("<div class='date-header' style='background-color:#422700; color:#FF8C00; border-left: 4px solid #FF8C00;'>⏳ Upcoming Dues & Incomes (Pending)</div>", unsafe_allow_html=True)
                     
                     up_html = '<div class="money-container">'
                     for _, row in upcoming_dues.iterrows():
@@ -1263,7 +1245,12 @@ def render_money_tracker():
                         due_date_str = row['Next_Due_Date_Obj'].strftime('%d-%b, %a')
                         icon_letter = str(row['Category'])[0].upper() if row['Category'] else "₹"
                         
-                        up_html += f"<div class='tx-row' style='background-color: #26211b; border-bottom: 1px dashed #554433;'><div class='tx-left'><div class='tx-icon' style='background-color: #E65100;'>{icon_letter}</div><div><div class='tx-cat' style='color: #FFB74D;'>{row['Item_Name']} <span style='font-size:11px; color:#aaa;'>({row['Category']})</span></div><div class='tx-acc' style='background-color: #3e2e1e; color: #ffcc80;'>📅 Due: {due_date_str} • 💵 {row['Account']}</div></div></div><div style='font-size: 15px; color: #FF8C00; font-weight: bold; text-align: right;'>-₹{amt_val:,.2f}</div></div>"
+                        is_exp = row['Type'] == 'Expense'
+                        amt_str = f"-₹{amt_val:,.2f}" if is_exp else f"+₹{amt_val:,.2f}"
+                        amt_color = "#FF8C00" if is_exp else "#3fb950"
+                        bg_icon = "#E65100" if is_exp else "#1e5f29"
+                        
+                        up_html += f"<div class='tx-row' style='background-color: #26211b; border-bottom: 1px dashed #554433;'><div class='tx-left'><div class='tx-icon' style='background-color: {bg_icon};'>{icon_letter}</div><div><div class='tx-cat' style='color: #FFB74D;'>{row['Item_Name']} <span style='font-size:11px; color:#aaa;'>({row['Category']})</span></div><div class='tx-acc' style='background-color: #3e2e1e; color: #ffcc80;'>📅 Due: {due_date_str} • 💵 {row['Account']}</div></div></div><div style='font-size: 15px; color: {amt_color}; font-weight: bold; text-align: right;'>{amt_str}</div></div>"
                     
                     up_html += '</div>'
                     st.markdown(up_html, unsafe_allow_html=True)
@@ -1282,10 +1269,12 @@ def render_money_tracker():
             
         upcoming_cat_totals = pd.DataFrame(columns=['Category', 'Amount'])
         try:
-            # 💡 Paina first block lo generate ayina project data ni ikkada reuse chestunnam
             if not df_this_period_dues.empty:
-                df_this_period_dues['Amount'] = pd.to_numeric(df_this_period_dues['Amount'], errors='coerce').fillna(0)
-                upcoming_cat_totals = df_this_period_dues.groupby('Category')['Amount'].sum().reset_index()
+                # కేవలం Expenses మాత్రమే Pie Chart కి వెళ్ళాలి 
+                df_pie_dues = df_this_period_dues[df_this_period_dues['Type'] == 'Expense'].copy()
+                if not df_pie_dues.empty:
+                    df_pie_dues['Amount'] = pd.to_numeric(df_pie_dues['Amount'], errors='coerce').fillna(0)
+                    upcoming_cat_totals = df_pie_dues.groupby('Category')['Amount'].sum().reset_index()
         except Exception as e:
             pass
             
