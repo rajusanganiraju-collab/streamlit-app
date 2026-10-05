@@ -940,36 +940,86 @@ def render_money_tracker():
         df_exp['Date_Obj'] = pd.NaT
         df_exp['Month_Year'] = ""
 
-    # 🔥 FIX: Generate all 12 months (Jan to Dec 2026) for the dropdown & navigation
-    current_year = datetime.now().year
-    all_months = [datetime(current_year, m, 1).strftime('%B %Y') for m in range(1, 13)]
-
+    # ==========================================
+    # 🔥 FIX: DYNAMIC VIEW MODE & CARRY OVER
+    # ==========================================
     
-    if 'm_idx' not in st.session_state:
-        st.session_state.m_idx = len(all_months) - 1  # Default to latest month
-
-    def go_prev(): st.session_state.m_idx = max(0, st.session_state.m_idx - 1)
-    def go_next(): st.session_state.m_idx = min(len(all_months) - 1, st.session_state.m_idx + 1)
-    def update_sel(): st.session_state.m_idx = all_months.index(st.session_state.temp_m)
-
     c1, c_prev, c_sel, c_next, c_opt, c6 = st.columns([1, 0.5, 2, 0.5, 0.5, 1])
-    with c_prev: st.button("◀", on_click=go_prev, use_container_width=True)
-    with c_sel: 
-        selected_month = st.selectbox("Month", all_months, index=st.session_state.m_idx, key="temp_m", on_change=update_sel, label_visibility="collapsed")
-    with c_next: st.button("▶", on_click=go_next, use_container_width=True)
+    
+    # 1. First capture the Display Options from the popover
     with c_opt:
         with st.popover("☰"):
             st.markdown("<h4 style='color:#FFD700; font-size:16px; margin-bottom:5px;'>Display options</h4>", unsafe_allow_html=True)
-            view_mode = st.radio("View mode:", ["DAILY", "WEEKLY", "MONTHLY", "3 MONTHS", "6 MONTHS", "YEARLY"], index=2)
-            show_tot = st.radio("Show total:", ["YES", "NO"], index=0)
+            view_mode = st.radio("View mode:", ["DAILY", "MONTHLY", "YEARLY"], index=1)
             carry_over = st.radio("Carry over:", ["ON", "OFF"], index=1)
-            st.caption("ℹ️ With Carry over enabled, monthly surplus will be added to the next month.")
-    
-    df_month = df_exp[df_exp['Month_Year'] == selected_month] if not df_exp.empty else df_exp
-    
-    total_income = pd.to_numeric(df_month[df_month['Type'] == 'Income']['Amount'], errors='coerce').sum() if not df_month.empty else 0
-    total_expense = pd.to_numeric(df_month[df_month['Type'] == 'Expense']['Amount'], errors='coerce').sum() if not df_month.empty else 0
-    
+            st.caption("ℹ️ With Carry over ON, past unspent balance will be added to this period's income.")
+
+    # 2. Setup dynamic periods based on selected View Mode
+    today = pd.Timestamp.now().normalize()
+    if view_mode == "DAILY":
+        # Generate last 30 days for daily view
+        all_periods = [(today - pd.Timedelta(days=i)).strftime('%d %b %Y') for i in range(30, -1, -1)]
+        current_period_str = today.strftime('%d %b %Y')
+    elif view_mode == "YEARLY":
+        # Generate years
+        current_year = today.year
+        all_periods = [str(y) for y in range(current_year-2, current_year+3)]
+        current_period_str = str(current_year)
+    else: 
+        # MONTHLY (Default)
+        current_year = today.year
+        all_periods = [datetime(current_year, m, 1).strftime('%B %Y') for m in range(1, 13)]
+        current_period_str = today.strftime('%B %Y')
+
+    # 3. Handle state and navigation indexing
+    if 'p_idx' not in st.session_state or st.session_state.get('last_view') != view_mode:
+        if current_period_str in all_periods:
+            st.session_state.p_idx = all_periods.index(current_period_str)
+        else:
+            st.session_state.p_idx = len(all_periods) - 1
+        st.session_state.last_view = view_mode
+
+    def go_prev(): st.session_state.p_idx = max(0, st.session_state.p_idx - 1)
+    def go_next(): st.session_state.p_idx = min(len(all_periods) - 1, st.session_state.p_idx + 1)
+    def update_sel(): st.session_state.p_idx = all_periods.index(st.session_state.temp_p)
+
+    # Render Navigation
+    with c_prev: st.button("◀", on_click=go_prev, use_container_width=True)
+    with c_sel: 
+        selected_period = st.selectbox("Period", all_periods, index=st.session_state.p_idx, key="temp_p", on_change=update_sel, label_visibility="collapsed")
+    with c_next: st.button("▶", on_click=go_next, use_container_width=True)
+
+    # 4. Filter the dataframe based on the selected View Mode & Period
+    if view_mode == "DAILY":
+        sel_date = pd.to_datetime(selected_period, format='%d %b %Y')
+        df_display = df_exp[df_exp['Date_Obj'] == sel_date] if not df_exp.empty else df_exp
+        period_start_date = sel_date
+    elif view_mode == "YEARLY":
+        df_display = df_exp[df_exp['Date_Obj'].dt.year == int(selected_period)] if not df_exp.empty else df_exp
+        period_start_date = pd.to_datetime(f"01 Jan {selected_period}")
+    else: 
+        # MONTHLY
+        df_display = df_exp[df_exp['Month_Year'] == selected_period] if not df_exp.empty else df_exp
+        period_start_date = pd.to_datetime(selected_period, format='%B %Y')
+
+    # 5. Calculate Basic Totals for the current period
+    total_income = pd.to_numeric(df_display[df_display['Type'] == 'Income']['Amount'], errors='coerce').sum() if not df_display.empty else 0
+    total_expense = pd.to_numeric(df_display[df_display['Type'] == 'Expense']['Amount'], errors='coerce').sum() if not df_display.empty else 0
+
+    # 6. Apply Carry Over Math (Past Balance Addition)
+    carry_over_amount = 0
+    if carry_over == "ON" and not df_exp.empty:
+        # Find all transactions strictly before the start of the currently viewed period
+        past_df = df_exp[df_exp['Date_Obj'] < period_start_date]
+        if not past_df.empty:
+            past_inc = pd.to_numeric(past_df[past_df['Type'] == 'Income']['Amount'], errors='coerce').sum()
+            past_exp = pd.to_numeric(past_df[past_df['Type'] == 'Expense']['Amount'], errors='coerce').sum()
+            carry_over_amount = past_inc - past_exp
+            
+            # Add past savings to current income
+            total_income += carry_over_amount
+
+    # 7. Calculate Upcoming Expenses (EMIs for this month)
     upcoming_expense = 0
     try:
         dues_data = dues_ws.get_all_records()
@@ -977,8 +1027,13 @@ def render_money_tracker():
             df_d = pd.DataFrame(dues_data)
             df_d_exp = df_d[df_d['Type'].astype(str).str.strip() == 'Expense'].copy()
             df_d_exp['Next_Due_Date'] = pd.to_datetime(df_d_exp['Next_Due_Date'], format='%d-%b-%Y', errors='coerce')
-            df_d_exp['Month_Year'] = df_d_exp['Next_Due_Date'].dt.strftime('%B %Y')
-            upcoming_expense = pd.to_numeric(df_d_exp[df_d_exp['Month_Year'] == selected_month]['Amount'], errors='coerce').sum()
+            
+            # Only match upcoming dues if we are in MONTHLY mode to avoid confusion in daily mode
+            if view_mode == "MONTHLY":
+                df_d_exp['Month_Year'] = df_d_exp['Next_Due_Date'].dt.strftime('%B %Y')
+                upcoming_expense = pd.to_numeric(df_d_exp[df_d_exp['Month_Year'] == selected_period]['Amount'], errors='coerce').sum()
+            else:
+                upcoming_expense = 0 
     except Exception as e:
         pass
         
