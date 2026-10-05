@@ -885,7 +885,7 @@ def sync_automatic_dues():
 def render_money_tracker():
     sync_automatic_dues()
     
-    # 🌟 Custom CSS for MyMoney Premium Dark Theme
+    # 🌟 Custom CSS for MyMoney Premium Dark Theme (Analysis Bars Added)
     st.markdown("""
     <style>
     .money-container { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
@@ -904,6 +904,16 @@ def render_money_tracker():
     .tx-acc { font-size: 11px; color: #a9a9a9; background-color: #444; padding: 2px 6px; border-radius: 4px; display: inline-block; }
     .tx-amt-exp { font-size: 15px; color: #F44336; font-weight: bold; text-align: right; }
     .tx-amt-inc { font-size: 15px; color: #4CAF50; font-weight: bold; text-align: right; }
+    
+    /* Analysis Tab CSS */
+    .analysis-card { padding: 12px 10px; border-bottom: 1px solid #444; background-color: #333333; margin-top: 5px;}
+    .analysis-header { display: flex; justify-content: space-between; align-items: center; }
+    .analysis-title { color: #ffffff; font-size: 15px; font-weight: bold; display: flex; align-items: center; gap: 10px; }
+    .analysis-amt { color: #F44336; font-size: 15px; font-weight: bold; }
+    .analysis-pct { color: #ffffff; font-size: 13px; font-weight: bold; }
+    .progress-bg { background-color: #555; height: 8px; border-radius: 4px; width: 100%; margin-top: 8px; position: relative;}
+    .progress-fill { background-color: #FFF59D; height: 8px; border-radius: 4px; position: absolute; top: 0; left: 0;}
+    .overview-title { text-align: center; border: 1px solid #FFD700; color: #ffffff; padding: 5px; width: 250px; margin: 0 auto 10px auto; border-radius: 5px; font-weight:bold; letter-spacing: 1px;}
     </style>
     """, unsafe_allow_html=True)
     
@@ -937,7 +947,6 @@ def render_money_tracker():
     total_income = pd.to_numeric(df_month[df_month['Type'] == 'Income']['Amount'], errors='coerce').sum() if not df_month.empty else 0
     total_expense = pd.to_numeric(df_month[df_month['Type'] == 'Expense']['Amount'], errors='coerce').sum() if not df_month.empty else 0
     
-    # 🔥 Upcoming Dues for this Month (ఈ నెలలో కట్టాల్సిన భవిష్యత్ EMIs/Bills)
     upcoming_expense = 0
     try:
         dues_data = dues_ws.get_all_records()
@@ -1011,7 +1020,6 @@ def render_money_tracker():
                 a_amt = st.number_input("Amount (₹)", min_value=1)
                 a_freq = st.selectbox("Frequency", ["Monthly", "Half-Yearly", "Yearly"])
 
-                # EMI / Dates section
                 c_d1, c_d2 = st.columns(2)
                 with c_d1:
                     a_start = st.date_input("Start Date / First EMI")
@@ -1034,59 +1042,112 @@ def render_money_tracker():
                 active_dues = dues_ws.get_all_records()
                 if active_dues:
                     df_show = pd.DataFrame(active_dues)
-                    
-                    # IST Time teeskuni enni nelalu undo calculate cheyadam
                     today_date = pd.Timestamp.now(tz='Asia/Kolkata').tz_localize(None).normalize()
                     status_col = []
-                    
                     for idx, r in df_show.iterrows():
                         end_d_str = r.get('End_Date', '')
                         freq = str(r.get('Frequency', '')).strip()
-                        
                         if end_d_str and freq == 'Monthly':
                             try:
                                 end_dt = pd.to_datetime(end_d_str, format='%d-%b-%Y')
                                 months_left = (end_dt.year - today_date.year) * 12 + (end_dt.month - today_date.month)
-                                
-                                if months_left > 0:
-                                    status_col.append(f"{months_left} Months Left ⏳")
-                                elif months_left == 0:
-                                    status_col.append("Last EMI This Month ⚠️")
-                                else:
-                                    status_col.append("Completed ✅")
-                            except:
-                                status_col.append("Ongoing 🔄")
-                        else:
-                            status_col.append("Ongoing 🔄")
-                            
+                                if months_left > 0: status_col.append(f"{months_left} Months Left ⏳")
+                                elif months_left == 0: status_col.append("Last EMI This Month ⚠️")
+                                else: status_col.append("Completed ✅")
+                            except: status_col.append("Ongoing 🔄")
+                        else: status_col.append("Ongoing 🔄")
                     df_show['EMI_Status'] = status_col
-                    
                     st.markdown("<div style='font-size:14px; color:#FFD700; font-weight:bold; margin-top:10px; margin-bottom:5px;'>⚡ Active Auto-Pay List</div>", unsafe_allow_html=True)
                     st.dataframe(df_show, hide_index=True, use_container_width=True)
-            except Exception as e: 
-                pass
+            except Exception as e: pass
 
-    if not df_month.empty:
-        grouped = df_month.groupby('Date_Obj')
-        for date_obj, group in grouped:
-            day_name = date_obj.strftime('%b %d, %A')
-            st.markdown(f'<div class="date-header">{day_name}</div>', unsafe_allow_html=True)
-            
-            tx_html = '<div class="money-container">'
-            for _, row in group.iterrows():
-                is_exp = row['Type'] == 'Expense'
-                try: amt_val = float(row['Amount'])
-                except: amt_val = 0.0
-                amt_str = f"-₹{amt_val:,.2f}" if is_exp else f"₹{amt_val:,.2f}"
-                amt_class = "tx-amt-exp" if is_exp else "tx-amt-inc"
-                icon_letter = str(row['Category'])[0].upper() if row['Category'] else "₹"
-                note_str = f" • <span style='color:#777; font-size:11px;'>{row['Notes']}</span>" if row['Notes'] else ""
+    st.markdown("<hr style='border-color:#30363d; margin: 15px 0;'>", unsafe_allow_html=True)
+
+    # 🔥 Adding Tabs for Records vs Analysis (Like the bottom nav in your app)
+    tab1, tab2 = st.tabs(["🧾 Records", "📊 Analysis"])
+
+    with tab1:
+        if not df_month.empty:
+            grouped = df_month.groupby('Date_Obj')
+            for date_obj, group in grouped:
+                day_name = date_obj.strftime('%b %d, %A')
+                st.markdown(f'<div class="date-header">{day_name}</div>', unsafe_allow_html=True)
                 
-                tx_html += f'<div class="tx-row"><div class="tx-left"><div class="tx-icon">{icon_letter}</div><div><div class="tx-cat">{row["Category"]}{note_str}</div><div class="tx-acc">💵 {row["Account"]}</div></div></div><div class="{amt_class}">{amt_str}</div></div>'
-            tx_html += '</div>'
-            st.markdown(tx_html, unsafe_allow_html=True)
-    else:
-        st.info("No records found for this month.")
+                tx_html = '<div class="money-container">'
+                for _, row in group.iterrows():
+                    is_exp = row['Type'] == 'Expense'
+                    try: amt_val = float(row['Amount'])
+                    except: amt_val = 0.0
+                    amt_str = f"-₹{amt_val:,.2f}" if is_exp else f"₹{amt_val:,.2f}"
+                    amt_class = "tx-amt-exp" if is_exp else "tx-amt-inc"
+                    icon_letter = str(row['Category'])[0].upper() if row['Category'] else "₹"
+                    note_str = f" • <span style='color:#777; font-size:11px;'>{row['Notes']}</span>" if row['Notes'] else ""
+                    
+                    tx_html += f'<div class="tx-row"><div class="tx-left"><div class="tx-icon">{icon_letter}</div><div><div class="tx-cat">{row["Category"]}{note_str}</div><div class="tx-acc">💵 {row["Account"]}</div></div></div><div class="{amt_class}">{amt_str}</div></div>'
+                tx_html += '</div>'
+                st.markdown(tx_html, unsafe_allow_html=True)
+        else:
+            st.info("No records found for this month.")
+
+    with tab2:
+        st.markdown('<div class="overview-title">˅ EXPENSE OVERVIEW</div>', unsafe_allow_html=True)
+        
+        df_expense = df_month[df_month['Type'] == 'Expense'].copy()
+        if not df_expense.empty:
+            df_expense['Amount'] = pd.to_numeric(df_expense['Amount'], errors='coerce').fillna(0)
+            cat_totals = df_expense.groupby('Category')['Amount'].sum().reset_index()
+            cat_totals = cat_totals.sort_values('Amount', ascending=False)
+            total_cat_exp = cat_totals['Amount'].sum()
+            
+            # Colors matching the image
+            colors = ['#F44336', '#E91E63', '#9C27B0', '#673AB7', '#3F51B5', '#2196F3', '#03A9F4', '#00BCD4', '#009688', '#4CAF50']
+            
+            # Plotly Donut Chart
+            fig = go.Figure(data=[go.Pie(
+                labels=cat_totals['Category'], 
+                values=cat_totals['Amount'], 
+                hole=.65, 
+                marker=dict(colors=colors),
+                textinfo='none', # Hiding text to look exactly like the image
+                hoverinfo='label+percent'
+            )])
+            
+            # Adding "Expenses" text inside the hole
+            fig.add_annotation(text="Expenses", x=0.5, y=0.5, font_size=14, showarrow=False, font_color="white")
+            fig.update_layout(margin=dict(t=10, b=10, l=10, r=10), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=220, showlegend=True, legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=0.8, font=dict(color="white")))
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Rendering individual progress bars like the image
+            analysis_html = '<div class="money-container">'
+            for i, r in cat_totals.iterrows():
+                pct = (r['Amount'] / total_cat_exp) * 100 if total_cat_exp > 0 else 0
+                icon_letter = str(r['Category'])[0].upper()
+                c_idx = i % len(colors)
+                icon_bg = colors[c_idx]
+                
+                analysis_html += f"""
+                <div class="analysis-card">
+                    <div class="analysis-header">
+                        <div class="analysis-title">
+                            <div class="tx-icon" style="background-color:{icon_bg}; width:30px; height:30px; font-size:16px;">{icon_letter}</div>
+                            {r['Category']}
+                        </div>
+                        <div style="text-align: right;">
+                            <span class="analysis-amt">-₹{r['Amount']:,.2f}</span>
+                            <span class="analysis-pct" style="margin-left: 10px;">{pct:.1f}%</span>
+                        </div>
+                    </div>
+                    <div class="progress-bg">
+                        <div class="progress-fill" style="width: {pct}%;"></div>
+                    </div>
+                </div>
+                """
+            analysis_html += '</div>'
+            st.markdown(analysis_html, unsafe_allow_html=True)
+            
+        else:
+            st.info("No expense data available for analysis this month.")
+
     # === EDIT OR DELETE TRANSACTIONS SECTION ===
     st.markdown("<hr style='border-color:#30363d; margin: 20px 0;'>", unsafe_allow_html=True)
     with st.expander("✏️ Edit / Delete Transactions (Corrections)", expanded=False):
@@ -1118,17 +1179,16 @@ def render_money_tracker():
             st.success("✅ కరెక్షన్స్ సేవ్ అయ్యాయి!")
             time.sleep(1)
             st.rerun()
-# === EDIT OR DELETE AUTO-PAY DUES SECTION ===
+
+    # === EDIT OR DELETE AUTO-PAY DUES SECTION ===
     with st.expander("🤖 Edit / Delete Auto-Pay Rules", expanded=False):
         st.markdown("<p style='font-size:13px; color:#00BFFF;'>💡 <b>ఆటో-పే మార్చండి:</b> రెంట్, లోన్స్ లాంటి ఆటో-పే అమౌంట్స్ ఇక్కడ మార్చొచ్చు. లేదా చెక్ బాక్స్ ద్వారా డిలీట్ చేయొచ్చు.</p>", unsafe_allow_html=True)
         
         try:
             raw_dues = dues_ws.get_all_records()
-            # 💡 FIX: Added Start_Date and End_Date
             df_raw_dues = pd.DataFrame(raw_dues) if raw_dues else pd.DataFrame(columns=['Item_Name', 'Type', 'Account', 'Category', 'Amount', 'Frequency', 'Next_Due_Date', 'Start_Date', 'End_Date'])
             df_raw_dues.columns = df_raw_dues.columns.str.strip().str.title()
         except:
-            # 💡 FIX: Added Start_Date and End_Date for fallback
             df_raw_dues = pd.DataFrame(columns=['Item_Name', 'Type', 'Account', 'Category', 'Amount', 'Frequency', 'Next_Due_Date', 'Start_Date', 'End_Date'])
             
         edited_dues_df = st.data_editor(
@@ -1145,7 +1205,6 @@ def render_money_tracker():
             if not edited_dues_df.empty:
                 dues_ws.update([edited_dues_df.columns.values.tolist()] + edited_dues_df.values.tolist())
             else:
-                # 💡 FIX: Added Start_Date and End_Date
                 dues_ws.append_row(['Item_Name', 'Type', 'Account', 'Category', 'Amount', 'Frequency', 'Next_Due_Date', 'Start_Date', 'End_Date'])
             
             st.success("✅ ఆటో-పే రూల్స్ సేవ్ అయ్యాయి!")
