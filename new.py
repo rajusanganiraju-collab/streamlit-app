@@ -311,8 +311,16 @@ def fetch_historical_charts_data(tkrs, timeframe):
 # --- DAILY DATA FETCH ---
 @st.cache_data(ttl=60, show_spinner=False) 
 def fetch_all_data():
-    data = fetch_historical_from_gcs()
-    if data.empty: return pd.DataFrame()
+    raw_data = fetch_historical_from_gcs()
+    if raw_data.empty: return pd.DataFrame()
+    
+    # 1. Cache ఎర్రర్ రాకుండా కాపీ చేయాలి
+    data = raw_data.copy()
+
+    # 2. 🔥 YFINANCE LATEST VERSION FIX (కాలమ్స్ తారుమారైతే సరిచేయడానికి) 🔥
+    if isinstance(data.columns, pd.MultiIndex):
+        if 'Close' in data.columns.levels[0] or 'Open' in data.columns.levels[0]:
+            data = data.swaplevel(axis=1)
 
     with LIVE_PRICES_LOCK:
         live_prices_snapshot = dict(LIVE_PRICES_GLOBAL)
