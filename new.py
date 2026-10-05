@@ -1051,7 +1051,7 @@ def render_money_tracker():
                 <div class="sum-exp">₹{total_expense:,.0f}</div>
             </div>
             <div class="sum-col">
-                <div class="sum-title">UPCOMING EMIs</div>
+                <div class="sum-title">UPCOMING EXPN</div>
                 <div class="sum-exp" style="color:#FF8C00;">₹{upcoming_expense:,.0f}</div>
             </div>
             <div class="sum-col">
@@ -1251,8 +1251,16 @@ def render_money_tracker():
                 df_d = pd.DataFrame(dues_data)
                 df_d_exp = df_d[df_d['Type'].astype(str).str.strip() == 'Expense'].copy()
                 df_d_exp['Next_Due_Date'] = pd.to_datetime(df_d_exp['Next_Due_Date'], format='%d-%b-%Y', errors='coerce')
-                df_d_exp['Month_Year'] = df_d_exp['Next_Due_Date'].dt.strftime('%B %Y')
-                this_month_dues = df_d_exp[df_d_exp['Month_Year'] == selected_month].copy()
+                
+                # 🔥 FIX: Match period dynamically based on view_mode
+                if view_mode == "MONTHLY":
+                    df_d_exp['Period_Match'] = df_d_exp['Next_Due_Date'].dt.strftime('%B %Y')
+                elif view_mode == "YEARLY":
+                    df_d_exp['Period_Match'] = df_d_exp['Next_Due_Date'].dt.year.astype(str)
+                else: # DAILY
+                    df_d_exp['Period_Match'] = df_d_exp['Next_Due_Date'].dt.strftime('%d %b %Y')
+                
+                this_month_dues = df_d_exp[df_d_exp['Period_Match'] == selected_period].copy()
                 
                 if not this_month_dues.empty:
                     this_month_dues['Amount'] = pd.to_numeric(this_month_dues['Amount'], errors='coerce').fillna(0)
