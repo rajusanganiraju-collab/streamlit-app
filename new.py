@@ -1099,28 +1099,53 @@ def render_money_tracker():
             cat_totals = cat_totals.sort_values('Amount', ascending=False)
             total_cat_exp = cat_totals['Amount'].sum()
             
-            # Colors matching the image
+            # 💡 FIX: Calculate percentage based on TOTAL INCOME instead of Total Expense
+            base_amount = total_income if total_income > 0 else total_cat_exp
+            overall_pct = (total_cat_exp / base_amount) * 100 if base_amount > 0 else 0
+            
+            # Colors matching the premium UI
             colors = ['#F44336', '#E91E63', '#9C27B0', '#673AB7', '#3F51B5', '#2196F3', '#03A9F4', '#00BCD4', '#009688', '#4CAF50']
+            
+            pie_labels = cat_totals['Category'].tolist()
+            pie_values = cat_totals['Amount'].tolist()
+            pie_colors = [colors[i % len(colors)] for i in range(len(pie_labels))]
+            
+            # 💡 FIX: Add 'Remaining Income' slice to make the chart proportionally correct to Total Income
+            if total_income > total_cat_exp:
+                pie_labels.append("Remaining Balance")
+                pie_values.append(total_income - total_cat_exp)
+                pie_colors.append("rgba(255, 255, 255, 0.03)") # Hidden/Dark slice for remaining income
             
             # Plotly Donut Chart
             fig = go.Figure(data=[go.Pie(
-                labels=cat_totals['Category'], 
-                values=cat_totals['Amount'], 
-                hole=.65, 
-                marker=dict(colors=colors),
-                textinfo='none', # Hiding text to look exactly like the image
-                hoverinfo='label+percent'
+                labels=pie_labels, 
+                values=pie_values, 
+                hole=.75, 
+                marker=dict(colors=pie_colors),
+                textinfo='none', 
+                hoverinfo='label+percent',
+                sort=False
             )])
             
-            # Adding "Expenses" text inside the hole
-            fig.add_annotation(text="Expenses", x=0.5, y=0.5, font_size=14, showarrow=False, font_color="white")
-            fig.update_layout(margin=dict(t=10, b=10, l=10, r=10), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=220, showlegend=True, legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=0.8, font=dict(color="white")))
+            # 💡 FIX: Adding exact percentage of expenses inside the center of the circle
+            center_text = f"<span style='font-size:13px; color:#c9d1d9;'>Expenses</span><br><span style='font-size:22px; font-weight:bold; color:#F44336;'>{overall_pct:.1f}%</span>"
+            fig.add_annotation(text=center_text, x=0.5, y=0.5, showarrow=False)
+            
+            fig.update_layout(
+                margin=dict(t=10, b=10, l=10, r=10), 
+                paper_bgcolor='rgba(0,0,0,0)', 
+                plot_bgcolor='rgba(0,0,0,0)', 
+                height=250, 
+                showlegend=True, 
+                legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=0.8, font=dict(color="white"))
+            )
             st.plotly_chart(fig, use_container_width=True)
             
-            # Rendering individual progress bars like the image
+            # Rendering individual progress bars 
             analysis_html = '<div class="money-container">'
             for i, r in cat_totals.iterrows():
-                pct = (r['Amount'] / total_cat_exp) * 100 if total_cat_exp > 0 else 0
+                # 💡 FIX: Progress bars now show % of Total Income
+                pct = (r['Amount'] / base_amount) * 100 if base_amount > 0 else 0
                 icon_letter = str(r['Category'])[0].upper()
                 c_idx = i % len(colors)
                 icon_bg = colors[c_idx]
@@ -1138,7 +1163,8 @@ def render_money_tracker():
                         </div>
                     </div>
                     <div class="progress-bg">
-                        <div class="progress-fill" style="width: {pct}%;"></div>
+                        <!-- Progress bar color now matches the specific category color -->
+                        <div class="progress-fill" style="width: {min(pct, 100)}%; background-color: {icon_bg};"></div>
                     </div>
                 </div>
                 """
