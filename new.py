@@ -1018,13 +1018,15 @@ def render_money_tracker():
 
                 st.markdown("<div style='border-top:1px dashed #444; margin:10px 0;'></div>", unsafe_allow_html=True)
 
-                # 🔥 FIX: Changed End Date to Remaining EMIs (Months)
-                c_d1, c_d2 = st.columns(2)
+                # 🔥 FIX: Replaced Checkbox with Selectbox to fix CSS text overlap
+                c_d1, c_d2, c_d3 = st.columns([1.4, 1.1, 1.2])
                 with c_d1:
                     a_start = st.date_input("Start Date / Next Due")
                 with c_d2:
-                    is_emi = st.checkbox("☑️ Is this an EMI?")
-                    a_tenure = st.number_input("Remaining EMIs (Count)", min_value=1, value=12, step=1)
+                    bill_type = st.selectbox("Bill Type", ["Lifetime", "EMI"])
+                    is_emi = (bill_type == "EMI")
+                with c_d3:
+                    a_tenure = st.number_input("Remaining EMIs", min_value=1, value=12, step=1)
 
                 if st.form_submit_button("Set Automation"):
                     # లాజిక్: నంబర్ ఆఫ్ మంత్స్ ని బట్టి ఎండ్ డేట్ ఆటోమాటిక్ గా లెక్కకట్టబడుతుంది
