@@ -1019,21 +1019,65 @@ def render_money_tracker():
             # Add past savings to current income
             total_income += carry_over_amount
 
-    # 7. Calculate Upcoming Expenses (EMIs for this month)
+    # 7. Calculate Upcoming Expenses (Dynamic Projection for Any Month)
     upcoming_expense = 0
+    df_this_period_dues = pd.DataFrame()
+    active_dues_list = []
+    
     try:
         dues_data = dues_ws.get_all_records()
         if dues_data:
             df_d = pd.DataFrame(dues_data)
             df_d_exp = df_d[df_d['Type'].astype(str).str.strip() == 'Expense'].copy()
-            df_d_exp['Next_Due_Date'] = pd.to_datetime(df_d_exp['Next_Due_Date'], format='%d-%b-%Y', errors='coerce')
+            df_d_exp['Next_Due_Date_Obj'] = pd.to_datetime(df_d_exp['Next_Due_Date'], format='%d-%b-%Y', errors='coerce')
+            df_d_exp['End_Date_Obj'] = pd.to_datetime(df_d_exp['End_Date'], format='%d-%b-%Y', errors='coerce')
             
-            # Only match upcoming dues if we are in MONTHLY mode to avoid confusion in daily mode
+            # Period boundaries
             if view_mode == "MONTHLY":
-                df_d_exp['Month_Year'] = df_d_exp['Next_Due_Date'].dt.strftime('%B %Y')
-                upcoming_expense = pd.to_numeric(df_d_exp[df_d_exp['Month_Year'] == selected_period]['Amount'], errors='coerce').sum()
+                p_start = pd.to_datetime(selected_period, format='%B %Y')
+                p_end = p_start + pd.offsets.MonthEnd(1)
+            elif view_mode == "YEARLY":
+                p_start = pd.to_datetime(f"01 Jan {selected_period}")
+                p_end = p_start + pd.offsets.YearEnd(1)
             else:
-                upcoming_expense = 0 
+                p_start = pd.to_datetime(selected_period, format='%d %b %Y')
+                p_end = p_start
+            
+            today_val = pd.Timestamp.now(tz='Asia/Kolkata').tz_localize(None).normalize()
+            
+            # 💡 Future/Current period ayithe matrame upcoming dues calculate chestham (to avoid duplicate past data)
+            if p_end >= today_val:
+                for _, r in df_d_exp.iterrows():
+                    nxt_dt = r['Next_Due_Date_Obj']
+                    end_dt = r['End_Date_Obj']
+                    if pd.isna(nxt_dt): continue
+                    
+                    freq = str(r.get('Frequency', 'Monthly')).strip()
+                    is_active = False
+                    
+                    # EMI End date aipothe skip cheseyali
+                    if pd.notna(end_dt) and end_dt < p_start:
+                        continue 
+                        
+                    # Frequency batti current selected month lo eppudu vastundo check cheyadam
+                    if freq == 'Monthly':
+                        if nxt_dt <= p_end: is_active = True
+                    elif freq == 'Yearly':
+                        if view_mode == "MONTHLY" and nxt_dt.month == p_start.month and nxt_dt <= p_end: is_active = True
+                        elif view_mode == "YEARLY" and nxt_dt.year <= p_end.year: is_active = True
+                    else:
+                        if p_start <= nxt_dt <= p_end: is_active = True
+                        
+                    if is_active:
+                        # 💡 Month ki taggatu date ni project cheyadam (e.g. Oct -> Nov)
+                        if freq == 'Monthly' and nxt_dt < p_start:
+                            max_day = pd.Period(year=p_start.year, month=p_start.month, freq='M').days_in_month
+                            r['Next_Due_Date_Obj'] = pd.Timestamp(year=p_start.year, month=p_start.month, day=min(nxt_dt.day, max_day))
+                        active_dues_list.append(r)
+                
+            df_this_period_dues = pd.DataFrame(active_dues_list)
+            if not df_this_period_dues.empty:
+                upcoming_expense = pd.to_numeric(df_this_period_dues['Amount'], errors='coerce').sum()
     except Exception as e:
         pass
         
@@ -1200,24 +1244,12 @@ def render_money_tracker():
 
         # --- 2. UPCOMING DUES & EMIs FOR THIS PERIOD ---
         try:
-            dues_data = dues_ws.get_all_records()
-            if dues_data:
-                df_d = pd.DataFrame(dues_data)
-                df_d_exp = df_d[df_d['Type'].astype(str).str.strip() == 'Expense'].copy()
-                df_d_exp['Next_Due_Date_Obj'] = pd.to_datetime(df_d_exp['Next_Due_Date'], format='%d-%b-%Y', errors='coerce')
-                
-                # 🔥 FIX: Match period dynamically
-                if view_mode == "MONTHLY":
-                    df_d_exp['Period_Match'] = df_d_exp['Next_Due_Date_Obj'].dt.strftime('%B %Y')
-                elif view_mode == "YEARLY":
-                    df_d_exp['Period_Match'] = df_d_exp['Next_Due_Date_Obj'].dt.year.astype(str)
-                else:
-                    df_d_exp['Period_Match'] = df_d_exp['Next_Due_Date_Obj'].dt.strftime('%d %b %Y')
-                
-                today_val = pd.Timestamp.now(tz='Asia/Kolkata').tz_localize(None).normalize()
-                
-                # Check for matching period and future dates
-                upcoming_dues = df_d_exp[(df_d_exp['Period_Match'] == selected_period) & (df_d_exp['Next_Due_Date_Obj'] > today_val)].copy()
+            upcoming_dues = df_this_period_dues.copy()
+            today_val = pd.Timestamp.now(tz='Asia/Kolkata').tz_localize(None).normalize()
+            
+            if not upcoming_dues.empty:
+                # Eroju kante mundu unde (pending) dates matrame list lo ravadaniki
+                upcoming_dues = upcoming_dues[upcoming_dues['Next_Due_Date_Obj'] >= today_val]
                 
                 if not upcoming_dues.empty:
                     upcoming_dues = upcoming_dues.sort_values('Next_Due_Date_Obj')
@@ -1249,29 +1281,12 @@ def render_money_tracker():
             cat_totals_spent = pd.DataFrame(columns=['Category', 'Amount'])
             
         upcoming_cat_totals = pd.DataFrame(columns=['Category', 'Amount'])
-        this_month_dues = pd.DataFrame()
-        
         try:
-            dues_data = dues_ws.get_all_records()
-            if dues_data:
-                df_d = pd.DataFrame(dues_data)
-                df_d_exp = df_d[df_d['Type'].astype(str).str.strip() == 'Expense'].copy()
-                df_d_exp['Next_Due_Date'] = pd.to_datetime(df_d_exp['Next_Due_Date'], format='%d-%b-%Y', errors='coerce')
-                
-                # 🔥 FIX: Match period dynamically based on view_mode
-                if view_mode == "MONTHLY":
-                    df_d_exp['Period_Match'] = df_d_exp['Next_Due_Date'].dt.strftime('%B %Y')
-                elif view_mode == "YEARLY":
-                    df_d_exp['Period_Match'] = df_d_exp['Next_Due_Date'].dt.year.astype(str)
-                else: # DAILY
-                    df_d_exp['Period_Match'] = df_d_exp['Next_Due_Date'].dt.strftime('%d %b %Y')
-                
-                this_month_dues = df_d_exp[df_d_exp['Period_Match'] == selected_period].copy()
-                
-                if not this_month_dues.empty:
-                    this_month_dues['Amount'] = pd.to_numeric(this_month_dues['Amount'], errors='coerce').fillna(0)
-                    upcoming_cat_totals = this_month_dues.groupby('Category')['Amount'].sum().reset_index()
-        except:
+            # 💡 Paina first block lo generate ayina project data ni ikkada reuse chestunnam
+            if not df_this_period_dues.empty:
+                df_this_period_dues['Amount'] = pd.to_numeric(df_this_period_dues['Amount'], errors='coerce').fillna(0)
+                upcoming_cat_totals = df_this_period_dues.groupby('Category')['Amount'].sum().reset_index()
+        except Exception as e:
             pass
             
         combined_expenses = pd.concat([cat_totals_spent, upcoming_cat_totals])
