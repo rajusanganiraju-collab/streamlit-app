@@ -2059,7 +2059,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
         if "AI Predictions" in watchlist_mode:
                 move_type_filter = st.multiselect("Strategy Filter",
                     [
-                        "All Day Trading Moves 🚀",
+                        "🚀 All Day Trading Moves",
                         "All Moves",                          
                         "🔥 First Hour Vol Breakout (ORB+VWAP)", 
                         "💥 Inside Bar Vol Breakout (NR7)", 
@@ -2082,7 +2082,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
                         "📉 FIB Retracement (0.382)", 
                         "🌅 15-Min ORB (Opening Range Breakout)"
                     ], 
-                    default=["All Moves"],
+                    default=["🚀 All Day Trading Moves"],
                     key="day_trading_filter_key"
                 )
         elif watchlist_mode == "Swing Trading 📈":
