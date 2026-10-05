@@ -1165,7 +1165,7 @@ def render_money_tracker():
             )
             st.plotly_chart(fig, use_container_width=True)
             
-            # Rendering individual progress bars 
+            # Rendering individual progress bars (FIXED SPACING)
             analysis_html = '<div class="money-container">'
             for i, r in cat_totals.iterrows():
                 pct = (r['Amount'] / base_amount) * 100 if base_amount > 0 else 0
@@ -1173,23 +1173,9 @@ def render_money_tracker():
                 c_idx = i % len(colors)
                 icon_bg = colors[c_idx]
                 
-                analysis_html += f"""
-                <div class="analysis-card">
-                    <div class="analysis-header">
-                        <div class="analysis-title">
-                            <div class="tx-icon" style="background-color:{icon_bg}; width:30px; height:30px; font-size:16px;">{icon_letter}</div>
-                            {r['Category']}
-                        </div>
-                        <div style="text-align: right;">
-                            <span class="analysis-amt">-₹{r['Amount']:,.2f}</span>
-                            <span class="analysis-pct" style="margin-left: 10px;">{pct:.1f}%</span>
-                        </div>
-                    </div>
-                    <div class="progress-bg">
-                        <div class="progress-fill" style="width: {min(pct, 100)}%; background-color: {icon_bg};"></div>
-                    </div>
-                </div>
-                """
+                # Single line HTML to prevent Markdown code-block rendering
+                analysis_html += f"<div class='analysis-card'><div class='analysis-header'><div class='analysis-title'><div class='tx-icon' style='background-color:{icon_bg}; width:30px; height:30px; font-size:16px;'>{icon_letter}</div>{r['Category']}</div><div style='text-align: right;'><span class='analysis-amt'>-₹{r['Amount']:,.2f}</span><span class='analysis-pct' style='margin-left: 10px;'>{pct:.1f}%</span></div></div><div class='progress-bg'><div class='progress-fill' style='width: {min(pct, 100)}%; background-color: {icon_bg};'></div></div></div>"
+                
             analysis_html += '</div>'
             st.markdown(analysis_html, unsafe_allow_html=True)
             
