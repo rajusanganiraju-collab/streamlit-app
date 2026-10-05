@@ -3467,15 +3467,23 @@ def render_live_ui():
                         c_sell = base_sell & pdl_break & vol_confirm
                         icon_str = "💥 PD Break"
     
-                    # 3. VWAP BOUNCE (PULLBACK)
+                    # 3. DEEP PULLBACK & VWAP BOUNCE (మీరు అడిగిన పర్ఫెక్ట్ లాజిక్)
                     elif strat == "🧲 VWAP Bounce (Low Risk Entry)":
-                        near_vwap_buy = (df_filtered['P'] > df_filtered['VWAP']) & (df_filtered['P'] <= (df_filtered['VWAP'] * 1.003)) & (df_filtered['L'] <= (df_filtered['VWAP'] * 1.001))
-                        near_vwap_sell = (df_filtered['P'] < df_filtered['VWAP']) & (df_filtered['P'] >= (df_filtered['VWAP'] * 0.997)) & (df_filtered['H'] >= (df_filtered['VWAP'] * 0.999))
-                        overall_trend_up = df_filtered['Day_C'] > 1.0
-                        overall_trend_dn = df_filtered['Day_C'] < -1.0
-                        c_buy = base_buy & near_vwap_buy & overall_trend_up & (df_filtered['VolX'] > 1.0)
-                        c_sell = base_sell & near_vwap_sell & overall_trend_dn & (df_filtered['VolX'] > 1.0)
-                        icon_str = "🧲 VWAP Bounce"
+                        # VWAP నుండి Day High ఎంత దూరం వెళ్ళింది (> 1.2%)
+                        dist_up = ((df_filtered['H'] - df_filtered['VWAP']) / df_filtered['VWAP']) * 100
+                        # మళ్లీ VWAP దగ్గరకి ఎంత వరకు పుల్ బ్యాక్ అయ్యింది (కేవలం 0.3% లోపల ఉండాలి)
+                        pullback_near_vwap_buy = ((df_filtered['P'] - df_filtered['VWAP']) / df_filtered['VWAP']) * 100
+                        
+                        # VWAP నుండి Day Low ఎంత దూరం పడింది (> 1.2%)
+                        dist_dn = ((df_filtered['VWAP'] - df_filtered['L']) / df_filtered['VWAP']) * 100
+                        # మళ్లీ VWAP దగ్గరకి ఎంత వరకు పుల్ బ్యాక్ అయ్యింది (కేవలం 0.3% లోపల ఉండాలి)
+                        pullback_near_vwap_sell = ((df_filtered['VWAP'] - df_filtered['P']) / df_filtered['VWAP']) * 100
+                        
+                        # 1. బేస్ కండిషన్ (VWAP పైన ఉంటేనే), 2. పైకి బాగా వెళ్లి ఉండాలి, 3. ఇప్పుడు VWAP కి అతుక్కుని ఉండాలి
+                        c_buy = base_buy & (dist_up >= 1.2) & (pullback_near_vwap_buy <= 0.3) & (df_filtered['VolX'] >= 1.0)
+                        c_sell = base_sell & (dist_dn >= 1.2) & (pullback_near_vwap_sell <= 0.3) & (df_filtered['VolX'] >= 1.0)
+                        
+                        icon_str = "🧲 Pullback"
     
                     # 4. TRENDING DAY (NARROW CPR + ORB)
                     elif strat == "🎯 Narrow CPR Trending Day":
