@@ -1124,18 +1124,9 @@ def render_money_tracker():
                         due_date_str = row['Next_Due_Date_Obj'].strftime('%d-%b, %a')
                         icon_letter = str(row['Category'])[0].upper() if row['Category'] else "₹"
                         
-                        up_html += f"""
-                        <div class="tx-row" style="background-color: #26211b; border-bottom: 1px dashed #554433;">
-                            <div class="tx-left">
-                                <div class="tx-icon" style="background-color: #E65100;">{icon_letter}</div>
-                                <div>
-                                    <div class="tx-cat" style="color: #FFB74D;">{row['Item_Name']} <span style='font-size:11px; color:#aaa;'>({row['Category']})</span></div>
-                                    <div class="tx-acc" style="background-color: #3e2e1e; color: #ffcc80;">📅 Due: {due_date_str} • 💵 {row['Account']}</div>
-                                </div>
-                            </div>
-                            <div style="font-size: 15px; color: #FF8C00; font-weight: bold; text-align: right;">-₹{amt_val:,.2f}</div>
-                        </div>
-                        """
+                        # 🔥 FIX: Single line string to prevent Markdown code block rendering
+                        up_html += f"<div class='tx-row' style='background-color: #26211b; border-bottom: 1px dashed #554433;'><div class='tx-left'><div class='tx-icon' style='background-color: #E65100;'>{icon_letter}</div><div><div class='tx-cat' style='color: #FFB74D;'>{row['Item_Name']} <span style='font-size:11px; color:#aaa;'>({row['Category']})</span></div><div class='tx-acc' style='background-color: #3e2e1e; color: #ffcc80;'>📅 Due: {due_date_str} • 💵 {row['Account']}</div></div></div><div style='font-size: 15px; color: #FF8C00; font-weight: bold; text-align: right;'>-₹{amt_val:,.2f}</div></div>"
+                    
                     up_html += '</div>'
                     st.markdown(up_html, unsafe_allow_html=True)
         except Exception as e:
