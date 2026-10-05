@@ -21,7 +21,7 @@ except ImportError:
     DhanContext = None
 
 # =========================================================
-# 🔥 FIX: GLOBAL LIVE PRICES (Thread Safe)
+# 🔥 GLOBAL LIVE PRICES (Thread Safe)
 # =========================================================
 LIVE_PRICES_GLOBAL = {}
 LIVE_PRICES_LOCK = threading.Lock()
@@ -57,16 +57,18 @@ def init_connection():
     db_sheet = client.open("Trading_DB")
     p_ws = db_sheet.worksheet("Portfolio")
     t_ws = db_sheet.worksheet("TradeBook")
-    return p_ws, t_ws
+    exp_ws = db_sheet.worksheet("Expenses")
+    dues_ws = db_sheet.worksheet("Fixed_Dues")
+    return p_ws, t_ws, exp_ws, dues_ws
 
 try:
-    port_ws, trade_ws = init_connection()
+    port_ws, trade_ws, exp_ws, dues_ws = init_connection()
 except Exception as e:
     st.error(f"గూగుల్ షీట్ కనెక్ట్ అవ్వలేదు బాస్! Error: {e}")
     st.stop()
 
 # --- 3. DATA LOAD & SAVE FUNCTIONS ---
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=180, show_spinner=False)
 def load_portfolio():
     try:
         records = port_ws.get_all_records()
@@ -557,6 +559,7 @@ def fetch_cached_5m_data(tkrs_list):
         return pd.concat(valid_results.values(), axis=1, keys=valid_results.keys(), sort=False)
     return pd.DataFrame()
 
+# --- చార్ట్స్ కోసం డేటా (YFINANCE - FAST METHOD) ---
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_historical_charts_data(tkrs, timeframe):
     idx_list = [t for t in tkrs if "^" in t or "=" in t]
@@ -581,7 +584,7 @@ def fetch_historical_charts_data(tkrs, timeframe):
         df.columns = pd.MultiIndex.from_product([tkrs, df.columns])
     return df
 
-# --- DAILY DATA FETCH ---
+# --- DAILY DATA FETCH (YFINANCE - SUPER FAST METHOD) ---
 @st.cache_data(ttl=180, show_spinner=False)
 def fetch_all_data():
     port_df = load_portfolio()
@@ -603,6 +606,11 @@ def fetch_all_data():
     if not data_frames: return pd.DataFrame()
     data = pd.concat(data_frames, axis=1)
     if data.empty: return pd.DataFrame()
+
+    # 🔥 YFINANCE LATEST VERSION BUG FIX
+    if isinstance(data.columns, pd.MultiIndex):
+        if 'Close' in data.columns.levels[0] or 'Open' in data.columns.levels[0]:
+            data = data.swaplevel(axis=1)
 
     results = []
     minutes = get_minutes_passed()
@@ -631,13 +639,13 @@ def fetch_all_data():
             low = float(df['Low'].iloc[-1])
             high = float(df['High'].iloc[-1])
             
-            day_chg = ((ltp - open_p) / open_p) * 100
-            net_chg = ((ltp - prev_c) / prev_c) * 100
+            day_chg = ((ltp - open_p) / open_p) * 100 if open_p > 0 else 0
+            net_chg = ((ltp - prev_c) / prev_c) * 100 if prev_c > 0 else 0
             
             p_pivot = (prev_h + prev_l + prev_c) / 3
             p_bc = (prev_h + prev_l) / 2
             p_tc = (p_pivot - p_bc) + p_pivot
-            cpr_width_pct = abs(p_tc - p_bc) / p_pivot * 100
+            cpr_width_pct = abs(p_tc - p_bc) / p_pivot * 100 if p_pivot > 0 else 0
             is_narrow_cpr = bool(cpr_width_pct <= 0.30) 
             
             high_low = df['High'] - df['Low']
@@ -702,7 +710,7 @@ def fetch_all_data():
                 prev_w_c = float(df_w['Close'].iloc[-2])
                 if prev_w_c > 0: weekly_net_chg = ((ltp - prev_w_c) / prev_w_c) * 100
                     
-            if len(df_w) >= 40: # 75 బదులు 40 పెట్టండి, అప్పుడు 15 నెలల డేటాలో EMA క్యాలిక్యులేట్ అవుతుంది
+            if len(df_w) >= 40:
                 df_w['EMA_10'] = df_w['Close'].ewm(span=10, adjust=False).mean()
                 df_w['EMA_50'] = df_w['Close'].ewm(span=50, adjust=False).mean()
                 latest_w_ema10 = float(df_w['EMA_10'].iloc[-1])
@@ -859,6 +867,579 @@ def fetch_fundamentals_data(symbols_list):
     return pd.DataFrame(fund_data)   
 
 # --- RENDER FUNCTIONS ---
+import calendar
+
+def sync_automatic_dues():
+    try:
+        dues_records = dues_ws.get_all_records()
+        if not dues_records: return
+        
+        df_dues = pd.DataFrame(dues_records)
+        df_dues['Next_Due_Date'] = pd.to_datetime(df_dues['Next_Due_Date'], format='%d-%b-%Y', errors='coerce')
+        
+        today = pd.Timestamp.now(tz='Asia/Kolkata').tz_localize(None).normalize()
+        
+        updates_made = False
+        new_expenses = []
+        
+        for idx, row in df_dues.iterrows():
+            due_date = row['Next_Due_Date']
+            end_date = pd.to_datetime(row.get('End_Date', ''), format='%d-%b-%Y', errors='coerce')
+            
+            if pd.isna(due_date): continue
+            
+            if pd.notna(end_date) and today > end_date:
+                continue
+            
+            if due_date <= today:
+                new_expenses.append([
+                    today.strftime('%d-%b-%Y'), row['Type'], row['Account'], row['Category'], 
+                    row['Amount'], f"Auto: {row['Item_Name']}"
+                ])
+                
+                freq = str(row['Frequency']).strip()
+                if freq == "Monthly": next_date = due_date + pd.DateOffset(months=1)
+                elif freq == "Half-Yearly": next_date = due_date + pd.DateOffset(months=6)
+                elif freq == "Yearly": next_date = due_date + pd.DateOffset(years=1)
+                else: next_date = due_date + pd.DateOffset(months=1)
+                
+                if pd.isna(end_date) or next_date <= end_date:
+                    df_dues.at[idx, 'Next_Due_Date'] = next_date.strftime('%d-%b-%Y')
+                else:
+                    df_dues.at[idx, 'Next_Due_Date'] = "Completed"
+                    
+                updates_made = True
+                
+        if updates_made:
+            if new_expenses: exp_ws.append_rows(new_expenses)
+            
+            df_dues['Next_Due_Date'] = df_dues['Next_Due_Date'].apply(
+                lambda x: x.strftime('%d-%b-%Y') if pd.notnull(x) and isinstance(x, pd.Timestamp) else x
+            )
+            
+            df_dues = df_dues.fillna("")
+            dues_ws.clear()
+            dues_ws.update([df_dues.columns.values.tolist()] + df_dues.values.tolist())
+            
+    except Exception as e: 
+        pass
+
+def render_money_tracker():
+    sync_automatic_dues()
+    
+    st.markdown("""
+    <style>
+    .money-container { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    .summary-board { display: flex; justify-content: space-around; background-color: #383838; padding: 15px 5px; border-bottom: 2px solid #1a1a1a; margin-bottom: 15px; border-radius: 8px;}
+    .sum-col { text-align: center; flex: 1; }
+    .sum-title { font-size: 11px; color: #a9a9a9; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
+    .sum-exp { font-size: 16px; color: #F44336; font-weight: bold; }
+    .sum-inc { font-size: 16px; color: #4CAF50; font-weight: bold; }
+    .sum-tot { font-size: 16px; color: #FFD700; font-weight: bold; }
+    
+    .date-header { font-size: 13px; font-weight: bold; color: #FFD700; background-color: #2b2b2b; padding: 5px 10px; border-bottom: 1px solid #444; margin-top: 15px; border-radius: 5px 5px 0 0;}
+    .tx-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 10px; border-bottom: 1px solid #444; background-color: #333333; }
+    .tx-left { display: flex; align-items: center; gap: 12px; }
+    .tx-icon { background-color: #C2185B; color: white; width: 35px; height: 35px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 18px; font-weight: bold; }
+    .tx-cat { font-size: 15px; color: #ffffff; margin-bottom: 2px; }
+    .tx-acc { font-size: 11px; color: #a9a9a9; background-color: #444; padding: 2px 6px; border-radius: 4px; display: inline-block; }
+    .tx-amt-exp { font-size: 15px; color: #F44336; font-weight: bold; text-align: right; }
+    .tx-amt-inc { font-size: 15px; color: #4CAF50; font-weight: bold; text-align: right; }
+    
+    /* Analysis Tab CSS */
+    .analysis-card { padding: 12px 10px; border-bottom: 1px solid #444; background-color: #333333; margin-top: 5px;}
+    .analysis-header { display: flex; justify-content: space-between; align-items: center; }
+    .analysis-title { color: #ffffff; font-size: 15px; font-weight: bold; display: flex; align-items: center; gap: 10px; }
+    .analysis-amt { color: #F44336; font-size: 15px; font-weight: bold; }
+    .analysis-pct { color: #ffffff; font-size: 13px; font-weight: bold; }
+    .progress-bg { background-color: #555; height: 8px; border-radius: 4px; width: 100%; margin-top: 8px; position: relative;}
+    .progress-fill { background-color: #FFF59D; height: 8px; border-radius: 4px; position: absolute; top: 0; left: 0;}
+    .overview-title { text-align: center; border: 1px solid #FFD700; color: #ffffff; padding: 5px; width: 250px; margin: 0 auto 10px auto; border-radius: 5px; font-weight:bold; letter-spacing: 1px;}
+    </style>
+    """, unsafe_allow_html=True)
+    
+    try:
+        exp_data = exp_ws.get_all_records()
+        df_exp = pd.DataFrame(exp_data) if exp_data else pd.DataFrame(columns=['Date', 'Type', 'Account', 'Category', 'Amount', 'Notes'])
+        df_exp.columns = df_exp.columns.str.strip().str.title()
+    except:
+        df_exp = pd.DataFrame(columns=['Date', 'Type', 'Account', 'Category', 'Amount', 'Notes'])
+        
+    for req_col in ['Date', 'Type', 'Account', 'Category', 'Amount', 'Notes']:
+        if req_col not in df_exp.columns:
+            df_exp[req_col] = ""
+        
+    if not df_exp.empty:
+        df_exp['Date_Obj'] = pd.to_datetime(df_exp['Date'], format='%d-%b-%Y', errors='coerce')
+        df_exp = df_exp.dropna(subset=['Date_Obj']).sort_values('Date_Obj', ascending=False)
+        df_exp['Month_Year'] = df_exp['Date_Obj'].dt.strftime('%B %Y')
+    else:
+        df_exp['Date_Obj'] = pd.NaT
+        df_exp['Month_Year'] = ""
+
+    c1, c_prev, c_sel, c_next, c_opt, c6 = st.columns([1, 0.5, 2, 0.5, 0.5, 1])
+    
+    with c_opt:
+        with st.popover("☰"):
+            st.markdown("<h4 style='color:#FFD700; font-size:16px; margin-bottom:5px;'>Display options</h4>", unsafe_allow_html=True)
+            view_mode = st.radio("View mode:", ["DAILY", "MONTHLY", "YEARLY"], index=1)
+            carry_over = st.radio("Carry over:", ["ON", "OFF"], index=1)
+            st.caption("ℹ️ With Carry over ON, past unspent balance will be added to this period's income.")
+
+    today = pd.Timestamp.now().normalize()
+    if view_mode == "DAILY":
+        all_periods = [(today - pd.Timedelta(days=i)).strftime('%d %b %Y') for i in range(30, -1, -1)]
+        current_period_str = today.strftime('%d %b %Y')
+    elif view_mode == "YEARLY":
+        current_year = today.year
+        all_periods = [str(y) for y in range(current_year-2, current_year+3)]
+        current_period_str = str(current_year)
+    else: 
+        current_year = today.year
+        all_periods = [datetime(current_year, m, 1).strftime('%B %Y') for m in range(1, 13)]
+        current_period_str = today.strftime('%B %Y')
+
+    if 'p_idx' not in st.session_state or st.session_state.get('last_view') != view_mode:
+        if current_period_str in all_periods:
+            st.session_state.p_idx = all_periods.index(current_period_str)
+        else:
+            st.session_state.p_idx = len(all_periods) - 1
+        st.session_state.last_view = view_mode
+
+    def go_prev(): st.session_state.p_idx = max(0, st.session_state.p_idx - 1)
+    def go_next(): st.session_state.p_idx = min(len(all_periods) - 1, st.session_state.p_idx + 1)
+    def update_sel(): st.session_state.p_idx = all_periods.index(st.session_state.temp_p)
+
+    with c_prev: st.button("◀", on_click=go_prev, use_container_width=True)
+    with c_sel: 
+        selected_period = st.selectbox("Period", all_periods, index=st.session_state.p_idx, key="temp_p", on_change=update_sel, label_visibility="collapsed")
+    with c_next: st.button("▶", on_click=go_next, use_container_width=True)
+
+    if view_mode == "DAILY":
+        sel_date = pd.to_datetime(selected_period, format='%d %b %Y')
+        df_display = df_exp[df_exp['Date_Obj'] == sel_date] if not df_exp.empty else df_exp
+        period_start_date = sel_date
+    elif view_mode == "YEARLY":
+        df_display = df_exp[df_exp['Date_Obj'].dt.year == int(selected_period)] if not df_exp.empty else df_exp
+        period_start_date = pd.to_datetime(f"01 Jan {selected_period}")
+    else: 
+        df_display = df_exp[df_exp['Month_Year'] == selected_period] if not df_exp.empty else df_exp
+        period_start_date = pd.to_datetime(selected_period, format='%B %Y')
+
+    total_income = pd.to_numeric(df_display[df_display['Type'] == 'Income']['Amount'], errors='coerce').sum() if not df_display.empty else 0
+    total_expense = pd.to_numeric(df_display[df_display['Type'] == 'Expense']['Amount'], errors='coerce').sum() if not df_display.empty else 0
+
+    carry_over_amount = 0
+    if carry_over == "ON" and not df_exp.empty:
+        past_df = df_exp[df_exp['Date_Obj'] < period_start_date]
+        if not past_df.empty:
+            past_inc = pd.to_numeric(past_df[past_df['Type'] == 'Income']['Amount'], errors='coerce').sum()
+            past_exp = pd.to_numeric(past_df[past_df['Type'] == 'Expense']['Amount'], errors='coerce').sum()
+            carry_over_amount = past_inc - past_exp
+            total_income += carry_over_amount
+
+    upcoming_expense = 0
+    upcoming_income = 0
+    df_this_period_dues = pd.DataFrame()
+    active_dues_list = []
+    
+    try:
+        dues_data = dues_ws.get_all_records()
+        if dues_data:
+            df_d = pd.DataFrame(dues_data)
+            df_d['Type'] = df_d['Type'].astype(str).str.strip()
+            df_d['Next_Due_Date_Obj'] = pd.to_datetime(df_d['Next_Due_Date'], format='%d-%b-%Y', errors='coerce')
+            df_d['End_Date_Obj'] = pd.to_datetime(df_d['End_Date'], format='%d-%b-%Y', errors='coerce')
+            
+            if view_mode == "MONTHLY":
+                p_start = pd.to_datetime(selected_period, format='%B %Y')
+                p_end = p_start + pd.offsets.MonthEnd(1)
+            elif view_mode == "YEARLY":
+                p_start = pd.to_datetime(f"01 Jan {selected_period}")
+                p_end = p_start + pd.offsets.YearEnd(1)
+            else:
+                p_start = pd.to_datetime(selected_period, format='%d %b %Y')
+                p_end = p_start
+            
+            today_val = pd.Timestamp.now(tz='Asia/Kolkata').tz_localize(None).normalize()
+            
+            if p_end >= today_val:
+                for _, r in df_d.iterrows():
+                    nxt_dt = r['Next_Due_Date_Obj']
+                    end_dt = r['End_Date_Obj']
+                    if pd.isna(nxt_dt): continue
+                    
+                    freq = str(r.get('Frequency', 'Monthly')).strip()
+                    is_active = False
+                    
+                    if pd.notna(end_dt) and end_dt < p_start:
+                        continue 
+                        
+                    if view_mode == "MONTHLY":
+                        if nxt_dt <= p_end:
+                            month_diff = (p_start.year - nxt_dt.year) * 12 + (p_start.month - nxt_dt.month)
+                            if freq == 'Monthly': is_active = True
+                            elif freq == 'Half-Yearly' and month_diff % 6 == 0: is_active = True
+                            elif freq == 'Yearly' and month_diff % 12 == 0: is_active = True
+                    elif view_mode == "YEARLY":
+                        if nxt_dt <= p_end: is_active = True
+                    else:
+                        if nxt_dt <= p_end: is_active = True
+                            
+                    if is_active:
+                        if nxt_dt < p_start:
+                            max_day = pd.Period(year=p_start.year, month=p_start.month, freq='M').days_in_month
+                            r['Next_Due_Date_Obj'] = pd.Timestamp(year=p_start.year, month=p_start.month, day=min(nxt_dt.day, max_day))
+                        
+                        if view_mode == "DAILY" and r['Next_Due_Date_Obj'] != p_start:
+                            continue
+                            
+                        active_dues_list.append(r)
+                
+            df_this_period_dues = pd.DataFrame(active_dues_list)
+            if not df_this_period_dues.empty:
+                exp_mask = df_this_period_dues['Type'] == 'Expense'
+                inc_mask = df_this_period_dues['Type'] == 'Income'
+                upcoming_expense = pd.to_numeric(df_this_period_dues[exp_mask]['Amount'], errors='coerce').sum()
+                upcoming_income = pd.to_numeric(df_this_period_dues[inc_mask]['Amount'], errors='coerce').sum()
+    except Exception as e:
+        pass
+        
+    total_income += upcoming_income
+    net_total = total_income - total_expense - upcoming_expense
+    
+    summary_html = f"""
+    <div class="money-container">
+        <div class="summary-board">
+            <div class="sum-col">
+                <div class="sum-title">INCOME</div>
+                <div class="sum-inc">₹{total_income:,.0f}</div>
+            </div>
+            <div class="sum-col">
+                <div class="sum-title">SPENT</div>
+                <div class="sum-exp">₹{total_expense:,.0f}</div>
+            </div>
+            <div class="sum-col">
+                <div class="sum-title">UPCOMING EXPN</div>
+                <div class="sum-exp" style="color:#FF8C00;">₹{upcoming_expense:,.0f}</div>
+            </div>
+            <div class="sum-col">
+                <div class="sum-title">NET BALANCE</div>
+                <div class="sum-tot">₹{net_total:,.0f}</div>
+            </div>
+        </div>
+    </div>
+    """
+    st.markdown(summary_html, unsafe_allow_html=True)
+    
+    col_left, col_right = st.columns([1.5, 1])
+    
+    with col_left:
+        with st.expander("➕ Add Record (Income / Expense)", expanded=False):
+            with st.form("add_money_form", clear_on_submit=True):
+                mc1, mc2 = st.columns(2)
+                with mc1: t_type = st.radio("Type", ["Expense", "Income", "Transfer"], horizontal=True)
+                with mc2: t_date = st.date_input("Date")
+                
+                ac1, ac2 = st.columns(2)
+                with ac1: t_acc = st.selectbox("Account", ["Cash", "Bank Account", "Credit Card"])
+                with ac2: 
+                    cats = ["Food", "Rent", "EMI", "Shopping", "Transport", "Trading Loss"] if t_type == "Expense" else ["Salary", "Business", "Trading Profit", "Agriculture"]
+                    t_cat = st.selectbox("Category", cats)
+                
+                t_note = st.text_area("Add notes...", height=68)
+                t_amt = st.number_input("Amount (₹)", min_value=0.0, step=100.0)
+                
+                if st.form_submit_button("✔️ SAVE", use_container_width=True):
+                    if t_amt > 0:
+                        exp_ws.append_row([t_date.strftime('%d-%b-%Y'), t_type, t_acc, t_cat, t_amt, t_note])
+                        st.success("Record Saved!")
+                        time.sleep(1)
+                        st.rerun()
+
+    with col_right:
+        with st.expander("🔄 Setup Auto-Pay (Loans, Agriculture)", expanded=False):
+            with st.form("auto_pay_form", clear_on_submit=True):
+                a_name = st.text_input("Item Name (e.g., Rent / Gold Loan / WiFi)")
+                a_type = st.selectbox("Type", ["Expense", "Income"])
+                
+                c_acc, c_cat = st.columns(2)
+                with c_acc: a_acc = st.selectbox("Account", ["Bank Account", "Cash"])
+                with c_cat: a_cat = st.selectbox("Category", ["Rent & Bills","Jio Post Paid","Airtel","Gas","Others", "EMI / Loans", "Agriculture", "Salary"])
+                
+                c_amt, c_freq = st.columns(2)
+                with c_amt: a_amt = st.number_input("Amount (₹)", min_value=1)
+                with c_freq: a_freq = st.selectbox("Frequency", ["Monthly", "Half-Yearly", "Yearly"])
+
+                st.markdown("<div style='border-top:1px dashed #444; margin:10px 0;'></div>", unsafe_allow_html=True)
+
+                c_d1, c_d2, c_d3 = st.columns([1.4, 1.1, 1.2])
+                with c_d1:
+                    a_start = st.date_input("Start Date / Next Due")
+                with c_d2:
+                    bill_type = st.selectbox("Bill Type", ["Lifetime", "EMI"])
+                    is_emi = (bill_type == "EMI")
+                with c_d3:
+                    a_tenure = st.number_input("Remaining EMIs", min_value=1, value=12, step=1)
+
+                if st.form_submit_button("Set Automation"):
+                    if is_emi:
+                        start_ts = pd.to_datetime(a_start)
+                        if a_freq == "Monthly":
+                            end_dt = start_ts + pd.DateOffset(months=a_tenure - 1)
+                        elif a_freq == "Half-Yearly":
+                            end_dt = start_ts + pd.DateOffset(months=(a_tenure - 1) * 6)
+                        elif a_freq == "Yearly":
+                            end_dt = start_ts + pd.DateOffset(years=a_tenure - 1)
+                        else:
+                            end_dt = start_ts + pd.DateOffset(months=a_tenure - 1)
+                        end_date_str = end_dt.strftime('%d-%b-%Y')
+                    else:
+                        end_date_str = ""
+                    
+                    dues_ws.append_row([
+                        a_name, a_type, a_acc, a_cat, a_amt, a_freq, 
+                        a_start.strftime('%d-%b-%Y'), 
+                        a_start.strftime('%d-%b-%Y'), 
+                        end_date_str
+                    ])
+                    st.success("Automation Active!")
+                    time.sleep(1)
+                    st.rerun()
+            
+            try:
+                active_dues = dues_ws.get_all_records()
+                if active_dues:
+                    df_show = pd.DataFrame(active_dues)
+                    today_date = pd.Timestamp.now(tz='Asia/Kolkata').tz_localize(None).normalize()
+                    status_col = []
+                    
+                    for idx, r in df_show.iterrows():
+                        end_d_str = r.get('End_Date', '')
+                        freq = str(r.get('Frequency', '')).strip()
+                        
+                        if end_d_str and str(end_d_str).strip() != "" and freq == 'Monthly':
+                            try:
+                                end_dt = pd.to_datetime(end_d_str, format='%d-%b-%Y')
+                                months_left = (end_dt.year - today_date.year) * 12 + (end_dt.month - today_date.month)
+                                if months_left > 0: status_col.append(f"{months_left} Months Left ⏳")
+                                elif months_left == 0: status_col.append("Last EMI This Month ⚠️")
+                                else: status_col.append("Completed ✅")
+                            except: 
+                                status_col.append("Ongoing 🔄")
+                        else: 
+                            status_col.append("Lifetime / Ongoing 🔄")
+                            
+                    df_show['EMI_Status'] = status_col
+                    st.markdown("<div style='font-size:14px; color:#FFD700; font-weight:bold; margin-top:10px; margin-bottom:5px;'>⚡ Active Auto-Pay List</div>", unsafe_allow_html=True)
+                    st.dataframe(df_show, hide_index=True, use_container_width=True)
+            except Exception as e: pass
+
+    st.markdown("<hr style='border-color:#30363d; margin: 15px 0;'>", unsafe_allow_html=True)
+
+    tab1, tab2 = st.tabs(["🧾 Records", "📊 Analysis"])
+
+    try:
+        upcoming_dues = df_this_period_dues.copy()
+        today_val = pd.Timestamp.now(tz='Asia/Kolkata').tz_localize(None).normalize()
+            
+        if not upcoming_dues.empty:
+            upcoming_dues = upcoming_dues[upcoming_dues['Next_Due_Date_Obj'] >= today_val]
+                
+            if not upcoming_dues.empty:
+                upcoming_dues = upcoming_dues.sort_values('Next_Due_Date_Obj')
+                st.markdown("<div style='margin-top:25px;'></div>", unsafe_allow_html=True)
+                st.markdown("<div class='date-header' style='background-color:#422700; color:#FF8C00; border-left: 4px solid #FF8C00;'>⏳ Upcoming Dues & Incomes (Pending)</div>", unsafe_allow_html=True)
+                    
+                up_html = '<div class="money-container">'
+                for _, row in upcoming_dues.iterrows():
+                    try: amt_val = float(row['Amount'])
+                    except: amt_val = 0.0
+                    due_date_str = row['Next_Due_Date_Obj'].strftime('%d-%b, %a')
+                    icon_letter = str(row['Category'])[0].upper() if row['Category'] else "₹"
+                        
+                    is_exp = row['Type'] == 'Expense'
+                    amt_str = f"-₹{amt_val:,.2f}" if is_exp else f"+₹{amt_val:,.2f}"
+                    amt_color = "#FF8C00" if is_exp else "#3fb950"
+                    bg_icon = "#E65100" if is_exp else "#1e5f29"
+                        
+                    up_html += f"<div class='tx-row' style='background-color: #26211b; border-bottom: 1px dashed #554433;'><div class='tx-left'><div class='tx-icon' style='background-color: {bg_icon};'>{icon_letter}</div><div><div class='tx-cat' style='color: #FFB74D;'>{row['Item_Name']} <span style='font-size:11px; color:#aaa;'>({row['Category']})</span></div><div class='tx-acc' style='background-color: #3e2e1e; color: #ffcc80;'>📅 Due: {due_date_str} • 💵 {row['Account']}</div></div></div><div style='font-size: 15px; color: {amt_color}; font-weight: bold; text-align: right;'>{amt_str}</div></div>"
+                    
+                up_html += '</div>'
+                st.markdown(up_html, unsafe_allow_html=True)
+    except Exception as e:
+        pass
+
+    with tab2:
+        st.markdown('<div class="overview-title">˅ EXPENSE OVERVIEW</div>', unsafe_allow_html=True)
+        
+        df_expense = df_display[df_display['Type'] == 'Expense'].copy()
+        if not df_expense.empty:
+            df_expense['Amount'] = pd.to_numeric(df_expense['Amount'], errors='coerce').fillna(0)
+            cat_totals_spent = df_expense.groupby('Category')['Amount'].sum().reset_index()
+        else:
+            cat_totals_spent = pd.DataFrame(columns=['Category', 'Amount'])
+            
+        upcoming_cat_totals = pd.DataFrame(columns=['Category', 'Amount'])
+        try:
+            if not df_this_period_dues.empty:
+                df_pie_dues = df_this_period_dues[df_this_period_dues['Type'] == 'Expense'].copy()
+                if not df_pie_dues.empty:
+                    df_pie_dues['Amount'] = pd.to_numeric(df_pie_dues['Amount'], errors='coerce').fillna(0)
+                    upcoming_cat_totals = df_pie_dues.groupby('Category')['Amount'].sum().reset_index()
+        except Exception as e:
+            pass
+            
+        combined_expenses = pd.concat([cat_totals_spent, upcoming_cat_totals])
+        
+        if not combined_expenses.empty and combined_expenses['Amount'].sum() > 0:
+            cat_totals = combined_expenses.groupby('Category')['Amount'].sum().reset_index()
+            cat_totals = cat_totals.sort_values('Amount', ascending=False)
+            total_cat_exp = cat_totals['Amount'].sum()
+            
+            base_amount = total_income if total_income > 0 else total_cat_exp
+            overall_pct = (total_cat_exp / base_amount) * 100 if base_amount > 0 else 0
+            
+            colors = ['#F44336', '#E91E63', '#9C27B0', '#673AB7', '#3F51B5', '#2196F3', '#03A9F4', '#00BCD4', '#009688', '#4CAF50']
+            
+            pie_labels = cat_totals['Category'].tolist()
+            pie_values = cat_totals['Amount'].tolist()
+            formatted_labels = [f"{label} (₹{val:,.0f})" for label, val in zip(pie_labels, pie_values)]
+            pie_colors = [colors[i % len(colors)] for i in range(len(pie_labels))]
+            
+            if total_income > total_cat_exp:
+                remaining_bal = total_income - total_cat_exp
+                formatted_labels.append(f"Remaining Balance (₹{remaining_bal:,.0f})")
+                pie_values.append(remaining_bal)
+                pie_colors.append("rgba(255, 255, 255, 0.03)") 
+            
+            fig = go.Figure(data=[go.Pie(
+                labels=formatted_labels, 
+                values=pie_values, 
+                hole=.75, 
+                marker=dict(colors=pie_colors),
+                textinfo='none', 
+                hoverinfo='label+percent',
+                sort=False
+            )])
+            
+            center_text = f"<span style='font-size:13px; color:#c9d1d9;'>Total Expected<br>Expenses</span><br><span style='font-size:22px; font-weight:bold; color:#F44336;'>{overall_pct:.1f}%</span>"
+            fig.add_annotation(text=center_text, x=0.5, y=0.5, showarrow=False)
+            
+            fig.update_layout(
+                margin=dict(t=10, b=10, l=10, r=10), 
+                paper_bgcolor='rgba(0,0,0,0)', 
+                plot_bgcolor='rgba(0,0,0,0)', 
+                height=250, 
+                showlegend=True, 
+                legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=0.8, font=dict(color="white"))
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            
+            for i, r in cat_totals.iterrows():
+                pct = (r['Amount'] / base_amount) * 100 if base_amount > 0 else 0
+                icon_letter = str(r['Category'])[0].upper()
+                c_idx = i % len(colors)
+                icon_bg = colors[c_idx]
+                cat_name = r['Category']
+                
+                bar_html = f"<div class='money-container'><div class='analysis-card' style='margin-bottom: 0px;'><div class='analysis-header'><div class='analysis-title'><div class='tx-icon' style='background-color:{icon_bg}; width:30px; height:30px; font-size:16px;'>{icon_letter}</div>{cat_name}</div><div style='text-align: right;'><span class='analysis-amt'>-₹{r['Amount']:,.2f}</span><span class='analysis-pct' style='margin-left: 10px;'>{pct:.1f}%</span></div></div><div class='progress-bg'><div class='progress-fill' style='width: {min(pct, 100)}%; background-color: {icon_bg};'></div></div></div></div>"
+                st.markdown(bar_html, unsafe_allow_html=True)
+                
+                with st.expander(f"⬇️ View {cat_name} Split Details"):
+                    cat_details = []
+                    
+                    paid_items = df_expense[df_expense['Category'] == cat_name]
+                    for _, p_row in paid_items.iterrows():
+                        amt = pd.to_numeric(p_row['Amount'], errors='coerce')
+                        name = p_row.get('Notes', 'Paid Expense')
+                        cat_details.append({'Item': name if name else 'Paid Expense', 'Amount': amt, 'Status': '✅ Paid'})
+                        
+                    if not df_this_period_dues.empty:
+                        up_items = df_this_period_dues[df_this_period_dues['Category'] == cat_name]
+                        for _, u_row in up_items.iterrows():
+                            amt = pd.to_numeric(u_row['Amount'], errors='coerce')
+                            name = u_row.get('Item_Name', 'Upcoming Bill')
+                            cat_details.append({'Item': name, 'Amount': amt, 'Status': '⏳ Pending'})
+                            
+                    if cat_details:
+                        df_det = pd.DataFrame(cat_details)
+                        df_det = df_det.sort_values(by='Amount', ascending=True)
+                        
+                        det_html = "<table style='width:100%; font-size:13px; color:#c9d1d9; border-collapse: collapse; margin-top:5px;'>"
+                        det_html += "<tr style='border-bottom: 1px solid #444;'><th style='text-align:left; padding:5px;'>Item Name</th><th style='text-align:right; padding:5px;'>Amount</th><th style='text-align:right; padding:5px;'>Status</th></tr>"
+                        for _, d_row in df_det.iterrows():
+                            status_col = "#3fb950" if "Paid" in d_row['Status'] else "#FF8C00"
+                            det_html += f"<tr><td style='padding:5px;'>{d_row['Item']}</td><td style='text-align:right; padding:5px; color:#F44336;'>₹{d_row['Amount']:,.2f}</td><td style='text-align:right; padding:5px; color:{status_col}; font-weight:bold;'>{d_row['Status']}</td></tr>"
+                        det_html += "</table><br>"
+                        st.markdown(det_html, unsafe_allow_html=True)
+                    else:
+                        st.write("No specific details found.")
+                        
+        else:
+            st.info("No expense data available for analysis this month.")
+
+    st.markdown("<hr style='border-color:#30363d; margin: 20px 0;'>", unsafe_allow_html=True)
+    with st.expander("✏️ Edit / Delete Transactions (Corrections)", expanded=False):
+        st.markdown("<p style='font-size:13px; color:#ffd700;'>💡 <b>ఎలా మార్చాలి?</b> తప్పుగా పడిన అమౌంట్ మీద క్లిక్ చేసి మార్చండి. లేదా పక్కన ఉన్న చెక్ బాక్స్ సెలెక్ట్ చేసి కీబోర్డ్‌లో Delete నొక్కండి. చివరగా Save బటన్ నొక్కండి.</p>", unsafe_allow_html=True)
+        
+        try:
+            raw_exp = exp_ws.get_all_records()
+            df_raw_exp = pd.DataFrame(raw_exp) if raw_exp else pd.DataFrame(columns=['Date', 'Type', 'Account', 'Category', 'Amount', 'Notes'])
+            df_raw_exp.columns = df_raw_exp.columns.str.strip().str.title()
+        except:
+            df_raw_exp = pd.DataFrame(columns=['Date', 'Type', 'Account', 'Category', 'Amount', 'Notes'])
+            
+        edited_exp_df = st.data_editor(
+            df_raw_exp,
+            width="stretch",
+            hide_index=True,
+            num_rows="dynamic",
+            key="expense_editor_table"
+        )
+        
+        if st.button("💾 Save Corrections", width="stretch", key="save_exp_btn"):
+            edited_exp_df = edited_exp_df.fillna("")
+            exp_ws.clear()
+            if not edited_exp_df.empty:
+                exp_ws.update([edited_exp_df.columns.values.tolist()] + edited_exp_df.values.tolist())
+            else:
+                exp_ws.append_row(['Date', 'Type', 'Account', 'Category', 'Amount', 'Notes'])
+            
+            st.success("✅ కరెక్షన్స్ సేవ్ అయ్యాయి!")
+            time.sleep(1)
+            st.rerun()
+
+    with st.expander("🤖 Edit / Delete Auto-Pay Rules", expanded=False):
+        st.markdown("<p style='font-size:13px; color:#00BFFF;'>💡 <b>ఆటో-పే మార్చండి:</b> రెంట్, లోన్స్ లాంటి ఆటో-పే అమౌంట్స్ ఇక్కడ మార్చొచ్చు. లేదా చెక్ బాక్స్ ద్వారా డిలీట్ చేయొచ్చు.</p>", unsafe_allow_html=True)
+        
+        try:
+            raw_dues = dues_ws.get_all_records()
+            df_raw_dues = pd.DataFrame(raw_dues) if raw_dues else pd.DataFrame(columns=['Item_Name', 'Type', 'Account', 'Category', 'Amount', 'Frequency', 'Next_Due_Date', 'Start_Date', 'End_Date'])
+            df_raw_dues.columns = df_raw_dues.columns.str.strip().str.title()
+        except:
+            df_raw_dues = pd.DataFrame(columns=['Item_Name', 'Type', 'Account', 'Category', 'Amount', 'Frequency', 'Next_Due_Date', 'Start_Date', 'End_Date'])
+            
+        edited_dues_df = st.data_editor(
+            df_raw_dues,
+            width="stretch",
+            hide_index=True,
+            num_rows="dynamic",
+            key="dues_editor_table"
+        )
+        
+        if st.button("💾 Save Auto-Pay Rules", width="stretch", key="save_dues_btn"):
+            edited_dues_df = edited_dues_df.fillna("")
+            dues_ws.clear()
+            if not edited_dues_df.empty:
+                dues_ws.update([edited_dues_df.columns.values.tolist()] + edited_dues_df.values.tolist())
+            else:
+                dues_ws.append_row(['Item_Name', 'Type', 'Account', 'Category', 'Amount', 'Frequency', 'Next_Due_Date', 'Start_Date', 'End_Date'])
+            
+            st.success("✅ ఆటో-పే రూల్స్ సేవ్ అయ్యాయి!")
+            time.sleep(1)
+            st.rerun()
+
 def render_mf_table(df_mf):
     if df_mf.empty: return "<div style='padding:20px; text-align:center;'>No Mutual Fund data available.</div>"
     html = f'<table class="term-table"><thead><tr><th colspan="7" class="term-head-swing" style="background-color: #005a9e; color: white;">🏆 MUTUAL FUNDS SCREENER (LIVE PERFORMANCE)</th></tr><tr style="background-color: #21262d;"><th style="width:5%;">RANK</th><th style="text-align:left; width:25%;">FUND NAME</th><th style="width:15%; color:#ffd700;">CATEGORY</th><th style="width:10%;">NAV (₹)</th><th style="width:15%;">1Y RETURN</th><th style="width:15%;">3Y CAGR</th><th style="width:15%;">5Y CAGR</th></tr></thead><tbody>'
@@ -887,6 +1468,62 @@ def render_html_table(df_subset, title, color_class):
         html += f'<tr class="{bg_class}"><td class="t-symbol {net_color}"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td><td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td class="{net_color}">{row["C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px;">{status}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
     html += "</tbody></table>"
     return html
+
+def render_portfolio_vs_nifty_chart(df_port):
+    if df_port.empty: return
+    try:
+        port_symbols = [str(sym).upper().strip() + ".NS" for sym in df_port['Symbol'].tolist() if str(sym).strip() != ""]
+        if not port_symbols: return
+
+        with st.spinner("Loading Portfolio vs NIFTY Chart..."):
+            tkrs_to_fetch = list(set(port_symbols + ["^NSEI"]))
+            data_raw = yf.download(tkrs_to_fetch, period="1y", interval="1d", progress=False)
+            if data_raw.empty: return
+            
+            if isinstance(data_raw.columns, pd.MultiIndex):
+                # Apply same multi-index swaplevel logic if needed
+                if 'Close' in data_raw.columns.levels[0] or 'Open' in data_raw.columns.levels[0]:
+                    data_raw = data_raw.swaplevel(axis=1)
+                data = data_raw.xs('Close', level=1, axis=1) # Extracting the Close prices
+            else:
+                data = pd.DataFrame({tkrs_to_fetch[0]: data_raw['Close']})
+            
+            data = data.ffill().bfill()
+            
+            port_daily_value = pd.Series(0.0, index=data.index)
+            for _, row in df_port.iterrows():
+                sym = str(row['Symbol']).upper().strip() + ".NS"
+                try: qty = float(row['Quantity'])
+                except: qty = 0
+                if sym in data.columns and qty > 0:
+                    port_daily_value += (data[sym] * qty)
+            
+            if "^NSEI" in data.columns:
+                nifty_daily_value = data["^NSEI"]
+            else: return
+            
+            if port_daily_value.iloc[0] == 0 or nifty_daily_value.iloc[0] == 0: return
+
+            port_pct = ((port_daily_value / port_daily_value.iloc[0]) - 1) * 100
+            nifty_pct = ((nifty_daily_value / nifty_daily_value.iloc[0]) - 1) * 100
+
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=port_pct.index, y=port_pct, mode='lines', name='My Portfolio', line=dict(color='#00BFFF', width=2.5)))
+            fig.add_trace(go.Scatter(x=nifty_pct.index, y=nifty_pct, mode='lines', name='NIFTY 50', line=dict(color='#FFD700', width=2, dash='dash')))
+
+            fig.update_layout(
+                title="<b>Portfolio Basket vs NIFTY 50 (1-Year Growth %)</b>",
+                title_font=dict(color="#ffffff", size=14),
+                plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="#c9d1d9", size=11),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                xaxis=dict(showgrid=False, zeroline=False, showline=True, linecolor="#30363d"),
+                yaxis=dict(showgrid=True, gridcolor="#30363d", zeroline=True, zerolinecolor="#4a4a4a", ticksuffix="%"),
+                margin=dict(l=40, r=20, t=50, b=30), height=320, hovermode="x unified"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+    except Exception as e:
+        pass
 
 def render_portfolio_table(df_port, df_stocks, weekly_trends, port_sort="Default"):
     if df_port.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>Portfolio is empty. Add a stock using the option below!</div>"
@@ -1151,7 +1788,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
     
     strat_tag = f" <span style='font-size:10px; background:rgba(0,191,255,0.2); border:1px solid #00BFFF; padding:1px 4px; border-radius:3px; color:#00BFFF;'>{row.get('Strategy_Icon', '')}</span>" if row.get('Strategy_Icon') and row.get('Strategy_Icon') != "Neutral" else ""
     
-    # 🔥 Dynamic pullback logic (>= 0.1% condition tho)
+    # 🔥 Dynamic pullback logic
     if timeframe == "Intraday (5m)":
         day_high = float(row.get('H', 0))
         day_low = float(row.get('L', 0))
@@ -1159,23 +1796,18 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
         
         if pct_val >= 0:
             intraday_pb = ((day_high - ltp_now) / day_high) * 100 if day_high > 0 else 0
-            # "from Day High" ni "DH" ga marchanu
             pb_tag = f" &nbsp;<span style='color:#FF8C00; font-size:11px;'>📉 -{intraday_pb:.1f}% DH</span>" if intraday_pb >= 0.1 else ""
         else:
             intraday_bounce = ((ltp_now - day_low) / day_low) * 100 if day_low > 0 else 0
-            # "from Day Low" ni "DL" ga marchanu
             pb_tag = f" &nbsp;<span style='color:#00BFFF; font-size:11px;'>📈 +{intraday_bounce:.1f}% DL</span>" if intraday_bounce >= 0.1 else ""
     else:
         strat_icon = str(row.get('Strategy_Icon', ''))
-        
-        # SELL / Weak stocks ki 52-Week Low (52WL) nundi distance live ga calculate cheyadam
         if "🔴" in strat_icon or "SELL" in strat_icon or "Stage 4" in strat_icon or "Breakdown" in strat_icon or "Holy Grail" in strat_icon:
             low_52w = float(row.get('Low52W', 0))
             ltp_now = float(row.get('P', 0))
             dist_52wl = ((ltp_now - low_52w) / low_52w) * 100 if low_52w > 0 else 0
             pb_tag = f" &nbsp;<span style='color:#f85149; font-size:11px;'>🩸 +{dist_52wl:.1f}% 52WL</span>" if dist_52wl >= 0.1 else ""
         else:
-            # BUY stocks ki 52-Week High (52WH) nundi distance
             pb_val = float(row.get('Pullback_52W', 0))
             pb_tag = f" &nbsp;<span style='color:#FF8C00; font-size:11px;'>📉 -{pb_val:.1f}% 52WH</span>" if pb_val >= 0.1 else ""
     
@@ -1194,10 +1826,8 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 
             if len(df_chart) > 0:
                 first_hour = df_chart.index[0].hour
-                # రోజులో ఫస్ట్ క్యాండిల్ 9 AM కి బదులుగా 2 PM (14) పైన వస్తే, దానికి +5:30 యాడ్ అయిందని అర్థం
                 if first_hour >= 14:
                     df_chart.index = df_chart.index - pd.Timedelta(hours=5, minutes=30)
-                # ఒకవేళ తెల్లవారుజామున 3 లేదా 4 వస్తే, దానికి -5:30 మైనస్ అయిందని అర్థం
                 elif first_hour <= 4:
                     df_chart.index = df_chart.index + pd.Timedelta(hours=5, minutes=30)
 
