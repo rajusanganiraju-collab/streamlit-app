@@ -1018,7 +1018,7 @@ def render_money_tracker():
                 
                 c_acc, c_cat = st.columns(2)
                 with c_acc: a_acc = st.selectbox("Account", ["Bank Account", "Cash"])
-                with c_cat: a_cat = st.selectbox("Category", ["Rent & Bills", "EMI / Loans", "Agriculture", "Salary"])
+                with c_cat: a_cat = st.selectbox("Category", ["Rent & Bills","Jio Post Paid","Airtel","Gas","Others", "EMI / Loans", "Agriculture", "Salary"])
                 
                 c_amt, c_freq = st.columns(2)
                 with c_amt: a_amt = st.number_input("Amount (₹)", min_value=1)
