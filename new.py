@@ -1018,17 +1018,29 @@ def render_money_tracker():
 
                 st.markdown("<div style='border-top:1px dashed #444; margin:10px 0;'></div>", unsafe_allow_html=True)
 
-                # 🔥 FIX: Added Checkbox to separate EMIs and Regular Bills
+                # 🔥 FIX: Changed End Date to Remaining EMIs (Months)
                 c_d1, c_d2 = st.columns(2)
                 with c_d1:
                     a_start = st.date_input("Start Date / Next Due")
                 with c_d2:
-                    is_emi = st.checkbox("☑️ Has End Date? (For EMIs)")
-                    a_end = st.date_input("Select End Date")
+                    is_emi = st.checkbox("☑️ Is this an EMI?")
+                    a_tenure = st.number_input("Remaining EMIs (Count)", min_value=1, value=12, step=1)
 
                 if st.form_submit_button("Set Automation"):
-                    # లాజిక్: చెక్ బాక్స్ టిక్ చేస్తేనే ఎండ్ డేట్ సేవ్ అవుతుంది, లేకపోతే ఖాళీ (Lifetime)
-                    end_date_str = a_end.strftime('%d-%b-%Y') if is_emi else ""
+                    # లాజిక్: నంబర్ ఆఫ్ మంత్స్ ని బట్టి ఎండ్ డేట్ ఆటోమాటిక్ గా లెక్కకట్టబడుతుంది
+                    if is_emi:
+                        start_ts = pd.to_datetime(a_start)
+                        if a_freq == "Monthly":
+                            end_dt = start_ts + pd.DateOffset(months=a_tenure - 1)
+                        elif a_freq == "Half-Yearly":
+                            end_dt = start_ts + pd.DateOffset(months=(a_tenure - 1) * 6)
+                        elif a_freq == "Yearly":
+                            end_dt = start_ts + pd.DateOffset(years=a_tenure - 1)
+                        else:
+                            end_dt = start_ts + pd.DateOffset(months=a_tenure - 1)
+                        end_date_str = end_dt.strftime('%d-%b-%Y')
+                    else:
+                        end_date_str = ""
                     
                     dues_ws.append_row([
                         a_name, a_type, a_acc, a_cat, a_amt, a_freq, 
