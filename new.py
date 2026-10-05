@@ -1339,81 +1339,168 @@ def render_money_tracker():
                         name = p_row.get('Notes', 'Paid Expense')
                         cat_details.append({'Item': name if name else 'Paid Expense', 'Amount': amt, 'Status': '✅ Paid'})
                         
-                    # 2. Fetch Upcoming Dues + EMI Status
-if not this_month_dues.empty:
-    up_items = this_month_dues[
-        this_month_dues['Category'] == cat_name
-    ]
+                                        # 2. Fetch Upcoming Dues + EMI Status
+                    if not this_month_dues.empty:
+                        up_items = this_month_dues[
+                            this_month_dues['Category'] == cat_name
+                        ]
 
-    for _, u_row in up_items.iterrows():
-        amt = pd.to_numeric(u_row['Amount'], errors='coerce')
-        name = u_row.get('Item_Name', 'Upcoming Bill')
+                        for _, u_row in up_items.iterrows():
+                            amt = pd.to_numeric(
+                                u_row['Amount'],
+                                errors='coerce'
+                            )
+                            name = u_row.get(
+                                'Item_Name',
+                                'Upcoming Bill'
+                            )
 
-        # Default status
-        emi_status = "⏳ Pending"
+                            # Default status
+                            emi_status = "⏳ Pending"
 
-        # EMI / Loan status calculate
-        end_d_str = str(u_row.get('End_Date', '')).strip()
-        freq = str(u_row.get('Frequency', '')).strip()
+                            # EMI / Loan status
+                            end_d_str = str(
+                                u_row.get('End_Date', '')
+                            ).strip()
 
-        if (
-            end_d_str
-            and end_d_str.lower() != "nan"
-            and freq == "Monthly"
-        ):
-            try:
-                end_dt = pd.to_datetime(
-                    end_d_str,
-                    format='%d-%b-%Y'
-                )
+                            freq = str(
+                                u_row.get('Frequency', '')
+                            ).strip()
 
-                today_date = pd.Timestamp.now(
-                    tz='Asia/Kolkata'
-                ).tz_localize(None).normalize()
+                            # Monthly EMI
+                            if (
+                                end_d_str
+                                and end_d_str.lower() != "nan"
+                                and freq == "Monthly"
+                            ):
+                                try:
+                                    end_dt = pd.to_datetime(
+                                        end_d_str,
+                                        format='%d-%b-%Y'
+                                    )
 
-                months_left = (
-                    (end_dt.year - today_date.year) * 12
-                    + (end_dt.month - today_date.month)
-                )
+                                    today_date = pd.Timestamp.now(
+                                        tz='Asia/Kolkata'
+                                    ).tz_localize(None).normalize()
 
-                if months_left > 0:
-                    emi_status = f"{months_left} Months Left ⏳"
-                elif months_left == 0:
-                    emi_status = "Last EMI This Month ⚠️"
-                else:
-                    emi_status = "Completed ✅"
+                                    months_left = (
+                                        (end_dt.year - today_date.year) * 12
+                                        + (end_dt.month - today_date.month)
+                                    )
 
-            except Exception:
-                emi_status = "Ongoing 🔄"
+                                    if months_left > 0:
+                                        emi_status = (
+                                            f"{months_left} Months Left ⏳"
+                                        )
+                                    elif months_left == 0:
+                                        emi_status = (
+                                            "Last EMI This Month ⚠️"
+                                        )
+                                    else:
+                                        emi_status = "Completed ✅"
 
-        elif end_d_str and end_d_str.lower() != "nan":
-            try:
-                end_dt = pd.to_datetime(
-                    end_d_str,
-                    format='%d-%b-%Y'
-                )
+                                except Exception:
+                                    emi_status = "Ongoing 🔄"
 
-                today_date = pd.Timestamp.now(
-                    tz='Asia/Kolkata'
-                ).tz_localize(None).normalize()
+                            # Other EMI frequency / End Date available
+                            elif (
+                                end_d_str
+                                and end_d_str.lower() != "nan"
+                            ):
+                                try:
+                                    end_dt = pd.to_datetime(
+                                        end_d_str,
+                                        format='%d-%b-%Y'
+                                    )
 
-                if end_dt < today_date:
-                    emi_status = "Completed ✅"
-                else:
-                    emi_status = "Ongoing 🔄"
+                                    today_date = pd.Timestamp.now(
+                                        tz='Asia/Kolkata'
+                                    ).tz_localize(None).normalize()
 
-            except Exception:
-                emi_status = "Ongoing 🔄"
+                                    if end_dt < today_date:
+                                        emi_status = "Completed ✅"
+                                    else:
+                                        emi_status = "Ongoing 🔄"
 
-        else:
-            # Lifetime / normal recurring auto-pay
-            emi_status = "Lifetime / Ongoing 🔄"
+                                except Exception:
+                                    emi_status = "Ongoing 🔄"
 
-        cat_details.append({
-            'Item': name,
-            'Amount': amt,
-            'Status': emi_status
-        })
+                            # Lifetime recurring payment
+                            else:
+                                emi_status = "Lifetime / Ongoing 🔄"
+
+                            cat_details.append({
+                                'Item': name,
+                                'Amount': amt,
+                                'Status': emi_status
+                            })
+
+                    if cat_details:
+                        df_det = pd.DataFrame(cat_details)
+
+                        # Sorting Low to High
+                        df_det = df_det.sort_values(
+                            by='Amount',
+                            ascending=True
+                        )
+
+                        # Render table
+                        det_html = (
+                            "<table style='width:100%; "
+                            "font-size:13px; color:#c9d1d9; "
+                            "border-collapse:collapse; margin-top:5px;'>"
+                        )
+
+                        det_html += (
+                            "<tr style='border-bottom:1px solid #444;'>"
+                            "<th style='text-align:left; padding:5px;'>"
+                            "Item Name</th>"
+                            "<th style='text-align:right; padding:5px;'>"
+                            "Amount</th>"
+                            "<th style='text-align:right; padding:5px;'>"
+                            "Status</th>"
+                            "</tr>"
+                        )
+
+                        for _, d_row in df_det.iterrows():
+
+                            # Status colour
+                            if "Completed" in d_row['Status']:
+                                status_col = "#3fb950"
+                            elif "Last EMI" in d_row['Status']:
+                                status_col = "#FFD700"
+                            elif "Months Left" in d_row['Status']:
+                                status_col = "#00BFFF"
+                            elif "Ongoing" in d_row['Status']:
+                                status_col = "#C084FC"
+                            elif "Paid" in d_row['Status']:
+                                status_col = "#3fb950"
+                            else:
+                                status_col = "#FF8C00"
+
+                            det_html += (
+                                f"<tr>"
+                                f"<td style='padding:5px;'>"
+                                f"{d_row['Item']}</td>"
+                                f"<td style='text-align:right; "
+                                f"padding:5px; color:#F44336;'>"
+                                f"₹{d_row['Amount']:,.2f}</td>"
+                                f"<td style='text-align:right; "
+                                f"padding:5px; color:{status_col}; "
+                                f"font-weight:bold;'>"
+                                f"{d_row['Status']}</td>"
+                                f"</tr>"
+                            )
+
+                        det_html += "</table><br>"
+
+                        st.markdown(
+                            det_html,
+                            unsafe_allow_html=True
+                        )
+
+                    else:
+                        st.write("No specific details found.")
                             
                     if cat_details:
                         df_det = pd.DataFrame(cat_details)
