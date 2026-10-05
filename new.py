@@ -1075,6 +1075,7 @@ def render_money_tracker():
     tab1, tab2 = st.tabs(["🧾 Records", "📊 Analysis"])
 
     with tab1:
+        # --- 1. PAST / ALREADY COMPLETED TRANSACTIONS ---
         if not df_month.empty:
             grouped = df_month.groupby('Date_Obj')
             for date_obj, group in grouped:
@@ -1095,7 +1096,50 @@ def render_money_tracker():
                 tx_html += '</div>'
                 st.markdown(tx_html, unsafe_allow_html=True)
         else:
-            st.info("No records found for this month.")
+            st.info("No completed records found for this month.")
+
+        # --- 2. UPCOMING DUES & EMIs FOR THIS MONTH (Jio, Airtel, EMIs) ---
+        try:
+            dues_data = dues_ws.get_all_records()
+            if dues_data:
+                df_d = pd.DataFrame(dues_data)
+                df_d_exp = df_d[df_d['Type'].astype(str).str.strip() == 'Expense'].copy()
+                df_d_exp['Next_Due_Date_Obj'] = pd.to_datetime(df_d_exp['Next_Due_Date'], format='%d-%b-%Y', errors='coerce')
+                df_d_exp['Month_Year'] = df_d_exp['Next_Due_Date_Obj'].dt.strftime('%B %Y')
+                
+                today_val = pd.Timestamp.now(tz='Asia/Kolkata').tz_localize(None).normalize()
+                
+                # Ee nela lo inka ravalsina future dates (Next_Due_Date > Today)
+                upcoming_dues = df_d_exp[(df_d_exp['Month_Year'] == selected_month) & (df_d_exp['Next_Due_Date_Obj'] > today_val)].copy()
+                
+                if not upcoming_dues.empty:
+                    upcoming_dues = upcoming_dues.sort_values('Next_Due_Date_Obj')
+                    st.markdown("<div style='margin-top:25px;'></div>", unsafe_allow_html=True)
+                    st.markdown("<div class='date-header' style='background-color:#422700; color:#FF8C00; border-left: 4px solid #FF8C00;'>⏳ Upcoming Dues & Bills (Pending This Month)</div>", unsafe_allow_html=True)
+                    
+                    up_html = '<div class="money-container">'
+                    for _, row in upcoming_dues.iterrows():
+                        try: amt_val = float(row['Amount'])
+                        except: amt_val = 0.0
+                        due_date_str = row['Next_Due_Date_Obj'].strftime('%d-%b, %a')
+                        icon_letter = str(row['Category'])[0].upper() if row['Category'] else "₹"
+                        
+                        up_html += f"""
+                        <div class="tx-row" style="background-color: #26211b; border-bottom: 1px dashed #554433;">
+                            <div class="tx-left">
+                                <div class="tx-icon" style="background-color: #E65100;">{icon_letter}</div>
+                                <div>
+                                    <div class="tx-cat" style="color: #FFB74D;">{row['Item_Name']} <span style='font-size:11px; color:#aaa;'>({row['Category']})</span></div>
+                                    <div class="tx-acc" style="background-color: #3e2e1e; color: #ffcc80;">📅 Due: {due_date_str} • 💵 {row['Account']}</div>
+                                </div>
+                            </div>
+                            <div style="font-size: 15px; color: #FF8C00; font-weight: bold; text-align: right;">-₹{amt_val:,.2f}</div>
+                        </div>
+                        """
+                    up_html += '</div>'
+                    st.markdown(up_html, unsafe_allow_html=True)
+        except Exception as e:
+            pass
 
     with tab2:
         st.markdown('<div class="overview-title">˅ EXPENSE OVERVIEW</div>', unsafe_allow_html=True)
