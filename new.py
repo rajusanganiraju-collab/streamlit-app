@@ -1226,36 +1226,36 @@ def render_money_tracker():
     tab1, tab2 = st.tabs(["🧾 Records", "📊 Analysis"])
 
     # --- 2. UPCOMING DUES & INCOMES FOR THIS PERIOD ---
-        try:
-            upcoming_dues = df_this_period_dues.copy()
-            today_val = pd.Timestamp.now(tz='Asia/Kolkata').tz_localize(None).normalize()
+    try:
+        upcoming_dues = df_this_period_dues.copy()
+        today_val = pd.Timestamp.now(tz='Asia/Kolkata').tz_localize(None).normalize()
             
-            if not upcoming_dues.empty:
-                upcoming_dues = upcoming_dues[upcoming_dues['Next_Due_Date_Obj'] >= today_val]
+        if not upcoming_dues.empty:
+            upcoming_dues = upcoming_dues[upcoming_dues['Next_Due_Date_Obj'] >= today_val]
                 
-                if not upcoming_dues.empty:
-                    upcoming_dues = upcoming_dues.sort_values('Next_Due_Date_Obj')
-                    st.markdown("<div style='margin-top:25px;'></div>", unsafe_allow_html=True)
-                    st.markdown("<div class='date-header' style='background-color:#422700; color:#FF8C00; border-left: 4px solid #FF8C00;'>⏳ Upcoming Dues & Incomes (Pending)</div>", unsafe_allow_html=True)
+            if not upcoming_dues.empty:
+                upcoming_dues = upcoming_dues.sort_values('Next_Due_Date_Obj')
+                st.markdown("<div style='margin-top:25px;'></div>", unsafe_allow_html=True)
+                st.markdown("<div class='date-header' style='background-color:#422700; color:#FF8C00; border-left: 4px solid #FF8C00;'>⏳ Upcoming Dues & Incomes (Pending)</div>", unsafe_allow_html=True)
                     
-                    up_html = '<div class="money-container">'
-                    for _, row in upcoming_dues.iterrows():
-                        try: amt_val = float(row['Amount'])
-                        except: amt_val = 0.0
-                        due_date_str = row['Next_Due_Date_Obj'].strftime('%d-%b, %a')
-                        icon_letter = str(row['Category'])[0].upper() if row['Category'] else "₹"
+                up_html = '<div class="money-container">'
+                for _, row in upcoming_dues.iterrows():
+                    try: amt_val = float(row['Amount'])
+                    except: amt_val = 0.0
+                    due_date_str = row['Next_Due_Date_Obj'].strftime('%d-%b, %a')
+                    icon_letter = str(row['Category'])[0].upper() if row['Category'] else "₹"
                         
-                        is_exp = row['Type'] == 'Expense'
-                        amt_str = f"-₹{amt_val:,.2f}" if is_exp else f"+₹{amt_val:,.2f}"
-                        amt_color = "#FF8C00" if is_exp else "#3fb950"
-                        bg_icon = "#E65100" if is_exp else "#1e5f29"
+                    is_exp = row['Type'] == 'Expense'
+                    amt_str = f"-₹{amt_val:,.2f}" if is_exp else f"+₹{amt_val:,.2f}"
+                    amt_color = "#FF8C00" if is_exp else "#3fb950"
+                    bg_icon = "#E65100" if is_exp else "#1e5f29"
                         
-                        up_html += f"<div class='tx-row' style='background-color: #26211b; border-bottom: 1px dashed #554433;'><div class='tx-left'><div class='tx-icon' style='background-color: {bg_icon};'>{icon_letter}</div><div><div class='tx-cat' style='color: #FFB74D;'>{row['Item_Name']} <span style='font-size:11px; color:#aaa;'>({row['Category']})</span></div><div class='tx-acc' style='background-color: #3e2e1e; color: #ffcc80;'>📅 Due: {due_date_str} • 💵 {row['Account']}</div></div></div><div style='font-size: 15px; color: {amt_color}; font-weight: bold; text-align: right;'>{amt_str}</div></div>"
+                    up_html += f"<div class='tx-row' style='background-color: #26211b; border-bottom: 1px dashed #554433;'><div class='tx-left'><div class='tx-icon' style='background-color: {bg_icon};'>{icon_letter}</div><div><div class='tx-cat' style='color: #FFB74D;'>{row['Item_Name']} <span style='font-size:11px; color:#aaa;'>({row['Category']})</span></div><div class='tx-acc' style='background-color: #3e2e1e; color: #ffcc80;'>📅 Due: {due_date_str} • 💵 {row['Account']}</div></div></div><div style='font-size: 15px; color: {amt_color}; font-weight: bold; text-align: right;'>{amt_str}</div></div>"
                     
-                    up_html += '</div>'
-                    st.markdown(up_html, unsafe_allow_html=True)
-        except Exception as e:
-            pass
+                up_html += '</div>'
+                st.markdown(up_html, unsafe_allow_html=True)
+    except Exception as e:
+        pass
 
     with tab2:
         st.markdown('<div class="overview-title">˅ EXPENSE OVERVIEW</div>', unsafe_allow_html=True)
