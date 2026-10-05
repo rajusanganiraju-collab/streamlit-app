@@ -3119,9 +3119,38 @@ def render_live_ui():
                 ]
             
             if "AI Predictions" in watchlist_mode:
-                # W_EMA50 కండిషన్ తీసేసి బేస్ లాజిక్ సింపుల్ చేసాము
-                base_buy = (df_filtered['P'] > df_filtered['W_EMA10']) & (df_filtered['P'] > df_filtered['VWAP'])
-                base_sell = (df_filtered['P'] < df_filtered['W_EMA10']) & (df_filtered['P'] < df_filtered['VWAP'])
+                    # 🔥 LIVE 5-MIN VWAP VALIDATION FIX 🔥
+                    valid_buy_indices = []
+                    valid_sell_indices = []
+
+                    for idx, row in unpinned_df.iterrows():
+                        tkr = row['Fetch_T']
+                        strat_icon = str(row.get('Strategy_Icon', ''))
+                        
+                        # 5m డేటా అందుబాటులో ఉంటే లేటెస్ట్ క్యాండిల్ VWAP చెక్ చేస్తాం
+                        if tkr in chart_dict_to_use and not chart_dict_to_use[tkr].empty:
+                            df_5m = chart_dict_to_use[tkr]
+                            latest_close = df_5m['Close'].iloc[-1]
+                            latest_vwap = df_5m['VWAP'].iloc[-1] if 'VWAP' in df_5m.columns else latest_close
+                            
+                            # BUY కాల్ అయితే ప్రైస్ కచ్చితంగా 5m VWAP పైన ఉండాలి
+                            if any(k in strat_icon for k in ['🟢', 'BUY', 'UP', 'VCP', 'Stage 2', 'Darvas']):
+                                if latest_close >= latest_vwap:
+                                    valid_buy_indices.append(idx)
+                            
+                            # SELL కాల్ అయితే ప్రైస్ కచ్చితంగా 5m VWAP కింద ఉండాలి
+                            elif any(k in strat_icon for k in ['🔴', 'SELL', 'DOWN', 'Stage 4']):
+                                if latest_close <= latest_vwap:
+                                    valid_sell_indices.append(idx)
+                        else:
+                            # 5m డేటా లేకపోతే పాత పద్ధతి ఫాలో అవుతుంది
+                            if any(k in strat_icon for k in ['🟢', 'BUY', 'UP', 'VCP', 'Stage 2', 'Darvas']):
+                                valid_buy_indices.append(idx)
+                            elif any(k in strat_icon for k in ['🔴', 'SELL', 'DOWN', 'Stage 4']):
+                                valid_sell_indices.append(idx)
+
+                    df_buy_chart = unpinned_df.loc[valid_buy_indices].head(12)
+                    df_sell_chart = unpinned_df.loc[valid_sell_indices].head(12)
                 
                 nifty_dist = 0.25 
                 nifty_row = df_indices[df_indices['T'] == 'NIFTY']
