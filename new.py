@@ -2059,8 +2059,8 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
         if "AI Predictions" in watchlist_mode:
                 move_type_filter = st.multiselect("Strategy Filter",
                     [
-                        "All Moves", 
-                        "All Day Trading Moves 🚀", 
+                        "All Day Trading Moves 🚀",
+                        "All Moves",                          
                         "🔥 First Hour Vol Breakout (ORB+VWAP)", 
                         "💥 Inside Bar Vol Breakout (NR7)", 
                         "🧲 Intraday Dip & Support Bounce", 
