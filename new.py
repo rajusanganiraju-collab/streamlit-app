@@ -1360,7 +1360,7 @@ def render_money_tracker():
                         
                     # 2. Fetch Upcoming Dues
                     if not df_this_period_dues.empty:
-                    up_items = df_this_period_dues[df_this_period_dues['Category'] == cat_name]
+                        up_items = df_this_period_dues[df_this_period_dues['Category'] == cat_name]
                         for _, u_row in up_items.iterrows():
                             amt = pd.to_numeric(u_row['Amount'], errors='coerce')
                             name = u_row.get('Item_Name', 'Upcoming Bill')
