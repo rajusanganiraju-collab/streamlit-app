@@ -266,10 +266,19 @@ def fetch_historical_from_gcs():
         creds_dict = json.loads(creds_json)
         credentials = Credentials.from_service_account_info(creds_dict)
         
-        # NOTE: ఇక్కడ "my-trading-data-bucket" ప్లేస్ లో మీ బకెట్ పేరు రాయండి
         client = storage.Client(credentials=credentials, project=creds_dict.get("project_id"))
         bucket = client.bucket("raju-market-data-2026") 
         blob = bucket.blob("historical_data.parquet")
+        
+        # 🔥 KOTHAGA ADD CHESINA CODE (Last Update Time) 🔥
+        blob.reload() # GCS nundi file details techukovadaniki
+        if blob.updated:
+            # UTC time ni mana India time (IST) ki marchadam
+            ist_time = pd.to_datetime(blob.updated).tz_convert('Asia/Kolkata')
+            time_str = ist_time.strftime('%I:%M %p (%d-%b-%Y)')
+            # Screen paina notification ivvadam
+            st.toast(f"✅ GCS Data Updated: {time_str}", icon="⏰")
+        # ---------------------------------------------------
         
         parquet_bytes = blob.download_as_bytes()
         df = pd.read_parquet(io.BytesIO(parquet_bytes), engine="pyarrow")
