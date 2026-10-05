@@ -943,7 +943,8 @@ def render_money_tracker():
     # 🔥 FIX: 1. Chronological Sorting & Month Navigation
     if not df_exp.empty:
         month_objs = pd.to_datetime(df_exp['Month_Year'].unique(), format='%B %Y').sort_values()
-        all_months = month_objs.dt.strftime('%B %Y').tolist()
+        # .dt ని ఇక్కడ తీసేసాము (ఎందుకంటే ఇది డైరెక్ట్ ఇండెక్స్ కాబట్టి)
+        all_months = month_objs.strftime('%B %Y').tolist()
     else:
         all_months = [pd.Timestamp.now().strftime('%B %Y')]
 
