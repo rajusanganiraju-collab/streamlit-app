@@ -3152,9 +3152,9 @@ def render_live_ui():
                     df_buy_chart = unpinned_df.loc[valid_buy_indices].head(12)
                     df_sell_chart = unpinned_df.loc[valid_sell_indices].head(12)
                 
-                nifty_dist = 0.25 
-                nifty_row = df_indices[df_indices['T'] == 'NIFTY']
-                if not nifty_row.empty:
+            nifty_dist = 0.25 
+            nifty_row = df_indices[df_indices['T'] == 'NIFTY']
+            f not nifty_row.empty:
                     n_h, n_l, n_p = float(nifty_row['H'].iloc[0]), float(nifty_row['L'].iloc[0]), float(nifty_row['P'].iloc[0])
                     n_vwap = (n_h + n_l + n_p) / 3
                     nifty_dist = min(max(abs(n_p - n_vwap) / n_vwap * 100, 0.25), 0.75)
