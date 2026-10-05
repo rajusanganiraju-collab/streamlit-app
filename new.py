@@ -944,31 +944,7 @@ def render_money_tracker():
     current_year = datetime.now().year
     all_months = [datetime(current_year, m, 1).strftime('%B %Y') for m in range(1, 13)]
 
-    if 'm_idx' not in st.session_state:
-        # Default to current month index (October = index 9)
-        current_month_str = datetime.now().strftime('%B %Y')
-        if current_month_str in all_months:
-            st.session_state.m_idx = all_months.index(current_month_str)
-        else:
-            st.session_state.m_idx = 0
-
-    def go_prev(): st.session_state.m_idx = max(0, st.session_state.m_idx - 1)
-    def go_next(): st.session_state.m_idx = min(len(all_months) - 1, st.session_state.m_idx + 1)
-    def update_sel(): st.session_state.m_idx = all_months.index(st.session_state.temp_m)
-
-    c1, c_prev, c_sel, c_next, c_opt, c6 = st.columns([1, 0.5, 2, 0.5, 0.5, 1])
-    with c_prev: st.button("◀", on_click=go_prev, use_container_width=True)
-    with c_sel: 
-        selected_month = st.selectbox("Month", all_months, index=st.session_state.m_idx, key="temp_m", on_change=update_sel, label_visibility="collapsed")
-    with c_next: st.button("▶", on_click=go_next, use_container_width=True)
-    with c_opt:
-        with st.popover("☰"):
-            st.markdown("<h4 style='color:#FFD700; font-size:16px; margin-bottom:5px;'>Display options</h4>", unsafe_allow_html=True)
-            view_mode = st.radio("View mode:", ["DAILY", "WEEKLY", "MONTHLY", "3 MONTHS", "6 MONTHS", "YEARLY"], index=2)
-            show_tot = st.radio("Show total:", ["YES", "NO"], index=0)
-            carry_over = st.radio("Carry over:", ["ON", "OFF"], index=1)
-            st.caption("ℹ️️ With Carry over enabled, monthly surplus will be added to the next month.")
-
+    
     if 'm_idx' not in st.session_state:
         st.session_state.m_idx = len(all_months) - 1  # Default to latest month
 
