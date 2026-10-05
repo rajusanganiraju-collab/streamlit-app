@@ -940,95 +940,54 @@ def render_money_tracker():
         df_exp['Date_Obj'] = pd.NaT
         df_exp['Month_Year'] = ""
 
-        # 🔥 FIX: Generate all 12 months
+    # 🔥 FIX: Generate all 12 months (Jan to Dec 2026) for the dropdown & navigation
     current_year = datetime.now().year
-    all_months = [
-        datetime(current_year, m, 1).strftime('%B %Y')
-        for m in range(1, 13)
-    ]
+    all_months = [datetime(current_year, m, 1).strftime('%B %Y') for m in range(1, 13)]
 
     if 'm_idx' not in st.session_state:
+        # Default to current month index (October = index 9)
         current_month_str = datetime.now().strftime('%B %Y')
         if current_month_str in all_months:
             st.session_state.m_idx = all_months.index(current_month_str)
         else:
             st.session_state.m_idx = 0
 
-    def go_prev():
-        st.session_state.m_idx = max(0, st.session_state.m_idx - 1)
+    def go_prev(): st.session_state.m_idx = max(0, st.session_state.m_idx - 1)
+    def go_next(): st.session_state.m_idx = min(len(all_months) - 1, st.session_state.m_idx + 1)
+    def update_sel(): st.session_state.m_idx = all_months.index(st.session_state.temp_m)
 
-    def go_next():
-        st.session_state.m_idx = min(
-            len(all_months) - 1,
-            st.session_state.m_idx + 1
-        )
-
-    def update_sel():
-        st.session_state.m_idx = all_months.index(
-            st.session_state.temp_m
-        )
-
-    c1, c_prev, c_sel, c_next, c_opt, c6 = st.columns(
-        [1, 0.5, 2, 0.5, 0.5, 1]
-    )
-
-    with c_prev:
-        st.button(
-            "◀",
-            on_click=go_prev,
-            use_container_width=True,
-            key="money_prev_btn"
-        )
-
-    with c_sel:
-        selected_month = st.selectbox(
-            "Month",
-            all_months,
-            index=st.session_state.m_idx,
-            key="temp_m",
-            on_change=update_sel,
-            label_visibility="collapsed"
-        )
-
-    with c_next:
-        st.button(
-            "▶",
-            on_click=go_next,
-            use_container_width=True,
-            key="money_next_btn"
-        )
-
+    c1, c_prev, c_sel, c_next, c_opt, c6 = st.columns([1, 0.5, 2, 0.5, 0.5, 1])
+    with c_prev: st.button("◀", on_click=go_prev, use_container_width=True)
+    with c_sel: 
+        selected_month = st.selectbox("Month", all_months, index=st.session_state.m_idx, key="temp_m", on_change=update_sel, label_visibility="collapsed")
+    with c_next: st.button("▶", on_click=go_next, use_container_width=True)
     with c_opt:
         with st.popover("☰"):
-            st.markdown(
-                "<h4 style='color:#FFD700; font-size:16px; margin-bottom:5px;'>Display options</h4>",
-                unsafe_allow_html=True
-            )
+            st.markdown("<h4 style='color:#FFD700; font-size:16px; margin-bottom:5px;'>Display options</h4>", unsafe_allow_html=True)
+            view_mode = st.radio("View mode:", ["DAILY", "WEEKLY", "MONTHLY", "3 MONTHS", "6 MONTHS", "YEARLY"], index=2)
+            show_tot = st.radio("Show total:", ["YES", "NO"], index=0)
+            carry_over = st.radio("Carry over:", ["ON", "OFF"], index=1)
+            st.caption("ℹ️️ With Carry over enabled, monthly surplus will be added to the next month.")
 
-            view_mode = st.radio(
-                "View mode:",
-                ["DAILY", "WEEKLY", "MONTHLY", "3 MONTHS", "6 MONTHS", "YEARLY"],
-                index=2,
-                key="money_view_mode"
-            )
+    if 'm_idx' not in st.session_state:
+        st.session_state.m_idx = len(all_months) - 1  # Default to latest month
 
-            show_tot = st.radio(
-                "Show total:",
-                ["YES", "NO"],
-                index=0,
-                key="money_show_total"
-            )
+    def go_prev(): st.session_state.m_idx = max(0, st.session_state.m_idx - 1)
+    def go_next(): st.session_state.m_idx = min(len(all_months) - 1, st.session_state.m_idx + 1)
+    def update_sel(): st.session_state.m_idx = all_months.index(st.session_state.temp_m)
 
-            carry_over = st.radio(
-                "Carry over:",
-                ["ON", "OFF"],
-                index=1,
-                key="money_carry_over"
-            )
-
-            st.caption(
-                "ℹ️ With Carry over enabled, monthly surplus will be added to the next month."
-            )
+    c1, c_prev, c_sel, c_next, c_opt, c6 = st.columns([1, 0.5, 2, 0.5, 0.5, 1])
+    with c_prev: st.button("◀", on_click=go_prev, use_container_width=True)
+    with c_sel: 
+        selected_month = st.selectbox("Month", all_months, index=st.session_state.m_idx, key="temp_m", on_change=update_sel, label_visibility="collapsed")
+    with c_next: st.button("▶", on_click=go_next, use_container_width=True)
+    with c_opt:
+        with st.popover("☰"):
+            st.markdown("<h4 style='color:#FFD700; font-size:16px; margin-bottom:5px;'>Display options</h4>", unsafe_allow_html=True)
+            view_mode = st.radio("View mode:", ["DAILY", "WEEKLY", "MONTHLY", "3 MONTHS", "6 MONTHS", "YEARLY"], index=2)
+            show_tot = st.radio("Show total:", ["YES", "NO"], index=0)
+            carry_over = st.radio("Carry over:", ["ON", "OFF"], index=1)
+            st.caption("ℹ️ With Carry over enabled, monthly surplus will be added to the next month.")
     
     df_month = df_exp[df_exp['Month_Year'] == selected_month] if not df_exp.empty else df_exp
     
@@ -1339,168 +1298,13 @@ def render_money_tracker():
                         name = p_row.get('Notes', 'Paid Expense')
                         cat_details.append({'Item': name if name else 'Paid Expense', 'Amount': amt, 'Status': '✅ Paid'})
                         
-                                        # 2. Fetch Upcoming Dues + EMI Status
+                    # 2. Fetch Upcoming Dues
                     if not this_month_dues.empty:
-                        up_items = this_month_dues[
-                            this_month_dues['Category'] == cat_name
-                        ]
-
+                        up_items = this_month_dues[this_month_dues['Category'] == cat_name]
                         for _, u_row in up_items.iterrows():
-                            amt = pd.to_numeric(
-                                u_row['Amount'],
-                                errors='coerce'
-                            )
-                            name = u_row.get(
-                                'Item_Name',
-                                'Upcoming Bill'
-                            )
-
-                            # Default status
-                            emi_status = "⏳ Pending"
-
-                            # EMI / Loan status
-                            end_d_str = str(
-                                u_row.get('End_Date', '')
-                            ).strip()
-
-                            freq = str(
-                                u_row.get('Frequency', '')
-                            ).strip()
-
-                            # Monthly EMI
-                            if (
-                                end_d_str
-                                and end_d_str.lower() != "nan"
-                                and freq == "Monthly"
-                            ):
-                                try:
-                                    end_dt = pd.to_datetime(
-                                        end_d_str,
-                                        format='%d-%b-%Y'
-                                    )
-
-                                    today_date = pd.Timestamp.now(
-                                        tz='Asia/Kolkata'
-                                    ).tz_localize(None).normalize()
-
-                                    months_left = (
-                                        (end_dt.year - today_date.year) * 12
-                                        + (end_dt.month - today_date.month)
-                                    )
-
-                                    if months_left > 0:
-                                        emi_status = (
-                                            f"{months_left} Months Left ⏳"
-                                        )
-                                    elif months_left == 0:
-                                        emi_status = (
-                                            "Last EMI This Month ⚠️"
-                                        )
-                                    else:
-                                        emi_status = "Completed ✅"
-
-                                except Exception:
-                                    emi_status = "Ongoing 🔄"
-
-                            # Other EMI frequency / End Date available
-                            elif (
-                                end_d_str
-                                and end_d_str.lower() != "nan"
-                            ):
-                                try:
-                                    end_dt = pd.to_datetime(
-                                        end_d_str,
-                                        format='%d-%b-%Y'
-                                    )
-
-                                    today_date = pd.Timestamp.now(
-                                        tz='Asia/Kolkata'
-                                    ).tz_localize(None).normalize()
-
-                                    if end_dt < today_date:
-                                        emi_status = "Completed ✅"
-                                    else:
-                                        emi_status = "Ongoing 🔄"
-
-                                except Exception:
-                                    emi_status = "Ongoing 🔄"
-
-                            # Lifetime recurring payment
-                            else:
-                                emi_status = "Lifetime / Ongoing 🔄"
-
-                            cat_details.append({
-                                'Item': name,
-                                'Amount': amt,
-                                'Status': emi_status
-                            })
-
-                    if cat_details:
-                        df_det = pd.DataFrame(cat_details)
-
-                        # Sorting Low to High
-                        df_det = df_det.sort_values(
-                            by='Amount',
-                            ascending=True
-                        )
-
-                        # Render table
-                        det_html = (
-                            "<table style='width:100%; "
-                            "font-size:13px; color:#c9d1d9; "
-                            "border-collapse:collapse; margin-top:5px;'>"
-                        )
-
-                        det_html += (
-                            "<tr style='border-bottom:1px solid #444;'>"
-                            "<th style='text-align:left; padding:5px;'>"
-                            "Item Name</th>"
-                            "<th style='text-align:right; padding:5px;'>"
-                            "Amount</th>"
-                            "<th style='text-align:right; padding:5px;'>"
-                            "Status</th>"
-                            "</tr>"
-                        )
-
-                        for _, d_row in df_det.iterrows():
-
-                            # Status colour
-                            if "Completed" in d_row['Status']:
-                                status_col = "#3fb950"
-                            elif "Last EMI" in d_row['Status']:
-                                status_col = "#FFD700"
-                            elif "Months Left" in d_row['Status']:
-                                status_col = "#00BFFF"
-                            elif "Ongoing" in d_row['Status']:
-                                status_col = "#C084FC"
-                            elif "Paid" in d_row['Status']:
-                                status_col = "#3fb950"
-                            else:
-                                status_col = "#FF8C00"
-
-                            det_html += (
-                                f"<tr>"
-                                f"<td style='padding:5px;'>"
-                                f"{d_row['Item']}</td>"
-                                f"<td style='text-align:right; "
-                                f"padding:5px; color:#F44336;'>"
-                                f"₹{d_row['Amount']:,.2f}</td>"
-                                f"<td style='text-align:right; "
-                                f"padding:5px; color:{status_col}; "
-                                f"font-weight:bold;'>"
-                                f"{d_row['Status']}</td>"
-                                f"</tr>"
-                            )
-
-                        det_html += "</table><br>"
-
-                        st.markdown(
-                            det_html,
-                            unsafe_allow_html=True
-                        )
-
-                    else:
-                        st.write("No specific details found.")
+                            amt = pd.to_numeric(u_row['Amount'], errors='coerce')
+                            name = u_row.get('Item_Name', 'Upcoming Bill')
+                            cat_details.append({'Item': name, 'Amount': amt, 'Status': '⏳ Pending'})
                             
                     if cat_details:
                         df_det = pd.DataFrame(cat_details)
@@ -3119,42 +2923,13 @@ def render_live_ui():
                 ]
             
             if "AI Predictions" in watchlist_mode:
-                    # 🔥 LIVE 5-MIN VWAP VALIDATION FIX 🔥
-                    valid_buy_indices = []
-                    valid_sell_indices = []
-
-                    for idx, row in unpinned_df.iterrows():
-                        tkr = row['Fetch_T']
-                        strat_icon = str(row.get('Strategy_Icon', ''))
-                        
-                        # 5m డేటా అందుబాటులో ఉంటే లేటెస్ట్ క్యాండిల్ VWAP చెక్ చేస్తాం
-                        if tkr in chart_dict_to_use and not chart_dict_to_use[tkr].empty:
-                            df_5m = chart_dict_to_use[tkr]
-                            latest_close = df_5m['Close'].iloc[-1]
-                            latest_vwap = df_5m['VWAP'].iloc[-1] if 'VWAP' in df_5m.columns else latest_close
-                            
-                            # BUY కాల్ అయితే ప్రైస్ కచ్చితంగా 5m VWAP పైన ఉండాలి
-                            if any(k in strat_icon for k in ['🟢', 'BUY', 'UP', 'VCP', 'Stage 2', 'Darvas']):
-                                if latest_close >= latest_vwap:
-                                    valid_buy_indices.append(idx)
-                            
-                            # SELL కాల్ అయితే ప్రైస్ కచ్చితంగా 5m VWAP కింద ఉండాలి
-                            elif any(k in strat_icon for k in ['🔴', 'SELL', 'DOWN', 'Stage 4']):
-                                if latest_close <= latest_vwap:
-                                    valid_sell_indices.append(idx)
-                        else:
-                            # 5m డేటా లేకపోతే పాత పద్ధతి ఫాలో అవుతుంది
-                            if any(k in strat_icon for k in ['🟢', 'BUY', 'UP', 'VCP', 'Stage 2', 'Darvas']):
-                                valid_buy_indices.append(idx)
-                            elif any(k in strat_icon for k in ['🔴', 'SELL', 'DOWN', 'Stage 4']):
-                                valid_sell_indices.append(idx)
-
-                        df_buy_chart = unpinned_df.loc[valid_buy_indices].head(12)
-                        df_sell_chart = unpinned_df.loc[valid_sell_indices].head(12)
+                # W_EMA50 కండిషన్ తీసేసి బేస్ లాజిక్ సింపుల్ చేసాము
+                base_buy = (df_filtered['P'] > df_filtered['W_EMA10']) & (df_filtered['P'] > df_filtered['VWAP'])
+                base_sell = (df_filtered['P'] < df_filtered['W_EMA10']) & (df_filtered['P'] < df_filtered['VWAP'])
                 
-                    nifty_dist = 0.25 
-                    nifty_row = df_indices[df_indices['T'] == 'NIFTY']
-                    if not nifty_row.empty:
+                nifty_dist = 0.25 
+                nifty_row = df_indices[df_indices['T'] == 'NIFTY']
+                if not nifty_row.empty:
                     n_h, n_l, n_p = float(nifty_row['H'].iloc[0]), float(nifty_row['L'].iloc[0]), float(nifty_row['P'].iloc[0])
                     n_vwap = (n_h + n_l + n_p) / 3
                     nifty_dist = min(max(abs(n_p - n_vwap) / n_vwap * 100, 0.25), 0.75)
@@ -3212,30 +2987,14 @@ def render_live_ui():
                     
                 if apply_fib_strict and (len(other_strats_selected) > 0 or "All Moves" in move_type_filter):
                     strats_to_run = [s for s in strats_to_run if s != "📉 FIB Retracement (0.382)"]
-                if apply_fib_strict and (len(other_strats_selected) > 0 or "All Moves" in move_type_filter):
-                    strats_to_run = [s for s in strats_to_run if s != "📉 FIB Retracement (0.382)"]
-
-                # 🔥 1. TRUE 5-MIN VWAP & OHLC UPDATE FIX 🔥
-                for idx, r in df_filtered.iterrows():
-                    tkr = r['Fetch_T']
-                    if tkr in processed_charts and not processed_charts[tkr].empty:
-                        df_5m = processed_charts[tkr]
-                        if 'VWAP' in df_5m.columns:
-                            df_filtered.at[idx, 'VWAP'] = df_5m['VWAP'].iloc[-1]
-                            df_filtered.at[idx, 'P'] = df_5m['Close'].iloc[-1]
-                            df_filtered.at[idx, 'H'] = df_5m['High'].max()
-                            df_filtered.at[idx, 'L'] = df_5m['Low'].min()
-
-                # 🔥 2. STRICT BASE LOGIC (VWAP కింద ఉంటే BUY లో రాకుండా) 🔥
-                base_buy = (df_filtered['P'] > df_filtered['W_EMA10']) & (df_filtered['P'] >= df_filtered['VWAP'])
-                base_sell = (df_filtered['P'] < df_filtered['W_EMA10']) & (df_filtered['P'] <= df_filtered['VWAP'])
-
+    
                 all_dfs = []
                 
                 for strat in strats_to_run:
                     c_buy = pd.Series(False, index=df_filtered.index)
                     c_sell = pd.Series(False, index=df_filtered.index)
                     icon_str = ""
+    
                     if strat == "🔥 First Hour Vol Breakout (ORB+VWAP)":
                         orb_trend = (df_filtered['P'] > df_filtered['VWAP']) & (df_filtered['Day_C'] > 1.0)
                         orb_vol = df_filtered['VolX'] >= 1.5
@@ -3463,23 +3222,15 @@ def render_live_ui():
                         c_sell = base_sell & pdl_break & vol_confirm
                         icon_str = "💥 PD Break"
     
-                    # 3. DEEP PULLBACK & VWAP BOUNCE (మీరు అడిగిన పర్ఫెక్ట్ లాజిక్)
+                    # 3. VWAP BOUNCE (PULLBACK)
                     elif strat == "🧲 VWAP Bounce (Low Risk Entry)":
-                        # VWAP నుండి Day High ఎంత దూరం వెళ్ళింది (> 1.2%)
-                        dist_up = ((df_filtered['H'] - df_filtered['VWAP']) / df_filtered['VWAP']) * 100
-                        # మళ్లీ VWAP దగ్గరకి ఎంత వరకు పుల్ బ్యాక్ అయ్యింది (కేవలం 0.3% లోపల ఉండాలి)
-                        pullback_near_vwap_buy = ((df_filtered['P'] - df_filtered['VWAP']) / df_filtered['VWAP']) * 100
-                        
-                        # VWAP నుండి Day Low ఎంత దూరం పడింది (> 1.2%)
-                        dist_dn = ((df_filtered['VWAP'] - df_filtered['L']) / df_filtered['VWAP']) * 100
-                        # మళ్లీ VWAP దగ్గరకి ఎంత వరకు పుల్ బ్యాక్ అయ్యింది (కేవలం 0.3% లోపల ఉండాలి)
-                        pullback_near_vwap_sell = ((df_filtered['VWAP'] - df_filtered['P']) / df_filtered['VWAP']) * 100
-                        
-                        # 1. బేస్ కండిషన్ (VWAP పైన ఉంటేనే), 2. పైకి బాగా వెళ్లి ఉండాలి, 3. ఇప్పుడు VWAP కి అతుక్కుని ఉండాలి
-                        c_buy = base_buy & (dist_up >= 1.2) & (pullback_near_vwap_buy <= 0.3) & (df_filtered['VolX'] >= 1.0)
-                        c_sell = base_sell & (dist_dn >= 1.2) & (pullback_near_vwap_sell <= 0.3) & (df_filtered['VolX'] >= 1.0)
-                        
-                        icon_str = "🧲 Pullback"
+                        near_vwap_buy = (df_filtered['P'] > df_filtered['VWAP']) & (df_filtered['P'] <= (df_filtered['VWAP'] * 1.003)) & (df_filtered['L'] <= (df_filtered['VWAP'] * 1.001))
+                        near_vwap_sell = (df_filtered['P'] < df_filtered['VWAP']) & (df_filtered['P'] >= (df_filtered['VWAP'] * 0.997)) & (df_filtered['H'] >= (df_filtered['VWAP'] * 0.999))
+                        overall_trend_up = df_filtered['Day_C'] > 1.0
+                        overall_trend_dn = df_filtered['Day_C'] < -1.0
+                        c_buy = base_buy & near_vwap_buy & overall_trend_up & (df_filtered['VolX'] > 1.0)
+                        c_sell = base_sell & near_vwap_sell & overall_trend_dn & (df_filtered['VolX'] > 1.0)
+                        icon_str = "🧲 VWAP Bounce"
     
                     # 4. TRENDING DAY (NARROW CPR + ORB)
                     elif strat == "🎯 Narrow CPR Trending Day":
