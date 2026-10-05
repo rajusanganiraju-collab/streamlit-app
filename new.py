@@ -1176,7 +1176,7 @@ def render_money_tracker():
 
     with tab1:
         # --- 1. PAST / ALREADY COMPLETED TRANSACTIONS ---
-        if not df_month.empty:
+        if not df_display.empty:
             grouped = df_month.groupby('Date_Obj')
             for date_obj, group in grouped:
                 day_name = date_obj.strftime('%b %d, %A')
