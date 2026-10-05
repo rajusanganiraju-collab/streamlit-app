@@ -1339,13 +1339,81 @@ def render_money_tracker():
                         name = p_row.get('Notes', 'Paid Expense')
                         cat_details.append({'Item': name if name else 'Paid Expense', 'Amount': amt, 'Status': '✅ Paid'})
                         
-                    # 2. Fetch Upcoming Dues
-                    if not this_month_dues.empty:
-                        up_items = this_month_dues[this_month_dues['Category'] == cat_name]
-                        for _, u_row in up_items.iterrows():
-                            amt = pd.to_numeric(u_row['Amount'], errors='coerce')
-                            name = u_row.get('Item_Name', 'Upcoming Bill')
-                            cat_details.append({'Item': name, 'Amount': amt, 'Status': '⏳ Pending'})
+                    # 2. Fetch Upcoming Dues + EMI Status
+if not this_month_dues.empty:
+    up_items = this_month_dues[
+        this_month_dues['Category'] == cat_name
+    ]
+
+    for _, u_row in up_items.iterrows():
+        amt = pd.to_numeric(u_row['Amount'], errors='coerce')
+        name = u_row.get('Item_Name', 'Upcoming Bill')
+
+        # Default status
+        emi_status = "⏳ Pending"
+
+        # EMI / Loan status calculate
+        end_d_str = str(u_row.get('End_Date', '')).strip()
+        freq = str(u_row.get('Frequency', '')).strip()
+
+        if (
+            end_d_str
+            and end_d_str.lower() != "nan"
+            and freq == "Monthly"
+        ):
+            try:
+                end_dt = pd.to_datetime(
+                    end_d_str,
+                    format='%d-%b-%Y'
+                )
+
+                today_date = pd.Timestamp.now(
+                    tz='Asia/Kolkata'
+                ).tz_localize(None).normalize()
+
+                months_left = (
+                    (end_dt.year - today_date.year) * 12
+                    + (end_dt.month - today_date.month)
+                )
+
+                if months_left > 0:
+                    emi_status = f"{months_left} Months Left ⏳"
+                elif months_left == 0:
+                    emi_status = "Last EMI This Month ⚠️"
+                else:
+                    emi_status = "Completed ✅"
+
+            except Exception:
+                emi_status = "Ongoing 🔄"
+
+        elif end_d_str and end_d_str.lower() != "nan":
+            try:
+                end_dt = pd.to_datetime(
+                    end_d_str,
+                    format='%d-%b-%Y'
+                )
+
+                today_date = pd.Timestamp.now(
+                    tz='Asia/Kolkata'
+                ).tz_localize(None).normalize()
+
+                if end_dt < today_date:
+                    emi_status = "Completed ✅"
+                else:
+                    emi_status = "Ongoing 🔄"
+
+            except Exception:
+                emi_status = "Ongoing 🔄"
+
+        else:
+            # Lifetime / normal recurring auto-pay
+            emi_status = "Lifetime / Ongoing 🔄"
+
+        cat_details.append({
+            'Item': name,
+            'Amount': amt,
+            'Status': emi_status
+        })
                             
                     if cat_details:
                         df_det = pd.DataFrame(cat_details)
