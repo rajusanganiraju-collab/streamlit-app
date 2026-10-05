@@ -1198,24 +1198,31 @@ def render_money_tracker():
         else:
             st.info("No completed records found for this month.")
 
-        # --- 2. UPCOMING DUES & EMIs FOR THIS MONTH (Jio, Airtel, EMIs) ---
+        # --- 2. UPCOMING DUES & EMIs FOR THIS PERIOD ---
         try:
             dues_data = dues_ws.get_all_records()
             if dues_data:
                 df_d = pd.DataFrame(dues_data)
                 df_d_exp = df_d[df_d['Type'].astype(str).str.strip() == 'Expense'].copy()
                 df_d_exp['Next_Due_Date_Obj'] = pd.to_datetime(df_d_exp['Next_Due_Date'], format='%d-%b-%Y', errors='coerce')
-                df_d_exp['Month_Year'] = df_d_exp['Next_Due_Date_Obj'].dt.strftime('%B %Y')
+                
+                # 🔥 FIX: Match period dynamically
+                if view_mode == "MONTHLY":
+                    df_d_exp['Period_Match'] = df_d_exp['Next_Due_Date_Obj'].dt.strftime('%B %Y')
+                elif view_mode == "YEARLY":
+                    df_d_exp['Period_Match'] = df_d_exp['Next_Due_Date_Obj'].dt.year.astype(str)
+                else:
+                    df_d_exp['Period_Match'] = df_d_exp['Next_Due_Date_Obj'].dt.strftime('%d %b %Y')
                 
                 today_val = pd.Timestamp.now(tz='Asia/Kolkata').tz_localize(None).normalize()
                 
-                # Ee nela lo inka ravalsina future dates (Next_Due_Date > Today)
-                upcoming_dues = df_d_exp[(df_d_exp['Month_Year'] == selected_month) & (df_d_exp['Next_Due_Date_Obj'] > today_val)].copy()
+                # Check for matching period and future dates
+                upcoming_dues = df_d_exp[(df_d_exp['Period_Match'] == selected_period) & (df_d_exp['Next_Due_Date_Obj'] > today_val)].copy()
                 
                 if not upcoming_dues.empty:
                     upcoming_dues = upcoming_dues.sort_values('Next_Due_Date_Obj')
                     st.markdown("<div style='margin-top:25px;'></div>", unsafe_allow_html=True)
-                    st.markdown("<div class='date-header' style='background-color:#422700; color:#FF8C00; border-left: 4px solid #FF8C00;'>⏳ Upcoming Dues & Bills (Pending This Month)</div>", unsafe_allow_html=True)
+                    st.markdown("<div class='date-header' style='background-color:#422700; color:#FF8C00; border-left: 4px solid #FF8C00;'>⏳ Upcoming Dues & Bills (Pending)</div>", unsafe_allow_html=True)
                     
                     up_html = '<div class="money-container">'
                     for _, row in upcoming_dues.iterrows():
@@ -1224,7 +1231,6 @@ def render_money_tracker():
                         due_date_str = row['Next_Due_Date_Obj'].strftime('%d-%b, %a')
                         icon_letter = str(row['Category'])[0].upper() if row['Category'] else "₹"
                         
-                        # 🔥 FIX: Single line string to prevent Markdown code block rendering
                         up_html += f"<div class='tx-row' style='background-color: #26211b; border-bottom: 1px dashed #554433;'><div class='tx-left'><div class='tx-icon' style='background-color: #E65100;'>{icon_letter}</div><div><div class='tx-cat' style='color: #FFB74D;'>{row['Item_Name']} <span style='font-size:11px; color:#aaa;'>({row['Category']})</span></div><div class='tx-acc' style='background-color: #3e2e1e; color: #ffcc80;'>📅 Due: {due_date_str} • 💵 {row['Account']}</div></div></div><div style='font-size: 15px; color: #FF8C00; font-weight: bold; text-align: right;'>-₹{amt_val:,.2f}</div></div>"
                     
                     up_html += '</div>'
