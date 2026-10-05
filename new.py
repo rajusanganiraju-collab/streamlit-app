@@ -826,7 +826,6 @@ def sync_automatic_dues():
         df_dues = pd.DataFrame(dues_records)
         df_dues['Next_Due_Date'] = pd.to_datetime(df_dues['Next_Due_Date'], format='%d-%b-%Y', errors='coerce')
         
-        # 1. IST Timezone Update (Cloud lo correct date raavadaniki)
         today = pd.Timestamp.now(tz='Asia/Kolkata').tz_localize(None).normalize()
         
         updates_made = False
@@ -834,31 +833,26 @@ def sync_automatic_dues():
         
         for idx, row in df_dues.iterrows():
             due_date = row['Next_Due_Date']
-            
-            # 2. End Date check kosam
             end_date = pd.to_datetime(row.get('End_Date', ''), format='%d-%b-%Y', errors='coerce')
             
             if pd.isna(due_date): continue
             
-            # End Date daatesthe aa Auto-Pay skip cheseyali
             if pd.notna(end_date) and today > end_date:
                 continue
             
-            if today >= due_date:
-                # Add to expenses sheet
+            # 🔥 FIX: <= (లెస్ దాన్ ఆర్ ఈక్వల్ టు) మార్చాము. ఈరోజు కూడా బిల్ పే అయినట్టే లెక్క.
+            if due_date <= today:
                 new_expenses.append([
                     today.strftime('%d-%b-%Y'), row['Type'], row['Account'], row['Category'], 
                     row['Amount'], f"Auto: {row['Item_Name']}"
                 ])
                 
-                # Calculate next due date
                 freq = str(row['Frequency']).strip()
                 if freq == "Monthly": next_date = due_date + pd.DateOffset(months=1)
                 elif freq == "Half-Yearly": next_date = due_date + pd.DateOffset(months=6)
                 elif freq == "Yearly": next_date = due_date + pd.DateOffset(years=1)
                 else: next_date = due_date + pd.DateOffset(months=1)
                 
-                # Next date kuda End Date lopu unte ne update cheyali
                 if pd.isna(end_date) or next_date <= end_date:
                     df_dues.at[idx, 'Next_Due_Date'] = next_date.strftime('%d-%b-%Y')
                 else:
@@ -869,7 +863,6 @@ def sync_automatic_dues():
         if updates_made:
             if new_expenses: exp_ws.append_rows(new_expenses)
             
-            # 'Completed' kakunda date unte daanni malli string la format cheyali
             df_dues['Next_Due_Date'] = df_dues['Next_Due_Date'].apply(
                 lambda x: x.strftime('%d-%b-%Y') if pd.notnull(x) and isinstance(x, pd.Timestamp) else x
             )
@@ -880,7 +873,6 @@ def sync_automatic_dues():
             
     except Exception as e: 
         pass
-    except Exception as e: pass
 
 def render_money_tracker():
     sync_automatic_dues()
@@ -1108,7 +1100,6 @@ def render_money_tracker():
     with tab2:
         st.markdown('<div class="overview-title">˅ EXPENSE OVERVIEW</div>', unsafe_allow_html=True)
         
-        # 1. Get Already Spent Expenses (కట్టిన ఖర్చులు)
         df_expense = df_month[df_month['Type'] == 'Expense'].copy()
         if not df_expense.empty:
             df_expense['Amount'] = pd.to_numeric(df_expense['Amount'], errors='coerce').fillna(0)
@@ -1116,7 +1107,6 @@ def render_money_tracker():
         else:
             cat_totals_spent = pd.DataFrame(columns=['Category', 'Amount'])
             
-        # 2. Get Upcoming EMIs/Dues (ఇంకా కట్టాల్సినవి)
         upcoming_cat_totals = pd.DataFrame(columns=['Category', 'Amount'])
         try:
             dues_data = dues_ws.get_all_records()
@@ -1133,7 +1123,6 @@ def render_money_tracker():
         except:
             pass
             
-        # 3. Combine both for Total Overview (రెండూ కలపడం)
         combined_expenses = pd.concat([cat_totals_spent, upcoming_cat_totals])
         
         if not combined_expenses.empty and combined_expenses['Amount'].sum() > 0:
@@ -1141,7 +1130,6 @@ def render_money_tracker():
             cat_totals = cat_totals.sort_values('Amount', ascending=False)
             total_cat_exp = cat_totals['Amount'].sum()
             
-            # Percentage based on Total Income
             base_amount = total_income if total_income > 0 else total_cat_exp
             overall_pct = (total_cat_exp / base_amount) * 100 if base_amount > 0 else 0
             
@@ -1149,17 +1137,20 @@ def render_money_tracker():
             
             pie_labels = cat_totals['Category'].tolist()
             pie_values = cat_totals['Amount'].tolist()
+            
+            # 🔥 FIX: Adding Rupees symbol to the labels so it shows Amount + Percentage
+            formatted_labels = [f"{label} (₹{val:,.0f})" for label, val in zip(pie_labels, pie_values)]
+            
             pie_colors = [colors[i % len(colors)] for i in range(len(pie_labels))]
             
-            # Adding remaining balance slice
             if total_income > total_cat_exp:
-                pie_labels.append("Remaining Balance")
-                pie_values.append(total_income - total_cat_exp)
+                remaining_bal = total_income - total_cat_exp
+                formatted_labels.append(f"Remaining Balance (₹{remaining_bal:,.0f})")
+                pie_values.append(remaining_bal)
                 pie_colors.append("rgba(255, 255, 255, 0.03)") 
             
-            # Plotly Donut Chart
             fig = go.Figure(data=[go.Pie(
-                labels=pie_labels, 
+                labels=formatted_labels, 
                 values=pie_values, 
                 hole=.75, 
                 marker=dict(colors=pie_colors),
@@ -1181,7 +1172,6 @@ def render_money_tracker():
             )
             st.plotly_chart(fig, use_container_width=True)
             
-            # Rendering individual progress bars (FIXED SPACING)
             analysis_html = '<div class="money-container">'
             for i, r in cat_totals.iterrows():
                 pct = (r['Amount'] / base_amount) * 100 if base_amount > 0 else 0
@@ -1189,7 +1179,6 @@ def render_money_tracker():
                 c_idx = i % len(colors)
                 icon_bg = colors[c_idx]
                 
-                # Single line HTML to prevent Markdown code-block rendering
                 analysis_html += f"<div class='analysis-card'><div class='analysis-header'><div class='analysis-title'><div class='tx-icon' style='background-color:{icon_bg}; width:30px; height:30px; font-size:16px;'>{icon_letter}</div>{r['Category']}</div><div style='text-align: right;'><span class='analysis-amt'>-₹{r['Amount']:,.2f}</span><span class='analysis-pct' style='margin-left: 10px;'>{pct:.1f}%</span></div></div><div class='progress-bg'><div class='progress-fill' style='width: {min(pct, 100)}%; background-color: {icon_bg};'></div></div></div>"
                 
             analysis_html += '</div>'
