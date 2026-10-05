@@ -1016,7 +1016,7 @@ def render_money_tracker():
                 a_name = st.text_input("Item Name (e.g., Gold Loan / Bike EMI)")
                 a_type = st.selectbox("Type", ["Expense", "Income"])
                 a_acc = st.selectbox("Account", ["Bank Account", "Cash"])
-                a_cat = st.selectbox("Category", ["EMI / Loans", "Agriculture", "Rent & Bills", "Salary"])
+                a_cat = st.selectbox("Category", ["EMI / Loans","Jio Post Paid","Airtel Broad Band","Others","Agriculture", "Rent & Bills", "Salary"])
                 a_amt = st.number_input("Amount (₹)", min_value=1)
                 a_freq = st.selectbox("Frequency", ["Monthly", "Half-Yearly", "Yearly"])
 
