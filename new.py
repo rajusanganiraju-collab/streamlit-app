@@ -1177,7 +1177,7 @@ def render_money_tracker():
     with tab1:
         # --- 1. PAST / ALREADY COMPLETED TRANSACTIONS ---
         if not df_display.empty:
-            grouped = df_month.groupby('Date_Obj')
+            grouped = df_display.groupby('Date_Obj')
             for date_obj, group in grouped:
                 day_name = date_obj.strftime('%b %d, %A')
                 st.markdown(f'<div class="date-header">{day_name}</div>', unsafe_allow_html=True)
@@ -1235,7 +1235,7 @@ def render_money_tracker():
     with tab2:
         st.markdown('<div class="overview-title">˅ EXPENSE OVERVIEW</div>', unsafe_allow_html=True)
         
-        df_expense = df_month[df_month['Type'] == 'Expense'].copy()
+        df_expense = df_display[df_display['Type'] == 'Expense'].copy()
         if not df_expense.empty:
             df_expense['Amount'] = pd.to_numeric(df_expense['Amount'], errors='coerce').fillna(0)
             cat_totals_spent = df_expense.groupby('Category')['Amount'].sum().reset_index()
