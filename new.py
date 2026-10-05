@@ -3212,7 +3212,27 @@ def render_live_ui():
                     
                 if apply_fib_strict and (len(other_strats_selected) > 0 or "All Moves" in move_type_filter):
                     strats_to_run = [s for s in strats_to_run if s != "📉 FIB Retracement (0.382)"]
-    
+                if apply_fib_strict and (len(other_strats_selected) > 0 or "All Moves" in move_type_filter):
+                    strats_to_run = [s for s in strats_to_run if s != "📉 FIB Retracement (0.382)"]
+
+                # 🔥 1. TRUE 5-MIN VWAP & OHLC UPDATE FIX 🔥
+                for idx, r in df_filtered.iterrows():
+                    tkr = r['Fetch_T']
+                    if tkr in processed_charts and not processed_charts[tkr].empty:
+                        df_5m = processed_charts[tkr]
+                        if 'VWAP' in df_5m.columns:
+                            df_filtered.at[idx, 'VWAP'] = df_5m['VWAP'].iloc[-1]
+                            df_filtered.at[idx, 'P'] = df_5m['Close'].iloc[-1]
+                            df_filtered.at[idx, 'H'] = df_5m['High'].max()
+                            df_filtered.at[idx, 'L'] = df_5m['Low'].min()
+
+                # 🔥 2. STRICT BASE LOGIC (VWAP కింద ఉంటే BUY లో రాకుండా) 🔥
+                base_buy = (df_filtered['P'] > df_filtered['W_EMA10']) & (df_filtered['P'] >= df_filtered['VWAP'])
+                base_sell = (df_filtered['P'] < df_filtered['W_EMA10']) & (df_filtered['P'] <= df_filtered['VWAP'])
+
+                all_dfs = [] # <--- ఈ లైన్ మీ కోడ్ లో ఆల్రెడీ ఉంది. దీని పైన పై కోడ్ పెట్టాలి.
+                
+                for strat in strats_to_run:
                 all_dfs = []
                 
                 for strat in strats_to_run:
