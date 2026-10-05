@@ -270,23 +270,18 @@ def fetch_historical_from_gcs():
         bucket = client.bucket("raju-market-data-2026") 
         blob = bucket.blob("historical_data.parquet")
         
-        # 🔥 KOTHAGA ADD CHESINA CODE (Last Update Time) 🔥
-        blob.reload() # GCS nundi file details techukovadaniki
-        if blob.updated:
-            # UTC time ni mana India time (IST) ki marchadam
-            ist_time = pd.to_datetime(blob.updated).tz_convert('Asia/Kolkata')
-            time_str = ist_time.strftime('%I:%M %p (%d-%b-%Y)')
-            # Screen paina notification ivvadam
-            st.toast(f"✅ GCS Data Updated: {time_str}", icon="⏰")
-        # ---------------------------------------------------
-        
         parquet_bytes = blob.download_as_bytes()
         df = pd.read_parquet(io.BytesIO(parquet_bytes), engine="pyarrow")
+
+        # 🔥 YFINANCE BUG FIX (కాలమ్స్ రివర్స్ అయితే సరిచేయడానికి) 🔥
+        if isinstance(df.columns, pd.MultiIndex):
+            if 'Close' in df.columns.levels[0] or 'Open' in df.columns.levels[0]:
+                df = df.swaplevel(axis=1).sort_index(axis=1)
+                
         return df
     except Exception as e:
         st.error(f"❌ క్లౌడ్ నుండి డేటా లాగడం ఫెయిల్ అయ్యింది: {e}")
         return pd.DataFrame()
-
 # --- చార్ట్స్ కోసం డేటా ఇచ్చే ఫంక్షన్ ---
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_historical_charts_data(tkrs, timeframe):
