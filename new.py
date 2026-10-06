@@ -3309,7 +3309,7 @@ def render_live_ui():
     
             if sort_mode == "Intraday Pullback Max 📉 (DH / DL)":
                 # SELL / Weak stocks ni gurtinche mask
-                if df_filtered['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4|🩸', na=False).any():
+                if 'Strategy_Icon' in df_filtered.columns and df_filtered['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4|🩸', na=False).any():
                     is_sell_mask = df_filtered['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4|🩸', na=False)
                 else:
                     is_sell_mask = df_filtered['Day_C'] < 0
