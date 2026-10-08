@@ -1532,6 +1532,15 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
 _effective_refresh = refresh_sec if is_market_open() else 1800  # 🔧 PERF: Market closed → 30 min refresh
 
 @st.fragment(run_every=f"{_effective_refresh}s")
+def card_bg_class(pct_val):
+    # 🎨 % change intensity ప్రకారం gradient color (TradingView style)
+    if pct_val >= 3.0: return "bull-card-3"
+    if pct_val >= 1.5: return "bull-card-2"
+    if pct_val > 0: return "bull-card"
+    if pct_val <= -3.0: return "bear-card-3"
+    if pct_val <= -1.5: return "bear-card-2"
+    if pct_val < 0: return "bear-card"
+    return "neut-card"
 def render_live_ui():
     if st.session_state.pause_refresh:
         st.info("⏸️ Data refresh is paused.")
