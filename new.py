@@ -361,7 +361,11 @@ def fetch_cached_5m_data(tkrs_list):
                 else: yf_tkrs.append(tkr)
 
     if yf_tkrs:
-        yf_data = yf.download(yf_tkrs, period="5d", interval="5m", progress=False, group_by='ticker', threads=10)
+        # 🔧 FIX 1: Remove duplicate tickers
+        yf_tkrs = list(set(yf_tkrs))
+        # 🔧 FIX 2: Set threads=False to prevent yfinance threading crash in Streamlit Cloud
+        yf_data = yf.download(yf_tkrs, period="5d", interval="5m", progress=False, group_by='ticker', threads=False)
+        
         if not yf_data.empty:
             if len(yf_tkrs) == 1:
                 if yf_data.index.tz is not None:
