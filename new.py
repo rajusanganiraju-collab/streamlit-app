@@ -385,6 +385,30 @@ def fetch_cached_5m_data(tkrs_list):
     if valid_results:
         return pd.concat(valid_results.values(), axis=1, keys=valid_results.keys(), sort=False)
     return pd.DataFrame()
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_historical_charts_data(tkrs, timeframe):
+    idx_list = [t for t in tkrs if "^" in t or "=" in t]
+    stk_list = [t for t in tkrs if t not in idx_list]
+    
+    p, i = ("5y", "1wk") if timeframe == "Weekly Chart" else ("2y", "1d")
+    
+    res = []
+    # 🔧 FIX: Streamlit Cloud లో క్రాష్ అవ్వకుండా threads=False పెట్టాను
+    if idx_list: res.append(yf.download(idx_list, period=p, interval=i, progress=False, group_by='ticker', threads=False))
+    if stk_list: res.append(yf.download(stk_list, period=p, interval=i, progress=False, group_by='ticker', threads=False))
+    
+    if not res: return pd.DataFrame()
+    
+    if len(res) == 2:
+        df = pd.concat(res, axis=1)
+    else:
+        df = res[0]
+    
+    if df.empty: return df
+    
+    if len(tkrs) == 1 and not isinstance(df.columns, pd.MultiIndex):
+        df.columns = pd.MultiIndex.from_product([tkrs, df.columns])
+    return df
 
 # --- 📅 MONTH EFFECT ANALYSIS & GCS SAVING ---
 @st.cache_data(ttl=86400, show_spinner=False)
