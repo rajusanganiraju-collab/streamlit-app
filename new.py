@@ -1541,6 +1541,17 @@ def card_bg_class(pct_val):
     if pct_val <= -1.5: return "bear-card-2"
     if pct_val < 0: return "bear-card"
     return "neut-card"
+def generate_status(row):
+    status = ""
+    p = row.get('P', 0)
+    if row.get('Bull_P', 0) >= 80: status += f"🐂Bulls {int(row['Bull_P'])}% "
+    elif row.get('Bear_P', 0) >= 80: status += f"🐻Bears {int(row['Bear_P'])}% "
+    if 'AlphaTag' in row and row['AlphaTag']: status += f"{row['AlphaTag']} "
+    if 'O' in row and 'L' in row and abs(row['O'] - row['L']) < (p * 0.002): status += "O=L🔥 "
+    if 'O' in row and 'H' in row and abs(row['O'] - row['H']) < (p * 0.002): status += "O=H🩸 "
+    if row.get('C', 0) > 0 and row.get('Day_C', 0) > 0 and row.get('VolX', 0) > 1.5: status += "Rec⇈ "
+    if row.get('VolX', 0) > 1.5: status += "VOL🟢 "
+    return status.strip()
 def render_live_ui():
     if st.session_state.pause_refresh:
         st.info("⏸️ Data refresh is paused.")
