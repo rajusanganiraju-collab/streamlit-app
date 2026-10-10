@@ -2509,8 +2509,116 @@ def render_live_ui():
                 df_filtered = pd.DataFrame(columns=df_filtered.columns)
     
         # 🧠 AI ENGINE ADD — skip rest of UI rendering for AI mode (already rendered above)
-        if watchlist_mode == "🧠 AI Self-Evolving F&O":
-            return
+                # 🧠 AI EQUITY MODE
+        if watchlist_mode == "🧠 AI Equity Day Trading":
+            st.markdown("""
+            <div style='background: linear-gradient(90deg, #6a1b9a 0%, #0d47a1 100%); padding:14px; border-radius:10px; margin-bottom:10px;'>
+                <div style='color:#ffffff; font-size:18px; font-weight:bold;'>🧠 AI SELF-EVOLVING EQUITY ENGINE (Cash / MIS)</div>
+                <div style='color:#c9d1d9; font-size:12px; margin-top:4px;'>
+                    <b>Pure Equity Day Trading</b> — No options. Direct BUY/SELL on NSE cash market.
+                    Every minute the algorithm <b>mutates</b> based on regime + recent win-rate.
+                    Product: MIS (intraday). Square off by 3:15 PM.
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            engine = st.session_state.ai_engine
+            fno_only = df_stocks[df_stocks['T'].isin(NIFTY_50 + FNO_STOCKS)].copy()
+
+            if fno_only.empty:
+                st.info("⏳ Waiting for stocks data...")
+            else:
+                fno_tickers = fno_only['Fetch_T'].unique().tolist()
+                ai_5m = fetch_cached_5m_data(fno_tickers)
+
+                recommendations = []
+                for _, r in fno_only.iterrows():
+                    sym_fetch = r['Fetch_T']
+                    sym_disp = r['T']
+                    try:
+                        df_raw = ai_5m[sym_fetch] if isinstance(ai_5m.columns, pd.MultiIndex) else ai_5m
+                    except (KeyError, TypeError):
+                        df_raw = pd.DataFrame()
+
+                    df_5m = process_5m_data(df_raw) if not df_raw.empty else pd.DataFrame()
+                    if df_5m is None or df_5m.empty or len(df_5m) < 20:
+                        continue
+
+                    regime = ai_detect_regime(df_5m)
+                    strat_name, sig, conf = engine.pick(regime, df_5m)
+                    if sig == 0 or conf < 0.5:
+                        continue
+
+                    atr_val = float(df_5m['ATR_13'].iloc[-1]) if 'ATR_13' in df_5m.columns else float(r.get('ATR', 0))
+                    rec = build_ai_equity_recommendation(
+                        sym_disp, float(r['P']), atr_val, sig, conf, regime, strat_name
+                    )
+                    recommendations.append(rec)
+
+                df_rec = pd.DataFrame(recommendations) if recommendations else pd.DataFrame()
+                if not df_rec.empty:
+                    df_rec = df_rec.sort_values(by='Conf', ascending=False).head(20)
+
+                st.markdown(render_ai_equity_table(df_rec, engine), unsafe_allow_html=True)
+
+                # 📈 AI TOP 5 CHARTS
+                if not df_rec.empty:
+                    st.markdown("<hr style='border-color:#30363d; margin-top:20px;'>", unsafe_allow_html=True)
+                    st.markdown("<div style='font-size:16px; font-weight:bold; color:#00BFFF; margin-bottom:10px;'>📈 AI TOP 5 PICKS — LIVE CHARTS (5-min Intraday)</div>", unsafe_allow_html=True)
+
+                    top5 = df_rec.head(5).copy()
+                    top5['Fetch_T'] = top5['T'] + '.NS'
+
+                    top5_tickers = top5['Fetch_T'].tolist()
+                    top5_5m = fetch_cached_5m_data(top5_tickers)
+
+                    ai_chart_dict = {}
+                    for s_fetch in top5_tickers:
+                        try:
+                            df_raw = top5_5m[s_fetch] if isinstance(top5_5m.columns, pd.MultiIndex) else top5_5m
+                            ai_chart_dict[s_fetch] = process_5m_data(df_raw)
+                        except Exception:
+                            ai_chart_dict[s_fetch] = pd.DataFrame()
+
+                    df_lookup_local = df_all_stocks.drop_duplicates('T').set_index('T').to_dict('index')
+                    top5['P'] = top5['T'].map(lambda x: df_lookup_local.get(x, {}).get('P', top5.loc[top5['T'] == x, 'Entry'].iloc[0]))
+                    top5['Day_C'] = top5['T'].map(lambda x: df_lookup_local.get(x, {}).get('Day_C', 0.0))
+                    top5['H'] = top5['T'].map(lambda x: df_lookup_local.get(x, {}).get('H', 0.0))
+                    top5['L'] = top5['T'].map(lambda x: df_lookup_local.get(x, {}).get('L', 0.0))
+                    top5['Is_Commodity'] = False
+                    top5['Strategy_Icon'] = top5['Direction'].map(lambda d: "🟢 BUY" if d == "BUY" else "🔴 SELL")
+                    top5['W_C'] = top5['Day_C']
+
+                    render_chart_grid(
+                        top5, show_pin_option=False, key_prefix="ai_eq_chart",
+                        timeframe="Intraday (5m)", chart_dict=ai_chart_dict,
+                        show_crosshair=True, show_vol=True
+                    )
+
+                st.markdown("<br>", unsafe_allow_html=True)
+                with st.expander("📚 AI Equity Engine ఎలా పనిచేస్తుంది? (Telugu)", expanded=False):
+                    st.markdown("""
+                    <div style='background-color:#161b22; padding:15px; border-radius:10px; border:1px solid #30363d; color:#c9d1d9; font-size:14px;'>
+                    <h4 style='color:#00BFFF; margin-top:0;'>🧠 Self-Evolving Core Logic (Equity Cash/MIS)</h4>
+                    <ul>
+                        <li><b>Product:</b> MIS (Intraday) — 3:15 PM ki auto square off. <b>Options/Futures ledu</b>.</li>
+                        <li><b>Capital:</b> ₹10,000 – ₹50,000 per trade sufficient (5x-10x MIS leverage broker batti).</li>
+                        <li><b>Regime Detection:</b> ATR% + 30-candle slope → <i>trending / ranging / volatile / quiet</i>.</li>
+                        <li><b>7 Strategies Pool:</b> Momentum Breakout, VWAP Reversion, EMA Cross, RSI Reversal, ORB, Volume Spike, ATR Breakout.</li>
+                        <li><b>Reinforcement Loop:</b> win → weight ×1.05, loss → weight ×0.95 — self-tunes over time.</li>
+                        <li><b>ε-greedy Mutation:</b> recent 10 win → ε↓ (exploit) | loss → ε↑ (explore new algo).</li>
+                    </ul>
+                    <p style='color:#ffd700; font-size:13px; margin-bottom:0;'>
+                        ⚠️ <b>Trade Rules:</b> BUY signal → CMP at enter, SL hit ayithe cut, T1 ki 50% book, T2 ki balance. 
+                        SELL signal → short sell (MIS lo allowed for F&O stocks). 3:10 PM ki manual exit.
+                    </p>
+                    <p style='color:#ffd700; font-size:13px; margin-bottom:0;'>
+                        ⚠️ <b>Disclaimer:</b> Paper-trade 2 weeks mundu. Real money deployment taruvata.
+                    </p>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            return  # Skip rest of UI rendering for AI mode
 
         all_display_tickers = list(set(df_indices['Fetch_T'].tolist() + df_sectors['Fetch_T'].tolist() + df_filtered['Fetch_T'].tolist() + st.session_state.pinned_stocks))
         
