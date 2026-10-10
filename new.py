@@ -1991,7 +1991,7 @@ def render_live_ui():
     
     if watchlist_mode == "Swing Trading 📈":
         strict_allowed = set(NIFTY_50 + FNO_STOCKS + MIDCAP_150 + SMALLCAP_250)
-    elif watchlist_mode == "🤖 AI Predictions (F&O)" or watchlist_mode == "🧠 AI Equity Day Trading":
+        elif watchlist_mode == "🤖 AI Predictions (F&O)":
         strict_allowed = set(NIFTY_50 + FNO_STOCKS)
     elif watchlist_mode == "🤖 AI Predictions (Mid Cap)":
         strict_allowed = set(MIDCAP_150)
