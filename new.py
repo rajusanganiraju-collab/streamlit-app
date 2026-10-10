@@ -1564,7 +1564,6 @@ if not df.empty:
 
 watchlist_mode = st.selectbox("Watchlist", [
     "🤖 AI Predictions (F&O)", 
-    "🧠 Adaptive AI (Dynamic)",
     "🤖 AI Predictions (Mid Cap)", 
     "🤖 AI Predictions (Small Cap)", 
     "High Score Stocks 🔥",
@@ -1804,102 +1803,6 @@ def render_live_ui():
             # స్ట్రాటజీ సెలెక్ట్ చేసినప్పుడు అన్ని స్టాక్స్ (S>=11 లిమిట్ లేకుండా) స్కాన్ అవ్వడానికి
             if "All Moves" in move_type_filter or len(move_type_filter) == 0:
                 df_filtered = df_filtered[(df_filtered['Strategy_Icon'] != "Neutral") & (df_filtered['S'] >= 11)]
-        elif watchlist_mode == "🧠 Adaptive AI (Dynamic)":
-            strict_allowed = set(NIFTY_50 + FNO_STOCKS)
-            df_filtered = df_all_stocks[df_all_stocks['T'].isin(strict_allowed)].copy()
-            ai_predictions, ai_probs = [], []
-            
-            import math
-            # 🧠 DYNAMIC AI ALGORITHM GENERATOR (Minute-by-Minute Adaptive)
-            current_time = now_ist()
-            hr = current_time.hour
-            mn = current_time.minute
-            time_seed = hr * 60 + mn
-
-            # 1. Market Trend Check (Nifty Sync)
-            nifty_row = df_indices[df_indices['T'] == 'NIFTY']
-            if not nifty_row.empty:
-                nifty_vwap = float(nifty_row['VWAP'].iloc[0]) if 'VWAP' in nifty_row.columns else 0
-                nifty_is_bullish = float(nifty_row['P'].iloc[0]) > nifty_vwap
-            else:
-                nifty_is_bullish = True
-
-            # 2. Dynamic Weights Generation
-            w_momentum = abs(math.sin(time_seed * 0.1)) * 40
-            w_volume = abs(math.cos(time_seed * 0.05)) * 30 + 10
-            w_reversal = abs(math.sin(time_seed * 0.02)) * 30
-            w_vwap = 100 - (w_momentum + w_volume + w_reversal)
-
-            # Time-of-Day Logic
-            if hr < 10 or (hr == 10 and mn <= 30):
-                w_momentum += 20; w_volume += 25; w_reversal -= 15
-            elif 11 <= hr <= 13:
-                w_reversal += 30; w_vwap += 15; w_momentum -= 20
-            elif hr >= 14:
-                w_momentum += 30; w_vwap += 10; w_reversal -= 20
-
-            total_w = max(w_momentum + w_volume + w_reversal + w_vwap, 1)
-            w_m, w_v, w_r, w_vw = (w_momentum/total_w)*100, (w_volume/total_w)*100, (w_reversal/total_w)*100, (w_vwap/total_w)*100
-
-            # 3. Apply AI Scoring to All Stocks
-            for _, row in df_filtered.iterrows():
-                p = float(row.get('P', 1))
-                vwap = float(row.get('VWAP', p))
-                vol_x = float(row.get('VolX', 1))
-                bull_p = float(row.get('Bull_P', 50))
-                bear_p = float(row.get('Bear_P', 50))
-                day_c = float(row.get('Day_C', 0))
-
-                # Identify Dominant Strategy Name
-                dominant = max(w_m, w_v, w_r, w_vw)
-                if dominant == w_m: algo_name = "Momentum"
-                elif dominant == w_v: algo_name = "Volume Surge"
-                elif dominant == w_r: algo_name = "Reversal"
-                else: algo_name = "VWAP Trend"
-
-                # 🟢 DYNAMIC BUY SCORE 
-                buy_score = 0
-                if p > vwap: buy_score += w_vw * min((p - vwap)/vwap * 1000, 1.0)
-                if vol_x > 1.2: buy_score += w_v * min(vol_x / 3.0, 1.0)
-                if bull_p > 60: buy_score += w_m * (bull_p / 100.0)
-                if day_c < 0 and p > vwap and bull_p > 70: buy_score += w_r
-
-                # 🔥 VWAP PULLBACK SNIPER LOGIC
-                vwap_dist = abs(p - vwap) / vwap * 100
-                if day_c > 1.0 and vwap_dist <= 0.4 and p >= vwap:
-                    buy_score += w_r * 1.5  
-                    algo_name = "VWAP Pullback"
-
-                # 🔴 DYNAMIC SELL SCORE
-                sell_score = 0
-                if p < vwap: sell_score += w_vw * min((vwap - p)/vwap * 1000, 1.0)
-                if vol_x > 1.2: sell_score += w_v * min(vol_x / 3.0, 1.0)
-                if bear_p > 60: sell_score += w_m * (bear_p / 100.0)
-                if day_c > 0 and p < vwap and bear_p > 70: sell_score += w_r
-
-                # Sync with Nifty
-                if nifty_is_bullish: buy_score *= 1.15
-                else: sell_score *= 1.15
-
-                up_prob = min(int(buy_score), 99)
-                dn_prob = min(int(sell_score), 99)
-
-                # Final Signal Generation
-                if up_prob >= 70:
-                    ai_predictions.append(f"🚀 AI(Min:{mn:02d} | {algo_name}) UP")
-                    ai_probs.append(up_prob)
-                elif dn_prob >= 70:
-                    ai_predictions.append(f"🩸 AI(Min:{mn:02d} | {algo_name}) DN")
-                    ai_probs.append(dn_prob)
-                else:
-                    ai_predictions.append("Neutral")
-                    ai_probs.append(max(up_prob, dn_prob))
-
-            df_filtered['Strategy_Icon'] = ai_predictions
-            df_filtered['AI_Prob'] = ai_probs
-            
-            # స్కోర్ 8 దాటినవి, న్యూట్రల్ కానివి మాత్రమే ఫిల్టర్ చేస్తాం
-            df_filtered = df_filtered[(df_filtered['Strategy_Icon'] != "Neutral") & (df_filtered['S'] >= 8)]
         elif watchlist_mode == "Day Trading Stocks 🚀":
             df_filtered = df_stocks[df_stocks['C'].abs() >= 1.0].copy()
         elif watchlist_mode == "High Score Stocks 🔥":
