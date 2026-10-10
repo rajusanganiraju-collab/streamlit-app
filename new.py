@@ -1867,7 +1867,7 @@ watchlist_mode = st.selectbox("Watchlist", [
     "Day Trading Stocks 🚀",
     "Swing Trading 📈", 
     "Legendary Strategy 🏆", 
-    "Nifty 50 Heatmap", 
+    "F&O + Top 200 Heatmap 🗺️", 
     "Terminal Tables 🗃️",
     "My Portfolio 💼", 
     "Commodity 🛢️", 
@@ -2076,8 +2076,12 @@ def render_live_ui():
                 port_tickers = [f"{str(sym).upper().strip()}.NS" for sym in df_port_saved['Symbol'].tolist() if str(sym).strip() != ""]
                 df_filtered = df_all_stocks[df_all_stocks['Fetch_T'].isin(port_tickers)]
             else: df_filtered = df_stocks[df_stocks['S'] >= 6]
-        elif watchlist_mode == "Nifty 50 Heatmap":
-            df_filtered = df_all_stocks[df_all_stocks['T'].isin(NIFTY_50)]
+        elif watchlist_mode == "F&O + Top 200 Heatmap 🗺️":
+            # Nifty 50 mariyu F&O stocks ni kalipi okate list ga chestunnam
+            fno_and_nifty = list(set(NIFTY_50 + FNO_STOCKS))
+            df_filtered = df_all_stocks[df_all_stocks['T'].isin(fno_and_nifty)].copy()
+            # Heatmap lo neat ga kanipinchadaniki Day_C (Percentage) batti sort chestunnam
+            df_filtered = df_filtered.sort_values(by="Day_C", ascending=False)
         elif "AI Predictions" in watchlist_mode:
             df_filtered = df_stocks.copy()
             ai_predictions, ai_probs = [], []
