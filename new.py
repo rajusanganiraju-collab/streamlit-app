@@ -1564,7 +1564,7 @@ if not df.empty:
 
 watchlist_mode = st.selectbox("Watchlist", [
     "🤖 AI Predictions (F&O)", 
-    "🧠 Adaptive AI (Dynamic)"
+    "🧠 Adaptive AI (Dynamic)",
     "🤖 AI Predictions (Mid Cap)", 
     "🤖 AI Predictions (Small Cap)", 
     "High Score Stocks 🔥",
