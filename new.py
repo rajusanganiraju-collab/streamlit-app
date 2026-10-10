@@ -1841,7 +1841,7 @@ def render_live_ui():
             total_w = max(w_momentum + w_volume + w_reversal + w_vwap, 1)
             w_m, w_v, w_r, w_vw = (w_momentum/total_w)*100, (w_volume/total_w)*100, (w_reversal/total_w)*100, (w_vwap/total_w)*100
 
-            # 3. Apply AI Scoring to All Stocks
+            # 3. Apply to Stocks
             for _, row in df_filtered.iterrows():
                 p = float(row.get('P', 1))
                 vwap = float(row.get('VWAP', p))
@@ -1859,23 +1859,35 @@ def render_live_ui():
 
                 # 🟢 DYNAMIC BUY SCORE 
                 buy_score = 0
-                if p > vwap: buy_score += w_vw * min((p - vwap)/vwap * 1000, 1.0)
-                if vol_x > 1.2: buy_score += w_v * min(vol_x / 3.0, 1.0)
-                if bull_p > 60: buy_score += w_m * (bull_p / 100.0)
-                if day_c < 0 and p > vwap and bull_p > 70: buy_score += w_r
+                
+                # VWAP Tolerance Zone: VWAP కంటే 0.3% కిందకు వెళ్లినా BUY కండిషన్ లోకే వస్తుంది.
+                if p >= vwap * 0.997: 
+                    buy_score += w_vw * min((p - vwap)/vwap * 1000, 1.0)
+                    if vol_x > 1.2: buy_score += w_v * min(vol_x / 3.0, 1.0)
+                    if bull_p > 50: buy_score += w_m * (bull_p / 100.0)
+                else:
+                    # 0.3% కంటే ఇంకా కింద పడిపోతే అది ప్యూర్ రివర్సల్ అవుతుంది
+                    if day_c < 0 and bull_p > 80: 
+                        buy_score += w_r * 0.8
 
-                # 🔥 VWAP PULLBACK SNIPER LOGIC
+                # 🔥 VWAP PULLBACK SNIPER LOGIC (0.3% Buffer)
                 vwap_dist = abs(p - vwap) / vwap * 100
-                if day_c > 1.0 and vwap_dist <= 0.4 and p >= vwap:
+                if day_c > 1.0 and (p >= vwap * 0.997) and (p <= vwap * 1.004):
                     buy_score += w_r * 1.5  
                     algo_name = "VWAP Pullback"
 
                 # 🔴 DYNAMIC SELL SCORE
                 sell_score = 0
-                if p < vwap: sell_score += w_vw * min((vwap - p)/vwap * 1000, 1.0)
-                if vol_x > 1.2: sell_score += w_v * min(vol_x / 3.0, 1.0)
-                if bear_p > 60: sell_score += w_m * (bear_p / 100.0)
-                if day_c > 0 and p < vwap and bear_p > 70: sell_score += w_r
+                
+                # VWAP Tolerance Zone: VWAP కంటే 0.3% పైకి వెళ్లినా SELL కండిషన్ లోకే వస్తుంది.
+                if p <= vwap * 1.003: 
+                    sell_score += w_vw * min((vwap - p)/vwap * 1000, 1.0)
+                    if vol_x > 1.2: sell_score += w_v * min(vol_x / 3.0, 1.0)
+                    if bear_p > 50: sell_score += w_m * (bear_p / 100.0)
+                else:
+                    # 0.3% కంటే ఇంకా పైకి ఎగబడితే అది టాప్ రివర్సల్ అవుతుంది
+                    if day_c > 0 and bear_p > 80: 
+                        sell_score += w_r * 0.8
 
                 # Sync with Nifty
                 if nifty_is_bullish: buy_score *= 1.15
@@ -1894,7 +1906,6 @@ def render_live_ui():
                 else:
                     ai_predictions.append("Neutral")
                     ai_probs.append(max(up_prob, dn_prob))
-
             df_filtered['Strategy_Icon'] = ai_predictions
             df_filtered['AI_Prob'] = ai_probs
             
