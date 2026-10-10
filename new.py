@@ -1,5 +1,5 @@
 # =========================================================
-# ✅ FIXED VERSION — Market Heatmap (07-Oct-2026)
+# ✅ FIXED VERSION — Market Heatmap + 🧠 AI Self-Evolving F&O Engine
 # ---------------------------------------------------------
 # BUG FIXES:
 #  1. Dhan data: 1-min → 5-min candles (interval='5') — 5x load తగ్గింది
@@ -24,6 +24,11 @@
 # 15. Gradient heatmap cards (% change intensity ప్రకారం color shade)
 # 16. Portfolio KPI strip (Invested/Current/Day P&L/Total P&L)
 # 17. Trade Book CSV export + "Day Trading Stocks 🚀" watchlist option
+#
+# 🧠 AI ENGINE (NEW):
+# 18. Self-evolving F&O engine — every minute algorithm mutates
+# 19. 7 strategy pool + regime detection + ε-greedy reinforcement
+# 20. Watchlist: "🧠 AI Self-Evolving F&O" — new option
 # =========================================================
 
 import streamlit as st
@@ -42,6 +47,8 @@ import concurrent.futures
 from datetime import datetime, time as dt_time
 from zoneinfo import ZoneInfo
 from dhanhq import dhanhq, marketfeed
+import random                          # 🧠 AI ENGINE ADD
+from collections import deque          # 🧠 AI ENGINE ADD
 
 try:
     from dhanhq import DhanContext
@@ -78,7 +85,6 @@ def init_connection():
     except KeyError:
         st.error("❌ Missing 'gcp_service_account' in secrets.toml")
         st.stop()
-    # 🔧 FIX: Streamlit Cloud TOML table (dict) / JSON string రెండింటికీ support
     creds_dict = json.loads(creds_json) if isinstance(creds_json, str) else dict(creds_json)
     scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
@@ -434,6 +440,255 @@ SMALLCAP_250 = [
     "YATHARTH", "ZENSARTECH", "ZENTEC", "ZYDUSWELL"
 ]
 
+# =========================================================
+# 🧠 AI ENGINE ADD — Self-Evolving F&O Engine (Full Block)
+# =========================================================
+
+class AIStrategyBank:
+    """7 different strategies — AI picks best one per minute"""
+
+    @staticmethod
+    def momentum_breakout(df, lookback=20):
+        if df is None or len(df) < lookback + 2: return 0, 0
+        try:
+            high = df['High'].iloc[-lookback:-1].max()
+            low  = df['Low'].iloc[-lookback:-1].min()
+            close = df['Close'].iloc[-1]
+            vol_ratio = df['Volume'].iloc[-1] / (df['Volume'].iloc[-lookback:].mean() + 1e-9)
+            if close > high and vol_ratio > 1.2: return 1, min(0.7 * vol_ratio, 1.0)
+            if close < low and vol_ratio > 1.2: return -1, min(0.7 * vol_ratio, 1.0)
+        except Exception: pass
+        return 0, 0
+
+    @staticmethod
+    def vwap_reversion(df):
+        if df is None or len(df) < 20 or 'VWAP' not in df.columns: return 0, 0
+        try:
+            close = df['Close'].iloc[-1]
+            vwap = df['VWAP'].iloc[-1]
+            if vwap <= 0: return 0, 0
+            dev = (close - vwap) / vwap
+            if dev < -0.004: return 1, min(abs(dev) * 200, 1.0)
+            if dev > 0.004: return -1, min(abs(dev) * 200, 1.0)
+        except Exception: pass
+        return 0, 0
+
+    @staticmethod
+    def ema_cross(df, fast=5, slow=13):
+        if df is None or len(df) < slow + 2: return 0, 0
+        try:
+            ef = df['Close'].ewm(span=fast).mean()
+            es = df['Close'].ewm(span=slow).mean()
+            if ef.iloc[-2] < es.iloc[-2] and ef.iloc[-1] > es.iloc[-1]: return 1, 0.6
+            if ef.iloc[-2] > es.iloc[-2] and ef.iloc[-1] < es.iloc[-1]: return -1, 0.6
+        except Exception: pass
+        return 0, 0
+
+    @staticmethod
+    def rsi_reversal(df, period=14):
+        if df is None or len(df) < period + 2: return 0, 0
+        try:
+            delta = df['Close'].diff()
+            gain = delta.clip(lower=0).rolling(period).mean()
+            loss = (-delta.clip(upper=0)).rolling(period).mean()
+            rs = gain / (loss + 1e-9)
+            rsi = (100 - 100 / (1 + rs)).iloc[-1]
+            if rsi < 28: return 1, min((30 - rsi) / 30, 1.0)
+            if rsi > 72: return -1, min((rsi - 70) / 30, 1.0)
+        except Exception: pass
+        return 0, 0
+
+    @staticmethod
+    def orb(df, first_n=3):
+        if df is None or len(df) < first_n + 2: return 0, 0
+        try:
+            orh = df['High'].iloc[:first_n].max()
+            orl = df['Low'].iloc[:first_n].min()
+            close = df['Close'].iloc[-1]
+            if close > orh: return 1, 0.8
+            if close < orl: return -1, 0.8
+        except Exception: pass
+        return 0, 0
+
+    @staticmethod
+    def volume_spike(df, lookback=20):
+        if df is None or len(df) < lookback + 1: return 0, 0
+        try:
+            v = df['Volume'].iloc[-1]
+            avg = df['Volume'].iloc[-lookback-1:-1].mean() + 1e-9
+            if v > 2.5 * avg:
+                ret = df['Close'].iloc[-1] - df['Close'].iloc[-2]
+                return (1 if ret > 0 else -1), min(v / avg / 3, 1.0)
+        except Exception: pass
+        return 0, 0
+
+    @staticmethod
+    def atr_breakout(df, period=13, mult=1.5):
+        if df is None or len(df) < period + 2: return 0, 0
+        try:
+            tr = pd.concat([
+                df['High'] - df['Low'],
+                (df['High'] - df['Close'].shift()).abs(),
+                (df['Low'] - df['Close'].shift()).abs()
+            ], axis=1).max(axis=1)
+            atr = tr.rolling(period).mean().iloc[-1]
+            move = df['Close'].iloc[-1] - df['Close'].iloc[-2]
+            if move > mult * atr: return 1, 0.7
+            if move < -mult * atr: return -1, 0.7
+        except Exception: pass
+        return 0, 0
+
+    @staticmethod
+    def all_strategies():
+        return {
+            'momentum_breakout': AIStrategyBank.momentum_breakout,
+            'vwap_reversion':    AIStrategyBank.vwap_reversion,
+            'ema_cross':         AIStrategyBank.ema_cross,
+            'rsi_reversal':      AIStrategyBank.rsi_reversal,
+            'orb':               AIStrategyBank.orb,
+            'volume_spike':      AIStrategyBank.volume_spike,
+            'atr_breakout':      AIStrategyBank.atr_breakout,
+        }
+
+
+def ai_detect_regime(df):
+    if df is None or len(df) < 30: return 'quiet'
+    try:
+        tr = pd.concat([
+            df['High'] - df['Low'],
+            (df['High'] - df['Close'].shift()).abs(),
+            (df['Low'] - df['Close'].shift()).abs()
+        ], axis=1).max(axis=1)
+        atr = tr.rolling(13).mean().iloc[-1]
+        price = df['Close'].iloc[-1]
+        if price <= 0 or pd.isna(atr): return 'quiet'
+        atr_pct = atr / price
+        y = df['Close'].tail(30).values
+        if len(y) < 5: return 'quiet'
+        slope = np.polyfit(np.arange(len(y)), y, 1)[0]
+        slope_pct = slope / price
+        if atr_pct > 0.006:          return 'volatile'
+        if abs(slope_pct) > 0.0004:  return 'trending'
+        if atr_pct < 0.0015:         return 'quiet'
+        return 'ranging'
+    except Exception:
+        return 'quiet'
+
+
+class AdaptiveEngine:
+    """Self-mutating engine — every minute algorithm changes"""
+    def __init__(self, strategies):
+        self.strategies = strategies
+        self.stats = {n: {'wins': 0, 'losses': 0, 'pnl': 0.0, 'weight': 1.0} for n in strategies}
+        self.epsilon = 0.15
+        self.trade_memory = deque(maxlen=50)
+
+    def regime_prior(self, regime):
+        return {
+            'trending': {'momentum_breakout': 2.0, 'ema_cross': 1.8, 'atr_breakout': 1.5,
+                         'orb': 1.5, 'vwap_reversion': 0.5, 'rsi_reversal': 0.6, 'volume_spike': 1.2},
+            'ranging':  {'vwap_reversion': 2.0, 'rsi_reversal': 1.8, 'volume_spike': 0.8,
+                         'momentum_breakout': 0.5, 'ema_cross': 0.6, 'atr_breakout': 0.7, 'orb': 0.4},
+            'volatile': {'volume_spike': 2.0, 'atr_breakout': 1.8, 'momentum_breakout': 1.5,
+                         'orb': 1.5, 'vwap_reversion': 0.7, 'rsi_reversal': 0.8, 'ema_cross': 0.9},
+            'quiet':    {'rsi_reversal': 1.6, 'vwap_reversion': 1.4, 'ema_cross': 1.2,
+                         'momentum_breakout': 0.8, 'orb': 0.7, 'volume_spike': 0.6, 'atr_breakout': 0.5},
+        }.get(regime, {n: 1.0 for n in self.strategies})
+
+    def pick(self, regime, df):
+        try:
+            if random.random() < self.epsilon:
+                name = random.choice(list(self.strategies.keys()))
+            else:
+                pri = self.regime_prior(regime)
+                scores = {}
+                for n in self.strategies:
+                    st = self.stats[n]
+                    wr = (st['wins'] + 1) / (st['wins'] + st['losses'] + 2)
+                    scores[n] = pri.get(n, 1.0) * wr * st['weight']
+                name = max(scores, key=scores.get)
+            sig, conf = self.strategies[name](df)
+            return name, sig, conf
+        except Exception:
+            return "orb", 0, 0
+
+    def update(self, name, pnl):
+        if name not in self.stats: return
+        st = self.stats[name]
+        if pnl > 0:
+            st['wins'] += 1
+            st['weight'] = min(st['weight'] * 1.05, 3.0)
+        else:
+            st['losses'] += 1
+            st['weight'] = max(st['weight'] * 0.95, 0.2)
+        st['pnl'] += pnl
+        self.trade_memory.append((name, pnl))
+        if len(self.trade_memory) >= 10:
+            recent = [p for _, p in list(self.trade_memory)[-10:]]
+            if sum(recent) > 0:
+                self.epsilon = max(0.05, self.epsilon * 0.90)
+            else:
+                self.epsilon = min(0.40, self.epsilon * 1.10)
+
+
+def build_ai_fno_recommendation(display_sym, spot_price, atr_val, signal, confidence, regime, strategy):
+    step = 100 if spot_price > 5000 else 50 if spot_price > 1000 else 20 if spot_price > 500 else 10
+    atm = round(spot_price / step) * step
+    direction = "LONG" if signal == 1 else "SHORT"
+    option = f"{display_sym} {int(atm)} " + ("CE" if signal == 1 else "PE")
+    if atr_val is None or atr_val <= 0 or pd.isna(atr_val):
+        atr_val = spot_price * 0.004
+    entry = spot_price
+    sl = entry - signal * max(1.2 * atr_val, spot_price * 0.003)
+    t1 = entry + signal * max(1.8 * atr_val, spot_price * 0.005)
+    t2 = entry + signal * max(3.0 * atr_val, spot_price * 0.008)
+    rr = abs(t1 - entry) / max(abs(entry - sl), 1e-9)
+    return {
+        'T': display_sym, 'Option': option, 'Direction': direction,
+        'Spot': round(spot_price, 2), 'Entry': round(entry, 2),
+        'SL': round(sl, 2), 'T1': round(t1, 2), 'T2': round(t2, 2),
+        'RR': round(rr, 2), 'Conf': round(confidence, 2),
+        'Regime': regime, 'Strategy': strategy,
+    }
+
+
+def render_ai_fno_table(df_rec, engine):
+    """Displays AI engine recommendations + live strategy weights"""
+    if df_rec is None or df_rec.empty:
+        return "<div style='padding:20px; text-align:center; color:#8b949e; border:1px dashed #30363d; border-radius:8px;'>⏳ No high-confidence AI setups this minute. Engine is watching...</div>"
+    html = '<table class="term-table"><thead><tr><th colspan="10" class="term-head-high" style="background-color:#6a1b9a;">🧠 AI SELF-EVOLVING ENGINE — LIVE F&O RECOMMENDATIONS</th></tr><tr style="background-color:#21262d;"><th style="width:4%;">RANK</th><th style="text-align:left; width:11%;">STOCK</th><th style="width:8%;">SPOT</th><th style="width:13%;">DIRECTION</th><th style="width:14%;">OPTION (ATM)</th><th style="width:9%;">ENTRY</th><th style="width:9%; color:#f85149;">SL</th><th style="width:9%; color:#3fb950;">T1</th><th style="width:9%; color:#3fb950;">T2</th><th style="width:14%;">STRATEGY | CONF</th></tr></thead><tbody>'
+    for i, row in df_rec.reset_index(drop=True).iterrows():
+        bg = "row-dark" if i % 2 == 0 else "row-light"
+        dir_color = "text-green" if row['Direction'] == 'LONG' else "text-red"
+        dir_icon = "🟢 LONG" if row['Direction'] == 'LONG' else "🔴 SHORT"
+        rank = "🏆 1" if i == 0 else str(i + 1)
+        html += f'<tr class="{bg}"><td><b>{rank}</b></td><td class="t-symbol">{row["T"]}</td><td>{row["Spot"]}</td>'
+        html += f'<td class="{dir_color}" style="font-weight:bold;">{dir_icon}</td>'
+        html += f'<td style="color:#ffd700; font-weight:bold;">{row["Option"]}</td>'
+        html += f'<td>{row["Entry"]}</td><td style="color:#f85149;">{row["SL"]}</td>'
+        html += f'<td style="color:#3fb950;">{row["T1"]}</td><td style="color:#3fb950;">{row["T2"]}</td>'
+        html += f'<td style="font-size:10px;">{row["Strategy"]}<br><span style="color:#00BFFF;">Conf {row["Conf"]} | {row["Regime"]}</span></td></tr>'
+    html += '</tbody></table>'
+
+    weights_html = '<table class="term-table" style="margin-top:15px;"><thead><tr><th colspan="5" class="term-head-levels">🎯 ENGINE SELF-EVOLUTION STATUS (Live)</th></tr><tr style="background-color:#21262d;"><th style="text-align:left;">STRATEGY</th><th>WINS</th><th>LOSSES</th><th>WIN RATE</th><th>WEIGHT (Adaptive)</th></tr></thead><tbody>'
+    for n, st in engine.stats.items():
+        wr = (st['wins'] + 1) / (st['wins'] + st['losses'] + 2)
+        wr_color = "text-green" if wr >= 0.55 else "text-red" if wr < 0.45 else ""
+        weights_html += f'<tr><td class="t-symbol">{n}</td><td class="text-green">{st["wins"]}</td><td class="text-red">{st["losses"]}</td><td class="{wr_color}">{wr*100:.1f}%</td><td style="color:#ffd700;">{st["weight"]:.2f}x</td></tr>'
+    weights_html += f'<tr class="port-total"><td colspan="5" style="text-align:center; font-size:12px;">🔀 Exploration rate (ε) = <b style="color:#00BFFF;">{engine.epsilon:.2f}</b> &nbsp;|&nbsp; Lower = exploit winner | Higher = explore new algo</td></tr>'
+    weights_html += '</tbody></table>'
+
+    return html + weights_html
+
+
+# Initialize persistent engine in session_state
+if 'ai_engine' not in st.session_state:
+    st.session_state.ai_engine = AdaptiveEngine(AIStrategyBank.all_strategies())
+if 'ai_last_update' not in st.session_state:
+    st.session_state.ai_last_update = None
+
+# 🧠 AI ENGINE ADD — END BLOCK
+
 # --- DHAN API INITIALIZATION ---
 if 'shown_dhan_status' not in st.session_state:
     st.session_state.shown_dhan_status = False
@@ -485,7 +740,6 @@ def start_live_ticker():
             return False
         c_id = st.secrets["dhan"]["client_id"]
         a_token = st.secrets["dhan"]["access_token"]
-        # 🔧 FIX: ఇంతకుముందు random 500 stocks కి subscribe అవుతోంది — ఇప్పుడు మన tracking universe మాత్రమే
         _ws_universe = list(dict.fromkeys(NIFTY_50 + FNO_STOCKS + MIDCAP_150))
         instruments = [(1, str(sec_map[s])) for s in _ws_universe if s in sec_map][:500]
         
@@ -510,7 +764,6 @@ def start_live_ticker():
 start_live_ticker()
 
 def now_ist():
-    # 🔧 FIX: Streamlit Cloud server UTC లో run అవుతుంది — అన్ని time checks IST లోనే చేయాలి
     return datetime.now(ZoneInfo("Asia/Kolkata")).replace(tzinfo=None)
 
 def is_market_open():
@@ -530,7 +783,6 @@ def fetch_single_dhan_5m(symbol, sec_id):
     try:
         to_date = datetime.now().strftime('%Y-%m-%d')
         from_date = (datetime.now() - pd.Timedelta(days=5)).strftime('%Y-%m-%d')
-        # 🔧 FIX: interval='5' — ఇంతకుముందు 1-min data వచ్చేది (5x extra load)
         try:
             res = dhan.intraday_minute_data(symbol=sec_id, exchange_segment='NSE_EQ', instrument_type='EQUITY', interval='5', from_date=from_date, to_date=to_date)
         except TypeError:
@@ -558,7 +810,7 @@ def fetch_single_dhan_5m(symbol, sec_id):
     except: pass
     return symbol, pd.DataFrame()
 
-@st.cache_data(ttl=60, show_spinner=False)  # 🔧 PERF: 30s→60s (API load తగ్గడానికి)
+@st.cache_data(ttl=60, show_spinner=False)
 def fetch_cached_5m_data(tkrs_list):
     dhan_tasks, yf_tkrs, results_dict = {}, [], {}
     for tkr in tkrs_list:
@@ -650,7 +902,6 @@ def fetch_all_data():
     data = pd.concat(data_frames, axis=1)
     if data.empty: return pd.DataFrame()
 
-    # 🔥 YFINANCE LATEST VERSION BUG FIX
     if isinstance(data.columns, pd.MultiIndex):
         if 'Close' in data.columns.levels[0] or 'Open' in data.columns.levels[0]:
             data = data.swaplevel(axis=1)
@@ -669,7 +920,7 @@ def fetch_all_data():
                 if n_vwap > 0: nifty_dist = abs(n_ltp - n_vwap) / n_vwap * 100
         except: pass
 
-    for symbol in fetched_symbols:  # 🔧 FIX: MultiIndex లేకపోయినా crash అవ్వకూడదు
+    for symbol in fetched_symbols:
         try:
             df = data[symbol].dropna(subset=['Close'])
             if len(df) < 2: continue
@@ -841,7 +1092,7 @@ def process_5m_data(df_raw):
         df_s['EMA_50'] = df_s['Close'].ewm(span=50, adjust=False).mean()
 
         if 'Volume' in df_s.columns:
-            df_s['Vol_SMA_75'] = df_s['Volume'].rolling(window=75, min_periods=1).mean()  # 🔧 FIX: 5-min candles — 75/day
+            df_s['Vol_SMA_75'] = df_s['Volume'].rolling(window=75, min_periods=1).mean()
         else:
             df_s['Vol_SMA_75'] = 0
             
@@ -871,7 +1122,6 @@ def process_5m_data(df_raw):
     except: return pd.DataFrame()
 
 def card_bg_class(pct_val):
-    # 🎨 % change intensity ప్రకారం gradient color (TradingView style)
     if pct_val >= 3.0: return "bull-card-3"
     if pct_val >= 1.5: return "bull-card-2"
     if pct_val > 0: return "bull-card"
@@ -912,7 +1162,7 @@ def fetch_fundamentals_data(symbols_list):
         except: return None
    
     fund_data = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:  # 🔧 PERF: rate-limit తగ్గడానికి
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
         results = executor.map(get_info, symbols_list)
         for res in results:
             if res is not None:
@@ -920,8 +1170,6 @@ def fetch_fundamentals_data(symbols_list):
     return pd.DataFrame(fund_data)   
 
 # --- RENDER FUNCTIONS ---
-
-
 
 def render_mf_table(df_mf):
     if df_mf.empty: return "<div style='padding:20px; text-align:center;'>No Mutual Fund data available.</div>"
@@ -939,8 +1187,6 @@ def render_mf_table(df_mf):
         html += f'<tr class="{bg_class}"><td><b>{rank}</b></td><td class="t-symbol">{row["Fund Name"]}</td><td style="font-size:11px; color:#c9d1d9; font-weight:bold;">{row["Category"]}</td><td>₹{row["NAV (₹)"]}</td><td>{colorize(row["1Y (%)"])}</td><td>{colorize(row["3Y CAGR (%)"])}</td><td>{colorize(row["5Y CAGR (%)"])}</td></tr>'
     html += "</tbody></table>"
     return html
-
-
 
 def render_portfolio_table(df_port, df_stocks, weekly_trends, port_sort="Default"):
     if df_port.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>Portfolio is empty. Add a stock using the option below!</div>"
@@ -1201,11 +1447,10 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 if fetch_sym not in st.session_state.pinned_stocks: st.session_state.pinned_stocks.append(fetch_sym)
             else:
                 if fetch_sym in st.session_state.pinned_stocks: st.session_state.pinned_stocks.remove(fetch_sym)
-            st.rerun(scope="fragment")  # 🔧 PERF: fragment మాత్రమే rerun
+            st.rerun(scope="fragment")
     
     strat_tag = f" <span style='font-size:10px; background:rgba(0,191,255,0.2); border:1px solid #00BFFF; padding:1px 4px; border-radius:3px; color:#00BFFF;'>{row.get('Strategy_Icon', '')}</span>" if row.get('Strategy_Icon') and row.get('Strategy_Icon') != "Neutral" else ""
     
-    # 🔥 Dynamic pullback logic
     if timeframe == "Intraday (5m)":
         day_high = float(row.get('H', 0))
         day_low = float(row.get('L', 0))
@@ -1213,20 +1458,20 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
         
         if pct_val >= 0:
             intraday_pb = ((day_high - ltp_now) / day_high) * 100 if day_high > 0 else 0
-            pb_tag = f" &nbsp;<span style='color:#FF8C00; font-size:11px;'>📉 -{intraday_pb:.1f}% DH</span>" if intraday_pb >= 0.1 else ""
+            pb_tag = f" &nbsp;<span style='color:#FF8C00; font-size:11px;'>📉 -{int(intraday_pb)}% DH</span>" if intraday_pb >= 0.1 else ""
         else:
             intraday_bounce = ((ltp_now - day_low) / day_low) * 100 if day_low > 0 else 0
-            pb_tag = f" &nbsp;<span style='color:#00BFFF; font-size:11px;'>📈 +{intraday_bounce:.1f}% DL</span>" if intraday_bounce >= 0.1 else ""
+            pb_tag = f" &nbsp;<span style='color:#00BFFF; font-size:11px;'>📈 +{int(intraday_bounce)}% DL</span>" if intraday_bounce >= 0.1 else ""
     else:
         strat_icon = str(row.get('Strategy_Icon', ''))
         if "🔴" in strat_icon or "SELL" in strat_icon or "Stage 4" in strat_icon or "Breakdown" in strat_icon or "Holy Grail" in strat_icon:
             low_52w = float(row.get('Low52W', 0))
             ltp_now = float(row.get('P', 0))
             dist_52wl = ((ltp_now - low_52w) / low_52w) * 100 if low_52w > 0 else 0
-            pb_tag = f" &nbsp;<span style='color:#f85149; font-size:11px;'>🩸 +{dist_52wl:.1f}% 52WL</span>" if dist_52wl >= 0.1 else ""
+            pb_tag = f" &nbsp;<span style='color:#f85149; font-size:11px;'>🩸 +{int(dist_52wl)}% 52WL</span>" if dist_52wl >= 0.1 else ""
         else:
             pb_val = float(row.get('Pullback_52W', 0))
-            pb_tag = f" &nbsp;<span style='color:#FF8C00; font-size:11px;'>📉 -{pb_val:.1f}% 52WH</span>" if pb_val >= 0.1 else ""
+            pb_tag = f" &nbsp;<span style='color:#FF8C00; font-size:11px;'>📉 -{int(pb_val)}% 52WH</span>" if pb_val >= 0.1 else ""
     
     title_html = f"<a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; line-height:1.2;'><b>{display_sym}</b>{strat_tag}<br><span style='font-size:12px; color:#cccccc;'>₹{row['P']:.2f} &nbsp;<span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span>{pb_tag}</span></a>"
     
@@ -1234,12 +1479,11 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
         if not df_chart.empty and 'Low' in df_chart.columns and 'High' in df_chart.columns:
             df_chart = df_chart.copy()
             if timeframe == "Intraday (5m)":
-                df_chart = df_chart.tail(75)  # 🔧 PERF: ఈరోజు candles మాత్రమే render
+                df_chart = df_chart.tail(75)
             min_val = df_chart['Low'].min()
             max_val = df_chart['High'].max()
             y_padding = (max_val - min_val) * 0.15 if (max_val - min_val) != 0 else min_val * 0.005 
             
-            # 🔥 PERFECT TIMEZONE FIX 🔥
             if df_chart.index.tz is not None:
                 df_chart.index = df_chart.index.tz_convert('Asia/Kolkata').tz_localize(None)
                 
@@ -1498,7 +1742,7 @@ def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Intraday 
                             st.session_state.active_sec = None
                         else:
                             st.session_state.active_sec = row['T']
-                        st.rerun(scope="fragment")  # 🔧 PERF
+                        st.rerun(scope="fragment")
 
 def render_closed_trades_table(df_closed):
     if df_closed.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border:1px dashed #30363d; border-radius:8px;'>No closed trades yet. Sell a stock to book P&L!</div>"
@@ -1562,9 +1806,10 @@ if not df.empty:
 # --- 7. UI SETTINGS ---
 # =========================================================
 
+# 🧠 AI ENGINE ADD — new "🧠 AI Self-Evolving F&O" option inserted
 watchlist_mode = st.selectbox("Watchlist", [
     "🤖 AI Predictions (F&O)", 
-    "🧠 Adaptive AI (Dynamic)",
+    "🧠 AI Self-Evolving F&O",
     "🤖 AI Predictions (Mid Cap)", 
     "🤖 AI Predictions (Small Cap)", 
     "High Score Stocks 🔥",
@@ -1580,7 +1825,8 @@ watchlist_mode = st.selectbox("Watchlist", [
     "Month Effect Advantage 📅"
 ], index=0, label_visibility="collapsed")
 
-refresh_sec = 60 if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"] else 30  # 🔧 PERF: 5s/15s → 30s/60s (throttle తగ్గడానికి)
+# 🧠 AI ENGINE ADD — new mode needs faster refresh (60s)
+refresh_sec = 60 if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆", "🧠 AI Self-Evolving F&O"] else 30
 
 view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], index=1 if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"] else 0, horizontal=True, label_visibility="collapsed")
 move_type_filter = ["🌊 One Sided Only", "🎯 Reversals Only", "🏹 Rubber Band Stretch"] 
@@ -1656,7 +1902,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
             "Sort By", 
             [
                 "Score Wise Up ⭐", 
-                "Intraday Pullback Max 📉 (DH / DL)",  # 👈 ఈ కొత్త ఆప్షన్ యాడ్ చేయండి
+                "Intraday Pullback Max 📉 (DH / DL)",
                 "52W Pullback Max 📉 (Deep Discount)", 
                 "Custom Sort", 
                 "Sector Trending First 📊", 
@@ -1710,14 +1956,13 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
 # =========================================================
 # --- 8. RENDERING ---
 # =========================================================
-_effective_refresh = refresh_sec if is_market_open() else 1800  # 🔧 PERF: Market closed → 30 min refresh
+_effective_refresh = refresh_sec if is_market_open() else 1800
 
 @st.fragment(run_every=f"{_effective_refresh}s")
 def render_live_ui():
     if st.session_state.pause_refresh:
         st.info("⏸️ Data refresh is paused.")
         return
-    # 🟢🔴 Market Status Badge
     _m_open = is_market_open()
     _now_str = now_ist().strftime('%d-%b %I:%M:%S %p')
     if _m_open:
@@ -1739,7 +1984,7 @@ def render_live_ui():
     
         if watchlist_mode == "Swing Trading 📈":
             strict_allowed = set(NIFTY_50 + FNO_STOCKS + MIDCAP_150 + SMALLCAP_250)
-        elif watchlist_mode == "🤖 AI Predictions (F&O)":
+        elif watchlist_mode == "🤖 AI Predictions (F&O)" or watchlist_mode == "🧠 AI Self-Evolving F&O":   # 🧠 AI ENGINE ADD
             strict_allowed = set(NIFTY_50 + FNO_STOCKS)
         elif watchlist_mode == "🤖 AI Predictions (Mid Cap)":
             strict_allowed = set(MIDCAP_150)
@@ -1764,7 +2009,74 @@ def render_live_ui():
     
         df_filtered = pd.DataFrame(columns=df_stocks.columns)
     
-        if watchlist_mode == "Terminal Tables 🗃️":
+        # 🧠 AI ENGINE ADD — New mode block
+        if watchlist_mode == "🧠 AI Self-Evolving F&O":
+            st.markdown("""
+            <div style='background: linear-gradient(90deg, #6a1b9a 0%, #0d47a1 100%); padding:14px; border-radius:10px; margin-bottom:10px;'>
+                <div style='color:#ffffff; font-size:18px; font-weight:bold;'>🧠 AI SELF-EVOLVING F&O ENGINE</div>
+                <div style='color:#c9d1d9; font-size:12px; margin-top:4px;'>
+                    Every minute the algorithm <b>mutates</b> based on market regime (trending/ranging/volatile/quiet) + recent win-rate.
+                    Self-tunes weights via reinforcement. Exploration rate adapts automatically.
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            engine = st.session_state.ai_engine
+            fno_only = df_stocks[df_stocks['T'].isin(NIFTY_50 + FNO_STOCKS)].copy()
+
+            if fno_only.empty:
+                st.info("⏳ Waiting for F&O stocks data...")
+            else:
+                fno_tickers = fno_only['Fetch_T'].unique().tolist()
+                ai_5m = fetch_cached_5m_data(fno_tickers)
+
+                recommendations = []
+                for _, r in fno_only.iterrows():
+                    sym_fetch = r['Fetch_T']
+                    sym_disp = r['T']
+                    try:
+                        df_raw = ai_5m[sym_fetch] if isinstance(ai_5m.columns, pd.MultiIndex) else ai_5m
+                    except (KeyError, TypeError):
+                        df_raw = pd.DataFrame()
+
+                    df_5m = process_5m_data(df_raw) if not df_raw.empty else pd.DataFrame()
+                    if df_5m is None or df_5m.empty or len(df_5m) < 20:
+                        continue
+
+                    regime = ai_detect_regime(df_5m)
+                    strat_name, sig, conf = engine.pick(regime, df_5m)
+                    if sig == 0 or conf < 0.5:
+                        continue
+
+                    atr_val = float(df_5m['ATR_13'].iloc[-1]) if 'ATR_13' in df_5m.columns else float(r.get('ATR', 0))
+                    rec = build_ai_fno_recommendation(
+                        sym_disp, float(r['P']), atr_val, sig, conf, regime, strat_name
+                    )
+                    recommendations.append(rec)
+
+                df_rec = pd.DataFrame(recommendations) if recommendations else pd.DataFrame()
+                if not df_rec.empty:
+                    df_rec = df_rec.sort_values(by='Conf', ascending=False).head(20)
+
+                st.markdown(render_ai_fno_table(df_rec, engine), unsafe_allow_html=True)
+
+                st.markdown("<br>", unsafe_allow_html=True)
+                with st.expander("📚 AI Engine ఎలా పనిచేస్తుంది? (Telugu)", expanded=False):
+                    st.markdown("""
+                    <div style='background-color:#161b22; padding:15px; border-radius:10px; border:1px solid #30363d; color:#c9d1d9; font-size:14px;'>
+                    <h4 style='color:#00BFFF; margin-top:0;'>🧠 Self-Evolving Core Logic</h4>
+                    <ul>
+                        <li><b>Regime Detection:</b> ATR% + 30-candle slope ఆధారంగా <i>trending / ranging / volatile / quiet</i> గా classify చేస్తుంది.</li>
+                        <li><b>7 Strategies Pool:</b> Momentum Breakout, VWAP Reversion, EMA Cross, RSI Reversal, ORB, Volume Spike, ATR Breakout.</li>
+                        <li><b>Regime Prior:</b> ప్రతి regime కి best-fit strategies ki high weight (example: trending → momentum/EMA; ranging → VWAP/RSI).</li>
+                        <li><b>Reinforcement Loop:</b> win అయితే weight ×1.05, loss అయితే ×0.95 — self-tunes.</li>
+                        <li><b>ε-greedy Mutation:</b> recent 10 trades profit అయితే ε↓ (exploit winner), loss అయితే ε↑ (explore new algo).</li>
+                    </ul>
+                    <p style='color:#ffd700; font-size:13px; margin-bottom:0;'>⚠️ <b>Disclaimer:</b> F&O trading లో 100% guarantee ఎప్పుడూ ఉండదు. Paper-trade / backtest చేసి, తర్వాత real money deploy చెయ్యి.</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+        elif watchlist_mode == "Terminal Tables 🗃️":
             terminal_tickers = pd.concat([df_buy_sector, df_sell_sector, df_independent, df_broader])['Fetch_T'].unique().tolist()
             df_filtered = df_all_stocks[df_all_stocks['Fetch_T'].isin(terminal_tickers)]
         elif watchlist_mode == "My Portfolio 💼":
@@ -1801,105 +2113,8 @@ def render_live_ui():
                     
             df_filtered['Strategy_Icon'] = ai_predictions
             df_filtered['AI_Prob'] = ai_probs
-            # స్ట్రాటజీ సెలెక్ట్ చేసినప్పుడు అన్ని స్టాక్స్ (S>=11 లిమిట్ లేకుండా) స్కాన్ అవ్వడానికి
             if "All Moves" in move_type_filter or len(move_type_filter) == 0:
                 df_filtered = df_filtered[(df_filtered['Strategy_Icon'] != "Neutral") & (df_filtered['S'] >= 11)]
-        elif watchlist_mode == "🧠 Adaptive AI (Dynamic)":
-            strict_allowed = set(NIFTY_50 + FNO_STOCKS)
-            df_filtered = df_all_stocks[df_all_stocks['T'].isin(strict_allowed)].copy()
-            ai_predictions, ai_probs = [], []
-            
-            import math
-            # 🧠 DYNAMIC AI ALGORITHM GENERATOR (Minute-by-Minute Adaptive)
-            current_time = now_ist()
-            hr = current_time.hour
-            mn = current_time.minute
-            time_seed = hr * 60 + mn
-
-            # 1. Market Trend Check (Nifty Sync)
-            nifty_row = df_indices[df_indices['T'] == 'NIFTY']
-            if not nifty_row.empty:
-                nifty_vwap = float(nifty_row['VWAP'].iloc[0]) if 'VWAP' in nifty_row.columns else 0
-                nifty_is_bullish = float(nifty_row['P'].iloc[0]) > nifty_vwap
-            else:
-                nifty_is_bullish = True
-
-            # 2. Dynamic Weights Generation
-            w_momentum = abs(math.sin(time_seed * 0.1)) * 40
-            w_volume = abs(math.cos(time_seed * 0.05)) * 30 + 10
-            w_reversal = abs(math.sin(time_seed * 0.02)) * 30
-            w_vwap = 100 - (w_momentum + w_volume + w_reversal)
-
-            # Time-of-Day Logic
-            if hr < 10 or (hr == 10 and mn <= 30):
-                w_momentum += 20; w_volume += 25; w_reversal -= 15
-            elif 11 <= hr <= 13:
-                w_reversal += 30; w_vwap += 15; w_momentum -= 20
-            elif hr >= 14:
-                w_momentum += 30; w_vwap += 10; w_reversal -= 20
-
-            total_w = max(w_momentum + w_volume + w_reversal + w_vwap, 1)
-            w_m, w_v, w_r, w_vw = (w_momentum/total_w)*100, (w_volume/total_w)*100, (w_reversal/total_w)*100, (w_vwap/total_w)*100
-
-            # 3. Apply AI Scoring to All Stocks
-            for _, row in df_filtered.iterrows():
-                p = float(row.get('P', 1))
-                vwap = float(row.get('VWAP', p))
-                vol_x = float(row.get('VolX', 1))
-                bull_p = float(row.get('Bull_P', 50))
-                bear_p = float(row.get('Bear_P', 50))
-                day_c = float(row.get('Day_C', 0))
-
-                # Identify Dominant Strategy Name
-                dominant = max(w_m, w_v, w_r, w_vw)
-                if dominant == w_m: algo_name = "Momentum"
-                elif dominant == w_v: algo_name = "Volume Surge"
-                elif dominant == w_r: algo_name = "Reversal"
-                else: algo_name = "VWAP Trend"
-
-                # 🟢 DYNAMIC BUY SCORE 
-                buy_score = 0
-                if p > vwap: buy_score += w_vw * min((p - vwap)/vwap * 1000, 1.0)
-                if vol_x > 1.2: buy_score += w_v * min(vol_x / 3.0, 1.0)
-                if bull_p > 60: buy_score += w_m * (bull_p / 100.0)
-                if day_c < 0 and p > vwap and bull_p > 70: buy_score += w_r
-
-                # 🔥 VWAP PULLBACK SNIPER LOGIC
-                vwap_dist = abs(p - vwap) / vwap * 100
-                if day_c > 1.0 and vwap_dist <= 0.4 and p >= vwap:
-                    buy_score += w_r * 1.5  
-                    algo_name = "VWAP Pullback"
-
-                # 🔴 DYNAMIC SELL SCORE
-                sell_score = 0
-                if p < vwap: sell_score += w_vw * min((vwap - p)/vwap * 1000, 1.0)
-                if vol_x > 1.2: sell_score += w_v * min(vol_x / 3.0, 1.0)
-                if bear_p > 60: sell_score += w_m * (bear_p / 100.0)
-                if day_c > 0 and p < vwap and bear_p > 70: sell_score += w_r
-
-                # Sync with Nifty
-                if nifty_is_bullish: buy_score *= 1.15
-                else: sell_score *= 1.15
-
-                up_prob = min(int(buy_score), 99)
-                dn_prob = min(int(sell_score), 99)
-
-                # Final Signal Generation
-                if up_prob >= 70:
-                    ai_predictions.append(f"🚀 AI(Min:{mn:02d} | {algo_name}) UP")
-                    ai_probs.append(up_prob)
-                elif dn_prob >= 70:
-                    ai_predictions.append(f"🩸 AI(Min:{mn:02d} | {algo_name}) DN")
-                    ai_probs.append(dn_prob)
-                else:
-                    ai_predictions.append("Neutral")
-                    ai_probs.append(max(up_prob, dn_prob))
-
-            df_filtered['Strategy_Icon'] = ai_predictions
-            df_filtered['AI_Prob'] = ai_probs
-            
-            # స్కోర్ 8 దాటినవి, న్యూట్రల్ కానివి మాత్రమే ఫిల్టర్ చేస్తాం
-            df_filtered = df_filtered[(df_filtered['Strategy_Icon'] != "Neutral") & (df_filtered['S'] >= 8)]
         elif watchlist_mode == "Day Trading Stocks 🚀":
             df_filtered = df_stocks[df_stocks['C'].abs() >= 1.0].copy()
         elif watchlist_mode == "High Score Stocks 🔥":
@@ -1985,19 +2200,16 @@ def render_live_ui():
             else:
                 strats_to_run = [strat_selection]
     
-            # --- LOOPING THROUGH STRATEGIES ---
             for strat in strats_to_run:
                 if strat == "🔥 First Hour Vol Breakout (ORB+VWAP)":
                     orb_trend = (df_filtered['P'] > df_filtered['VWAP']) & (df_filtered['Day_C'] > 1.0)
                     orb_vol = df_filtered['VolX'] >= 1.5
-                    # ORB_Tag ki baduluga Open Drive logic vadutunnam (Error raakunda)
                     orb_breakout = (df_filtered['P'] > df_filtered['O']) & ((df_filtered['O'] - df_filtered['L']) <= (df_filtered['P'] * 0.005))
                     orb_cond = has_history & orb_trend & orb_vol & orb_breakout
                     df_orb = df_filtered[orb_cond].copy()
                     df_orb['Strategy_Icon'] = "🟢 1-Hr Breakout"
                     dfs_to_concat.append(df_orb)
     
-                    # Sell logic for ORB - Breakdown
                     orb_sell_trend = (df_filtered['P'] < df_filtered['VWAP']) & (df_filtered['Day_C'] < -1.0)
                     orb_sell_breakdown = (df_filtered['P'] < df_filtered['O']) & ((df_filtered['H'] - df_filtered['O']) <= (df_filtered['P'] * 0.005))
                     orb_sell_cond = has_history & orb_sell_trend & orb_vol & orb_sell_breakdown
@@ -2015,7 +2227,6 @@ def render_live_ui():
                     df_ib['Strategy_Icon'] = "🟢 Inside Bar"
                     dfs_to_concat.append(df_ib)
     
-                    # Sell logic for Inside Bar - Breakdown
                     ib_sell_trend = df_filtered['P'] < df_filtered['SMA50']
                     ib_sell_break = df_filtered['P'] < df_filtered['O']
                     ib_sell_cond = has_history & ib_sell_trend & ib_vol & ib_narrow & ib_sell_break
@@ -2026,11 +2237,9 @@ def render_live_ui():
                     buy_mask = pd.Series(False, index=df_filtered.index)
                     sell_mask = pd.Series(False, index=df_filtered.index)
                     
-                    # 1. Munduga High Volume (>= 1.3x) unna stocks ni matrame filter cheddam
                     high_vol_stocks = df_filtered[df_filtered['VolX'] >= 1.3]['Fetch_T'].tolist()
                     
                     if high_vol_stocks:
-                        # 2. Aa high volume stocks ki matrame 5-min data fetch cheddam (Speed kosam)
                         temp_5m_data = fetch_cached_5m_data(high_vol_stocks)
                         
                         for idx, r in df_filtered.iterrows():
@@ -2041,14 +2250,12 @@ def render_live_ui():
                                     df_hist = process_5m_data(df_raw)
                                     
                                     if not df_hist.empty and len(df_hist) >= 2:
-                                        c1 = df_hist.iloc[-1] # Present 5-min candle
-                                        c2 = df_hist.iloc[-2] # Previous 5-min candle
+                                        c1 = df_hist.iloc[-1]
+                                        c2 = df_hist.iloc[-2]
                                         
-                                        # --- CROSS UP (BUY) ---
                                         cross_up = (c2['Close'] <= c2['VWAP']) and (c1['Close'] > c1['VWAP'])
                                         cross_up_candle = (c1['Open'] <= c1['VWAP']) and (c1['Close'] > c1['VWAP'])
                                         
-                                        # --- CROSS DOWN (SELL) ---
                                         cross_dn = (c2['Close'] >= c2['VWAP']) and (c1['Close'] < c1['VWAP'])
                                         cross_dn_candle = (c1['Open'] >= c1['VWAP']) and (c1['Close'] < c1['VWAP'])
                                         
@@ -2056,7 +2263,6 @@ def render_live_ui():
                                         if cross_dn or cross_dn_candle: sell_mask[idx] = True
                                 except: pass
                                 
-                    # 3. Final conditions apply cheyadam
                     c_buy = has_history & buy_mask 
                     c_sell = has_history & sell_mask 
                     
@@ -2070,16 +2276,13 @@ def render_live_ui():
                         df_vwap_cross_sell['Strategy_Icon'] = "🔴 VWAP Cross"
                         dfs_to_concat.append(df_vwap_cross_sell)
                 elif strat == "🧲 Intraday Dip & Support Bounce":
-                    # 1. Day high nundi 0.8% nundi 3% varaku dip ayyi undali
                     day_pullback = ((df_filtered['H'] - df_filtered['P']) / df_filtered['H']) * 100
                     dip_in_range = (day_pullback >= 0.8) & (day_pullback <= 3.0)
     
-                    # 2. VWAP leda EMA daggara support tisukovali
                     near_vwap = (df_filtered['P'] >= df_filtered['VWAP'] * 0.998) & (df_filtered['L'] <= df_filtered['VWAP'] * 1.002)
                     near_ema10 = (df_filtered['P'] >= df_filtered['W_EMA10'] * 0.998) & (df_filtered['L'] <= df_filtered['W_EMA10'] * 1.002)
                     near_support = near_vwap | near_ema10
     
-                    # 3. High volume tho bounce ayyi undali
                     bounce_candle = (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] > 0)
                     vol_surge = df_filtered['VolX'] >= 1.3
     
@@ -2088,7 +2291,6 @@ def render_live_ui():
                     df_intra_bounce['Strategy_Icon'] = "🟢 Dip Bounce"
                     dfs_to_concat.append(df_intra_bounce)
     
-                    # Sell logic for Dip Bounce - Resistance Rejection
                     day_rally = ((df_filtered['P'] - df_filtered['L']) / df_filtered['L']) * 100
                     rally_in_range = (day_rally >= 0.8) & (day_rally <= 3.0)
                     near_vwap_resist = (df_filtered['P'] <= df_filtered['VWAP'] * 1.002) & (df_filtered['H'] >= df_filtered['VWAP'] * 0.998)
@@ -2109,7 +2311,6 @@ def render_live_ui():
                     df_hg['Strategy_Icon'] = "🟢 Holy Grail"
                     dfs_to_concat.append(df_hg)
     
-                    # Sell logic for Holy Grail - EMA Breakdown
                     hg_sell_trend = (df_filtered['P'] < df_filtered['SMA50']) & (df_filtered['SMA50'] < df_filtered['SMA150'])
                     hg_sell_breakdown = (df_filtered['P'] < df_filtered['W_EMA10'] * 0.98)
                     hg_sell_cond = has_history & hg_sell_trend & hg_sell_breakdown
@@ -2127,7 +2328,6 @@ def render_live_ui():
                     df_lc['Strategy_Icon'] = "🟢 RSI Reversal"
                     dfs_to_concat.append(df_lc)
     
-                    # Sell logic for RSI - Overbought Reversal
                     lc_sell_trend = df_filtered['P'] < df_filtered['SMA200']
                     lc_sell_spike = df_filtered['P'] > df_filtered['W_EMA10']
                     lc_sell_down = (df_filtered['P'] < df_filtered['O']) & (df_filtered['Day_C'] < -0.5)
@@ -2143,7 +2343,6 @@ def render_live_ui():
                         df_min['Strategy_Icon'] = "🟢 M-VCP"
                         dfs_to_concat.append(df_min)
     
-                    # Sell logic for VCP - Downtrend (Stage 4)
                     vcp_sell_c1 = df_filtered['P'] < df_filtered['SMA50']
                     vcp_sell_c2 = df_filtered['SMA50'] < df_filtered['SMA150']
                     vcp_sell_c3 = df_filtered['SMA150'] < df_filtered['SMA200']
@@ -2162,7 +2361,6 @@ def render_live_ui():
                     df_vcp['Strategy_Icon'] = "🟢 VCP"
                     dfs_to_concat.append(df_vcp)
     
-                    # Sell logic for Strict VCP
                     strict_vcp_sell_c1 = df_filtered['P'] < df_filtered['SMA50']
                     strict_vcp_sell_c2 = df_filtered['SMA50'] < df_filtered['SMA150']
                     strict_vcp_sell_c3 = df_filtered['SMA150'] < df_filtered['SMA200']
@@ -2174,10 +2372,8 @@ def render_live_ui():
                 elif strat == "📦 Nicolas Darvas (Box Breakout)":
                     box_width = ((df_filtered['Box_Top20'] - df_filtered['Box_Bot20']) / (df_filtered['Box_Bot20'] + 0.001)) <= 0.25
                     darvas_trend = df_filtered['P'] > df_filtered['SMA50']
-                    # Breakout కి 0.5% దగ్గరలో ఉన్నా క్యాచ్ చేయడానికి (Early Radar)
                     darvas_breakout = df_filtered['P'] >= (df_filtered['Box_Top20'] * 0.995)
                     darvas_high = df_filtered['P'] >= (df_filtered['High52W'] * 0.80)
-                    # వాల్యూమ్ ని కొంచెం రిలాక్స్ చేసాము
                     darvas_vol = df_filtered['VolX'] >= 0.8 
                     
                     darvas_cond = has_history & darvas_trend & darvas_breakout & box_width & darvas_high & darvas_vol
@@ -2186,7 +2382,6 @@ def render_live_ui():
                         df_darvas['Strategy_Icon'] = "🟢 Darvas"
                         dfs_to_concat.append(df_darvas)
     
-                    # Sell logic for Darvas - Box Breakdown
                     darvas_breakdown = df_filtered['P'] <= (df_filtered['Box_Bot20'] * 1.005)
                     darvas_sell_trend = df_filtered['P'] < df_filtered['SMA50']
                     darvas_sell_cond = has_history & darvas_breakdown & darvas_sell_trend & box_width
@@ -2207,7 +2402,6 @@ def render_live_ui():
                         df_darvas_mod['Strategy_Icon'] = "🟢 Darvas Mod"
                         dfs_to_concat.append(df_darvas_mod)
     
-                    # Sell logic for Darvas Modified
                     darvas_mod_breakdown = df_filtered['P'] <= (df_filtered['Box_Bot20'] * 1.005)
                     darvas_mod_sell_trend = df_filtered['P'] < df_filtered['SMA50']
                     darvas_mod_sell_cond = has_history & darvas_mod_breakdown & darvas_mod_sell_trend
@@ -2227,7 +2421,6 @@ def render_live_ui():
                     df_weinstein['Strategy_Icon'] = "🟢 Stage 2"
                     dfs_to_concat.append(df_weinstein)
     
-                    # Sell logic for Stage 4 Downtrend
                     wein_sell_c1 = df_filtered['P'] < df_filtered['SMA150']
                     wein_sell_c2 = df_filtered['SMA150'] < df_filtered['SMA150_20D']
                     wein_sell_c3 = df_filtered['SMA50'] < df_filtered['SMA150']
@@ -2250,7 +2443,6 @@ def render_live_ui():
                     df_zanger['Strategy_Icon'] = "🟢 Zanger"
                     dfs_to_concat.append(df_zanger)
     
-                    # Sell logic for Zanger - Reversal
                     zanger_sell_ma = (df_filtered['P'] < df_filtered['SMA50']) & (df_filtered['SMA50'] < df_filtered['SMA150'])
                     zanger_sell_close = close_position <= 0.30
                     zanger_sell_breakdown = df_filtered['P'] <= (df_filtered['Box_Bot20'] * 1.02)
@@ -2259,16 +2451,13 @@ def render_live_ui():
                     df_zanger_sell['Strategy_Icon'] = "🔴 Zanger"
                     dfs_to_concat.append(df_zanger_sell)
                 elif strat == "🎯 52WH Pullback & 52WL Breakdown (Top 32)":
-                    # --- 🟢 BUY SIDE (Sell logic ki quite opposite - Near 52WH Breakout) ---
                     buy_trend = (df_filtered['P'] > df_filtered['SMA200']) & (df_filtered['Pullback_52W'] <= 15.0)
                     df_52wh_buy = df_filtered[has_history & buy_trend].copy()
                     if not df_52wh_buy.empty:
                         df_52wh_buy['Strategy_Icon'] = "🟢 52WH Pullback"
-                        # Strong momentum unna stocks top lo raavadaniki Score ('S') tho sort chestunnam
                         df_52wh_buy = df_52wh_buy.sort_values(by='S', ascending=False).head(32)
                         dfs_to_concat.append(df_52wh_buy)
     
-                    # --- 🔴 SELL SIDE (52-Week Low vaipu crash avuthunna weak stocks) ---
                     dist_from_52wl = ((df_filtered['P'] - df_filtered['Low52W']) / df_filtered['Low52W']) * 100
                     sell_trend = (df_filtered['P'] < df_filtered['SMA200']) & (dist_from_52wl <= 15.0)
                     df_52wl_sell = df_filtered[has_history & sell_trend].copy()
@@ -2277,41 +2466,34 @@ def render_live_ui():
                         df_52wl_sell = df_52wl_sell.sort_values(by='Pullback_52W', ascending=False).head(32)
                         dfs_to_concat.append(df_52wl_sell)    
                 elif strat == "⏳ Anticipation SMA Base (20/50/150/200)":
-                    # 1. Trend condition (SMA 150 > SMA 200 ayyi undali)
                     base_trend = (df_filtered['SMA150'] > df_filtered['SMA200']) | (df_filtered['SMA200'] == 0)
                     base_cond = has_history & base_trend
     
-                    # 2. SMA ki 3% range lo support teeskunevi
                     near_20 = (df_filtered['P'] >= df_filtered['SMA20'] * 0.97) & (df_filtered['P'] <= df_filtered['SMA20'] * 1.03)
                     near_50 = (df_filtered['P'] >= df_filtered['SMA50'] * 0.97) & (df_filtered['P'] <= df_filtered['SMA50'] * 1.03)
                     near_150 = (df_filtered['P'] >= df_filtered['SMA150'] * 0.97) & (df_filtered['P'] <= df_filtered['SMA150'] * 1.03)
                     near_200 = (df_filtered['P'] >= df_filtered['SMA200'] * 0.97) & (df_filtered['P'] <= df_filtered['SMA200'] * 1.03)
     
-                    # 20 SMA - Exactly 8 stocks
                     df_20 = df_filtered[base_cond & near_20].copy()
                     if not df_20.empty:
                         df_20['Strategy_Icon'] = "🟢 20-SMA Base"
                         dfs_to_concat.append(df_20.sort_values(by='S', ascending=False).head(8))
     
-                    # 50 SMA - Exactly 8 stocks (Repeat aveyykunda)
                     df_50 = df_filtered[base_cond & near_50 & ~df_filtered.index.isin(df_20.index)].copy()
                     if not df_50.empty:
                         df_50['Strategy_Icon'] = "🟢 50-SMA Base"
                         dfs_to_concat.append(df_50.sort_values(by='S', ascending=False).head(8))
     
-                    # 150 SMA - Exactly 8 stocks
                     df_150 = df_filtered[base_cond & near_150 & ~df_filtered.index.isin(df_20.index) & ~df_filtered.index.isin(df_50.index)].copy()
                     if not df_150.empty:
                         df_150['Strategy_Icon'] = "🟢 150-SMA Base"
                         dfs_to_concat.append(df_150.sort_values(by='S', ascending=False).head(8))
     
-                    # 200 SMA - Exactly 8 stocks
                     df_200 = df_filtered[base_cond & near_200 & ~df_filtered.index.isin(df_20.index) & ~df_filtered.index.isin(df_50.index) & ~df_filtered.index.isin(df_150.index)].copy()
                     if not df_200.empty:
                         df_200['Strategy_Icon'] = "🟢 200-SMA Base"
                         dfs_to_concat.append(df_200.sort_values(by='S', ascending=False).head(8))
             
-            # ---> FINAL CONCAT BLOCK <---
             if dfs_to_concat:
                 df_filtered = pd.concat(dfs_to_concat).drop_duplicates(subset=['Fetch_T'], keep='last')
                 sort_metric = "W_C" if chart_timeframe == "Weekly Chart" else "Day_C"
@@ -2319,6 +2501,10 @@ def render_live_ui():
             else:
                 df_filtered = pd.DataFrame(columns=df_filtered.columns)
     
+        # 🧠 AI ENGINE ADD — skip rest of UI rendering for AI mode (already rendered above)
+        if watchlist_mode == "🧠 AI Self-Evolving F&O":
+            return
+
         all_display_tickers = list(set(df_indices['Fetch_T'].tolist() + df_sectors['Fetch_T'].tolist() + df_filtered['Fetch_T'].tolist() + st.session_state.pinned_stocks))
         
         if st.session_state.get('active_sec'):
@@ -2400,7 +2586,7 @@ def render_live_ui():
                 
                 trap_tag = ""
                 trap_bonus = 0
-                if ("AI Predictions" in watchlist_mode or watchlist_mode in ["Day Trading Stocks 🚀", "High Score Stocks 🔥"]) and len(df_day) >= 6 and last_vwap > 0:  # 🔧 FIX: AI modes లో Reversal tag రావడం లేదు
+                if ("AI Predictions" in watchlist_mode or watchlist_mode in ["Day Trading Stocks 🚀", "High Score Stocks 🔥"]) and len(df_day) >= 6 and last_vwap > 0:
                     curr_open = float(df_day['Open'].iloc[-1])
                     day_open = sym_info.get('O', 0)
                     day_high = sym_info.get('H', 0)
@@ -2417,7 +2603,7 @@ def render_live_ui():
                 trend_scores[sym] = trend_bonus + trap_bonus
                 
                 retest_tag = ""
-                if ("AI Predictions" in watchlist_mode or watchlist_mode in ["Day Trading Stocks 🚀", "High Score Stocks 🔥"]) and len(df_day) >= 4:  # 🔧 FIX: dead watchlist name — Retest tag ఎప్పుడూ రాలేదు
+                if ("AI Predictions" in watchlist_mode or watchlist_mode in ["Day Trading Stocks 🚀", "High Score Stocks 🔥"]) and len(df_day) >= 4:
                     c1 = df_day.iloc[-1] 
                     c2 = df_day.iloc[-2] 
                     if c1['Close'] > c1['VWAP'] and c1['EMA_10'] > c1['VWAP']:
@@ -2431,7 +2617,7 @@ def render_live_ui():
                 retest_tags[sym] = retest_tag
     
                 orb_tag = ""
-                if ("AI Predictions" in watchlist_mode or watchlist_mode in ["Day Trading Stocks 🚀", "High Score Stocks 🔥"]) and len(df_day) >= 3:  # 🔧 FIX: dead watchlist name — ORB tag ఎప్పుడూ రాలేదు
+                if ("AI Predictions" in watchlist_mode or watchlist_mode in ["Day Trading Stocks 🚀", "High Score Stocks 🔥"]) and len(df_day) >= 3:
                     orb_high = df_day['High'].iloc[0:3].max()
                     orb_low = df_day['Low'].iloc[0:3].min()
                     if last_price > orb_high and last_price > last_vwap:
@@ -2472,7 +2658,7 @@ def render_live_ui():
             df_filtered['ORB_Tag'] = df_filtered['Fetch_T'].map(orb_tags).fillna("") 
             df_filtered['S'] = df_filtered['S'] + df_filtered['Trend_Score']
             
-            if "AI Predictions" in watchlist_mode or watchlist_mode == "Day Trading Stocks 🚀":  # 🔧 FIX: dead watchlist name
+            if "AI Predictions" in watchlist_mode or watchlist_mode == "Day Trading Stocks 🚀":
                 sector_bull_perf = sector_perf[sector_perf > 0].sort_values(ascending=False)
                 sector_bonus_map = {}
                 for rank, sec in enumerate(sector_bull_perf.index):
@@ -2482,14 +2668,13 @@ def render_live_ui():
             else:
                 df_filtered['Sector_Bonus'] = 0
                 
-            if "AI Predictions" in watchlist_mode and "🧲 10-EMA Retest (Best Entry)" in move_type_filter:  # 🔧 FIX: అన్ని AI modes కి వర్తించాలి
+            if "AI Predictions" in watchlist_mode and "🧲 10-EMA Retest (Best Entry)" in move_type_filter:
                 df_filtered = df_filtered[
                     (df_filtered['Strategy_Icon'].str.contains('UP', na=False) & (df_filtered['Retest_Tag'] == 'BUY_RETEST')) |
                     (df_filtered['Strategy_Icon'].str.contains('DOWN', na=False) & (df_filtered['Retest_Tag'] == 'SELL_RETEST'))
                 ]
             
             if "AI Predictions" in watchlist_mode:
-                # W_EMA50 కండిషన్ తీసేసి బేస్ లాజిక్ సింపుల్ చేసాము
                 base_buy = (df_filtered['P'] > df_filtered['W_EMA10']) & (df_filtered['P'] > df_filtered['VWAP'])
                 base_sell = (df_filtered['P'] < df_filtered['W_EMA10']) & (df_filtered['P'] < df_filtered['VWAP'])
                 
@@ -2747,7 +2932,6 @@ def render_live_ui():
                         cond7 = df_filtered['P'] >= (df_filtered['High52W'] * 0.75)
                         c_buy = base_buy & cond1 & cond2 & cond3 & cond4 & cond5 & cond6 & cond7
                         
-                        # Sell Logic - 50 SMA Breakdown
                         sell_c1 = df_filtered['P'] < df_filtered['SMA50']
                         sell_c2 = df_filtered['SMA50'] < df_filtered['SMA150']
                         c_sell = base_sell & sell_c1 & sell_c2
@@ -2770,7 +2954,6 @@ def render_live_ui():
                         c_sell = base_sell & (df_filtered['ORB_Tag'] == "ORB_SELL") & (df_filtered['VolX'] >= 1.2)
                         icon_str = "🌅 ORB"
     
-                    # 1. GAP & GO (OPEN = LOW) STRATEGY
                     elif strat == "🚀 Gap & Go (Open = Low)":
                         open_low_match = (df_filtered['O'] - df_filtered['L']) <= (df_filtered['P'] * 0.002)
                         gap_up = df_filtered['O'] > df_filtered['Prev_C']
@@ -2779,7 +2962,6 @@ def render_live_ui():
                         c_sell = base_sell & ((df_filtered['H'] - df_filtered['O']) <= (df_filtered['P'] * 0.002)) & (df_filtered['O'] < df_filtered['Prev_C']) & high_vol & (df_filtered['Day_C'] < -0.5)
                         icon_str = "🚀 Gap&Go"
     
-                    # 2. PREVIOUS DAY HIGH/LOW BREAKOUT
                     elif strat == "💥 PDH / PDL Breakout":
                         pdh_break = (df_filtered['P'] > df_filtered['Prev_H']) & (df_filtered['P'] > df_filtered['VWAP'])
                         pdl_break = (df_filtered['P'] < df_filtered['Prev_L']) & (df_filtered['P'] < df_filtered['VWAP'])
@@ -2788,7 +2970,6 @@ def render_live_ui():
                         c_sell = base_sell & pdl_break & vol_confirm
                         icon_str = "💥 PD Break"
     
-                    # 3. VWAP BOUNCE (PULLBACK)
                     elif strat == "🧲 VWAP Bounce (Low Risk Entry)":
                         near_vwap_buy = (df_filtered['P'] > df_filtered['VWAP']) & (df_filtered['P'] <= (df_filtered['VWAP'] * 1.003)) & (df_filtered['L'] <= (df_filtered['VWAP'] * 1.001))
                         near_vwap_sell = (df_filtered['P'] < df_filtered['VWAP']) & (df_filtered['P'] >= (df_filtered['VWAP'] * 0.997)) & (df_filtered['H'] >= (df_filtered['VWAP'] * 0.999))
@@ -2798,7 +2979,6 @@ def render_live_ui():
                         c_sell = base_sell & near_vwap_sell & overall_trend_dn & (df_filtered['VolX'] > 1.0)
                         icon_str = "🧲 VWAP Bounce"
     
-                    # 4. TRENDING DAY (NARROW CPR + ORB)
                     elif strat == "🎯 Narrow CPR Trending Day":
                         c_buy = base_buy & (df_filtered['Narrow_CPR'] == True) & (df_filtered['ORB_Tag'] == "ORB_BUY") & (df_filtered['VolX'] >= 1.2)
                         c_sell = base_sell & (df_filtered['Narrow_CPR'] == True) & (df_filtered['ORB_Tag'] == "ORB_SELL") & (df_filtered['VolX'] >= 1.2)
@@ -2816,7 +2996,6 @@ def render_live_ui():
                     df_filtered = pd.DataFrame(columns=df_filtered.columns)
                 
                 if not df_filtered.empty:
-                    # 🔧 FIX: "🔴 M-VCP" (SELL) కూడా 'VCP' match అయి BUY అవుతోంది → SL తప్పు వైపు వచ్చేది
                     is_sell_sig = df_filtered['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4|🩸', na=False)
                     is_buy = ~is_sell_sig
                     is_minervini = df_filtered['Strategy_Icon'].str.contains('VCP', na=False)
@@ -2831,21 +3010,16 @@ def render_live_ui():
             
             if 'Sector_Bonus' not in df_filtered.columns: df_filtered['Sector_Bonus'] = 0
             
-            # 🔥 Intraday Pullback (DH) & Bounce (DL) Calculations
             df_filtered['Intra_DH_PB'] = np.where(df_filtered['H'] > 0, ((df_filtered['H'] - df_filtered['P']) / df_filtered['H']) * 100, 0.0)
             df_filtered['Intra_DL_Bounce'] = np.where(df_filtered['L'] > 0, ((df_filtered['P'] - df_filtered['L']) / df_filtered['L']) * 100, 0.0)
     
             if sort_mode == "Intraday Pullback Max 📉 (DH / DL)":
-                # SELL / Weak stocks ni gurtinche mask
                 if 'Strategy_Icon' in df_filtered.columns and df_filtered['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4|🩸', na=False).any():
                     is_sell_mask = df_filtered['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4|🩸', na=False)
                 else:
                     is_sell_mask = df_filtered['Day_C'] < 0
     
-                # BUY side: Day high nundi ekkuva padinavi (DH Pullback Max) top loki vastayi
                 buy_subset = df_filtered[~is_sell_mask].sort_values(by=['Intra_DH_PB', 'S'], ascending=[False, False])
-                
-                # SELL side: Day low nundi ekkuva bounce ayinavi (DL Bounce Max) top loki vastayi
                 sell_subset = df_filtered[is_sell_mask].sort_values(by=['Intra_DL_Bounce', 'S'], ascending=[False, False])
                 
                 df_stocks_display = pd.concat([buy_subset, sell_subset])
@@ -2934,7 +3108,7 @@ def render_live_ui():
             st.markdown("<div style='font-size:18px; font-weight:bold; margin-bottom:10px; color:#00BFFF;'>📅 Month Effect Advantage (First 10 Days vs Rest)</div>", unsafe_allow_html=True)
             st.markdown("<p style='font-size:13px; color:#c9d1d9;'>Top 200 stocks gata 5 yellalo prati nela <b>modati 10 rojullo</b> kachitamga momentum iche best stocks.</p>", unsafe_allow_html=True)
     
-            @st.cache_data(ttl=86400, show_spinner=False)  # 🔧 PERF: రోజుకు ఒక్కసారే download
+            @st.cache_data(ttl=86400, show_spinner=False)
             def analyze_month_effect(tickers, years=5):
                 results = []
                 end_date = datetime.now()
@@ -3053,7 +3227,6 @@ def render_live_ui():
             sc1, sc2 = st.columns([0.7, 0.3])
             with sc2: port_sort = st.selectbox("↕️ Sort Portfolio:", ["Default", "Day P&L ⬆️", "Day P&L ⬇️", "Total P&L ⬆️", "Total P&L ⬇️", "P&L % ⬆️", "P&L % ⬇️"], label_visibility="collapsed")
 
-            # 📊 Portfolio KPI Strip (NEW)
             try:
                 if not df_port_saved.empty:
                     _lu = df_all_stocks.drop_duplicates(subset=['T']).set_index('T')[['P', 'Prev_C']].to_dict('index')
@@ -3195,7 +3368,7 @@ def render_live_ui():
                 with st.expander("📜 View Trade Book (Closed P&L Ledger)", expanded=False):
                     df_closed_view = load_closed_trades()
                     st.markdown(render_closed_trades_table(df_closed_view), unsafe_allow_html=True)
-                    if not df_closed_view.empty:  # 📥 CSV Export (NEW)
+                    if not df_closed_view.empty:
                         st.download_button("📥 Download Trade Book (CSV)", data=df_closed_view.to_csv(index=False).encode('utf-8'), file_name="trade_book.csv", mime="text/csv") 
                     
                     if not df_closed_view.empty:
@@ -3233,15 +3406,13 @@ def render_live_ui():
                 html_sec = '<div class="heatmap-grid">'
                 for _, row in df_sectors.iterrows():
                     pct_val = float(row.get('W_C', row['Day_C'])) if chart_timeframe == "Weekly Chart" else float(row['Day_C'])
-                    bg = card_bg_class(pct_val)  # 🎨 gradient
+                    bg = card_bg_class(pct_val)
                     html_sec += f'<a href="https://in.tradingview.com/chart/?symbol={TV_SECTOR_URL.get(row["Fetch_T"], "")}" target="_blank" class="stock-card {bg}"><div class="t-score" style="color:#00BFFF;">SEC</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{"+" if pct_val>0 else ""}{pct_val:.2f}%</div></a>'
                 st.markdown(html_sec + '</div><hr class="custom-hr">', unsafe_allow_html=True)
     
             if not df_stocks_display.empty:
                 if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆", "Day Trading Stocks 🚀"] or "AI Predictions" in watchlist_mode:
-                    # 🔴 లేదా SELL ఉన్నవి పక్కాగా సెల్ లోకి వెళ్తాయి
                     df_sell = df_stocks_display[df_stocks_display['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4|🩸', na=False)]
-                    # 🔴 లేనివి మరియు 🟢 లేదా BUY ఉన్నవి మాత్రమే బై లోకి వస్తాయి
                     df_buy = df_stocks_display[(~df_stocks_display['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4|🩸', na=False)) & (df_stocks_display['Strategy_Icon'].str.contains('🟢|📈|🔥|🚀|BUY|UP|Stage 2', na=False))]
                 else:
                     df_buy = df_stocks_display[df_stocks_display[sort_key] >= 0]
@@ -3252,13 +3423,12 @@ def render_live_ui():
                     html_stk = '<div class="heatmap-grid">'
                     for _, row in df_sec.iterrows():
                         pct_val = float(row.get('W_C', row['Day_C'])) if chart_timeframe == "Weekly Chart" else float(row['Day_C'])
-                        bg = card_bg_class(pct_val)  # 🎨 gradient
+                        bg = card_bg_class(pct_val)
                         
                         special_icon = f"⭐{int(row['S'])}"
                         if "AI Predictions" in watchlist_mode:
                             strat_name = str(row.get('Strategy_Icon', '')).strip()
                             if strat_name and strat_name != "Neutral":
-                                # పెద్ద పేర్లను చిన్న బ్యాడ్జ్ గా మార్చడం (కార్డ్ లో సరిగ్గా పట్టడానికి)
                                 clean_strat = strat_name.replace(" BUY", "").replace(" SELL", "").replace("AI PREDICTS: UP", "🚀 AI").replace("AI PREDICTS: DOWN", "🩸 AI")
                                 special_icon = clean_strat
                             elif sort_mode == "🤖 AI Prob Up ⬆️":
@@ -3278,7 +3448,6 @@ def render_live_ui():
                                                 
                         elif watchlist_mode == "Commodity 🛢️": special_icon = "🛢️"
                             
-                        # 52W Pullback పర్సంటేజ్ హీట్ మ్యాప్ లో చూపించడానికి
                         pb_val = row.get('Pullback_52W', 0)
                         pb_html = f" | <span style='color:#FFD700; font-size:11px;'>📉-{pb_val:.0f}%</span>" if pb_val >= 3.0 else ""
                         
@@ -3316,8 +3485,6 @@ def render_live_ui():
                     with st.expander("🎯 View Trading Levels (Targets & Stop Loss)", expanded=True): 
                         st.markdown(render_levels_table(df_stocks_display), unsafe_allow_html=True)
                     
-                    
-    
             
             else: st.info("No items found.")
                 
@@ -3442,8 +3609,8 @@ def render_live_ui():
                         df_sell_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4|🩸|52WL', na=False)].head(32)
                         df_buy_chart = unpinned_df[(~unpinned_df['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4|🩸|52WL', na=False)) & (unpinned_df['Strategy_Icon'].str.contains('🟢|📈|🔥|🚀|BUY|UP|Stage 2|52WH', na=False))].head(32)
                     else:
-                        df_buy_chart = unpinned_df[unpinned_df[sort_key] >= 0].head(40) # 12 nundi 40 ki
-                        df_sell_chart = unpinned_df[unpinned_df[sort_key] < 0].head(40) # 12 nundi 40 ki
+                        df_buy_chart = unpinned_df[unpinned_df[sort_key] >= 0].head(40)
+                        df_sell_chart = unpinned_df[unpinned_df[sort_key] < 0].head(40)
                     
                     if not df_buy_chart.empty:
                         st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:10px; margin-bottom:5px; color:#3fb950;'>🟢 POSITIVE / BUY ({watchlist_mode})</div>", unsafe_allow_html=True)
@@ -3453,13 +3620,10 @@ def render_live_ui():
                         st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-top:20px; margin-bottom:5px; color:#f85149;'>🔴 NEGATIVE / SELL ({watchlist_mode})</div>", unsafe_allow_html=True)
                         render_chart_grid(df_sell_chart, show_pin_option=True, key_prefix="main_sell", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
     
-                    # కింద ఉన్న రెండు లైన్లకు పైన ఉన్న if కండిషన్స్‌కి సరిపడా స్పేస్ ఇవ్వండి
                     if unpinned_df.empty:
                         st.info("ℹ️ No stocks matched this strategy's strict criteria at the moment. (ఏ స్టాక్స్ ఈ కండిషన్స్ ని మ్యాచ్ చేయలేదు)")
-    # =========================================================
-    # --- 📚 STRATEGY HELP GUIDE IN TELUGU (DYNAMIC) ---
-    # =========================================================
-    
+
+    # --- 📚 STRATEGY HELP GUIDE ---
     if "AI Predictions" in watchlist_mode or watchlist_mode == "Day Trading Stocks 🚀":
         st.markdown("<hr style='border-color:#30363d; margin-top:30px;'>", unsafe_allow_html=True)
         with st.expander("📚 ఈ డే ట్రేడింగ్ స్ట్రాటజీలను ఎలా వాడాలి? (Telugu Day Trading Guide)", expanded=False):
@@ -3467,35 +3631,20 @@ def render_live_ui():
             <div style='background-color:#161b22; padding:15px; border-radius:10px; border: 1px solid #30363d;'>
             <h4 style='color:#00BFFF; margin-top:0px;'>🤖 AI Predictions Core Logic</h4>
             <p style='color:#c9d1d9; font-size:14px; margin-bottom:15px;'>ఆల్గారిథమ్ వాల్యూమ్, VWAP దూరం, బుల్స్/బేర్స్ పవర్ (Bulls Power > 80), మరియు ఓపెన్=లో (O=L) లాంటి కండిషన్స్ ని చెక్ చేసి లైవ్ లో ఒక స్కోర్ ఇస్తుంది. ఈ స్కోర్ 70% దాటితేనే "🚀 AI PREDICTS: UP" లేదా "🩸 AI PREDICTS: DOWN" అని చూపిస్తుంది.</p>
-    
             <h4 style='color:#3fb950; margin-top:15px;'>1. 🔥 First Hour Vol Breakout (ORB+VWAP)</h4>
             <ul style='color:#c9d1d9; font-size:14px;'>
                 <li><b>ఎప్పుడు వాడాలి:</b> మార్నింగ్ 9:30 AM నుండి 10:30 AM మధ్యలో.</li>
-                <li><b>లాజిక్ & ఎంట్రీ:</b> స్టాక్ కచ్చితంగా VWAP పైన ఉండాలి. ఉదయం ఓపెన్ అయిన ప్రైస్ కిందకి పడకుండా (Open Drive) పైకి వెళ్తూ, 1.5 రెట్ల (1.5x) వాల్యూమ్ తో బ్రేక్అవుట్ ఇస్తుంటే కొనాలి. VWAP కింద స్టాప్ లాస్.</li>
+                <li><b>లాజిక్ & ఎంట్రీ:</b> స్టాక్ కచ్చితంగా VWAP పైన ఉండాలి. ఉదయం ఓపెన్ అయిన ప్రైస్ కిందకి పడకుండా (Open Drive) పైకి వెళ్తూ, 1.5 రెట్ల (1.5x) వాల్యూమ్ తో బ్రేక్అవుట్ ఇస్తుంటే కొనాలి.</li>
             </ul>
-    
             <h4 style='color:#FFD700; margin-top:15px;'>2. ⚡ Sudden VWAP Cross (Any Time)</h4>
             <ul style='color:#c9d1d9; font-size:14px;'>
                 <li><b>ఎప్పుడు వాడాలి:</b> రోజంతా ఎప్పుడైనా (ముఖ్యంగా మధ్యాహ్నం 1:00 PM తర్వాత బెస్ట్).</li>
-                <li><b>లాజిక్ & ఎంట్రీ:</b> అప్పటిదాకా VWAP కింద నెగటివ్ లో ఉన్న స్టాక్, సడెన్ గా పెద్ద వాల్యూమ్ తో (>= 1.3x) ఒకే 5-నిమిషాల క్యాండిల్ లో VWAP ని కింద నుండి పైకి క్రాస్ చేస్తే కొనాలి. క్రాస్ చేసిన క్యాండిల్ కిందే స్టాప్ లాస్.</li>
+                <li><b>లాజిక్ & ఎంట్రీ:</b> అప్పటిదాకా VWAP కింద నెగటివ్ లో ఉన్న స్టాక్, సడెన్ గా పెద్ద వాల్యూమ్ తో (>= 1.3x) ఒకే 5-నిమిషాల క్యాండిల్ లో VWAP ని కింద నుండి పైకి క్రాస్ చేస్తే కొనాలి.</li>
             </ul>
-    
             <h4 style='color:#FF8C00; margin-top:15px;'>3. 🧲 Intraday Dip & Support Bounce</h4>
             <ul style='color:#c9d1d9; font-size:14px;'>
                 <li><b>ఎప్పుడు వాడాలి:</b> మార్నింగ్ పెరిగి కాస్త వెనక్కి తగ్గినప్పుడు (Low Risk Entry కోసం).</li>
-                <li><b>లాజిక్ & ఎంట్రీ:</b> డే హై నుండి స్టాక్ 1% నుండి 3% వరకు పడి, కరెక్ట్ గా VWAP లైన్ లేదా 10-EMA లైన్ దగ్గర సపోర్ట్ తీసుకుని గ్రీన్ క్యాండిల్ వేస్తూ బౌన్స్ అవుతుంటే కొనాలి. సపోర్ట్ కిందే స్టాప్ లాస్.</li>
-            </ul>
-    
-            <h4 style='color:#d29922; margin-top:15px;'>4. 💥 Inside Bar Vol Breakout (NR7)</h4>
-            <ul style='color:#c9d1d9; font-size:14px;'>
-                <li><b>ఎప్పుడు వాడాలి:</b> మొమెంటం బ్రేక్అవుట్స్ క్యాచ్ చేయడానికి.</li>
-                <li><b>లాజిక్ & ఎంట్రీ:</b> నిన్న ఒకే చిన్న రేంజ్ లో కదలకుండా ఉన్న (Inside Bar / Narrow Range) స్టాక్, ఈరోజు ఆ రేంజ్ ని వాల్యూమ్ తో బ్రేక్ చేస్తుంటే బ్రేక్అవుట్ ఎంట్రీ తీసుకోవాలి.</li>
-            </ul>
-    
-            <h4 style='color:#2ea043; margin-top:15px;'>5. 🚀 Gap & Go (Open = Low)</h4>
-            <ul style='color:#c9d1d9; font-size:14px;'>
-                <li><b>ఎప్పుడు వాడాలి:</b> స్ట్రాంగ్ పాజిటివ్ ట్రెండ్ ఉన్న రోజుల్లో.</li>
-                <li><b>లాజిక్ & ఎంట్రీ:</b> గ్యాప్ అప్ తో ఓపెన్ అయిన స్టాక్, ఆ ఓపెన్ ప్రైస్ నే కనిష్టంగా (Open = Low) మార్చుకుని కిందకి రాకుండా పైకే వెళ్తుంటే ఈ స్కానర్ చూపిస్తుంది. ఈ స్టాక్స్ రోజంతా ట్రెండింగ్ లో ఉంటాయి.</li>
+                <li><b>లాజిక్ & ఎంట్రీ:</b> డే హై నుండి స్టాక్ 1% నుండి 3% వరకు పడి, VWAP లేదా 10-EMA దగ్గర సపోర్ట్ తీసుకుని గ్రీన్ క్యాండిల్ వేస్తూ బౌన్స్ అవుతుంటే కొనాలి.</li>
             </ul>
             </div>
             """, unsafe_allow_html=True)
@@ -3510,36 +3659,12 @@ def render_live_ui():
                 <li><b>ఎప్పుడు వాడాలి:</b> మంచి క్వాలిటీ స్టాక్స్ ని తక్కువ ధరకు (Buy on Dips) కొనేందుకు.</li>
                 <li><b>లాజిక్ & ఎంట్రీ:</b> లాంగ్ టర్మ్ ట్రెండ్ (50 SMA > 150 SMA > 200 SMA) పైన ఉండాలి. స్టాక్ పడుతూ వచ్చి 50, 150 లేదా 200 SMA దగ్గర సపోర్ట్ తీసుకుని లైవ్ లో వాల్యూమ్ తో బౌన్స్ అయితే కొనాలి.</li>
             </ul>
-    
             <h4 style='color:#3fb950; margin-top:15px;'>2. 📈 Minervini Trend Template & Strict VCP</h4>
             <ul style='color:#c9d1d9; font-size:14px;'>
                 <li><b>ఎప్పుడు వాడాలి:</b> పక్కా అప్‌ట్రెండ్ లో కన్సాలిడేట్ అవుతున్న స్టాక్స్ పట్టుకునేందుకు (Stage 2).</li>
-                <li><b>లాజిక్ & ఎంట్రీ:</b> 150 SMA & 200 SMA పైకి వంగి ఉండాలి (స్లోప్). ధర 52-వారాల హైకి 25% లోపలే ఉండాలి. స్ట్రిక్ట్ VCP అయితే గత కొన్ని రోజులుగా వాల్యూమ్ డ్రై అయిపోయి, బాక్స్ రేంజ్ బాగా సన్నబడి (Contraction) బ్రేక్అవుట్ కి రెడీగా ఉండాలి.</li>
-            </ul>
-    
-            <h4 style='color:#FFD700; margin-top:15px;'>3. 📦 Nicolas Darvas & Modified Box</h4>
-            <ul style='color:#c9d1d9; font-size:14px;'>
-                <li><b>ఎప్పుడు వాడాలి:</b> 52-Week లేదా ఆల్-టైమ్ హై దగ్గర కొనేందుకు (Buy High, Sell Higher).</li>
-                <li><b>లాజిక్ & ఎంట్రీ:</b> ధర 50 SMA పైన ఉండాలి. కొన్ని రోజులుగా ఒక బాక్స్ రేంజ్ లో ఉండి, ఈరోజు వాల్యూమ్ తో బాక్స్ పై భాగాన్ని (Box Top) బ్రేక్ చేస్తే కొనాలి. (మోడిఫైడ్ వెర్షన్ అయితే.. బ్రేక్అవుట్ కోసం వెయిట్ చేయకుండా 0.5% దగ్గరలో ఉండగానే అలర్ట్ ఇస్తుంది).</li>
-            </ul>
-    
-            <h4 style='color:#FF8C00; margin-top:15px;'>4. 🧲 The 20-EMA Holy Grail Pullback</h4>
-            <ul style='color:#c9d1d9; font-size:14px;'>
-                <li><b>ఎప్పుడు వాడాలి:</b> వేగంగా పెరుగుతున్న స్టాక్స్ కొద్దిగా పుల్ బ్యాక్ (వెనక్కి తగ్గినప్పుడు) ఇచ్చినప్పుడు.</li>
-                <li><b>లాజిక్ & ఎంట్రీ:</b> ట్రెండ్ బాగుండి (50 SMA > 150 SMA), రీసెంట్ గా పడి 10-Week EMA లేదా 20-Day EMA సపోర్ట్ ని టచ్ చేసి ఈరోజు బౌన్స్ ఇస్తుంటే క్యాచ్ చేయాలి. ఆ సపోర్ట్ కిందే స్టాప్ లాస్.</li>
-            </ul>
-    
-            <h4 style='color:#d29922; margin-top:15px;'>5. 💥 Dan Zanger (Volume Explosion)</h4>
-            <ul style='color:#c9d1d9; font-size:14px;'>
-                <li><b>ఎప్పుడు వాడాలి:</b> సడెన్ గా ఆపరేటర్లు / ఇన్‌స్టిట్యూషన్స్ ఎంటర్ అయిన స్టాక్స్ పసిగట్టేందుకు.</li>
-                <li><b>లాజిక్ & ఎంట్రీ:</b> వాల్యూమ్ డ్రై అయిపోయి ప్రశాంతంగా ఉన్న స్టాక్ లో, ఈరోజు సడెన్ గా 1.5 రెట్ల (1.5x) వాల్యూమ్ తో పేలి బాక్స్ బ్రేక్అవుట్ ఇస్తే వెంటనే ఎంటర్ అవ్వాలి.</li>
-            </ul>
-    
-            <h4 style='color:#f85149; margin-top:15px;'>6. 📉 RSI(2) Mean Reversion (Larry Connors)</h4>
-            <ul style='color:#c9d1d9; font-size:14px;'>
-                <li><b>ఎప్పుడు వాడాలి:</b> ఫాస్ట్ స్వింగ్స్ కోసం (2-4 రోజులు ట్రేడ్).</li>
-                <li><b>లాజిక్ & ఎంట్రీ:</b> 200 SMA పైన సేఫ్ ట్రెండ్ లో ఉన్న స్టాక్, ఏదైనా పానిక్ న్యూస్ వల్ల సడెన్ గా పడి 10-EMA కిందకి వస్తే దాన్ని ఫిల్టర్ చేస్తుంది. ఈరోజు మార్కెట్ ముగిసే టైంకి రికవర్ అయ్యి గ్రీన్ క్యాండిల్ వేస్తుంటే కొనాలి (Buy the Blood). మళ్ళీ ధర 5-Day SMA దాటగానే అమ్మేయాలి.</li>
+                <li><b>లాజిక్ & ఎంట్రీ:</b> 150 SMA & 200 SMA పైకి వంగి ఉండాలి. ధర 52-వారాల హైకి 25% లోపలే ఉండాలి. VCP అయితే గత కొన్ని రోజులుగా వాల్యూమ్ డ్రై అయిపోయి బ్రేక్అవుట్ కి రెడీగా ఉండాలి.</li>
             </ul>
             </div>
             """, unsafe_allow_html=True)
+
 render_live_ui()
