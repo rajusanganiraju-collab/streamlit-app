@@ -1097,13 +1097,19 @@ def adaptive_live_engine(five_min_data, candidates, top_n=5):
         pos = int(sum(1 for i in ics if i > 0))
         info.update({'ic': float(np.mean(ics)), 'hit': float(np.mean(hits)), 'net': float(np.mean(nets)),
                      'folds': f"{pos}/{len(ics)} days positive"})
-        active = (info['ic'] > 0.01) and (pos / len(ics) > 0.5) and (info['net'] > 0) and (info['hit'] >= 51.0)
+        # Tier A = full edge (cost taruvata kuda profit) | Tier B = prediction power undi kani cost ki samanam -> WATCHLIST
+        # Tier C = predictive power ye ledu -> emi recommend cheyyadu
+        base_ok = (info['ic'] > 0.01) and (pos / len(ics) > 0.5) and (info['hit'] >= 51.0)
+        tier = 'A' if (base_ok and info['net'] > 0) else ('B' if base_ok else 'C')
+        info['tier'] = tier
+        active = tier in ('A', 'B')
 
         mdl = _ae_fit(X, y, w)
         top_idx = np.argsort(-np.abs(mdl['beta']))[:3]
         info['drivers'] = ", ".join(f"{_AE_NAMES[_AE_FEATS[i]]} {'▲' if mdl['beta'][i] > 0 else '▼'}" for i in top_idx)
         info['active'] = bool(active)
-        info['status'] = 'Active' if active else 'Edge ledu (cost taruvata profit kanipinchatledu)'
+        info['status'] = {'A': 'Active', 'B': 'Weak edge — WATCHLIST (gross edge ≈ cost, paper trade matrame)',
+                          'C': 'Edge ledu'}[tier]
         if not active:
             return res, info
 
@@ -1125,12 +1131,15 @@ def adaptive_live_engine(five_min_data, candidates, top_n=5):
         strong_up = ((L['vwap_dist'] > 0) & (L['ema_gap'] > 0) & (L['vol_surge'] >= 1.2) & (L['ret3'] > 0)).values
         strong_dn = ((L['vwap_dist'] < 0) & (L['ema_gap'] < 0) & (L['vol_surge'] >= 1.2) & (L['ret3'] < 0)).values
         rsi_v = L['rsi'].values.astype(float)
+        edge = _AE_MIN_EDGE if tier == 'A' else 1e-9        # Watchlist lo: sign correct ayithe chalu, rank batti top 3
+        if tier == 'B':
+            top_n = min(top_n, 3)
         items = []
         for i, k in enumerate(keys):
             e = float(exp_pct[i])
-            if e >= _AE_MIN_EDGE and not strong_dn[i] and rsi_v[i] < 1.2:          # confirmed downtrend / overbought lo BUY ledu
+            if e >= edge and not strong_dn[i] and rsi_v[i] < 1.2:                  # confirmed downtrend / overbought lo BUY ledu
                 items.append(dict(sym=k, exp=e, atr=float(L['atr'].iloc[i]), side='buy'))
-            elif e <= -_AE_MIN_EDGE and not strong_up[i] and rsi_v[i] > -1.2:      # confirmed uptrend / oversold lo SELL ledu
+            elif e <= -edge and not strong_up[i] and rsi_v[i] > -1.2:              # confirmed uptrend / oversold lo SELL ledu
                 items.append(dict(sym=k, exp=e, atr=float(L['atr'].iloc[i]), side='sell'))
         res['buy'] = sorted([i for i in items if i['side'] == 'buy'], key=lambda i: -i['exp'])[:top_n]
         res['sell'] = sorted([i for i in items if i['side'] == 'sell'], key=lambda i: i['exp'])[:top_n]
@@ -1141,7 +1150,9 @@ def adaptive_live_engine(five_min_data, candidates, top_n=5):
 
 
 def adaptive_status_html(info):
-    if info.get('active'):
+    if info.get('active') and info.get('tier') == 'B':
+        col, head = "#d29922", f"🧠 ADAPTIVE ENGINE v3 — {info.get('status', '')}"
+    elif info.get('active'):
         col, head = "#238636", "🧠 ADAPTIVE ENGINE v3 ACTIVE"
     else:
         col, head = "#9e6a03", f"🧠 ADAPTIVE ENGINE v3 — {info.get('status', '')} (ippudu recommend cheyyatledu)"
@@ -2767,7 +2778,7 @@ def render_live_ui():
                             _sub['ATR5'] = _sub['Fetch_T'].map(lambda s: _m[s]['atr'])
                             _sub = _sub.sort_values('Adp_Exp', ascending=(_side == 'sell'))
                             _sub['Strategy_Icon'] = f"🧠 Adaptive {_label}"
-                            _sub['AlphaTag'] = _sub['Adp_Exp'].apply(lambda e: f"🧠 Exp {e:+.2f}%/30m")
+                            _sub['AlphaTag'] = _sub['Adp_Exp'].apply(lambda e: f"🧠 Exp {e:+.2f}%/30m" + (' ⚠️Watch' if _info.get('tier') == 'B' else ''))
                             _sub['AI_Prob'] = int(_info.get('hit', 50))
                             _sub['S'] = [30 - 2 * _k for _k in range(len(_sub))]  # adaptive rank ordering
                             all_dfs.append(_sub)
