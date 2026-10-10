@@ -2017,26 +2017,7 @@ def render_live_ui():
         df_filtered = pd.DataFrame(columns=df_stocks.columns)
     
                    
-        # 🧠 AI EQUITY MODE — TOP PRIORITY (guaranteed run)
-        if watchlist_mode == "🧠 AI Equity Day Trading":
-            st.markdown("""
-            <div style='background: linear-gradient(90deg, #6a1b9a 0%, #0d47a1 100%); padding:14px; border-radius:10px; margin-bottom:10px;'>
-                <div style='color:#ffffff; font-size:18px; font-weight:bold;'>🧠 AI SELF-EVOLVING EQUITY ENGINE (Cash / MIS)</div>
-                <div style='color:#c9d1d9; font-size:12px; margin-top:4px;'>
-                    <b>Pure Equity Day Trading</b> — No options. Direct BUY/SELL on NSE cash market.
-                    Every minute the algorithm <b>mutates</b> based on regime + recent win-rate.
-                    Product: MIS (intraday). Square off by 3:15 PM.
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            engine = st.session_state.ai_engine
-            fno_only = df_stocks[df_stocks['T'].isin(NIFTY_50 + FNO_STOCKS)].copy()
-
-            if fno_only.empty:
-                st.info("⏳ Waiting for stocks data...")
-                return
-            
+                    
             fno_tickers = fno_only['Fetch_T'].unique().tolist()
             ai_5m = fetch_cached_5m_data(fno_tickers)
 
