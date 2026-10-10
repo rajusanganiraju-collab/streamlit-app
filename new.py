@@ -870,6 +870,196 @@ def process_5m_data(df_raw):
         return pd.DataFrame()
     except: return pd.DataFrame()
 
+# =========================================================
+# 🧠 ADAPTIVE LIVE ENGINE (Self-Learning) — fixed rules ledu
+# ---------------------------------------------------------
+# Prathi refresh lo:
+#  1. Last 5 days 5-min data nundi ALL stocks ki 12 features calculate chestundi
+#  2. "Next 30 min lo ee stock entha move ayyindi" ani history lo chusi,
+#     ippudu time-of-day ki daggara + recent data ki ekkuva weight ichi
+#     ridge regression tho weights KOTHAGA nerchukuntundi
+#  3. Chronological validation (80% train / 20% unseen) lo predictive power
+#     (IC, hit-rate) check chestundi — edge lekapothe recommend cheyyadu
+#  4. Edge unte, latest candle features ni kotha weights tho score chesi
+#     expected 30-min move (%) batti Top BUY / Top SELL istundi
+# =========================================================
+ADAPTIVE_STRAT = "🧠 Adaptive Live Engine (Self-Learning)"
+_ADP_FEATS = ['ret1', 'ret3', 'ret6', 'vwap_dist', 'vol_surge', 'range_exp',
+              'close_loc', 'ema_gap', 'rs_nifty', 'day_ret', 'dist_dh', 'dist_dl']
+_ADP_NAMES = {'ret1': '5m momentum', 'ret3': '15m momentum', 'ret6': '30m momentum',
+              'vwap_dist': 'VWAP distance', 'vol_surge': 'Volume surge', 'range_exp': 'Range expansion',
+              'close_loc': 'Candle close position', 'ema_gap': '10-EMA gap', 'rs_nifty': 'Strength vs Nifty',
+              'day_ret': 'Day move', 'dist_dh': 'Distance from Day High', 'dist_dl': 'Distance from Day Low'}
+_ADP_HORIZON = 6       # 6 candles x 5 min = 30 min ahead
+_ADP_MIN_EDGE = 0.15   # expected move (%) costs/slippage ni beat cheyyali
+
+
+def _adp_features(df_raw, nifty_dr=None, horizon=_ADP_HORIZON):
+    try:
+        d = df_raw.dropna(subset=['Open', 'High', 'Low', 'Close']).sort_index()
+        d.index = pd.to_datetime(d.index)
+    except Exception:
+        return None
+    d = d[~d.index.duplicated(keep='last')]
+    if len(d) < 40:
+        return None
+    if 'Volume' not in d.columns:
+        d = d.assign(Volume=0.0)
+    d = d[['Open', 'High', 'Low', 'Close', 'Volume']].astype(float)
+
+    day = d.index.normalize()
+    c = d['Close']
+    prev_c = c.shift(1)
+    tr = pd.concat([d['High'] - d['Low'], (d['High'] - prev_c).abs(), (d['Low'] - prev_c).abs()], axis=1).max(axis=1)
+    atr = tr.ewm(span=14, adjust=False).mean()
+    atr_pct = (atr / c * 100).clip(lower=0.03)
+
+    tp = (d['High'] + d['Low'] + c) / 3
+    vol = d['Volume'].fillna(0)
+    cum_v = vol.groupby(day).cumsum()
+    cum_pv = (tp * vol).groupby(day).cumsum()
+    vwap = (cum_pv / cum_v.replace(0, np.nan)).fillna(tp)
+
+    gc = c.groupby(day)
+    out = pd.DataFrame(index=d.index)
+    out['ret1'] = (c / gc.shift(1) - 1) * 100
+    out['ret3'] = (c / gc.shift(3) - 1) * 100
+    out['ret6'] = (c / gc.shift(6) - 1) * 100
+    out['vwap_dist'] = (c / vwap - 1) * 100
+    vol_base = vol.rolling(20, min_periods=5).mean().shift(1)
+    out['vol_surge'] = (vol / vol_base.replace(0, np.nan)).replace([np.inf, -np.inf], np.nan).clip(0, 8).fillna(1.0)
+    out['range_exp'] = ((d['High'] - d['Low']) / atr.replace(0, np.nan)).clip(0, 6).fillna(1.0)
+    rng = (d['High'] - d['Low']).replace(0, np.nan)
+    out['close_loc'] = ((c - d['Low']) / rng - 0.5).fillna(0.0)
+    out['ema_gap'] = (c / c.ewm(span=10, adjust=False).mean() - 1) * 100
+    day_open = d['Open'].groupby(day).transform('first')
+    out['day_ret'] = (c / day_open - 1) * 100
+    out['dist_dh'] = (c / d['High'].groupby(day).cummax() - 1) * 100
+    out['dist_dl'] = (c / d['Low'].groupby(day).cummin() - 1) * 100
+    if nifty_dr is not None and len(nifty_dr) > 0:
+        out['rs_nifty'] = out['day_ret'] - nifty_dr.reindex(out.index, method='ffill').fillna(0.0)
+    else:
+        out['rs_nifty'] = 0.0
+
+    fwd = (gc.shift(-horizon) / c - 1) * 100          # same-day future move only
+    out['target'] = (fwd / atr_pct).clip(-6, 6)       # ATR units lo normalize
+    out['atr_pct'] = atr_pct
+    out['atr'] = atr
+    out['minute'] = d.index.hour * 60 + d.index.minute
+    return out
+
+
+def adaptive_live_engine(five_min_data, candidates, top_n=5):
+    """Returns (result, info). result = {'buy': [...], 'sell': [...]} each item: dict(sym, exp, atr)"""
+    res = {'buy': [], 'sell': []}
+    info = {'active': False, 'status': 'No 5-min data', 'ic': 0.0, 'hit': 50.0, 'n': 0, 'drivers': ''}
+    try:
+        if five_min_data is None or five_min_data.empty or not isinstance(five_min_data.columns, pd.MultiIndex):
+            return res, info
+        lvl0 = list(five_min_data.columns.levels[0])
+        syms = [s for s in lvl0 if '^' not in str(s) and '=' not in str(s)]
+
+        nifty_dr = None
+        if "^NSEI" in lvl0:
+            nf = _adp_features(five_min_data["^NSEI"])
+            if nf is not None:
+                nifty_dr = nf['day_ret']
+
+        panel, last_rows = [], {}
+        for s in syms:
+            try:
+                f = _adp_features(five_min_data[s], nifty_dr)
+            except Exception:
+                continue
+            if f is None or f.empty:
+                continue
+            panel.append(f)
+            last_rows[s] = f.iloc[-1]
+        if len(panel) < 20:
+            info['status'] = 'Data takkuva (stocks < 20)'
+            return res, info
+
+        P = pd.concat(panel)
+        ts_last = max(r.name for r in last_rows.values())
+        now_min = ts_last.hour * 60 + ts_last.minute
+        train = P[P['target'].notna()]
+        if len(train) < 1500:
+            info['status'] = f'Learning data takkuva ({len(train)} rows)'
+            return res, info
+
+        X = train[_ADP_FEATS].fillna(0.0).values.astype(float)
+        y = train['target'].values.astype(float)
+        age_days = np.asarray((ts_last - train.index).total_seconds()) / 86400.0
+        w_rec = 0.5 ** (age_days / 1.5)                                   # recent data ki ekkuva weight
+        dm = np.abs(train['minute'].values - now_min)
+        w_tod = 0.15 + np.exp(-0.5 * (dm / 60.0) ** 2)                    # ee time-of-day ki daggara candles ki ekkuva weight
+        w = w_rec * w_tod
+        w = w / w.mean()
+
+        mu = X.mean(axis=0)
+        sd = X.std(axis=0)
+        sd[sd == 0] = 1.0
+        Z = np.clip((X - mu) / sd, -4, 4)
+
+        def fit(Zs, ys, ws):
+            y0 = float(np.average(ys, weights=ws))
+            A = Zs.T @ (Zs * ws[:, None]) + (0.2 * len(Zs)) * np.eye(Zs.shape[1])   # ridge — overfit aapadaniki
+            b = Zs.T @ ((ys - y0) * ws)
+            return np.linalg.solve(A, b), y0
+
+        # ---- chronological validation (unseen latest 20%) ----
+        order = np.argsort(train.index.values, kind='stable')
+        cut = int(len(order) * 0.8)
+        tr_i, va_i = order[:cut], order[cut:]
+        beta_v, _ = fit(Z[tr_i], y[tr_i], w[tr_i])
+        pc = Z[va_i] @ beta_v
+        yv = y[va_i]
+        ic = float(np.corrcoef(pc, yv)[0, 1]) if pc.std() > 0 and yv.std() > 0 else 0.0
+        thr = np.quantile(np.abs(pc), 0.8)
+        m = (np.abs(pc) >= thr) & (yv != 0)
+        hit = float((np.sign(pc[m]) == np.sign(yv[m])).mean() * 100) if m.sum() >= 30 else 50.0
+
+        # ---- final fit on all data (ee minute weights) ----
+        beta, y0 = fit(Z, y, w)
+        top_idx = np.argsort(-np.abs(beta))[:3]
+        info['drivers'] = ", ".join(f"{_ADP_NAMES[_ADP_FEATS[i]]} {'▲' if beta[i] > 0 else '▼'}" for i in top_idx)
+        info.update({'ic': ic, 'hit': hit, 'n': int(len(train)), 'nval': int(len(va_i))})
+        active = (ic > 0.01) and (hit >= 51.0) and (len(va_i) >= 300)
+        info['active'] = bool(active)
+        info['status'] = 'Active' if active else 'Edge ledu'
+        if not active:
+            return res, info
+
+        cand = set(candidates)
+        keys = [s for s in last_rows if s in cand and (ts_last - last_rows[s].name) <= pd.Timedelta(minutes=20)]
+        if not keys:
+            return res, info
+        L = pd.DataFrame([last_rows[s] for s in keys], index=keys)
+        Zl = np.clip((L[_ADP_FEATS].fillna(0.0).values.astype(float) - mu) / sd, -4, 4)
+        exp_pct = (Zl @ beta + y0) * L['atr_pct'].values            # expected 30-min move in %
+        items = [dict(sym=k, exp=float(e), atr=float(a)) for k, e, a in zip(keys, exp_pct, L['atr'].values)]
+        res['buy'] = sorted([i for i in items if i['exp'] >= _ADP_MIN_EDGE], key=lambda i: -i['exp'])[:top_n]
+        res['sell'] = sorted([i for i in items if i['exp'] <= -_ADP_MIN_EDGE], key=lambda i: i['exp'])[:top_n]
+        return res, info
+    except Exception as e:
+        info['status'] = f'Error: {e}'
+        return res, info
+
+
+def adaptive_status_html(info):
+    if info.get('active'):
+        col, head = "#238636", "🧠 ADAPTIVE ENGINE ACTIVE"
+    else:
+        col, head = "#9e6a03", f"🧠 ADAPTIVE ENGINE — {info.get('status', '')} (ippudu recommend cheyyatledu)"
+    body = ""
+    if info.get('n'):
+        body = (f"<span style='color:#8b949e;'>Validation IC: <b>{info['ic']:+.3f}</b> &nbsp;•&nbsp; Hit-rate (top 20% signals): "
+                f"<b>{info['hit']:.0f}%</b> &nbsp;•&nbsp; Learned rows: {info['n']:,}</span><br>"
+                f"<span style='color:#c9d1d9;'>Ee minute lo key drivers: {info.get('drivers', '')}</span>")
+    return (f"<div style='background:#161b22;border:1px solid {col};border-radius:8px;padding:8px 12px;margin:6px 0;font-size:12.5px;'>"
+            f"<b>{head}</b><br>{body}</div>")
+
+
 def card_bg_class(pct_val):
     # 🎨 % change intensity ప్రకారం gradient color (TradingView style)
     if pct_val >= 3.0: return "bull-card-3"
@@ -1599,6 +1789,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
                 move_type_filter = st.multiselect("Strategy Filter",
                     [
                         "All Moves", 
+                        "🧠 Adaptive Live Engine (Self-Learning)",
                         "All Day Trading Moves 🚀", 
                         "🔥 First Hour Vol Breakout (ORB+VWAP)", 
                         "💥 Inside Bar Vol Breakout (NR7)", 
@@ -2457,9 +2648,35 @@ def render_live_ui():
                 if apply_fib_strict and (len(other_strats_selected) > 0 or "All Moves" in move_type_filter):
                     strats_to_run = [s for s in strats_to_run if s != "📉 FIB Retracement (0.382)"]
     
+                if ADAPTIVE_STRAT in move_type_filter and ADAPTIVE_STRAT not in strats_to_run:
+    
+                    strats_to_run = list(strats_to_run) + [ADAPTIVE_STRAT]
+
+    
                 all_dfs = []
                 
                 for strat in strats_to_run:
+                    if strat == ADAPTIVE_STRAT:
+                        _adp, _info = adaptive_live_engine(five_min_data, df_filtered['Fetch_T'].tolist())
+                        st.markdown(adaptive_status_html(_info), unsafe_allow_html=True)
+                        for _side, _label in (('buy', 'BUY'), ('sell', 'SELL')):
+                            _rows = _adp.get(_side, [])
+                            if not _rows:
+                                continue
+                            _m = {r['sym']: r for r in _rows}
+                            _sub = df_filtered[df_filtered['Fetch_T'].isin(list(_m.keys()))].copy()
+                            if _sub.empty:
+                                continue
+                            _sub['Adp_Exp'] = _sub['Fetch_T'].map(lambda s: _m[s]['exp'])
+                            _sub['ATR5'] = _sub['Fetch_T'].map(lambda s: _m[s]['atr'])
+                            _sub = _sub.sort_values('Adp_Exp', ascending=(_side == 'sell'))
+                            _sub['Strategy_Icon'] = f"🧠 Adaptive {_label}"
+                            _sub['AlphaTag'] = _sub['Adp_Exp'].apply(lambda e: f"🧠 Exp {e:+.2f}%/30m")
+                            _sub['AI_Prob'] = int(_info.get('hit', 50))
+                            _sub['S'] = [30 - 2 * _k for _k in range(len(_sub))]  # adaptive rank ordering
+                            all_dfs.append(_sub)
+                        continue
+
                     c_buy = pd.Series(False, index=df_filtered.index)
                     c_sell = pd.Series(False, index=df_filtered.index)
                     icon_str = ""
@@ -2731,6 +2948,14 @@ def render_live_ui():
                     tp2_mult = np.where(is_minervini, 3.0, 2.0)
                     df_filtered['T1'] = np.where(is_buy, round(df_filtered['P'] + (risk_amt * tp1_mult), 2), round(df_filtered['P'] - (risk_amt * tp1_mult), 2))
                     df_filtered['T2'] = np.where(is_buy, round(df_filtered['P'] + (risk_amt * tp2_mult), 2), round(df_filtered['P'] - (risk_amt * tp2_mult), 2))
+                    if 'ATR5' in df_filtered.columns:  # 🧠 Adaptive rows: 30-min trade ki 5-min ATR based levels
+                        _adp_m = df_filtered['ATR5'].notna() & df_filtered['Strategy_Icon'].str.contains('🧠', na=False)
+                        if _adp_m.any():
+                            _sgn = np.where(df_filtered['Strategy_Icon'].str.contains('SELL', na=False), -1.0, 1.0)
+                            _risk = df_filtered['ATR5'] * 2.0
+                            for _col, _mult in (('SL', -1.0), ('T1', 1.0), ('T2', 2.0)):
+                                _new = (df_filtered['P'] + _sgn * _mult * _risk).round(2)
+                                df_filtered.loc[_adp_m, _col] = _new[_adp_m]
             
             if 'Sector_Bonus' not in df_filtered.columns: df_filtered['Sector_Bonus'] = 0
             
