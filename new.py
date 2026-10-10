@@ -1989,16 +1989,16 @@ def render_live_ui():
         df_commodities = df[df['Is_Commodity']].copy()
         df_port_saved = load_portfolio().copy()
     
-            if watchlist_mode == "Swing Trading 📈":
-            strict_allowed = set(NIFTY_50 + FNO_STOCKS + MIDCAP_150 + SMALLCAP_250)
-        elif watchlist_mode == "🤖 AI Predictions (F&O)":
-            strict_allowed = set(NIFTY_50 + FNO_STOCKS)
-        elif watchlist_mode == "🤖 AI Predictions (Mid Cap)":
-            strict_allowed = set(MIDCAP_150)
-        elif watchlist_mode == "🤖 AI Predictions (Small Cap)":
-            strict_allowed = set(SMALLCAP_250)
-        else:
-            strict_allowed = set(NIFTY_50 + FNO_STOCKS)
+    if watchlist_mode == "Swing Trading 📈":
+        strict_allowed = set(NIFTY_50 + FNO_STOCKS + MIDCAP_150 + SMALLCAP_250)
+    elif watchlist_mode == "🤖 AI Predictions (F&O)":
+        strict_allowed = set(NIFTY_50 + FNO_STOCKS)
+    elif watchlist_mode == "🤖 AI Predictions (Mid Cap)":
+        strict_allowed = set(MIDCAP_150)
+    elif watchlist_mode == "🤖 AI Predictions (Small Cap)":
+        strict_allowed = set(SMALLCAP_250)
+    else:
+        strict_allowed = set(NIFTY_50 + FNO_STOCKS)
             
         df_stocks = df_all_stocks[df_all_stocks['T'].isin(strict_allowed)].copy()
         
