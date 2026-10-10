@@ -631,11 +631,9 @@ class AdaptiveEngine:
                 self.epsilon = min(0.40, self.epsilon * 1.10)
 
 
-def build_ai_fno_recommendation(display_sym, spot_price, atr_val, signal, confidence, regime, strategy):
-    step = 100 if spot_price > 5000 else 50 if spot_price > 1000 else 20 if spot_price > 500 else 10
-    atm = round(spot_price / step) * step
-    direction = "LONG" if signal == 1 else "SHORT"
-    option = f"{display_sym} {int(atm)} " + ("CE" if signal == 1 else "PE")
+def build_ai_equity_recommendation(display_sym, spot_price, atr_val, signal, confidence, regime, strategy):
+    """Pure Equity (Cash) recommendation — direct BUY/SELL, no options"""
+    direction = "BUY" if signal == 1 else "SELL"
     if atr_val is None or atr_val <= 0 or pd.isna(atr_val):
         atr_val = spot_price * 0.004
     entry = spot_price
@@ -644,30 +642,39 @@ def build_ai_fno_recommendation(display_sym, spot_price, atr_val, signal, confid
     t2 = entry + signal * max(3.0 * atr_val, spot_price * 0.008)
     rr = abs(t1 - entry) / max(abs(entry - sl), 1e-9)
     return {
-        'T': display_sym, 'Option': option, 'Direction': direction,
-        'Spot': round(spot_price, 2), 'Entry': round(entry, 2),
-        'SL': round(sl, 2), 'T1': round(t1, 2), 'T2': round(t2, 2),
+        'T': display_sym, 'Direction': direction,
+        'Entry': round(entry, 2), 'SL': round(sl, 2),
+        'T1': round(t1, 2), 'T2': round(t2, 2),
         'RR': round(rr, 2), 'Conf': round(confidence, 2),
         'Regime': regime, 'Strategy': strategy,
     }
 
 
-def render_ai_fno_table(df_rec, engine):
-    """Displays AI engine recommendations + live strategy weights"""
+def render_ai_equity_table(df_rec, engine):
+    """Displays AI Equity recommendations + live strategy weights"""
     if df_rec is None or df_rec.empty:
         return "<div style='padding:20px; text-align:center; color:#8b949e; border:1px dashed #30363d; border-radius:8px;'>⏳ No high-confidence AI setups this minute. Engine is watching...</div>"
-    html = '<table class="term-table"><thead><tr><th colspan="10" class="term-head-high" style="background-color:#6a1b9a;">🧠 AI SELF-EVOLVING ENGINE — LIVE F&O RECOMMENDATIONS</th></tr><tr style="background-color:#21262d;"><th style="width:4%;">RANK</th><th style="text-align:left; width:11%;">STOCK</th><th style="width:8%;">SPOT</th><th style="width:13%;">DIRECTION</th><th style="width:14%;">OPTION (ATM)</th><th style="width:9%;">ENTRY</th><th style="width:9%; color:#f85149;">SL</th><th style="width:9%; color:#3fb950;">T1</th><th style="width:9%; color:#3fb950;">T2</th><th style="width:14%;">STRATEGY | CONF</th></tr></thead><tbody>'
+    
+    html = '<table class="term-table"><thead><tr><th colspan="10" class="term-head-high" style="background-color:#6a1b9a;">🧠 AI SELF-EVOLVING EQUITY ENGINE — LIVE STOCK SIGNALS (CASH/MIS)</th></tr>'
+    html += '<tr style="background-color:#21262d;"><th style="width:4%;">RANK</th><th style="text-align:left; width:11%;">STOCK</th><th style="width:9%;">LTP (₹)</th><th style="width:10%;">SIGNAL</th><th style="width:10%;">ENTRY (CMP)</th><th style="width:10%; color:#f85149;">SL</th><th style="width:10%; color:#3fb950;">T1</th><th style="width:10%; color:#3fb950;">T2</th><th style="width:7%;">RR</th><th style="width:14%;">STRATEGY | CONF</th></tr></thead><tbody>'
+    
     for i, row in df_rec.reset_index(drop=True).iterrows():
         bg = "row-dark" if i % 2 == 0 else "row-light"
-        dir_color = "text-green" if row['Direction'] == 'LONG' else "text-red"
-        dir_icon = "🟢 LONG" if row['Direction'] == 'LONG' else "🔴 SHORT"
+        is_buy = row['Direction'] == 'BUY'
+        dir_color = "text-green" if is_buy else "text-red"
+        dir_icon = "🟢 BUY" if is_buy else "🔴 SELL"
         rank = "🏆 1" if i == 0 else str(i + 1)
-        html += f'<tr class="{bg}"><td><b>{rank}</b></td><td class="t-symbol">{row["T"]}</td><td>{row["Spot"]}</td>'
-        html += f'<td class="{dir_color}" style="font-weight:bold;">{dir_icon}</td>'
-        html += f'<td style="color:#ffd700; font-weight:bold;">{row["Option"]}</td>'
-        html += f'<td>{row["Entry"]}</td><td style="color:#f85149;">{row["SL"]}</td>'
-        html += f'<td style="color:#3fb950;">{row["T1"]}</td><td style="color:#3fb950;">{row["T2"]}</td>'
-        html += f'<td style="font-size:10px;">{row["Strategy"]}<br><span style="color:#00BFFF;">Conf {row["Conf"]} | {row["Regime"]}</span></td></tr>'
+        conf_color = "#3fb950" if row['Conf'] >= 0.7 else "#ffd700" if row['Conf'] >= 0.55 else "#8b949e"
+        html += f'<tr class="{bg}"><td><b>{rank}</b></td>'
+        html += f'<td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" style="color:#ffffff; text-decoration:none; border-bottom:1px dashed rgba(255,255,255,0.4);">{row["T"]}</a></td>'
+        html += f'<td>{row["Entry"]}</td>'
+        html += f'<td class="{dir_color}" style="font-weight:bold; font-size:13px;">{dir_icon}</td>'
+        html += f'<td style="color:#ffd700;">{row["Entry"]}</td>'
+        html += f'<td style="color:#f85149; font-weight:bold;">{row["SL"]}</td>'
+        html += f'<td style="color:#3fb950; font-weight:bold;">{row["T1"]}</td>'
+        html += f'<td style="color:#3fb950; font-weight:bold;">{row["T2"]}</td>'
+        html += f'<td style="color:#00BFFF;">1:{row["RR"]}</td>'
+        html += f'<td style="font-size:10px;">{row["Strategy"]}<br><span style="color:{conf_color};">Conf {row["Conf"]} | {row["Regime"]}</span></td></tr>'
     html += '</tbody></table>'
 
     weights_html = '<table class="term-table" style="margin-top:15px;"><thead><tr><th colspan="5" class="term-head-levels">🎯 ENGINE SELF-EVOLUTION STATUS (Live)</th></tr><tr style="background-color:#21262d;"><th style="text-align:left;">STRATEGY</th><th>WINS</th><th>LOSSES</th><th>WIN RATE</th><th>WEIGHT (Adaptive)</th></tr></thead><tbody>'
@@ -1809,7 +1816,7 @@ if not df.empty:
 # 🧠 AI ENGINE ADD — new "🧠 AI Self-Evolving F&O" option inserted
 watchlist_mode = st.selectbox("Watchlist", [
     "🤖 AI Predictions (F&O)", 
-    "🧠 AI Self-Evolving F&O",
+    "🧠 AI Equity Day Trading",
     "🤖 AI Predictions (Mid Cap)", 
     "🤖 AI Predictions (Small Cap)", 
     "High Score Stocks 🔥",
@@ -1826,7 +1833,7 @@ watchlist_mode = st.selectbox("Watchlist", [
 ], index=0, label_visibility="collapsed")
 
 # 🧠 AI ENGINE ADD — new mode needs faster refresh (60s)
-refresh_sec = 60 if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆", "🧠 AI Self-Evolving F&O"] else 30
+refresh_sec = 60 if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆", "🧠 AI Equity Day Trading"] else 30
 
 view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], index=1 if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"] else 0, horizontal=True, label_visibility="collapsed")
 move_type_filter = ["🌊 One Sided Only", "🎯 Reversals Only", "🏹 Rubber Band Stretch"] 
@@ -1982,16 +1989,16 @@ def render_live_ui():
         df_commodities = df[df['Is_Commodity']].copy()
         df_port_saved = load_portfolio().copy()
     
-        if watchlist_mode == "Swing Trading 📈":
-            strict_allowed = set(NIFTY_50 + FNO_STOCKS + MIDCAP_150 + SMALLCAP_250)
-        elif watchlist_mode == "🤖 AI Predictions (F&O)" or watchlist_mode == "🧠 AI Self-Evolving F&O":   # 🧠 AI ENGINE ADD
-            strict_allowed = set(NIFTY_50 + FNO_STOCKS)
-        elif watchlist_mode == "🤖 AI Predictions (Mid Cap)":
-            strict_allowed = set(MIDCAP_150)
-        elif watchlist_mode == "🤖 AI Predictions (Small Cap)":
-            strict_allowed = set(SMALLCAP_250)
-        else:
-            strict_allowed = set(NIFTY_50 + FNO_STOCKS)
+    if watchlist_mode == "Swing Trading 📈":
+        strict_allowed = set(NIFTY_50 + FNO_STOCKS + MIDCAP_150 + SMALLCAP_250)
+    elif watchlist_mode == "🤖 AI Predictions (F&O)" or watchlist_mode == "🧠 AI Equity Day Trading":
+        strict_allowed = set(NIFTY_50 + FNO_STOCKS)
+    elif watchlist_mode == "🤖 AI Predictions (Mid Cap)":
+        strict_allowed = set(MIDCAP_150)
+    elif watchlist_mode == "🤖 AI Predictions (Small Cap)":
+        strict_allowed = set(SMALLCAP_250)
+    else:
+        strict_allowed = set(NIFTY_50 + FNO_STOCKS)
             
         df_stocks = df_all_stocks[df_all_stocks['T'].isin(strict_allowed)].copy()
         
