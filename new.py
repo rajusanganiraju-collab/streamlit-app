@@ -871,112 +871,182 @@ def process_5m_data(df_raw):
     except: return pd.DataFrame()
 
 # =========================================================
-# 🧠 ADAPTIVE LIVE ENGINE (Self-Learning) — fixed rules ledu
+# 🧠 ADAPTIVE LIVE ENGINE v3 (Self-Learning, Cost-Aware)
 # ---------------------------------------------------------
-# Prathi refresh lo:
-#  1. Last 5 days 5-min data nundi ALL stocks ki 12 features calculate chestundi
-#  2. "Next 30 min lo ee stock entha move ayyindi" ani history lo chusi,
-#     ippudu time-of-day ki daggara + recent data ki ekkuva weight ichi
-#     ridge regression tho weights KOTHAGA nerchukuntundi
-#  3. Chronological validation (80% train / 20% unseen) lo predictive power
-#     (IC, hit-rate) check chestundi — edge lekapothe recommend cheyyadu
-#  4. Edge unte, latest candle features ni kotha weights tho score chesi
-#     expected 30-min move (%) batti Top BUY / Top SELL istundi
+# Fixed rules ledu. Prathi refresh lo (market open lo 30s):
+#  1. QUALITY FILTER : illiquid / bid-ask-bounce noisy stocks ni universe nundi teesestundi
+#  2. FEATURES       : 17 stock features (momentum, VWAP, EMA, RSI, ORB, volume, range, Nifty-RS ...)
+#                      + Nifty trend-strength / volatility + interactions (regime ki taggattu)
+#  3. LEARNING       : last 5 days 5-min data nundi "next 30 min move" ni weighted ridge regression tho
+#                      nerchukuntundi (ee time-of-day ki daggara + recent data ki ekkuva weight)
+#  4. WALK-FORWARD   : prathi roju ni "chudani" test day ga pettukuni (train: appati varaku data) ->
+#                      IC, top-signals hit-rate, COST taruvata net expectancy lekkistundi.
+#                      Edge/profit ledu ante -> recommend cheyyadu
+#  5. TREND GUARD    : confirmed strong trend ki ethirega signal ivvadu
+#                      (ex: VWAP & EMA pai + volume surge unna stock ni SELL cheyyadu)
+#  6. TIME GUARD     : market open lo 9:30–15:00 madhya matrame signals
 # =========================================================
 ADAPTIVE_STRAT = "🧠 Adaptive Live Engine (Self-Learning)"
-_ADP_FEATS = ['ret1', 'ret3', 'ret6', 'vwap_dist', 'vol_surge', 'range_exp',
-              'close_loc', 'ema_gap', 'rs_nifty', 'day_ret', 'dist_dh', 'dist_dl']
-_ADP_NAMES = {'ret1': '5m momentum', 'ret3': '15m momentum', 'ret6': '30m momentum',
-              'vwap_dist': 'VWAP distance', 'vol_surge': 'Volume surge', 'range_exp': 'Range expansion',
-              'close_loc': 'Candle close position', 'ema_gap': '10-EMA gap', 'rs_nifty': 'Strength vs Nifty',
-              'day_ret': 'Day move', 'dist_dh': 'Distance from Day High', 'dist_dl': 'Distance from Day Low'}
-_ADP_HORIZON = 6       # 6 candles x 5 min = 30 min ahead
-_ADP_MIN_EDGE = 0.15   # expected move (%) costs/slippage ni beat cheyyali
+_AE_FEATS = ['ret1', 'ret3', 'ret6', 'vwap_dist', 'vol_surge', 'range_exp', 'close_loc', 'ema_gap',
+             'ema_x', 'rsi', 'orb', 'rs_nifty', 'day_ret', 'dist_dh', 'dist_dl',
+             'n_er', 'n_vol', 'mom_er', 'vwap_er', 'rsi_er', 'orb_er']
+_AE_NAMES = {'ret1': '5m momentum', 'ret3': '15m momentum', 'ret6': '30m momentum', 'vwap_dist': 'VWAP distance',
+             'vol_surge': 'Volume surge', 'range_exp': 'Range expansion', 'close_loc': 'Candle close position',
+             'ema_gap': '10-EMA gap', 'ema_x': 'EMA 9/21 trend', 'rsi': 'RSI(14)', 'orb': 'ORB breakout',
+             'rs_nifty': 'Strength vs Nifty', 'day_ret': 'Day move', 'dist_dh': 'Distance from Day High',
+             'dist_dl': 'Distance from Day Low', 'n_er': 'Nifty trend strength', 'n_vol': 'Nifty volatility',
+             'mom_er': 'Momentum x trend-day', 'vwap_er': 'VWAP x trend-day', 'rsi_er': 'RSI x trend-day',
+             'orb_er': 'ORB x trend-day'}
+_AE_HORIZON = 6          # 6 x 5-min = 30 min ahead
+_AE_COST_PCT = 0.05      # round-trip brokerage + slippage assumption (%)
+_AE_MIN_EDGE = 0.12      # expected 30-min move (%) — idi cross ayithe matrame signal
+_AE_MIN_TURN = 200000    # median 5-min turnover (Rs) — takkuva ayithe stock skip
+_AE_MAX_NEG_AC = -0.12   # 1-candle return autocorr ee kante takkuva ayithe = bid-ask bounce noise -> skip
 
 
-def _adp_features(df_raw, nifty_dr=None, horizon=_ADP_HORIZON):
-    try:
-        d = df_raw.dropna(subset=['Open', 'High', 'Low', 'Close']).sort_index()
-        d.index = pd.to_datetime(d.index)
-    except Exception:
-        return None
-    d = d[~d.index.duplicated(keep='last')]
+def _ae_clean(df_raw):
+    d = df_raw.dropna(subset=['Open', 'High', 'Low', 'Close']).sort_index()
+    d.index = pd.to_datetime(d.index)
+    return d[~d.index.duplicated(keep='last')]
+
+
+def _ae_atr(d):
+    c = d['Close']
+    prev = c.shift(1)
+    tr = pd.concat([d['High'] - d['Low'], (d['High'] - prev).abs(), (d['Low'] - prev).abs()], axis=1).max(axis=1)
+    atr = tr.ewm(span=14, adjust=False).mean()
+    return atr, (atr / c * 100).clip(lower=0.03)
+
+
+def _ae_market(df_raw):
+    """Nifty: day_ret, trend-efficiency (0..1), volatility percentile"""
+    d = _ae_clean(df_raw)
     if len(d) < 40:
+        return None
+    d = d[['Open', 'High', 'Low', 'Close']].astype(float)
+    c = d['Close']
+    day = d.index.normalize()
+    er = ((c - c.shift(12)).abs() / c.diff().abs().rolling(12).sum().replace(0, np.nan)).clip(0, 1)
+    _, atrp = _ae_atr(d)
+    out = pd.DataFrame(index=d.index)
+    out['day_ret'] = (c / d['Open'].groupby(day).transform('first') - 1) * 100
+    out['er'] = er
+    out['volrank'] = atrp.rank(pct=True)
+    return out
+
+
+def _ae_stock_frame(df_raw, mk, horizon=_AE_HORIZON):
+    d = _ae_clean(df_raw)
+    if len(d) < 60:
         return None
     if 'Volume' not in d.columns:
         d = d.assign(Volume=0.0)
     d = d[['Open', 'High', 'Low', 'Close', 'Volume']].astype(float)
-
     day = d.index.normalize()
-    c = d['Close']
-    prev_c = c.shift(1)
-    tr = pd.concat([d['High'] - d['Low'], (d['High'] - prev_c).abs(), (d['Low'] - prev_c).abs()], axis=1).max(axis=1)
-    atr = tr.ewm(span=14, adjust=False).mean()
-    atr_pct = (atr / c * 100).clip(lower=0.03)
-
-    tp = (d['High'] + d['Low'] + c) / 3
+    c, hi, lo = d['Close'], d['High'], d['Low']
     vol = d['Volume'].fillna(0)
-    cum_v = vol.groupby(day).cumsum()
-    cum_pv = (tp * vol).groupby(day).cumsum()
-    vwap = (cum_pv / cum_v.replace(0, np.nan)).fillna(tp)
+    atr, atrp = _ae_atr(d)
 
+    tp = (hi + lo + c) / 3
+    vwap = ((tp * vol).groupby(day).cumsum() / vol.groupby(day).cumsum().replace(0, np.nan)).fillna(tp)
     gc = c.groupby(day)
-    out = pd.DataFrame(index=d.index)
-    out['ret1'] = (c / gc.shift(1) - 1) * 100
-    out['ret3'] = (c / gc.shift(3) - 1) * 100
-    out['ret6'] = (c / gc.shift(6) - 1) * 100
-    out['vwap_dist'] = (c / vwap - 1) * 100
-    vol_base = vol.rolling(20, min_periods=5).mean().shift(1)
-    out['vol_surge'] = (vol / vol_base.replace(0, np.nan)).replace([np.inf, -np.inf], np.nan).clip(0, 8).fillna(1.0)
-    out['range_exp'] = ((d['High'] - d['Low']) / atr.replace(0, np.nan)).clip(0, 6).fillna(1.0)
-    rng = (d['High'] - d['Low']).replace(0, np.nan)
-    out['close_loc'] = ((c - d['Low']) / rng - 0.5).fillna(0.0)
-    out['ema_gap'] = (c / c.ewm(span=10, adjust=False).mean() - 1) * 100
-    day_open = d['Open'].groupby(day).transform('first')
-    out['day_ret'] = (c / day_open - 1) * 100
-    out['dist_dh'] = (c / d['High'].groupby(day).cummax() - 1) * 100
-    out['dist_dl'] = (c / d['Low'].groupby(day).cummin() - 1) * 100
-    if nifty_dr is not None and len(nifty_dr) > 0:
-        out['rs_nifty'] = out['day_ret'] - nifty_dr.reindex(out.index, method='ffill').fillna(0.0)
-    else:
-        out['rs_nifty'] = 0.0
+    o = pd.DataFrame(index=d.index)
+    o['ret1'] = (c / gc.shift(1) - 1) * 100
+    o['ret3'] = (c / gc.shift(3) - 1) * 100
+    o['ret6'] = (c / gc.shift(6) - 1) * 100
+    o['vwap_dist'] = (c / vwap - 1) * 100
+    vbase = vol.rolling(20, min_periods=5).mean().shift(1)
+    o['vol_surge'] = (vol / vbase.replace(0, np.nan)).replace([np.inf, -np.inf], np.nan).clip(0, 8).fillna(1.0)
+    o['range_exp'] = ((hi - lo) / atr.replace(0, np.nan)).clip(0, 6).fillna(1.0)
+    o['close_loc'] = ((c - lo) / (hi - lo).replace(0, np.nan) - 0.5).fillna(0.0)
+    o['ema_gap'] = (c / c.ewm(span=10, adjust=False).mean() - 1) * 100
+    o['ema_x'] = (c.ewm(span=9, adjust=False).mean() / c.ewm(span=21, adjust=False).mean() - 1) * 100
 
-    fwd = (gc.shift(-horizon) / c - 1) * 100          # same-day future move only
-    out['target'] = (fwd / atr_pct).clip(-6, 6)       # ATR units lo normalize
-    out['atr_pct'] = atr_pct
-    out['atr'] = atr
-    out['minute'] = d.index.hour * 60 + d.index.minute
-    return out
+    delta = c.diff()
+    gain = delta.clip(lower=0).ewm(alpha=1 / 14, adjust=False).mean()
+    loss = (-delta.clip(upper=0)).ewm(alpha=1 / 14, adjust=False).mean()
+    rsi = 100 - 100 / (1 + gain / loss.replace(0, np.nan))
+    rsi = rsi.where(~((loss == 0) & (gain > 0)), 100.0).fillna(50.0)
+    o['rsi'] = (rsi - 50) / 25                                          # -2..+2 (1.2 = RSI 80)
+
+    cnt = c.groupby(day).cumcount()
+    first3 = cnt < 3                                                    # opening range = first 15 min
+    brk = (c - hi.where(first3).groupby(day).transform('max')).clip(lower=0) + \
+          (c - lo.where(first3).groupby(day).transform('min')).clip(upper=0)
+    o['orb'] = np.tanh(brk / atr.replace(0, np.nan)).where(cnt >= 3, 0.0).fillna(0.0)
+
+    o['day_ret'] = (c / d['Open'].groupby(day).transform('first') - 1) * 100
+    o['dist_dh'] = (c / hi.groupby(day).cummax() - 1) * 100
+    o['dist_dl'] = (c / lo.groupby(day).cummin() - 1) * 100
+    if mk is not None:
+        m = mk.reindex(o.index, method='ffill')
+        o['rs_nifty'] = o['day_ret'] - m['day_ret'].fillna(0.0)
+        o['n_er'] = m['er'].fillna(0.3)
+        o['n_vol'] = m['volrank'].fillna(0.5)
+    else:
+        o['rs_nifty'], o['n_er'], o['n_vol'] = 0.0, 0.3, 0.5
+    o['mom_er'] = o['ret6'].fillna(0) * o['n_er']
+    o['vwap_er'] = o['vwap_dist'] * o['n_er']
+    o['rsi_er'] = o['rsi'] * o['n_er']
+    o['orb_er'] = o['orb'] * o['n_er']
+
+    fwd = (gc.shift(-horizon) / c - 1) * 100                            # same-day future move only
+    o['fwd_pct'] = fwd
+    o['target'] = (fwd / atrp).clip(-6, 6)                              # ATR units
+    o['atr_pct'], o['atr'] = atrp, atr
+    o['turn'] = c * vol
+    o['minute'] = d.index.hour * 60 + d.index.minute
+    return o
+
+
+def _ae_fit(X, y, w, lam_frac=0.25):
+    mu, sd = X.mean(axis=0), X.std(axis=0)
+    sd[sd == 0] = 1.0
+    Z = np.clip((X - mu) / sd, -4, 4)
+    y0 = float(np.average(y, weights=w))
+    A = Z.T @ (Z * w[:, None]) + (lam_frac * len(Z)) * np.eye(Z.shape[1])    # strong ridge = overfit control
+    b = Z.T @ ((y - y0) * w)
+    return {'beta': np.linalg.solve(A, b), 'y0': y0, 'mu': mu, 'sd': sd}
+
+
+def _ae_pred(mdl, X):
+    return np.clip((X - mdl['mu']) / mdl['sd'], -4, 4) @ mdl['beta'] + mdl['y0']
 
 
 def adaptive_live_engine(five_min_data, candidates, top_n=5):
-    """Returns (result, info). result = {'buy': [...], 'sell': [...]} each item: dict(sym, exp, atr)"""
+    """Returns (result, info). result = {'buy': [...], 'sell': [...]} items: dict(sym, exp, atr)"""
     res = {'buy': [], 'sell': []}
-    info = {'active': False, 'status': 'No 5-min data', 'ic': 0.0, 'hit': 50.0, 'n': 0, 'drivers': ''}
+    info = {'active': False, 'status': 'No 5-min data', 'ic': 0.0, 'hit': 50.0, 'net': 0.0, 'folds': '-',
+            'n': 0, 'drivers': '', 'dropped': 0, 'mkt': '-'}
     try:
         if five_min_data is None or five_min_data.empty or not isinstance(five_min_data.columns, pd.MultiIndex):
             return res, info
         lvl0 = list(five_min_data.columns.levels[0])
         syms = [s for s in lvl0 if '^' not in str(s) and '=' not in str(s)]
 
-        nifty_dr = None
-        if "^NSEI" in lvl0:
-            nf = _adp_features(five_min_data["^NSEI"])
-            if nf is not None:
-                nifty_dr = nf['day_ret']
+        mk = _ae_market(five_min_data["^NSEI"]) if "^NSEI" in lvl0 else None
+        if mk is not None and len(mk):
+            info['mkt'] = f"Nifty trend-strength {float(mk['er'].iloc[-1]):.2f} • volatility rank {float(mk['volrank'].iloc[-1]) * 100:.0f}%"
 
-        panel, last_rows = [], {}
+        # ---- 1. quality filter + feature panel ----
+        panel, last_rows, dropped = [], {}, 0
         for s in syms:
             try:
-                f = _adp_features(five_min_data[s], nifty_dr)
+                f = _ae_stock_frame(five_min_data[s], mk)
             except Exception:
                 continue
             if f is None or f.empty:
                 continue
+            ac1 = f['ret1'].autocorr(1)
+            ac1 = 0.0 if pd.isna(ac1) else float(ac1)
+            if f['turn'].median() < _AE_MIN_TURN or ac1 < _AE_MAX_NEG_AC:
+                dropped += 1
+                continue
             panel.append(f)
             last_rows[s] = f.iloc[-1]
-        if len(panel) < 20:
-            info['status'] = 'Data takkuva (stocks < 20)'
+        info['dropped'] = dropped
+        if len(panel) < 12:
+            info['status'] = f'Liquid stocks takkuva ({len(panel)}; {dropped} illiquid/noisy skip)'
             return res, info
 
         P = pd.concat(panel)
@@ -987,59 +1057,83 @@ def adaptive_live_engine(five_min_data, candidates, top_n=5):
             info['status'] = f'Learning data takkuva ({len(train)} rows)'
             return res, info
 
-        X = train[_ADP_FEATS].fillna(0.0).values.astype(float)
+        X = train[_AE_FEATS].fillna(0.0).values.astype(float)
         y = train['target'].values.astype(float)
+        fwd = train['fwd_pct'].values.astype(float)
+        minute = train['minute'].values
         age_days = np.asarray((ts_last - train.index).total_seconds()) / 86400.0
-        w_rec = 0.5 ** (age_days / 1.5)                                   # recent data ki ekkuva weight
-        dm = np.abs(train['minute'].values - now_min)
-        w_tod = 0.15 + np.exp(-0.5 * (dm / 60.0) ** 2)                    # ee time-of-day ki daggara candles ki ekkuva weight
-        w = w_rec * w_tod
+        w = (0.5 ** (age_days / 1.5)) * (0.15 + np.exp(-0.5 * ((minute - now_min) / 60.0) ** 2))
         w = w / w.mean()
+        info['n'] = int(len(train))
 
-        mu = X.mean(axis=0)
-        sd = X.std(axis=0)
-        sd[sd == 0] = 1.0
-        Z = np.clip((X - mu) / sd, -4, 4)
+        # ---- 2. walk-forward validation (day by day, unseen) ----
+        day_arr = train.index.normalize().values
+        ud = np.unique(day_arr)
+        if len(ud) < 4:
+            info['status'] = f'History takkuva ({len(ud)} days)'
+            return res, info
+        ics, nets, hits = [], [], []
+        near = np.abs(minute - now_min) <= 90                           # ippati time-window ki daggara candles meeda test
+        for td in ud[2:][-3:]:
+            tr_m, te_m = day_arr < td, day_arr == td
+            te_sel = (te_m & near) if (te_m & near).sum() >= 150 else te_m
+            if tr_m.sum() < 1000 or te_sel.sum() < 100:
+                continue
+            mdl_f = _ae_fit(X[tr_m], y[tr_m], w[tr_m])
+            p = _ae_pred(mdl_f, X[te_sel]) - mdl_f['y0']
+            if p.std() <= 0 or y[te_sel].std() <= 0:
+                ics.append(0.0); nets.append(-_AE_COST_PCT); hits.append(50.0)
+                continue
+            ics.append(float(np.corrcoef(p, y[te_sel])[0, 1]))
+            k = max(int(0.15 * len(p)), 20)
+            top = np.argsort(-np.abs(p))[:k]
+            fp = fwd[te_sel][top]
+            sg = np.sign(p[top])
+            nets.append(float(np.mean(sg * fp)) - _AE_COST_PCT)         # COST taruvata net expectancy (%)
+            hits.append(float(np.mean(sg * fp > 0) * 100))
+        if len(ics) < 2:
+            info['status'] = 'Validation folds takkuva'
+            return res, info
+        pos = int(sum(1 for i in ics if i > 0))
+        info.update({'ic': float(np.mean(ics)), 'hit': float(np.mean(hits)), 'net': float(np.mean(nets)),
+                     'folds': f"{pos}/{len(ics)} days positive"})
+        active = (info['ic'] > 0.01) and (pos / len(ics) > 0.5) and (info['net'] > 0) and (info['hit'] >= 51.0)
 
-        def fit(Zs, ys, ws):
-            y0 = float(np.average(ys, weights=ws))
-            A = Zs.T @ (Zs * ws[:, None]) + (0.2 * len(Zs)) * np.eye(Zs.shape[1])   # ridge — overfit aapadaniki
-            b = Zs.T @ ((ys - y0) * ws)
-            return np.linalg.solve(A, b), y0
-
-        # ---- chronological validation (unseen latest 20%) ----
-        order = np.argsort(train.index.values, kind='stable')
-        cut = int(len(order) * 0.8)
-        tr_i, va_i = order[:cut], order[cut:]
-        beta_v, _ = fit(Z[tr_i], y[tr_i], w[tr_i])
-        pc = Z[va_i] @ beta_v
-        yv = y[va_i]
-        ic = float(np.corrcoef(pc, yv)[0, 1]) if pc.std() > 0 and yv.std() > 0 else 0.0
-        thr = np.quantile(np.abs(pc), 0.8)
-        m = (np.abs(pc) >= thr) & (yv != 0)
-        hit = float((np.sign(pc[m]) == np.sign(yv[m])).mean() * 100) if m.sum() >= 30 else 50.0
-
-        # ---- final fit on all data (ee minute weights) ----
-        beta, y0 = fit(Z, y, w)
-        top_idx = np.argsort(-np.abs(beta))[:3]
-        info['drivers'] = ", ".join(f"{_ADP_NAMES[_ADP_FEATS[i]]} {'▲' if beta[i] > 0 else '▼'}" for i in top_idx)
-        info.update({'ic': ic, 'hit': hit, 'n': int(len(train)), 'nval': int(len(va_i))})
-        active = (ic > 0.01) and (hit >= 51.0) and (len(va_i) >= 300)
+        mdl = _ae_fit(X, y, w)
+        top_idx = np.argsort(-np.abs(mdl['beta']))[:3]
+        info['drivers'] = ", ".join(f"{_AE_NAMES[_AE_FEATS[i]]} {'▲' if mdl['beta'][i] > 0 else '▼'}" for i in top_idx)
         info['active'] = bool(active)
-        info['status'] = 'Active' if active else 'Edge ledu'
+        info['status'] = 'Active' if active else 'Edge ledu (cost taruvata profit kanipinchatledu)'
         if not active:
             return res, info
 
+        # ---- 3. time guard (live market lo matrame) ----
+        try:
+            if is_market_open() and not (9 * 60 + 30 <= now_min <= 15 * 60):
+                info['active'], info['status'] = False, 'Time window bahar (9:30–15:00 matrame signals)'
+                return res, info
+        except Exception:
+            pass
+
+        # ---- 4. score latest candles + trend guard ----
         cand = set(candidates)
         keys = [s for s in last_rows if s in cand and (ts_last - last_rows[s].name) <= pd.Timedelta(minutes=20)]
         if not keys:
             return res, info
         L = pd.DataFrame([last_rows[s] for s in keys], index=keys)
-        Zl = np.clip((L[_ADP_FEATS].fillna(0.0).values.astype(float) - mu) / sd, -4, 4)
-        exp_pct = (Zl @ beta + y0) * L['atr_pct'].values            # expected 30-min move in %
-        items = [dict(sym=k, exp=float(e), atr=float(a)) for k, e, a in zip(keys, exp_pct, L['atr'].values)]
-        res['buy'] = sorted([i for i in items if i['exp'] >= _ADP_MIN_EDGE], key=lambda i: -i['exp'])[:top_n]
-        res['sell'] = sorted([i for i in items if i['exp'] <= -_ADP_MIN_EDGE], key=lambda i: i['exp'])[:top_n]
+        exp_pct = _ae_pred(mdl, L[_AE_FEATS].fillna(0.0).values.astype(float)) * L['atr_pct'].values.astype(float)
+        strong_up = ((L['vwap_dist'] > 0) & (L['ema_gap'] > 0) & (L['vol_surge'] >= 1.2) & (L['ret3'] > 0)).values
+        strong_dn = ((L['vwap_dist'] < 0) & (L['ema_gap'] < 0) & (L['vol_surge'] >= 1.2) & (L['ret3'] < 0)).values
+        rsi_v = L['rsi'].values.astype(float)
+        items = []
+        for i, k in enumerate(keys):
+            e = float(exp_pct[i])
+            if e >= _AE_MIN_EDGE and not strong_dn[i] and rsi_v[i] < 1.2:          # confirmed downtrend / overbought lo BUY ledu
+                items.append(dict(sym=k, exp=e, atr=float(L['atr'].iloc[i]), side='buy'))
+            elif e <= -_AE_MIN_EDGE and not strong_up[i] and rsi_v[i] > -1.2:      # confirmed uptrend / oversold lo SELL ledu
+                items.append(dict(sym=k, exp=e, atr=float(L['atr'].iloc[i]), side='sell'))
+        res['buy'] = sorted([i for i in items if i['side'] == 'buy'], key=lambda i: -i['exp'])[:top_n]
+        res['sell'] = sorted([i for i in items if i['side'] == 'sell'], key=lambda i: i['exp'])[:top_n]
         return res, info
     except Exception as e:
         info['status'] = f'Error: {e}'
@@ -1048,216 +1142,16 @@ def adaptive_live_engine(five_min_data, candidates, top_n=5):
 
 def adaptive_status_html(info):
     if info.get('active'):
-        col, head = "#238636", "🧠 ADAPTIVE ENGINE ACTIVE"
+        col, head = "#238636", "🧠 ADAPTIVE ENGINE v3 ACTIVE"
     else:
-        col, head = "#9e6a03", f"🧠 ADAPTIVE ENGINE — {info.get('status', '')} (ippudu recommend cheyyatledu)"
-    body = ""
+        col, head = "#9e6a03", f"🧠 ADAPTIVE ENGINE v3 — {info.get('status', '')} (ippudu recommend cheyyatledu)"
+    body = f"<span style='color:#ffd700;'>{info.get('mkt', '')}</span>"
     if info.get('n'):
-        body = (f"<span style='color:#8b949e;'>Validation IC: <b>{info['ic']:+.3f}</b> &nbsp;•&nbsp; Hit-rate (top 20% signals): "
-                f"<b>{info['hit']:.0f}%</b> &nbsp;•&nbsp; Learned rows: {info['n']:,}</span><br>"
-                f"<span style='color:#c9d1d9;'>Ee minute lo key drivers: {info.get('drivers', '')}</span>")
-    return (f"<div style='background:#161b22;border:1px solid {col};border-radius:8px;padding:8px 12px;margin:6px 0;font-size:12.5px;'>"
-            f"<b>{head}</b><br>{body}</div>")
-
-
-# =========================================================
-# 🧠 REGIME-AWARE STRATEGY BANK (v2)
-# ---------------------------------------------------------
-# LAYER 1: Market Regime Detector (Nifty 5-min) -> Trending / Ranging / Volatile / Quiet
-# LAYER 2: Strategy Bank — 5 classic day-trading methods (signals in -1..+1)
-#          Momentum | VWAP trend | EMA 9/21 | ORB (15-min) | RSI(14) (trend/reversion both)
-# LAYER 3: Adaptive weighting — prathi refresh lo, CURRENT regime lo + ee time-of-day ki
-#          daggara history lo edi nijanga predict chesindo (IC) chusi, aa methods ki matrame weight.
-#          Chronological validation fail ayithe -> recommend cheyyadu.
-# =========================================================
-_RG_METHODS = {'m_mom': 'Momentum', 'm_vwap': 'VWAP', 'm_ema': 'EMA 9/21', 'm_orb': 'ORB',
-               'm_rsi_t': 'RSI-Trend', 'm_rsi_r': 'RSI-Reversion'}
-_RG_MIN_EDGE = 0.10   # expected 30-min move (%) — costs ni beat cheyyali
-
-
-def _rg_clean(df_raw):
-    d = df_raw.dropna(subset=['Open', 'High', 'Low', 'Close']).sort_index()
-    d.index = pd.to_datetime(d.index)
-    return d[~d.index.duplicated(keep='last')]
-
-
-def _rg_regime(df_raw, f):
-    """Layer 1: per-candle regime of the index. f = _adp_features(df_raw)"""
-    d = _rg_clean(df_raw)
-    c = d['Close'].astype(float)
-    er = (c - c.shift(12)).abs() / c.diff().abs().rolling(12).sum().replace(0, np.nan)   # efficiency ratio
-    vr = f['atr_pct'].rank(pct=True)                                                       # volatility percentile
-    reg = np.select([vr.values >= 0.8, er.values >= 0.35, vr.values <= 0.25],
-                    ['Volatile', 'Trending', 'Quiet'], default='Ranging')
-    return pd.Series(reg, index=c.index)
-
-
-def _rg_signals(df_raw, nifty_dr=None):
-    """Layer 2: 5 methods -> signals"""
-    f = _adp_features(df_raw, nifty_dr)
-    if f is None:
-        return None
-    d = _rg_clean(df_raw)
-    c = d['Close'].astype(float)
-    hi = d['High'].astype(float)
-    lo = d['Low'].astype(float)
-    day = d.index.normalize()
-    atrp, atr = f['atr_pct'], f['atr']
-
-    f['m_mom'] = np.tanh(f['ret6'].fillna(0) / (atrp * 2.0)) * f['vol_surge'].clip(0.5, 2.0)
-    f['m_vwap'] = np.tanh(f['vwap_dist'] / (atrp * 1.5))
-    e9, e21 = c.ewm(span=9, adjust=False).mean(), c.ewm(span=21, adjust=False).mean()
-    f['m_ema'] = np.tanh(((e9 / e21 - 1) * 100) / atrp)
-
-    cnt = c.groupby(day).cumcount()
-    first3 = cnt < 3                                                    # first 15 min = opening range
-    orb_hi = hi.where(first3).groupby(day).transform('max')
-    orb_lo = lo.where(first3).groupby(day).transform('min')
-    brk = (c - orb_hi).clip(lower=0) + (c - orb_lo).clip(upper=0)
-    f['m_orb'] = np.tanh(brk / atr.replace(0, np.nan)).where(cnt >= 3, 0.0).fillna(0.0)
-
-    delta = c.diff()
-    gain = delta.clip(lower=0).ewm(alpha=1 / 14, adjust=False).mean()
-    loss = (-delta.clip(upper=0)).ewm(alpha=1 / 14, adjust=False).mean()
-    rsi = 100 - 100 / (1 + gain / loss.replace(0, np.nan))
-    rsi = rsi.where(~((loss == 0) & (gain > 0)), 100.0).fillna(50.0)
-    f['m_rsi_t'] = ((rsi - 50) / 25).clip(-1, 1)                        # continuation
-    f['m_rsi_r'] = -f['m_rsi_t']                                        # mean reversion
-    for m in _RG_METHODS:
-        f[m] = f[m].replace([np.inf, -np.inf], np.nan).fillna(0.0)
-    return f
-
-
-def _rg_wcorr(a, b, w):
-    ma, mb = np.average(a, weights=w), np.average(b, weights=w)
-    va = np.average((a - ma) ** 2, weights=w)
-    vb = np.average((b - mb) ** 2, weights=w)
-    if va <= 0 or vb <= 0:
-        return 0.0
-    return float(np.average((a - ma) * (b - mb), weights=w) / np.sqrt(va * vb))
-
-
-def adaptive_regime_engine(five_min_data, candidates, top_n=5):
-    res = {'buy': [], 'sell': []}
-    info = {'active': False, 'status': 'No 5-min data', 'ic': 0.0, 'hit': 50.0, 'n': 0,
-            'regime': '-', 'methods': ''}
-    try:
-        if five_min_data is None or five_min_data.empty or not isinstance(five_min_data.columns, pd.MultiIndex):
-            return res, info
-        lvl0 = list(five_min_data.columns.levels[0])
-        syms = [s for s in lvl0 if '^' not in str(s) and '=' not in str(s)]
-
-        nifty_dr, regime_s = None, None
-        if "^NSEI" in lvl0:
-            nraw = five_min_data["^NSEI"]
-            nf = _adp_features(nraw)
-            if nf is not None:
-                nifty_dr = nf['day_ret']
-                regime_s = _rg_regime(nraw, nf)
-        now_reg = str(regime_s.iloc[-1]) if regime_s is not None and len(regime_s) else 'Ranging'
-        info['regime'] = now_reg
-
-        panel, last_rows = [], {}
-        for s in syms:
-            try:
-                f = _rg_signals(five_min_data[s], nifty_dr)
-            except Exception:
-                continue
-            if f is None or f.empty:
-                continue
-            f['regime'] = regime_s.reindex(f.index, method='ffill').fillna('Ranging') if regime_s is not None else 'Ranging'
-            panel.append(f)
-            last_rows[s] = f.iloc[-1]
-        if len(panel) < 20:
-            info['status'] = 'Data takkuva (stocks < 20)'
-            return res, info
-
-        P = pd.concat(panel)
-        ts_last = max(r.name for r in last_rows.values())
-        now_min = ts_last.hour * 60 + ts_last.minute
-        train = P[P['target'].notna()]
-        if len(train) < 1500:
-            info['status'] = f'Learning data takkuva ({len(train)} rows)'
-            return res, info
-
-        M = list(_RG_METHODS)
-        S = train[M].values.astype(float)
-        y = train['target'].values.astype(float)
-        reg_arr = train['regime'].values
-        age_days = np.asarray((ts_last - train.index).total_seconds()) / 86400.0
-        w = (0.5 ** (age_days / 1.5)) * (0.15 + np.exp(-0.5 * ((train['minute'].values - now_min) / 60.0) ** 2))
-        w = w / w.mean()
-
-        def method_weights(idx):
-            reg_idx = idx[reg_arr[idx] == now_reg]
-            out = []
-            for j in range(len(M)):
-                g = _rg_wcorr(S[idx, j], y[idx], w[idx])
-                if len(reg_idx) >= 800:                                   # current regime lo data saripoyinte blend
-                    g = 0.7 * _rg_wcorr(S[reg_idx, j], y[reg_idx], w[reg_idx]) + 0.3 * g
-                out.append(max(g, 0.0))
-            out = np.array(out)
-            return out / out.sum() if out.sum() > 0 else out
-
-        # ---- chronological validation (latest 20% unseen) ----
-        order = np.argsort(train.index.values, kind='stable')
-        cut = int(len(order) * 0.8)
-        tr_i, va_i = order[:cut], order[cut:]
-        wt_v = method_weights(tr_i)
-        sv, yv = S[va_i] @ wt_v, y[va_i]
-        ic = float(np.corrcoef(sv, yv)[0, 1]) if sv.std() > 0 and yv.std() > 0 else 0.0
-        if sv.std() > 0:
-            thr = np.quantile(np.abs(sv - sv.mean()), 0.8)
-            m = (np.abs(sv - sv.mean()) >= thr) & (yv != 0)
-            hit = float((np.sign(sv[m] - sv.mean()) == np.sign(yv[m])).mean() * 100) if m.sum() >= 30 else 50.0
-        else:
-            hit = 50.0
-
-        # ---- final weights on all data ----
-        wt = method_weights(np.arange(len(train)))
-        info.update({'ic': ic, 'hit': hit, 'n': int(len(train)), 'nval': int(len(va_i))})
-        info['methods'] = " • ".join(f"{_RG_METHODS[M[j]]} {wt[j] * 100:.0f}%" for j in np.argsort(-wt) if wt[j] > 0)
-        active = wt.sum() > 0 and (ic > 0.01) and (hit >= 51.0) and (len(va_i) >= 300)
-        info['active'] = bool(active)
-        info['status'] = 'Active' if active else 'Edge ledu'
-        if not active:
-            return res, info
-
-        sc = S @ wt
-        ms, my = np.average(sc, weights=w), np.average(y, weights=w)
-        var = np.average((sc - ms) ** 2, weights=w)
-        slope = np.average((sc - ms) * (y - my), weights=w) / var if var > 0 else 0.0
-        if slope <= 0:
-            info['active'], info['status'] = False, 'Edge ledu'
-            return res, info
-
-        cand = set(candidates)
-        keys = [s for s in last_rows if s in cand and (ts_last - last_rows[s].name) <= pd.Timedelta(minutes=20)]
-        if not keys:
-            return res, info
-        L = pd.DataFrame([last_rows[s] for s in keys], index=keys)
-        score_l = L[M].values.astype(float) @ wt
-        exp_pct = (my + slope * (score_l - ms)) * L['atr_pct'].values.astype(float)
-        items = [dict(sym=k, exp=float(e), atr=float(a)) for k, e, a in zip(keys, exp_pct, L['atr'].values.astype(float))]
-        res['buy'] = sorted([i for i in items if i['exp'] >= _RG_MIN_EDGE], key=lambda i: -i['exp'])[:top_n]
-        res['sell'] = sorted([i for i in items if i['exp'] <= -_RG_MIN_EDGE], key=lambda i: i['exp'])[:top_n]
-        return res, info
-    except Exception as e:
-        info['status'] = f'Error: {e}'
-        return res, info
-
-
-def regime_status_html(info):
-    emoji = {'Trending': '📈', 'Ranging': '↔️', 'Volatile': '⚡', 'Quiet': '😴'}.get(info.get('regime'), '❔')
-    if info.get('active'):
-        col, head = "#238636", "🧠 REGIME-AWARE ENGINE ACTIVE"
-    else:
-        col, head = "#9e6a03", f"🧠 REGIME-AWARE ENGINE — {info.get('status', '')} (ippudu recommend cheyyatledu)"
-    body = f"<span style='color:#ffd700;'>Layer 1 Regime: <b>{emoji} {info.get('regime', '-')}</b></span>"
-    if info.get('n'):
-        body += (f"<br><span style='color:#8b949e;'>Validation IC: <b>{info['ic']:+.3f}</b> &nbsp;•&nbsp; Hit-rate (top 20%): "
-                 f"<b>{info['hit']:.0f}%</b> &nbsp;•&nbsp; Learned rows: {info['n']:,}</span>"
-                 f"<br><span style='color:#c9d1d9;'>Layer 2/3 — ee minute method weights: {info.get('methods') or 'ebe method ki positive edge ledu'}</span>")
+        body += (f"<br><span style='color:#8b949e;'>Walk-forward IC: <b>{info['ic']:+.3f}</b> &nbsp;•&nbsp; "
+                 f"Net expectancy (cost taruvata): <b>{info['net']:+.2f}%</b> &nbsp;•&nbsp; Hit-rate: <b>{info['hit']:.0f}%</b> "
+                 f"&nbsp;•&nbsp; {info.get('folds', '')}</span>"
+                 f"<br><span style='color:#8b949e;'>Learned rows: {info['n']:,} &nbsp;•&nbsp; Illiquid/noisy skip: {info.get('dropped', 0)}</span>"
+                 f"<br><span style='color:#c9d1d9;'>Ee minute lo key drivers: {info.get('drivers', '')}</span>")
     return (f"<div style='background:#161b22;border:1px solid {col};border-radius:8px;padding:8px 12px;margin:6px 0;font-size:12.5px;'>"
             f"<b>{head}</b><br>{body}</div>")
 
@@ -2859,8 +2753,8 @@ def render_live_ui():
                 
                 for strat in strats_to_run:
                     if strat == ADAPTIVE_STRAT:
-                        _adp, _info = adaptive_regime_engine(five_min_data, df_filtered['Fetch_T'].tolist())
-                        st.markdown(regime_status_html(_info), unsafe_allow_html=True)
+                        _adp, _info = adaptive_live_engine(five_min_data, df_filtered['Fetch_T'].tolist())
+                        st.markdown(adaptive_status_html(_info), unsafe_allow_html=True)
                         for _side, _label in (('buy', 'BUY'), ('sell', 'SELL')):
                             _rows = _adp.get(_side, [])
                             if not _rows:
