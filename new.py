@@ -1060,6 +1060,208 @@ def adaptive_status_html(info):
             f"<b>{head}</b><br>{body}</div>")
 
 
+# =========================================================
+# 🧠 REGIME-AWARE STRATEGY BANK (v2)
+# ---------------------------------------------------------
+# LAYER 1: Market Regime Detector (Nifty 5-min) -> Trending / Ranging / Volatile / Quiet
+# LAYER 2: Strategy Bank — 5 classic day-trading methods (signals in -1..+1)
+#          Momentum | VWAP trend | EMA 9/21 | ORB (15-min) | RSI(14) (trend/reversion both)
+# LAYER 3: Adaptive weighting — prathi refresh lo, CURRENT regime lo + ee time-of-day ki
+#          daggara history lo edi nijanga predict chesindo (IC) chusi, aa methods ki matrame weight.
+#          Chronological validation fail ayithe -> recommend cheyyadu.
+# =========================================================
+_RG_METHODS = {'m_mom': 'Momentum', 'm_vwap': 'VWAP', 'm_ema': 'EMA 9/21', 'm_orb': 'ORB',
+               'm_rsi_t': 'RSI-Trend', 'm_rsi_r': 'RSI-Reversion'}
+_RG_MIN_EDGE = 0.10   # expected 30-min move (%) — costs ni beat cheyyali
+
+
+def _rg_clean(df_raw):
+    d = df_raw.dropna(subset=['Open', 'High', 'Low', 'Close']).sort_index()
+    d.index = pd.to_datetime(d.index)
+    return d[~d.index.duplicated(keep='last')]
+
+
+def _rg_regime(df_raw, f):
+    """Layer 1: per-candle regime of the index. f = _adp_features(df_raw)"""
+    d = _rg_clean(df_raw)
+    c = d['Close'].astype(float)
+    er = (c - c.shift(12)).abs() / c.diff().abs().rolling(12).sum().replace(0, np.nan)   # efficiency ratio
+    vr = f['atr_pct'].rank(pct=True)                                                       # volatility percentile
+    reg = np.select([vr.values >= 0.8, er.values >= 0.35, vr.values <= 0.25],
+                    ['Volatile', 'Trending', 'Quiet'], default='Ranging')
+    return pd.Series(reg, index=c.index)
+
+
+def _rg_signals(df_raw, nifty_dr=None):
+    """Layer 2: 5 methods -> signals"""
+    f = _adp_features(df_raw, nifty_dr)
+    if f is None:
+        return None
+    d = _rg_clean(df_raw)
+    c = d['Close'].astype(float)
+    hi = d['High'].astype(float)
+    lo = d['Low'].astype(float)
+    day = d.index.normalize()
+    atrp, atr = f['atr_pct'], f['atr']
+
+    f['m_mom'] = np.tanh(f['ret6'].fillna(0) / (atrp * 2.0)) * f['vol_surge'].clip(0.5, 2.0)
+    f['m_vwap'] = np.tanh(f['vwap_dist'] / (atrp * 1.5))
+    e9, e21 = c.ewm(span=9, adjust=False).mean(), c.ewm(span=21, adjust=False).mean()
+    f['m_ema'] = np.tanh(((e9 / e21 - 1) * 100) / atrp)
+
+    cnt = c.groupby(day).cumcount()
+    first3 = cnt < 3                                                    # first 15 min = opening range
+    orb_hi = hi.where(first3).groupby(day).transform('max')
+    orb_lo = lo.where(first3).groupby(day).transform('min')
+    brk = (c - orb_hi).clip(lower=0) + (c - orb_lo).clip(upper=0)
+    f['m_orb'] = np.tanh(brk / atr.replace(0, np.nan)).where(cnt >= 3, 0.0).fillna(0.0)
+
+    delta = c.diff()
+    gain = delta.clip(lower=0).ewm(alpha=1 / 14, adjust=False).mean()
+    loss = (-delta.clip(upper=0)).ewm(alpha=1 / 14, adjust=False).mean()
+    rsi = 100 - 100 / (1 + gain / loss.replace(0, np.nan))
+    rsi = rsi.where(~((loss == 0) & (gain > 0)), 100.0).fillna(50.0)
+    f['m_rsi_t'] = ((rsi - 50) / 25).clip(-1, 1)                        # continuation
+    f['m_rsi_r'] = -f['m_rsi_t']                                        # mean reversion
+    for m in _RG_METHODS:
+        f[m] = f[m].replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    return f
+
+
+def _rg_wcorr(a, b, w):
+    ma, mb = np.average(a, weights=w), np.average(b, weights=w)
+    va = np.average((a - ma) ** 2, weights=w)
+    vb = np.average((b - mb) ** 2, weights=w)
+    if va <= 0 or vb <= 0:
+        return 0.0
+    return float(np.average((a - ma) * (b - mb), weights=w) / np.sqrt(va * vb))
+
+
+def adaptive_regime_engine(five_min_data, candidates, top_n=5):
+    res = {'buy': [], 'sell': []}
+    info = {'active': False, 'status': 'No 5-min data', 'ic': 0.0, 'hit': 50.0, 'n': 0,
+            'regime': '-', 'methods': ''}
+    try:
+        if five_min_data is None or five_min_data.empty or not isinstance(five_min_data.columns, pd.MultiIndex):
+            return res, info
+        lvl0 = list(five_min_data.columns.levels[0])
+        syms = [s for s in lvl0 if '^' not in str(s) and '=' not in str(s)]
+
+        nifty_dr, regime_s = None, None
+        if "^NSEI" in lvl0:
+            nraw = five_min_data["^NSEI"]
+            nf = _adp_features(nraw)
+            if nf is not None:
+                nifty_dr = nf['day_ret']
+                regime_s = _rg_regime(nraw, nf)
+        now_reg = str(regime_s.iloc[-1]) if regime_s is not None and len(regime_s) else 'Ranging'
+        info['regime'] = now_reg
+
+        panel, last_rows = [], {}
+        for s in syms:
+            try:
+                f = _rg_signals(five_min_data[s], nifty_dr)
+            except Exception:
+                continue
+            if f is None or f.empty:
+                continue
+            f['regime'] = regime_s.reindex(f.index, method='ffill').fillna('Ranging') if regime_s is not None else 'Ranging'
+            panel.append(f)
+            last_rows[s] = f.iloc[-1]
+        if len(panel) < 20:
+            info['status'] = 'Data takkuva (stocks < 20)'
+            return res, info
+
+        P = pd.concat(panel)
+        ts_last = max(r.name for r in last_rows.values())
+        now_min = ts_last.hour * 60 + ts_last.minute
+        train = P[P['target'].notna()]
+        if len(train) < 1500:
+            info['status'] = f'Learning data takkuva ({len(train)} rows)'
+            return res, info
+
+        M = list(_RG_METHODS)
+        S = train[M].values.astype(float)
+        y = train['target'].values.astype(float)
+        reg_arr = train['regime'].values
+        age_days = np.asarray((ts_last - train.index).total_seconds()) / 86400.0
+        w = (0.5 ** (age_days / 1.5)) * (0.15 + np.exp(-0.5 * ((train['minute'].values - now_min) / 60.0) ** 2))
+        w = w / w.mean()
+
+        def method_weights(idx):
+            reg_idx = idx[reg_arr[idx] == now_reg]
+            out = []
+            for j in range(len(M)):
+                g = _rg_wcorr(S[idx, j], y[idx], w[idx])
+                if len(reg_idx) >= 800:                                   # current regime lo data saripoyinte blend
+                    g = 0.7 * _rg_wcorr(S[reg_idx, j], y[reg_idx], w[reg_idx]) + 0.3 * g
+                out.append(max(g, 0.0))
+            out = np.array(out)
+            return out / out.sum() if out.sum() > 0 else out
+
+        # ---- chronological validation (latest 20% unseen) ----
+        order = np.argsort(train.index.values, kind='stable')
+        cut = int(len(order) * 0.8)
+        tr_i, va_i = order[:cut], order[cut:]
+        wt_v = method_weights(tr_i)
+        sv, yv = S[va_i] @ wt_v, y[va_i]
+        ic = float(np.corrcoef(sv, yv)[0, 1]) if sv.std() > 0 and yv.std() > 0 else 0.0
+        if sv.std() > 0:
+            thr = np.quantile(np.abs(sv - sv.mean()), 0.8)
+            m = (np.abs(sv - sv.mean()) >= thr) & (yv != 0)
+            hit = float((np.sign(sv[m] - sv.mean()) == np.sign(yv[m])).mean() * 100) if m.sum() >= 30 else 50.0
+        else:
+            hit = 50.0
+
+        # ---- final weights on all data ----
+        wt = method_weights(np.arange(len(train)))
+        info.update({'ic': ic, 'hit': hit, 'n': int(len(train)), 'nval': int(len(va_i))})
+        info['methods'] = " • ".join(f"{_RG_METHODS[M[j]]} {wt[j] * 100:.0f}%" for j in np.argsort(-wt) if wt[j] > 0)
+        active = wt.sum() > 0 and (ic > 0.01) and (hit >= 51.0) and (len(va_i) >= 300)
+        info['active'] = bool(active)
+        info['status'] = 'Active' if active else 'Edge ledu'
+        if not active:
+            return res, info
+
+        sc = S @ wt
+        ms, my = np.average(sc, weights=w), np.average(y, weights=w)
+        var = np.average((sc - ms) ** 2, weights=w)
+        slope = np.average((sc - ms) * (y - my), weights=w) / var if var > 0 else 0.0
+        if slope <= 0:
+            info['active'], info['status'] = False, 'Edge ledu'
+            return res, info
+
+        cand = set(candidates)
+        keys = [s for s in last_rows if s in cand and (ts_last - last_rows[s].name) <= pd.Timedelta(minutes=20)]
+        if not keys:
+            return res, info
+        L = pd.DataFrame([last_rows[s] for s in keys], index=keys)
+        score_l = L[M].values.astype(float) @ wt
+        exp_pct = (my + slope * (score_l - ms)) * L['atr_pct'].values.astype(float)
+        items = [dict(sym=k, exp=float(e), atr=float(a)) for k, e, a in zip(keys, exp_pct, L['atr'].values.astype(float))]
+        res['buy'] = sorted([i for i in items if i['exp'] >= _RG_MIN_EDGE], key=lambda i: -i['exp'])[:top_n]
+        res['sell'] = sorted([i for i in items if i['exp'] <= -_RG_MIN_EDGE], key=lambda i: i['exp'])[:top_n]
+        return res, info
+    except Exception as e:
+        info['status'] = f'Error: {e}'
+        return res, info
+
+
+def regime_status_html(info):
+    emoji = {'Trending': '📈', 'Ranging': '↔️', 'Volatile': '⚡', 'Quiet': '😴'}.get(info.get('regime'), '❔')
+    if info.get('active'):
+        col, head = "#238636", "🧠 REGIME-AWARE ENGINE ACTIVE"
+    else:
+        col, head = "#9e6a03", f"🧠 REGIME-AWARE ENGINE — {info.get('status', '')} (ippudu recommend cheyyatledu)"
+    body = f"<span style='color:#ffd700;'>Layer 1 Regime: <b>{emoji} {info.get('regime', '-')}</b></span>"
+    if info.get('n'):
+        body += (f"<br><span style='color:#8b949e;'>Validation IC: <b>{info['ic']:+.3f}</b> &nbsp;•&nbsp; Hit-rate (top 20%): "
+                 f"<b>{info['hit']:.0f}%</b> &nbsp;•&nbsp; Learned rows: {info['n']:,}</span>"
+                 f"<br><span style='color:#c9d1d9;'>Layer 2/3 — ee minute method weights: {info.get('methods') or 'ebe method ki positive edge ledu'}</span>")
+    return (f"<div style='background:#161b22;border:1px solid {col};border-radius:8px;padding:8px 12px;margin:6px 0;font-size:12.5px;'>"
+            f"<b>{head}</b><br>{body}</div>")
+
+
 def card_bg_class(pct_val):
     # 🎨 % change intensity ప్రకారం gradient color (TradingView style)
     if pct_val >= 3.0: return "bull-card-3"
@@ -2657,8 +2859,8 @@ def render_live_ui():
                 
                 for strat in strats_to_run:
                     if strat == ADAPTIVE_STRAT:
-                        _adp, _info = adaptive_live_engine(five_min_data, df_filtered['Fetch_T'].tolist())
-                        st.markdown(adaptive_status_html(_info), unsafe_allow_html=True)
+                        _adp, _info = adaptive_regime_engine(five_min_data, df_filtered['Fetch_T'].tolist())
+                        st.markdown(regime_status_html(_info), unsafe_allow_html=True)
                         for _side, _label in (('buy', 'BUY'), ('sell', 'SELL')):
                             _rows = _adp.get(_side, [])
                             if not _rows:
