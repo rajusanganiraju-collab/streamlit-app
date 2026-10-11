@@ -697,15 +697,15 @@ if _DH_HEALTH['ok']:
     _DH_PROBE = dhan_data_probe(_DH_CID, _DH_TOK, sec_map.get("RELIANCE", "2885"))
 else:
     _DH_PROBE = {'ok': False, 'msg': 'skipped (login fail)', 'n': 0, 'first': '', 'last': ''}
-DHAN_USABLE = bool(_DH_HEALTH['ok'] and _DH_PROBE['ok'] and sec_map)
-dhan = DHAN_USABLE      # backward-compat flag
+DHAN_USABLE = False     # <--- ILAA FALSE ANI RAYANDI
+dhan = False            # <--- ILAA FALSE ANI RAYANDI
 
-if not st.session_state.shown_dhan_status:
-    if DHAN_USABLE:
-        st.toast("Dhan LIVE ✅ (token + Data API verified)", icon="🟢")
-    else:
-        st.toast(f"Dhan ❌ → yfinance vadutunnam: {(_DH_HEALTH['msg'] if not _DH_HEALTH['ok'] else _DH_PROBE['msg'])[:90]}", icon="🔴")
-    st.session_state.shown_dhan_status = True
+# if not st.session_state.shown_dhan_status:
+#     if DHAN_USABLE:
+#         st.toast("Dhan LIVE ✅ (token + Data API verified)", icon="🟢")
+#     else:
+#         st.toast(f"Dhan ❌ → yfinance vadutunnam: {(_DH_HEALTH['msg'] if not _DH_HEALTH['ok'] else _DH_PROBE['msg'])[:90]}", icon="🔴")
+#     st.session_state.shown_dhan_status = True
 
 
 # --- WEBSOCKET LIVE TICKER (BACKGROUND THREAD) ---
@@ -2560,7 +2560,8 @@ def render_live_ui():
         st.markdown(f"<div style='display:flex;justify-content:space-between;align-items:center;background:#161b22;border:1px solid #238636;border-radius:8px;padding:6px 12px;margin-bottom:8px;font-size:13px;'><span>🟢 <b>MARKET LIVE</b> (NSE)</span><span style='color:#8b949e;'>🕒 {_now_str} IST &nbsp;•&nbsp; Auto-refresh: {_effective_refresh}s</span></div>", unsafe_allow_html=True)
     else:
         st.markdown(f"<div style='display:flex;justify-content:space-between;align-items:center;background:#161b22;border:1px solid #f85149;border-radius:8px;padding:6px 12px;margin-bottom:8px;font-size:13px;'><span>🔴 <b>MARKET CLOSED</b> (Showing Last Data)</span><span style='color:#8b949e;'>🕒 {_now_str} IST</span></div>", unsafe_allow_html=True)
-    render_dhan_status()
+    
+    # render_dhan_status()  <--- ILAA COMMENT CHESEYANDI
     if not df.empty:
         df_indices = df[df['Is_Index']].copy()
         df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3, "SPX": 4, "DAX": 5, "USD/INR": 6}).fillna(99)
