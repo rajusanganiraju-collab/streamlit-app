@@ -1,4 +1,21 @@
 # =========================================================
+# ✅ v4 (11-Oct-2026) — Dhan connection fix + Portfolio Allocation + diagnostics
+# ---------------------------------------------------------
+#  A. DHAN FIXES
+#   1. "Dhan API Connected ✅" toast fake — client object create ayyindante chaalu anipinchedi. Ippudu token + Data API real test.
+#   2. 5-min candles: response lo key 'timestamp' (v2) — paata code 'start_Time' koraga KeyError -> silent yfinance fallback.
+#      Ippudu /v2/charts/intraday REST direct (library signature tho sambandham ledu), timestamp auto-detect.
+#   3. WebSocket: message keys 'security_id' (lowercase) — paata code 'SecurityId' choosthe live prices eppudu raavu.
+#      Library version (MarketFeed/DhanFeed, DhanContext/legacy) rendu support.
+#   4. Streamlit rerun ki module dict reset -> websocket prices UI ki cheraledu. Ippudu cache_resource shared state.
+#   5. Scrip-master download fail ayithe {} 24 gantalu cache ayyedi -> ippudu cache avvadu.
+#   6. Rate limit (5/sec) + 20s time budget — migata stocks yfinance nundi. Silent `except: pass` ledu, errors UI lo.
+#  B. NEW UI
+#   7. Top lo Dhan status line + "🔧 Dhan Diagnostics" panel (token expiry, data plan, candle test, ws ticks, last fetch source)
+#   8. My Portfolio: Sector / Market-cap / Top-holdings donuts + allocation %, sector table, concentration alerts
+#   9. Adaptive Engine: 'Min expected move %' slider + net-of-cost % tag
+# =========================================================
+# =========================================================
 # ✅ FIXED VERSION — Market Heatmap (07-Oct-2026)
 # ---------------------------------------------------------
 # BUG FIXES:
@@ -41,18 +58,21 @@ import threading
 import concurrent.futures
 from datetime import datetime, time as dt_time
 from zoneinfo import ZoneInfo
-from dhanhq import dhanhq, marketfeed
+import html as _html
+
+try:
+    from dhanhq import marketfeed
+except Exception:
+    marketfeed = None
 
 try:
     from dhanhq import DhanContext
-except ImportError:
+except Exception:
     DhanContext = None
 
 # =========================================================
 # 🔥 GLOBAL LIVE PRICES (Thread Safe)
 # =========================================================
-LIVE_PRICES_GLOBAL = {}
-LIVE_PRICES_LOCK = threading.Lock()
 
 # --- 1. PAGE CONFIGURATION ---
 st.set_page_config(page_title="Market Heatmap", page_icon="📊", layout="wide")
@@ -69,6 +89,22 @@ st.markdown("""
     div[data-testid="stElementContainer"] { opacity: 1 !important; }
     </style>
 """, unsafe_allow_html=True)
+
+# =========================================================
+# 🔒 SHARED STATE — Streamlit prati rerun ki script re-execute chestundi, kabatti module-level dict reset ayyi
+# websocket thread rasina prices UI ki raavu. Anduke cache_resource lo pettali.
+# =========================================================
+@st.cache_resource
+def _shared_state():
+    return {'prices': {}, 'lock': threading.Lock(), 'diag_lock': threading.Lock(),
+            'diag': {'errors': {}, 'last_error': '', 'last_fetch': {}},
+            'ws': {'status': 'not started', 'ticks': 0, 'last_tick': 0.0, 'error': '', 'symbols': 0, 'lib': ''},
+            'rl_lock': threading.Lock(), 'rl_last': [0.0], 'deadline': [0.0]}
+
+
+_SS = _shared_state()
+LIVE_PRICES_GLOBAL = _SS['prices']
+LIVE_PRICES_LOCK = _SS['lock']
 
 # --- 2. GOOGLE SHEETS CONNECTION ---
 @st.cache_resource(show_spinner=False)
@@ -434,80 +470,394 @@ SMALLCAP_250 = [
     "YATHARTH", "ZENSARTECH", "ZENTEC", "ZYDUSWELL"
 ]
 
-# --- DHAN API INITIALIZATION ---
+# =========================================================
+# 📡 DHAN LAYER (v4) — REST based, real connection check, diagnostics
+# ---------------------------------------------------------
+#  • "Connected ✅" toast ippudu nijanga token + Data API check chesaake matrame
+#  • 5-min candles: /v2/charts/intraday (columnar response: open/high/low/close/volume/timestamp)
+#  • Rate limit (≈5 req/sec) respect + 20 sec time budget (migata stocks yfinance nundi)
+#  • WebSocket: library version tho sambandham lekunda connect (MarketFeed/DhanFeed), correct keys
+#  • Anni errors UI lo kanipistayi (silent `except: pass` ledu)
+# =========================================================
+DHAN_REST = "https://api.dhan.co/v2"
+DHAN_BUDGET_SEC = 20     # Dhan 5-min fetch ki max time per refresh — migata stocks yfinance nundi
+DHAN_MIN_GAP = 0.22      # Data API limit ~5 req/sec
+
 if 'shown_dhan_status' not in st.session_state:
     st.session_state.shown_dhan_status = False
 
-@st.cache_resource(show_spinner=False)
-def init_dhan_client():
+
+def _dhan_creds():
     try:
-        c_id = str(st.secrets["dhan"]["client_id"]).strip()
-        a_token = str(st.secrets["dhan"]["access_token"]).strip()
-        if DhanContext:
-            context = DhanContext(c_id, a_token)
-            return dhanhq(context)
+        s = st.secrets["dhan"]
+        cid = str(s["client_id"]).strip().strip('"').strip("'")
+        tok = str(s["access_token"]).strip().strip('"').strip("'")
+        return cid, tok
+    except Exception:
+        return "", ""
+
+
+def _dhan_headers(cid, tok):
+    return {"access-token": tok, "client-id": cid, "Content-Type": "application/json", "Accept": "application/json"}
+
+
+def _dhan_classify(status, body_text, j=None):
+    """Dhan error ni artham ayye hint tho cheppadam"""
+    code, msg = "", ""
+    if isinstance(j, dict):
+        code = str(j.get('errorCode') or j.get('error_code') or '')
+        msg = str(j.get('errorMessage') or j.get('error_message') or j.get('remarks') or j.get('message') or '')
+        data = j.get('data')
+        if not msg and isinstance(data, dict):
+            msg = "; ".join(f"{k}: {v}" for k, v in data.items())
+    blob = f"{code} {msg} {str(body_text)[:120]}".lower()
+    if any(x in blob for x in ('dh-902', '806', 'not subscribed', 'data api')):          # mundu check — idi kuda 401 tho vastundi
+        hint = "Data API subscription ledu — historical/live data kosam Dhan lo 'Data APIs' plan activate cheyyali"
+    elif status in (401, 403) or any(x in blob for x in ('dh-901', 'invalid_authentication', 'expired', 'invalid token')):
+        hint = "TOKEN expired/invalid — Dhan lo kotha access token generate chesi secrets lo update cheyyandi (token 24 gantalu matrame)"
+    elif status == 429 or any(x in blob for x in ('dh-904', '805', 'too many', 'rate limit')):
+        hint = "Rate limit (5 req/sec) cross ayyindi"
+    else:
+        hint = ""
+    return (f"HTTP {status} {code} {msg}".strip() + (f" → {hint}" if hint else ""))[:260]
+
+
+def _diag_add(kind, msg=""):
+    with _SS['diag_lock']:
+        d = _SS['diag']
+        k = str(kind)[:70]
+        d['errors'][k] = d['errors'].get(k, 0) + 1
+        if msg:
+            d['last_error'] = str(msg)[:260]
+
+
+def _dhan_rate_wait():
+    with _SS['rl_lock']:
+        wait = _SS['rl_last'][0] + DHAN_MIN_GAP - time.time()
+        if wait > 0:
+            time.sleep(wait)
+        _SS['rl_last'][0] = time.time()
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def dhan_health_check(cid, tok):
+    out = {'ok': False, 'msg': '', 'expiry': '', 'data_plan': '', 'data_valid': '',
+           'checked': datetime.now(ZoneInfo("Asia/Kolkata")).strftime('%H:%M:%S')}
+    if not cid or not tok:
+        out['msg'] = "secrets.toml lo [dhan] client_id / access_token ledu"
+        return out
+    last = ""
+    for path in ("/profile", "/fundlimit"):
+        try:
+            r = requests.get(DHAN_REST + path, headers=_dhan_headers(cid, tok), timeout=8)
+        except requests.RequestException as e:
+            out['msg'] = f"Network error: {type(e).__name__}"
+            return out
+        if r.status_code == 200:
+            out['ok'] = True
+            out['msg'] = "Token valid ✅"
+            if path == "/profile":
+                try:
+                    j = r.json()
+                    out['expiry'] = str(j.get('tokenValidity', ''))
+                    out['data_plan'] = str(j.get('dataPlan', ''))
+                    out['data_valid'] = str(j.get('dataValidity', ''))
+                except Exception:
+                    pass
+            return out
+        try:
+            j = r.json()
+        except Exception:
+            j = None
+        last = _dhan_classify(r.status_code, r.text, j)
+        if r.status_code in (401, 403):
+            break
+    out['msg'] = last or "Unknown error"
+    return out
+
+
+def _dhan_parse_candles(data):
+    """Dhan v2 columnar response -> OHLCV DataFrame (naive IST index)"""
+    try:
+        if isinstance(data, dict) and 'open' in data:
+            n = len(data['open'])
+            df_ = pd.DataFrame({'Open': data['open'], 'High': data['high'], 'Low': data['low'], 'Close': data['close'],
+                                'Volume': data.get('volume') or [0] * n})
+            ts_raw = data.get('timestamp') or data.get('start_Time') or data.get('start_time')
+            ts = pd.to_numeric(pd.Series(ts_raw if ts_raw is not None else []), errors='coerce')
+        elif isinstance(data, list) and data and isinstance(data[0], dict):
+            raw = pd.DataFrame(data)
+            raw.columns = [str(c).lower() for c in raw.columns]
+            tcol = next((c for c in ('timestamp', 'start_time') if c in raw.columns), None)
+            if tcol is None:
+                return None, "Timestamp column ledu"
+            df_ = raw.rename(columns={'open': 'Open', 'high': 'High', 'low': 'Low', 'close': 'Close', 'volume': 'Volume'})[
+                ['Open', 'High', 'Low', 'Close', 'Volume']]
+            ts = pd.to_numeric(raw[tcol], errors='coerce')
         else:
-            return dhanhq(c_id, a_token)
+            return None, "Candles ledu (empty response)"
+        if len(df_) == 0 or len(ts) != len(df_):
+            return None, "Candles ledu / timestamp mismatch"
+        base = pd.to_datetime(ts, unit='s', errors='coerce')
+        if base.dt.year.min() < 2010:                                    # legacy 1980-epoch (IST) format
+            base = pd.to_datetime(ts + 315513000, unit='s', errors='coerce')
+        best = None
+        for shift in (pd.Timedelta(hours=5, minutes=30), pd.Timedelta(0)):   # NSE candles 09:15 tho start avvali
+            cand = base + shift
+            mod = cand.dt.hour * 60 + cand.dt.minute
+            if 540 <= mod.min() <= 570 and mod.max() <= 935:
+                best = cand
+                break
+        if best is None:
+            best = base + pd.Timedelta(hours=5, minutes=30)
+        df_.index = pd.DatetimeIndex(best, name='Date')
+        for c in ['Open', 'High', 'Low', 'Close', 'Volume']:
+            df_[c] = pd.to_numeric(df_[c], errors='coerce')
+        df_ = df_.dropna(subset=['Open', 'High', 'Low', 'Close'])
+        df_ = df_[~df_.index.isna()].sort_index()
+        df_ = df_[~df_.index.duplicated(keep='last')]
+        if df_.empty:
+            return None, "Valid candles ledu"
+        return df_, ""
     except Exception as e:
-        return f"ERROR: {e}"
+        return None, f"Parse error: {type(e).__name__}: {str(e)[:80]}"
 
-dhan_client = init_dhan_client()
 
-if isinstance(dhan_client, str):
-    st.sidebar.error(f"❌ Dhan Config Error: {dhan_client}")
-    dhan = None
-elif dhan_client:
-    if not st.session_state.shown_dhan_status:
-        st.toast("Dhan API Connected ✅", icon="🟢")
-        st.session_state.shown_dhan_status = True
-    dhan = dhan_client
-else:
-    st.sidebar.error("❌ Dhan API Connection Failed")
-    dhan = None
+def _dhan_intraday_df(cid, tok, sec_id, days=7):
+    now = datetime.now(ZoneInfo("Asia/Kolkata")).replace(tzinfo=None)
+    payload = {"securityId": str(sec_id), "exchangeSegment": "NSE_EQ", "instrument": "EQUITY", "interval": "5", "oi": False,
+               "fromDate": (now - pd.Timedelta(days=days)).strftime("%Y-%m-%d 09:15:00"),
+               "toDate": now.strftime("%Y-%m-%d %H:%M:%S")}
+    r = None
+    for attempt in (1, 2):
+        _dhan_rate_wait()
+        try:
+            r = requests.post(f"{DHAN_REST}/charts/intraday", json=payload, headers=_dhan_headers(cid, tok), timeout=12)
+        except requests.RequestException as e:
+            return None, f"Network error: {type(e).__name__}"
+        if r.status_code == 200:
+            break
+        if attempt == 1 and r.status_code == 429:
+            time.sleep(1.0)
+            continue
+        try:
+            j = r.json()
+        except Exception:
+            j = None
+        return None, _dhan_classify(r.status_code, r.text, j)
+    try:
+        j = r.json()
+    except Exception:
+        return None, "Response JSON kaadu"
+    if isinstance(j, dict) and str(j.get('status', '')).lower() == 'failure':
+        return None, _dhan_classify(200, r.text, j)
+    data = j.get('data', j) if isinstance(j, dict) else j
+    return _dhan_parse_candles(data)
 
-@st.cache_data(ttl=86400)
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def _load_dhan_sec_map():
+    # NOTE: failure ayithe exception raise avvali — appudu cache avvadu (ikkada {} cache ayithe 24 gantalu Dhan vadadu)
+    df_ = pd.read_csv("https://images.dhan.co/api-data/api-scrip-master.csv", low_memory=False)
+    nse_eq = df_[(df_['SEM_EXM_EXCH_ID'] == 'NSE') & (df_['SEM_INSTRUMENT_NAME'] == 'EQUITY')]
+    if 'SEM_SERIES' in nse_eq.columns:
+        nse_eq = nse_eq.assign(_p=(nse_eq['SEM_SERIES'] == 'EQ').astype(int)).sort_values('_p')   # duplicates unte EQ series win avvali
+    m = dict(zip(nse_eq['SEM_TRADING_SYMBOL'], nse_eq['SEM_SMST_SECURITY_ID'].astype(str)))
+    if len(m) < 100:
+        raise ValueError(f"Scrip master chala takkuva ({len(m)})")
+    return m
+
+
 def get_dhan_security_map():
     try:
-        url = "https://images.dhan.co/api-data/api-scrip-master.csv"
-        df = pd.read_csv(url, low_memory=False)
-        nse_eq = df[(df['SEM_EXM_EXCH_ID'] == 'NSE') & (df['SEM_INSTRUMENT_NAME'] == 'EQUITY')]
-        return dict(zip(nse_eq['SEM_TRADING_SYMBOL'], nse_eq['SEM_SMST_SECURITY_ID'].astype(str)))
-    except: return {}
+        return _load_dhan_sec_map()
+    except Exception as e:
+        _diag_add("scrip-master load fail", f"Scrip master: {type(e).__name__}: {str(e)[:100]}")
+        return {}
 
+
+@st.cache_data(ttl=300, show_spinner=False)
+def dhan_data_probe(cid, tok, sec_id):
+    """Real test: RELIANCE 5-min candles Dhan nundi vastunnaya?"""
+    out = {'ok': False, 'msg': '', 'n': 0, 'first': '', 'last': ''}
+    df_, err = _dhan_intraday_df(cid, tok, sec_id, days=5)
+    if df_ is None:
+        out['msg'] = err
+        return out
+    out.update({'ok': True, 'msg': 'Data API OK ✅', 'n': int(len(df_)),
+                'first': df_.index.min().strftime('%d-%b %H:%M'), 'last': df_.index.max().strftime('%d-%b %H:%M')})
+    return out
+
+
+_DH_CID, _DH_TOK = _dhan_creds()
+_DH_HEALTH = dhan_health_check(_DH_CID, _DH_TOK)
 sec_map = get_dhan_security_map()
-rev_sec_map = {str(v): k for k, v in sec_map.items()} 
+rev_sec_map = {str(v): k for k, v in sec_map.items()}
+if _DH_HEALTH['ok']:
+    _DH_PROBE = dhan_data_probe(_DH_CID, _DH_TOK, sec_map.get("RELIANCE", "2885"))
+else:
+    _DH_PROBE = {'ok': False, 'msg': 'skipped (login fail)', 'n': 0, 'first': '', 'last': ''}
+DHAN_USABLE = bool(_DH_HEALTH['ok'] and _DH_PROBE['ok'] and sec_map)
+dhan = DHAN_USABLE      # backward-compat flag
+
+if not st.session_state.shown_dhan_status:
+    if DHAN_USABLE:
+        st.toast("Dhan LIVE ✅ (token + Data API verified)", icon="🟢")
+    else:
+        st.toast(f"Dhan ❌ → yfinance vadutunnam: {(_DH_HEALTH['msg'] if not _DH_HEALTH['ok'] else _DH_PROBE['msg'])[:90]}", icon="🔴")
+    st.session_state.shown_dhan_status = True
+
 
 # --- WEBSOCKET LIVE TICKER (BACKGROUND THREAD) ---
-@st.cache_resource
-def start_live_ticker():
+def _ws_handle(msg):
+    if not isinstance(msg, dict):
+        return
+    sid = msg.get('security_id', msg.get('SecurityId', msg.get('securityId')))
+    ltp = msg.get('LTP', msg.get('ltp', msg.get('last_price')))
+    if sid is None or ltp in (None, ''):
+        return
+    sym = rev_sec_map.get(str(sid).split('.')[0])
+    if not sym:
+        return
     try:
-        if not sec_map:
-            return False
-        c_id = st.secrets["dhan"]["client_id"]
-        a_token = st.secrets["dhan"]["access_token"]
-        # 🔧 FIX: ఇంతకుముందు random 500 stocks కి subscribe అవుతోంది — ఇప్పుడు మన tracking universe మాత్రమే
-        _ws_universe = list(dict.fromkeys(NIFTY_50 + FNO_STOCKS + MIDCAP_150))
-        instruments = [(1, str(sec_map[s])) for s in _ws_universe if s in sec_map][:500]
-        
-        def on_connect(instance):
-            pass
-            
-        def on_message(instance, message):
-            if 'LTP' in message and 'SecurityId' in message:
-                sec_id = str(message['SecurityId'])
-                if sec_id in rev_sec_map:
-                    sym = rev_sec_map[sec_id]
-                    with LIVE_PRICES_LOCK:
-                        LIVE_PRICES_GLOBAL[sym] = float(message['LTP'])
-                    
-        feed = marketfeed.DhanFeed(c_id, a_token, instruments, "v2", on_connect=on_connect, on_message=on_message)
-        t = threading.Thread(target=feed.run_forever, daemon=True)
-        t.start()
-        return True
-    except Exception as e:
+        price = float(ltp)
+    except Exception:
+        return
+    if price <= 0:
+        return
+    with LIVE_PRICES_LOCK:
+        LIVE_PRICES_GLOBAL[sym] = price
+        n_sym = len(LIVE_PRICES_GLOBAL)
+    ws = _SS['ws']
+    ws['ticks'] += 1
+    ws['last_tick'] = time.time()
+    ws['symbols'] = n_sym
+
+
+def _make_feed(cid, tok, instruments):
+    """Library version edaina sare — MarketFeed/DhanFeed, context/legacy rendu try chestundi"""
+    if marketfeed is None:
+        raise RuntimeError("dhanhq library import avvaledu (requirements.txt lo dhanhq undali)")
+    classes = [getattr(marketfeed, n) for n in ('MarketFeed', 'DhanFeed') if hasattr(marketfeed, n)]
+    if not classes:
+        raise RuntimeError("marketfeed lo MarketFeed/DhanFeed ledu")
+    errs = []
+    if DhanContext is not None:
+        for cls in classes:
+            try:
+                return cls(DhanContext(cid, tok), instruments, "v2")
+            except TypeError as e:
+                errs.append(str(e)[:60])
+    for cls in classes:
+        try:
+            return cls(cid, tok, instruments, "v2")
+        except TypeError as e:
+            errs.append(str(e)[:60])
+    raise RuntimeError("Feed create avvaledu: " + " | ".join(errs))
+
+
+@st.cache_resource(show_spinner=False)
+def start_live_ticker(usable, cid, tok, n_sec):
+    ws = _SS['ws']
+    try:
+        import importlib.metadata as _im
+        ws['lib'] = _im.version('dhanhq')
+    except Exception:
+        ws['lib'] = '?'
+    if not usable:
+        ws['status'] = 'skipped (Dhan token / Data API OK kaadu)'
+        return False
+    if not sec_map:
+        ws['status'] = 'skipped (security map ledu)'
+        return False
+    nse = getattr(marketfeed, 'NSE', 1) if marketfeed else 1
+    tick = getattr(marketfeed, 'Ticker', 15) if marketfeed else 15
+    _ws_universe = list(dict.fromkeys(NIFTY_50 + FNO_STOCKS + MIDCAP_150))
+    instruments = [(nse, str(sec_map[s]), tick) for s in _ws_universe if s in sec_map][:500]
+    chunks = [instruments[i:i + 100] for i in range(0, len(instruments), 100)]
+    if not chunks:
+        ws['status'] = 'skipped (instruments ledu)'
         return False
 
-start_live_ticker()
+    def _worker():
+        import asyncio
+        backoff = 5
+        while True:
+            try:
+                try:
+                    asyncio.set_event_loop(asyncio.new_event_loop())
+                except Exception:
+                    pass
+                ws['status'] = 'connecting…'
+                feed = _make_feed(cid, tok, chunks[0])
+                feed.run_forever()
+                for ch in chunks[1:]:
+                    try:
+                        feed.subscribe_symbols(ch)
+                    except Exception as e:
+                        ws['error'] = f"subscribe: {type(e).__name__}: {str(e)[:80]}"
+                        break
+                ws['status'] = 'connected ✅'
+                backoff = 5
+                while True:
+                    feed.run_forever()
+                    _ws_handle(feed.get_data())
+            except Exception as e:
+                ws['status'] = 'reconnecting…'
+                ws['error'] = f"{type(e).__name__}: {str(e)[:120]}"
+                time.sleep(backoff)
+                backoff = min(backoff * 2, 60)
+
+    threading.Thread(target=_worker, daemon=True).start()
+    ws['status'] = 'starting…'
+    return True
+
+
+start_live_ticker(DHAN_USABLE, _DH_CID, _DH_TOK, len(sec_map))
+
+
+def render_dhan_status():
+    """Top status line + diagnostics expander"""
+    h, p, ws, dg = _DH_HEALTH, _DH_PROBE, _SS['ws'], _SS['diag']
+    lf = dg.get('last_fetch', {})
+    if DHAN_USABLE:
+        col, icon, head = "#238636", "🟢", "DHAN LIVE"
+        why = f"token valid{(' till ' + h['expiry']) if h.get('expiry') else ''}"
+    elif h['ok']:
+        col, icon, head = "#d29922", "🟡", "DHAN login OK, Data API fail → yfinance"
+        why = p['msg']
+    else:
+        col, icon, head = "#f85149", "🔴", "DHAN not connected → yfinance"
+        why = h['msg']
+    src = f"5-min: Dhan {lf.get('dhan', 0)} • yfinance {lf.get('yf', 0)}" if lf else "5-min: (fetch inka avvaledu)"
+    age = (time.time() - ws['last_tick']) if ws.get('last_tick') else None
+    tick = f"Live ticks: {ws.get('symbols', 0)} sym" + (f" ({age:.0f}s ago)" if age is not None else " (market closed / no tick)")
+    st.markdown(
+        f"<div style='display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;background:#161b22;border:1px solid {col};"
+        f"border-radius:8px;padding:6px 12px;margin-bottom:8px;font-size:12.5px;'>"
+        f"<span>{icon} <b>{head}</b> <span style='color:#8b949e;'>— {why[:150]}</span></span>"
+        f"<span style='color:#8b949e;'>📡 {src} &nbsp;•&nbsp; {tick}</span></div>", unsafe_allow_html=True)
+    with st.expander("🔧 Dhan Diagnostics (connection debug)", expanded=not DHAN_USABLE):
+        rows = [
+            ("1. Credentials (secrets.toml [dhan])", "✅" if (_DH_CID and _DH_TOK) else "❌", f"client_id: {_DH_CID[:3]}…{_DH_CID[-2:]} | token len: {len(_DH_TOK)}" if _DH_CID else "ledu"),
+            ("2. Login / token valid", "✅" if h['ok'] else "❌", f"{h['msg']} {('| expiry: ' + h['expiry']) if h.get('expiry') else ''} {('| dataPlan: ' + h['data_plan'] + ' (' + h['data_valid'] + ')') if h.get('data_plan') else ''}"),
+            ("3. Scrip master (symbol→ID)", "✅" if sec_map else "❌", f"{len(sec_map)} NSE equity symbols"),
+            ("4. 5-min candles (RELIANCE test)", "✅" if p['ok'] else "❌", f"{p['msg']} {('| ' + str(p['n']) + ' candles ' + p['first'] + ' → ' + p['last']) if p['ok'] else ''}"),
+            ("5. WebSocket live ticks", "✅" if str(ws.get('status', '')).startswith('connected') else "⚠️", f"{ws.get('status', '-')} | ticks: {ws.get('ticks', 0)} | lib: {ws.get('lib', '?')} {('| err: ' + ws['error']) if ws.get('error') else ''}"),
+            ("6. Last 5-min fetch", "ℹ️", f"Dhan {lf.get('dhan', 0)} / yfinance {lf.get('yf', 0)} of {lf.get('total', 0)} in {lf.get('sec', 0)}s @ {lf.get('when', '-')}" if lf else "-"),
+        ]
+        _wrap = "white-space:normal;word-break:break-word;"
+        html_rows = "".join(f"<tr><td style='text-align:left;{_wrap}'>{a}</td><td>{b}</td><td style='text-align:left;color:#c9d1d9;{_wrap}'>{_html.escape(str(c))}</td></tr>" for a, b, c in rows)
+        st.markdown(f"<table class='term-table'><thead><tr><th style='text-align:left;width:26%;'>CHECK</th><th style='width:6%;'>OK?</th><th style='text-align:left;'>DETAIL</th></tr></thead><tbody>{html_rows}</tbody></table>", unsafe_allow_html=True)
+        if dg.get('errors'):
+            st.caption("Errors (ee session lo): " + " • ".join(f"{k} ×{v}" for k, v in list(dg['errors'].items())[:6]))
+        st.caption("💡 Dhan access token 24 gantalu matrame valid. Prati roju kotha token generate chesi Streamlit secrets lo update cheyyandi. "
+                   "Historical/live data kosam Dhan lo 'Data APIs' plan kuda activate undali. Edi fail ayina app yfinance tho pani chestundi.")
+        if st.button("🔄 Re-test Dhan now", key="dhan_retest"):
+            dhan_health_check.clear()
+            dhan_data_probe.clear()
+            fetch_cached_5m_data.clear()
+            st.rerun()
 
 def now_ist():
     # 🔧 FIX: Streamlit Cloud server UTC లో run అవుతుంది — అన్ని time checks IST లోనే చేయాలి
@@ -526,40 +876,20 @@ def get_minutes_passed():
     return min(375, max(1, int((now - open_time).total_seconds() / 60)))
 
 # --- DHAN 5-MIN FETCH ---
-def fetch_single_dhan_5m(symbol, sec_id):
-    try:
-        to_date = datetime.now().strftime('%Y-%m-%d')
-        from_date = (datetime.now() - pd.Timedelta(days=5)).strftime('%Y-%m-%d')
-        # 🔧 FIX: interval='5' — ఇంతకుముందు 1-min data వచ్చేది (5x extra load)
-        try:
-            res = dhan.intraday_minute_data(symbol=sec_id, exchange_segment='NSE_EQ', instrument_type='EQUITY', interval='5', from_date=from_date, to_date=to_date)
-        except TypeError:
-            res = dhan.intraday_minute_data(symbol=sec_id, exchange_segment='NSE_EQ', instrument_type='EQUITY', from_date=from_date, to_date=to_date)
-        if not isinstance(res, dict) or res.get('status') != 'success' or not res.get('data'):
-            try:
-                res = dhan.historical_minute_charts(symbol=sec_id, exchange_segment='NSE_EQ', instrument_type='EQUITY', expiry_code=0, interval='5', from_date=from_date, to_date=to_date)
-            except TypeError:
-                res = dhan.historical_minute_charts(symbol=sec_id, exchange_segment='NSE_EQ', instrument_type='EQUITY', expiry_code=0, from_date=from_date, to_date=to_date)
-        
-        if isinstance(res, dict) and res.get('status') == 'success' and res.get('data'):
-            df = pd.DataFrame(res['data'])
-            if not df.empty:
-                try: df['Date'] = pd.to_datetime(df['start_Time'])
-                except: df['Date'] = pd.to_datetime(df['start_Time'], unit='s')
-                DHAN_EPOCH_OFFSET = 315513000
-                if df['Date'].dt.year.min() < 2010:
-                    df['Date'] = pd.to_datetime(df['start_Time'] + DHAN_EPOCH_OFFSET, unit='s') + pd.Timedelta(hours=5, minutes=30)
-                df.set_index('Date', inplace=True)
-                df.rename(columns={'open': 'Open', 'high': 'High', 'low': 'Low', 'close': 'Close', 'volume': 'Volume'}, inplace=True)
-                for col in ['Open', 'High', 'Low', 'Close', 'Volume']: df[col] = pd.to_numeric(df[col], errors='coerce')
-                if df.index.tz is not None:
-                    df.index = df.index.tz_localize(None)
-                return symbol, df
-    except: pass
-    return symbol, pd.DataFrame()
+def fetch_single_dhan_5m(symbol, sec_id, cid, tok):
+    if time.time() > _SS['deadline'][0]:
+        return symbol, pd.DataFrame()          # time budget aipoyindi -> yfinance fallback
+    df_, err = _dhan_intraday_df(cid, tok, sec_id, days=7)
+    if df_ is None:
+        _diag_add(err[:60] or "unknown", f"{symbol}: {err}")
+        return symbol, pd.DataFrame()
+    return symbol, df_
+
 
 @st.cache_data(ttl=60, show_spinner=False)  # 🔧 PERF: 30s→60s (API load తగ్గడానికి)
 def fetch_cached_5m_data(tkrs_list):
+    t0 = time.time()
+    cid, tok = _dhan_creds()
     dhan_tasks, yf_tkrs, results_dict = {}, [], {}
     for tkr in tkrs_list:
         clean_sym = tkr.replace(".NS", "")
@@ -567,19 +897,25 @@ def fetch_cached_5m_data(tkrs_list):
             dhan_tasks[tkr] = (clean_sym, sec_map[clean_sym])
         else:
             yf_tkrs.append(tkr)
-            
-    if not dhan and dhan_tasks:
+
+    if not DHAN_USABLE and dhan_tasks:
         yf_tkrs.extend(list(dhan_tasks.keys()))
         dhan_tasks = {}
-        
-    if dhan and dhan_tasks:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            futures = {executor.submit(fetch_single_dhan_5m, tkr, data[1]): tkr for tkr, data in dhan_tasks.items()}
+
+    n_dhan = 0
+    if dhan_tasks:
+        _SS['deadline'][0] = time.time() + DHAN_BUDGET_SEC
+        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+            futures = {executor.submit(fetch_single_dhan_5m, tkr, data[1], cid, tok): tkr for tkr, data in dhan_tasks.items()}
             for future in concurrent.futures.as_completed(futures):
                 tkr, df = future.result()
-                if not df.empty: results_dict[tkr] = df
-                else: yf_tkrs.append(tkr)
+                if not df.empty:
+                    results_dict[tkr] = df
+                    n_dhan += 1
+                else:
+                    yf_tkrs.append(tkr)
 
+    n_yf = 0
     if yf_tkrs:
         yf_data = yf.download(yf_tkrs, period="5d", interval="5m", progress=False, group_by='ticker', threads=10)
         if not yf_data.empty:
@@ -587,6 +923,7 @@ def fetch_cached_5m_data(tkrs_list):
                 if yf_data.index.tz is not None:
                     yf_data.index = yf_data.index.tz_localize(None)
                 results_dict[yf_tkrs[0]] = yf_data
+                n_yf = 1
             else:
                 if isinstance(yf_data.columns, pd.MultiIndex):
                     for tkr in yf_tkrs:
@@ -596,7 +933,12 @@ def fetch_cached_5m_data(tkrs_list):
                                 if df.index.tz is not None:
                                     df.index = df.index.tz_localize(None)
                                 results_dict[tkr] = df
-                        
+                                n_yf += 1
+
+    with _SS['diag_lock']:
+        _SS['diag']['last_fetch'] = {'dhan': n_dhan, 'yf': n_yf, 'total': len(tkrs_list), 'sec': round(time.time() - t0, 1),
+                                     'when': datetime.now(ZoneInfo("Asia/Kolkata")).strftime('%H:%M:%S')}
+
     valid_results = {k: v for k, v in results_dict.items() if not v.empty and len(v) > 0}
     if valid_results:
         return pd.concat(valid_results.values(), axis=1, keys=valid_results.keys(), sort=False)
@@ -1013,7 +1355,7 @@ def _ae_pred(mdl, X):
     return np.clip((X - mdl['mu']) / mdl['sd'], -4, 4) @ mdl['beta'] + mdl['y0']
 
 
-def adaptive_live_engine(five_min_data, candidates, top_n=5):
+def adaptive_live_engine(five_min_data, candidates, top_n=5, min_edge=None):
     """Returns (result, info). result = {'buy': [...], 'sell': [...]} items: dict(sym, exp, atr)"""
     res = {'buy': [], 'sell': []}
     info = {'active': False, 'status': 'No 5-min data', 'ic': 0.0, 'hit': 50.0, 'net': 0.0, 'folds': '-',
@@ -1131,7 +1473,7 @@ def adaptive_live_engine(five_min_data, candidates, top_n=5):
         strong_up = ((L['vwap_dist'] > 0) & (L['ema_gap'] > 0) & (L['vol_surge'] >= 1.2) & (L['ret3'] > 0)).values
         strong_dn = ((L['vwap_dist'] < 0) & (L['ema_gap'] < 0) & (L['vol_surge'] >= 1.2) & (L['ret3'] < 0)).values
         rsi_v = L['rsi'].values.astype(float)
-        edge = _AE_MIN_EDGE if tier == 'A' else 1e-9        # Watchlist lo: sign correct ayithe chalu, rank batti top 3
+        edge = (min_edge if min_edge is not None else _AE_MIN_EDGE) if tier == 'A' else 1e-9        # Watchlist lo: sign correct ayithe chalu, rank batti top 3
         if tier == 'B':
             top_n = min(top_n, 3)
         items = []
@@ -1236,6 +1578,203 @@ def render_mf_table(df_mf):
         html += f'<tr class="{bg_class}"><td><b>{rank}</b></td><td class="t-symbol">{row["Fund Name"]}</td><td style="font-size:11px; color:#c9d1d9; font-weight:bold;">{row["Category"]}</td><td>₹{row["NAV (₹)"]}</td><td>{colorize(row["1Y (%)"])}</td><td>{colorize(row["3Y CAGR (%)"])}</td><td>{colorize(row["5Y CAGR (%)"])}</td></tr>'
     html += "</tbody></table>"
     return html
+
+
+
+# =========================================================
+# 📊 PORTFOLIO ALLOCATION (Sector • Market-cap • Stock weights) — Zerodha Console style
+# ---------------------------------------------------------
+#  • Sector: static map (F&O + Midcap universe) -> sheet 'Sector' column override -> yfinance fallback -> Others
+#  • Cap: Nifty 50 + Next 50 = Large, Midcap/F&O = Mid, migata = Small (approx; sheet lo 'Cap' column tho override cheyyochchu)
+#  • Concentration alerts: single stock > 20% / sector > 35%
+# =========================================================
+_PF_SECTOR_GROUPS = {
+    "Financial Services": "ABCAPITAL ANGELONE AUBANK AXISBANK BAJAJFINSV BAJFINANCE BANDHANBNK BANKBARODA BSE CANBK CANFINHOME CDSL CHOLAFIN CUB "
+                          "FEDERALBNK HDFCAMC HDFCBANK HDFCLIFE HUDCO ICICIBANK ICICIGI ICICIPRULI IDFCFIRSTB IEX INDUSINDBK IRFC KOTAKBANK LICHSGFIN "
+                          "M&MFIN MANAPPURAM MCX MFSL MUTHOOTFIN PEL PFC PNB RBLBANK RECLTD SBICARD SBILIFE SBIN SHRIRAMFIN BANKINDIA INDIANB IREDA LTF "
+                          "PAYTM PBFINTECH POONAWALLA SUNDARMFIN UCOBANK UNIONBANK YESBANK",
+    "IT & Software": "COFORGE HCLTECH INDIAMART INFY LTIM LTTS MPHASIS NAUKRI OFSS PERSISTENT TCS TECHM WIPRO KPITTECH TATAELXSI",
+    "Healthcare": "ABBOTINDIA ALKEM APOLLOHOSP AUROPHARMA BIOCON CIPLA DIVISLAB DRREDDY GLENMARK GRANULES IPCALAB LALPATHLAB LAURUSLABS LUPIN "
+                  "METROPOLIS SUNPHARMA SYNGENE TORNTPHARM ZYDUSLIFE AJANTPHARM FORTIS MAXHEALTH VIJAYA",
+    "Metals & Mining": "HINDALCO HINDCOPPER JINDALSTEL JSWSTEEL NATIONALUM NMDC SAIL TATASTEEL VEDL",
+    "Energy": "BPCL COALINDIA GAIL GUJGASLTD HINDPETRO IGL IOC MGL ONGC PETRONET RELIANCE OIL",
+    "Power & Utilities": "ADANIENSOL NTPC POWERGRID TATAPOWER NHPC NLCINDIA SJVN TORNTPOWER",
+    "Automobiles": "APOLLOTYRE ASHOKLEY BAJAJ-AUTO BALKRISIND BHARATFORG BOSCHLTD EICHERMOT ESCORTS EXIDEIND HEROMOTOCO M&M MARUTI MOTHERSON MRF "
+                   "TATAMOTORS TVSMOTOR SONACOMS",
+    "FMCG": "BALRAMCHIN BRITANNIA COLPAL DABUR GODREJCP HINDUNILVR ITC MARICO NESTLEIND TATACONSUM UBL",
+    "Consumer & Retail": "ABFRL ASIANPAINT BATAINDIA BERGEPAINT CROMPTON DIXON HAVELLS INDHOTEL INDIGO IRCTC JUBLFOOD PAGEIND PVRINOX TITAN TRENT VOLTAS "
+                         "ZOMATO KALYANKJIL INDIGOPNTS",
+    "Engineering & Capital Goods": "ABB BEL BHEL CUMMINSIND HAL POLYCAB SIEMENS APARINDS CGPOWER MAZDOCK SUZLON",
+    "Infrastructure & Construction": "ADANIENT ADANIPORTS CONCOR GMRINFRA LT NCC RVNL DELHIVERY",
+    "Cement & Building Materials": "ACC AMBUJACEM ASTRAL DALBHARAT GRASIM INDIACEM RAMCOCEM SHREECEM ULTRACEMCO SUPREMEIND",
+    "Chemicals & Fertilizers": "AARTIIND ATUL CHAMBLFERT COROMANDEL DEEPAKNTR GNFC NAVINFLUOR PIDILITIND PIIND SRF TATACHEM UPL",
+    "Real Estate": "DLF GODREJPROP OBEROIRLTY PRESTIGE LODHA PHOENIXLTD",
+    "Telecom & Media": "BHARTIARTL IDEA INDUSTOWER SUNTV TATACOMM ZEEL",
+}
+PF_SECTOR_MAP = {_s: _sec for _sec, _names in _PF_SECTOR_GROUPS.items() for _s in _names.split()}
+_PF_NEXT50 = set(("ABB ADANIENSOL ADANIGREEN ADANIPOWER AMBUJACEM BAJAJHLDNG BANKBARODA BERGEPAINT BOSCHLTD CANBK CGPOWER CHOLAFIN COLPAL DABUR DIVISLAB "
+                  "DLF DMART GAIL GODREJCP HAVELLS HAL ICICIGI ICICIPRULI INDHOTEL INDIGO IOC IRCTC IRFC JINDALSTEL JIOFIN LICI LODHA LTIM MARICO MAZDOCK "
+                  "MOTHERSON NAUKRI PFC PIDILITIND PNB RECLTD SHREECEM SIEMENS SRF TATAPOWER TORNTPHARM TVSMOTOR UNITDSPR VBL VEDL ZYDUSLIFE ZOMATO").split())
+_PF_COLORS = ["#58a6ff", "#3fb950", "#d29922", "#f85149", "#a371f7", "#39c5cf", "#db61a2", "#ff9248", "#7ee787", "#79c0ff", "#e3b341", "#8b949e"]
+
+
+@st.cache_data(ttl=7 * 86400, show_spinner=False)
+def _pf_yf_sector_raw(sym):
+    info = yf.Ticker(f"{sym}.NS").info or {}
+    sec, ind = str(info.get('sector', '')), str(info.get('industry', '')).lower()
+    if sec == 'Basic Materials':
+        if any(k in ind for k in ('steel', 'aluminum', 'copper', 'gold', 'silver', 'metal', 'coal', 'mining')):
+            return "Metals & Mining"
+        if any(k in ind for k in ('cement', 'building', 'construction materials')):
+            return "Cement & Building Materials"
+        return "Chemicals & Fertilizers"
+    if sec == 'Industrials':
+        if any(k in ind for k in ('engineering & construction', 'infrastructure', 'airport', 'marine', 'railroad', 'trucking', 'freight')):
+            return "Infrastructure & Construction"
+        return "Engineering & Capital Goods"
+    if sec == 'Consumer Cyclical':
+        return "Automobiles" if 'auto' in ind else "Consumer & Retail"
+    mp = {'Financial Services': "Financial Services", 'Technology': "IT & Software", 'Healthcare': "Healthcare", 'Energy': "Energy",
+          'Utilities': "Power & Utilities", 'Consumer Defensive': "FMCG", 'Real Estate': "Real Estate", 'Communication Services': "Telecom & Media"}
+    if sec not in mp:
+        raise ValueError("sector unknown")          # cache avvakunda
+    return mp[sec]
+
+
+def _pf_clean_sym(sym):
+    return str(sym).upper().replace(".NS", "").strip()
+
+
+def pf_sector(sym, override=""):
+    ov = str(override or "").strip()
+    if ov and ov.lower() not in ("nan", "none"):
+        return ov
+    sym = _pf_clean_sym(sym)
+    if sym in PF_SECTOR_MAP:
+        return PF_SECTOR_MAP[sym]
+    try:
+        return _pf_yf_sector_raw(sym)
+    except Exception:
+        return "Others"
+
+
+def pf_cap(sym, override=""):
+    ov = str(override or "").strip()
+    if ov and ov.lower() not in ("nan", "none"):
+        return ov
+    sym = _pf_clean_sym(sym)
+    if sym in NIFTY_50 or sym in _PF_NEXT50:
+        return "Large Cap"
+    if sym in MIDCAP_150 or sym in FNO_STOCKS:
+        return "Mid Cap"
+    return "Small Cap"
+
+
+def build_portfolio_alloc_df(df_port, df_all_stocks):
+    if df_port is None or df_port.empty:
+        return pd.DataFrame()
+    lu = {}
+    if df_all_stocks is not None and not df_all_stocks.empty:
+        lu = df_all_stocks.drop_duplicates(subset=['T']).set_index('T')[['P', 'Prev_C']].to_dict('index')
+    rows = []
+    for _, r in df_port.iterrows():
+        sym = _pf_clean_sym(r.get('Symbol', ''))
+        try:
+            qty, bp = float(r['Quantity']), float(r['Buy_Price'])
+        except Exception:
+            continue
+        if not sym or qty <= 0:
+            continue
+        ltp = float(lu.get(sym, {}).get('P', bp) or bp)
+        pc = float(lu.get(sym, {}).get('Prev_C', ltp) or ltp)
+        rows.append({'Symbol': sym, 'Qty': qty, 'Invested': bp * qty, 'Current': ltp * qty, 'Day': (ltp - pc) * qty,
+                     'Sector': pf_sector(sym, r.get('Sector', '')), 'Cap': pf_cap(sym, r.get('Cap', ''))})
+    out = pd.DataFrame(rows)
+    if out.empty:
+        return out
+    return out.groupby(['Symbol', 'Sector', 'Cap'], as_index=False)[['Qty', 'Invested', 'Current', 'Day']].sum()
+
+
+def _pf_donut(labels, values, center_text):
+    fig = go.Figure(go.Pie(
+        labels=list(labels), values=list(values), hole=0.64, sort=False, direction='clockwise',
+        marker=dict(colors=[_PF_COLORS[i % len(_PF_COLORS)] for i in range(len(labels))], line=dict(color='#0e1117', width=2)),
+        textinfo='none', hovertemplate='<b>%{label}</b><br>₹%{value:,.0f}<br>%{percent}<extra></extra>'))
+    fig.update_layout(height=230, margin=dict(l=0, r=0, t=4, b=4), showlegend=False,
+                      paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                      annotations=[dict(text=center_text, x=0.5, y=0.5, showarrow=False, font=dict(size=13, color='#c9d1d9'))])
+    return fig
+
+
+def _pf_legend_html(labels, values):
+    tot = float(sum(values)) or 1.0
+    out = "<div style='font-size:12.5px;line-height:1.85;'>"
+    for i, (l, v) in enumerate(zip(labels, values)):
+        c = _PF_COLORS[i % len(_PF_COLORS)]
+        out += (f"<div style='display:flex;justify-content:space-between;border-bottom:1px solid #21262d;'>"
+                f"<span><span style='color:{c};'>●</span> {_html.escape(str(l))}</span>"
+                f"<span style='color:#c9d1d9;'><b>{v / tot * 100:.2f}%</b></span></div>")
+    return out + "</div>"
+
+
+def render_portfolio_allocation(df_port, df_all_stocks):
+    adf = build_portfolio_alloc_df(df_port, df_all_stocks)
+    if adf.empty:
+        st.info("Portfolio lo stocks add cheste allocation kanipistundi.")
+        return
+    basis = st.radio("Allocation basis", ["Current value", "Invested"], horizontal=True, key="pf_alloc_basis", label_visibility="collapsed")
+    col = "Current" if basis == "Current value" else "Invested"
+    total = float(adf[col].sum()) or 1.0
+
+    sec = adf.groupby('Sector')[col].sum().sort_values(ascending=False)
+    cap = adf.groupby('Cap')[col].sum().reindex(['Large Cap', 'Mid Cap', 'Small Cap']).dropna()
+    stk = adf.set_index('Symbol')[col].sort_values(ascending=False)
+    top = stk.head(8)
+    if len(stk) > 8:
+        top = pd.concat([top, pd.Series({'Others': float(stk.iloc[8:].sum())})])
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown("**🏭 Sectors**")
+        st.plotly_chart(_pf_donut(sec.index, sec.values, f"{len(sec)}<br>Sectors"), use_container_width=True, key="pf_don_sec", config={'displayModeBar': False})
+        st.markdown(_pf_legend_html(sec.index, sec.values), unsafe_allow_html=True)
+    with c2:
+        st.markdown("**📏 Market Cap**")
+        st.plotly_chart(_pf_donut(cap.index, cap.values, f"₹{total / 1e5:,.2f}L<br>{basis}"), use_container_width=True, key="pf_don_cap", config={'displayModeBar': False})
+        st.markdown(_pf_legend_html(cap.index, cap.values), unsafe_allow_html=True)
+        st.caption("Cap classification approx (Nifty100 = Large, Midcap/F&O = Mid, migata Small). Sheet lo 'Cap' column pedithe adi vadutundi.")
+    with c3:
+        st.markdown("**📦 Top Holdings**")
+        st.plotly_chart(_pf_donut(top.index, top.values, f"{len(stk)}<br>Stocks"), use_container_width=True, key="pf_don_stk", config={'displayModeBar': False})
+        st.markdown(_pf_legend_html(top.index, top.values), unsafe_allow_html=True)
+
+    # ⚠️ Concentration alerts
+    alerts = []
+    for s, v in stk.head(3).items():
+        if v / total > 0.20:
+            alerts.append(f"⚠️ <b>{_html.escape(s)}</b> = {v / total * 100:.1f}% of portfolio (single-stock risk, 20% kante ekkuva)")
+    for s, v in sec.items():
+        if s not in ("Others",) and v / total > 0.35:
+            alerts.append(f"⚠️ <b>{_html.escape(s)}</b> sector = {v / total * 100:.1f}% (35% kante ekkuva — diversification chudandi)")
+    if alerts:
+        st.markdown("<div style='background:#2d1f0e;border:1px solid #d29922;border-radius:8px;padding:8px 12px;margin:8px 0;font-size:13px;'>"
+                    + "<br>".join(alerts) + "</div>", unsafe_allow_html=True)
+
+    # 📋 Sector table
+    g = adf.groupby('Sector').agg(Stocks=('Symbol', 'nunique'), Invested=('Invested', 'sum'), Current=('Current', 'sum'), Day=('Day', 'sum'))
+    g['Weight'] = g[col] / total * 100
+    g = g.sort_values('Weight', ascending=False)
+    rows = ""
+    for s, r in g.iterrows():
+        pnl = r['Current'] - r['Invested']
+        pct = (pnl / r['Invested'] * 100) if r['Invested'] > 0 else 0
+        cc = "text-green" if pnl >= 0 else "text-red"
+        dc = "text-green" if r['Day'] >= 0 else "text-red"
+        rows += (f"<tr><td style='text-align:left;'>{_html.escape(str(s))}</td><td>{int(r['Stocks'])}</td><td><b>{r['Weight']:.2f}%</b></td>"
+                 f"<td>₹{r['Invested']:,.0f}</td><td>₹{r['Current']:,.0f}</td><td class='{cc}'>₹{pnl:,.0f} ({pct:+.2f}%)</td><td class='{dc}'>₹{r['Day']:,.0f}</td></tr>")
+    st.markdown("<table class='term-table'><thead><tr><th colspan='7' class='term-head-port'>🏭 SECTOR-WISE ALLOCATION</th></tr>"
+                "<tr style='background-color:#21262d;'><th style='text-align:left;'>SECTOR</th><th>STOCKS</th><th>WEIGHT</th><th>INVESTED</th><th>CURRENT</th><th>P&L</th><th>DAY P&L</th></tr></thead>"
+                f"<tbody>{rows}</tbody></table>", unsafe_allow_html=True)
 
 
 
@@ -2021,6 +2560,7 @@ def render_live_ui():
         st.markdown(f"<div style='display:flex;justify-content:space-between;align-items:center;background:#161b22;border:1px solid #238636;border-radius:8px;padding:6px 12px;margin-bottom:8px;font-size:13px;'><span>🟢 <b>MARKET LIVE</b> (NSE)</span><span style='color:#8b949e;'>🕒 {_now_str} IST &nbsp;•&nbsp; Auto-refresh: {_effective_refresh}s</span></div>", unsafe_allow_html=True)
     else:
         st.markdown(f"<div style='display:flex;justify-content:space-between;align-items:center;background:#161b22;border:1px solid #f85149;border-radius:8px;padding:6px 12px;margin-bottom:8px;font-size:13px;'><span>🔴 <b>MARKET CLOSED</b> (Showing Last Data)</span><span style='color:#8b949e;'>🕒 {_now_str} IST</span></div>", unsafe_allow_html=True)
+    render_dhan_status()
     if not df.empty:
         df_indices = df[df['Is_Index']].copy()
         df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3, "SPX": 4, "DAX": 5, "USD/INR": 6}).fillna(99)
@@ -2768,7 +3308,9 @@ def render_live_ui():
                 
                 for strat in strats_to_run:
                     if strat == ADAPTIVE_STRAT:
-                        _adp, _info = adaptive_live_engine(five_min_data, df_filtered['Fetch_T'].tolist())
+                        _adp_edge = st.slider("🎯 Min expected move % (next 30 min) — ekkuva pedithe takkuva kani quality signals", 0.05, 0.80, 0.12, 0.01,
+                                              key="adp_min_edge", help="Model anchana: 30 nimishallo ee % kante ekkuva move undali. Cost ~0.05% ni kuda minus chesi 'net' chupistundi.")
+                        _adp, _info = adaptive_live_engine(five_min_data, df_filtered['Fetch_T'].tolist(), min_edge=_adp_edge)
                         st.markdown(adaptive_status_html(_info), unsafe_allow_html=True)
                         for _side, _label in (('buy', 'BUY'), ('sell', 'SELL')):
                             _rows = _adp.get(_side, [])
@@ -2782,7 +3324,7 @@ def render_live_ui():
                             _sub['ATR5'] = _sub['Fetch_T'].map(lambda s: _m[s]['atr'])
                             _sub = _sub.sort_values('Adp_Exp', ascending=(_side == 'sell'))
                             _sub['Strategy_Icon'] = f"🧠 Adaptive {_label}"
-                            _sub['AlphaTag'] = _sub['Adp_Exp'].apply(lambda e: f"🧠 Exp {e:+.2f}%/30m" + (' ⚠️Watch' if _info.get('tier') == 'B' else ''))
+                            _sub['AlphaTag'] = _sub['Adp_Exp'].apply(lambda e: f"🧠 Exp {e:+.2f}% • net {(abs(e) - _AE_COST_PCT) * (1 if e >= 0 else -1):+.2f}%" + (' ⚠️Watch' if _info.get('tier') == 'B' else ''))
                             _sub['AI_Prob'] = int(_info.get('hit', 50))
                             _sub['S'] = [30 - 2 * _k for _k in range(len(_sub))]  # adaptive rank ordering
                             all_dfs.append(_sub)
@@ -3318,6 +3860,12 @@ def render_live_ui():
             except Exception:
                 pass
             
+            with st.expander("📊 Portfolio Allocation (Sector • Market-cap • Stock weights)", expanded=True):
+                try:
+                    render_portfolio_allocation(df_port_saved, df_all_stocks)
+                except Exception as _pe:
+                    st.caption(f"Allocation render error: {_pe}")
+
             st.markdown(render_portfolio_table(df_port_saved, df_all_stocks, weekly_trends, port_sort), unsafe_allow_html=True)
             st.markdown("<br>", unsafe_allow_html=True)
             
