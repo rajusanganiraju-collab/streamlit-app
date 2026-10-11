@@ -3309,7 +3309,7 @@ def render_live_ui():
                 
                 for strat in strats_to_run:
                     if strat == ADAPTIVE_STRAT:
-                        _adp_edge = st.slider("🎯 Min expected move % (next 30 min) — ekkuva pedithe takkuva kani quality signals", 0.05, 0.80, 0.70, 0.01,
+                        _adp_edge = st.slider("🎯 Min expected move % (next 30 min) — ekkuva pedithe takkuva kani quality signals", 0.05, 0.80, 0.12, 0.01,
                                               key="adp_min_edge", help="Model anchana: 30 nimishallo ee % kante ekkuva move undali. Cost ~0.05% ni kuda minus chesi 'net' chupistundi.")
                         _adp, _info = adaptive_live_engine(five_min_data, df_filtered['Fetch_T'].tolist(), min_edge=_adp_edge)
                         st.markdown(adaptive_status_html(_info), unsafe_allow_html=True)
