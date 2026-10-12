@@ -479,7 +479,6 @@ SMALLCAP_250 = [
 #  • WebSocket: library version tho sambandham lekunda connect (MarketFeed/DhanFeed), correct keys
 #  • Anni errors UI lo kanipistayi (silent `except: pass` ledu)
 # =========================================================
-USE_DHAN = True         # 👈 Dhan FREE plan ayithe False cheyyandi -> Dhan anni off, yfinance matrame (status bar / diagnostics / toast kuda kanipinchavu)
 DHAN_REST = "https://api.dhan.co/v2"
 DHAN_BUDGET_SEC = 20     # Dhan 5-min fetch ki max time per refresh — migata stocks yfinance nundi
 DHAN_MIN_GAP = 0.22      # Data API limit ~5 req/sec
@@ -489,8 +488,6 @@ if 'shown_dhan_status' not in st.session_state:
 
 
 def _dhan_creds():
-    if not USE_DHAN:
-        return "", ""
     try:
         s = st.secrets["dhan"]
         cid = str(s["client_id"]).strip().strip('"').strip("'")
@@ -694,21 +691,21 @@ def dhan_data_probe(cid, tok, sec_id):
 
 _DH_CID, _DH_TOK = _dhan_creds()
 _DH_HEALTH = dhan_health_check(_DH_CID, _DH_TOK)
-sec_map = get_dhan_security_map() if USE_DHAN else {}
+sec_map = get_dhan_security_map()
 rev_sec_map = {str(v): k for k, v in sec_map.items()}
 if _DH_HEALTH['ok']:
     _DH_PROBE = dhan_data_probe(_DH_CID, _DH_TOK, sec_map.get("RELIANCE", "2885"))
 else:
     _DH_PROBE = {'ok': False, 'msg': 'skipped (login fail)', 'n': 0, 'first': '', 'last': ''}
-DHAN_USABLE = bool(_DH_HEALTH['ok'] and _DH_PROBE['ok'] and sec_map)
-dhan = DHAN_USABLE      # backward-compat flag
+DHAN_USABLE = False     # <--- ILAA FALSE ANI RAYANDI
+dhan = False            # <--- ILAA FALSE ANI RAYANDI
 
-if USE_DHAN and not st.session_state.shown_dhan_status:
-    if DHAN_USABLE:
-        st.toast("Dhan LIVE ✅ (token + Data API verified)", icon="🟢")
-    else:
-        st.toast(f"Dhan ❌ → yfinance vadutunnam: {(_DH_HEALTH['msg'] if not _DH_HEALTH['ok'] else _DH_PROBE['msg'])[:90]}", icon="🔴")
-    st.session_state.shown_dhan_status = True
+# if not st.session_state.shown_dhan_status:
+#     if DHAN_USABLE:
+#         st.toast("Dhan LIVE ✅ (token + Data API verified)", icon="🟢")
+#     else:
+#         st.toast(f"Dhan ❌ → yfinance vadutunnam: {(_DH_HEALTH['msg'] if not _DH_HEALTH['ok'] else _DH_PROBE['msg'])[:90]}", icon="🔴")
+#     st.session_state.shown_dhan_status = True
 
 
 # --- WEBSOCKET LIVE TICKER (BACKGROUND THREAD) ---
@@ -821,8 +818,6 @@ start_live_ticker(DHAN_USABLE, _DH_CID, _DH_TOK, len(sec_map))
 
 def render_dhan_status():
     """Top status line + diagnostics expander"""
-    if not USE_DHAN:
-        return
     h, p, ws, dg = _DH_HEALTH, _DH_PROBE, _SS['ws'], _SS['diag']
     lf = dg.get('last_fetch', {})
     if DHAN_USABLE:
@@ -2565,7 +2560,8 @@ def render_live_ui():
         st.markdown(f"<div style='display:flex;justify-content:space-between;align-items:center;background:#161b22;border:1px solid #238636;border-radius:8px;padding:6px 12px;margin-bottom:8px;font-size:13px;'><span>🟢 <b>MARKET LIVE</b> (NSE)</span><span style='color:#8b949e;'>🕒 {_now_str} IST &nbsp;•&nbsp; Auto-refresh: {_effective_refresh}s</span></div>", unsafe_allow_html=True)
     else:
         st.markdown(f"<div style='display:flex;justify-content:space-between;align-items:center;background:#161b22;border:1px solid #f85149;border-radius:8px;padding:6px 12px;margin-bottom:8px;font-size:13px;'><span>🔴 <b>MARKET CLOSED</b> (Showing Last Data)</span><span style='color:#8b949e;'>🕒 {_now_str} IST</span></div>", unsafe_allow_html=True)
-    render_dhan_status()
+    
+    # render_dhan_status()  <--- ILAA COMMENT CHESEYANDI
     if not df.empty:
         df_indices = df[df['Is_Index']].copy()
         df_indices['Order'] = df_indices['T'].map({"NIFTY": 1, "BANKNIFTY": 2, "INDIA VIX": 3, "SPX": 4, "DAX": 5, "USD/INR": 6}).fillna(99)
@@ -3313,7 +3309,7 @@ def render_live_ui():
                 
                 for strat in strats_to_run:
                     if strat == ADAPTIVE_STRAT:
-                        _adp_edge = st.slider("🎯 Min expected move % (next 30 min) — ekkuva pedithe takkuva kani quality signals", 0.05, 0.80, 0.12, 0.01,
+                        _adp_edge = st.slider("🎯 Min expected move % (next 30 min) — ekkuva pedithe takkuva kani quality signals", 0.05, 0.80, 0.75, 0.01,
                                               key="adp_min_edge", help="Model anchana: 30 nimishallo ee % kante ekkuva move undali. Cost ~0.05% ni kuda minus chesi 'net' chupistundi.")
                         _adp, _info = adaptive_live_engine(five_min_data, df_filtered['Fetch_T'].tolist(), min_edge=_adp_edge)
                         st.markdown(adaptive_status_html(_info), unsafe_allow_html=True)
