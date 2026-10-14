@@ -2932,22 +2932,37 @@ def render_live_ui():
     
                 elif strat == "📦 Nicolas Darvas (Box Breakout)":
                     box_width = ((df_filtered['Box_Top20'] - df_filtered['Box_Bot20']) / (df_filtered['Box_Bot20'] + 0.001)) <= 0.22
-                    darvas_trend = df_filtered['P'] > df_filtered['SMA50']
+                    # Strict Uptrend: Price > 50 SMA > 150 SMA > 200 SMA mariyu 200 SMA paiki vangi undali
+                    darvas_trend = (
+                        (df_filtered['P'] > df_filtered['SMA50']) &
+                        (df_filtered['SMA50'] > df_filtered['SMA150']) &
+                        (df_filtered['SMA150'] > df_filtered['SMA200']) &
+                        (df_filtered['SMA200'] > df_filtered['SMA200_20D'])
+                    )
+                    # 52-Week High ki 15% lopala matrame undali (Downtrend stocks raavu)
+                    darvas_near_high = (df_filtered['P'] >= (df_filtered['High52W'] * 0.85)) & (df_filtered['P'] >= (df_filtered['Low52W'] * 1.30))
                     darvas_breakout = df_filtered['P'] >= (df_filtered['Box_Top20'] * 0.998)
                     darvas_vol = df_filtered['VolX'] >= 1.2
                     
-                    darvas_cond = has_history & darvas_trend & darvas_breakout & box_width & darvas_vol
+                    darvas_cond = has_history & darvas_trend & darvas_near_high & darvas_breakout & box_width & darvas_vol
                     df_darvas = df_filtered[darvas_cond].copy()
                     if not df_darvas.empty:
                         df_darvas['Strategy_Icon'] = "🟢 Darvas Breakout"
                         dfs_to_concat.append(df_darvas)
     
                 elif strat == "📦 Nicolas Darvas Modified":
+                    box_width_mod = ((df_filtered['Box_Top20'] - df_filtered['Box_Bot20']) / (df_filtered['Box_Bot20'] + 0.001)) <= 0.22
+                    darvas_mod_trend = (
+                        (df_filtered['P'] > df_filtered['SMA50']) &
+                        (df_filtered['SMA50'] > df_filtered['SMA150']) &
+                        (df_filtered['SMA150'] > df_filtered['SMA200']) &
+                        (df_filtered['SMA200'] > df_filtered['SMA200_20D'])
+                    )
+                    darvas_mod_near_high = (df_filtered['P'] >= (df_filtered['High52W'] * 0.85)) & (df_filtered['P'] >= (df_filtered['Low52W'] * 1.30))
                     darvas_mod_breakout = (df_filtered['P'] >= (df_filtered['Box_Top20'] * 0.975)) & (df_filtered['P'] <= (df_filtered['Box_Top20'] * 1.01))
                     darvas_mod_vol = df_filtered['VolX'] >= 1.0
-                    darvas_mod_trend = df_filtered['P'] > df_filtered['SMA50']
                     
-                    darvas_mod_cond = has_history & darvas_mod_trend & darvas_mod_breakout & darvas_mod_vol
+                    darvas_mod_cond = has_history & darvas_mod_trend & darvas_mod_near_high & darvas_mod_breakout & box_width_mod & darvas_mod_vol
                     df_darvas_mod = df_filtered[darvas_mod_cond].copy()
                     if not df_darvas_mod.empty:
                         df_darvas_mod['Strategy_Icon'] = "🟢 Darvas Anticipation"
