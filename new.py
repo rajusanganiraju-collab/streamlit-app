@@ -105,13 +105,16 @@ def load_portfolio():
 def load_closed_trades():
     try:
         records = trade_ws.get_all_records()
-        df = pd.DataFrame(records) if records else pd.DataFrame(columns=['Sell_Date', 'Symbol', 'Quantity', 'Buy_Price', 'Sell_Price', 'PnL_Rs', 'PnL_Pct'])
+        df = pd.DataFrame(records) if records else pd.DataFrame(columns=['Buy_Date', 'Sell_Date', 'Symbol', 'Quantity', 'Buy_Price', 'Sell_Price', 'PnL_Rs', 'PnL_Pct'])
         if not df.empty and 'Stock Name' in df.columns:
-            df.rename(columns={'Stock Name': 'Symbol', 'Buy Price': 'Buy_Price', 'Sell Price': 'Sell_Price', 'Sell Date': 'Sell_Date', 'Profit/Loss': 'PnL_Rs'}, inplace=True)
-            if 'PnL_Pct' not in df.columns: df['PnL_Pct'] = 0.0
+            df.rename(columns={'Stock Name': 'Symbol', 'Buy Price': 'Buy_Price', 'Sell Price': 'Sell_Price', 'Buy Date': 'Buy_Date', 'Sell Date': 'Sell_Date', 'Profit/Loss': 'PnL_Rs'}, inplace=True)
+        if 'Buy_Date' not in df.columns:
+            df.insert(0, 'Buy_Date', '-')
+        if 'PnL_Pct' not in df.columns:
+            df['PnL_Pct'] = 0.0
         return df
     except:
-        return pd.DataFrame(columns=['Sell_Date', 'Symbol', 'Quantity', 'Buy_Price', 'Sell_Price', 'PnL_Rs', 'PnL_Pct'])
+        return pd.DataFrame(columns=['Buy_Date', 'Sell_Date', 'Symbol', 'Quantity', 'Buy_Price', 'Sell_Price', 'PnL_Rs', 'PnL_Pct'])
 
 def save_portfolio(df):
     port_ws.clear()
@@ -1756,6 +1759,7 @@ def render_portfolio_table(df_port, df_stocks, weekly_trends, port_sort="Default
     
     rows_data = []
     total_invested, total_current, total_day_pnl = 0, 0, 0
+    today_dt = now_ist().date()
     
     for i, (_, row) in enumerate(df_port.iterrows()):
         sym = str(row['Symbol']).upper().strip()
@@ -1764,8 +1768,17 @@ def render_portfolio_table(df_port, df_stocks, weekly_trends, port_sort="Default
         try: buy_p = float(row['Buy_Price'])
         except: buy_p = 0
         
-        date_val = str(row.get('Date', '-'))
+        date_val = str(row.get('Date', '-')).strip()
         if date_val in ['nan', 'NaN', '']: date_val = '-'
+        
+        # Purchase nundi enni rojulu ayyindo calculate cheyadam (No. of Days)
+        parsed_dt = pd.to_datetime(date_val, errors='coerce')
+        if pd.notna(parsed_dt):
+            days_held = max(0, (today_dt - parsed_dt.date()).days)
+            sort_dt = parsed_dt.toordinal()
+        else:
+            days_held = 0
+            sort_dt = 0
         
         live_row = stock_lookup.get(sym, None)
         trend_html = "➖"
@@ -1792,9 +1805,9 @@ def render_portfolio_table(df_port, df_stocks, weekly_trends, port_sort="Default
         total_day_pnl += day_pnl
         
         rows_data.append({
-            'sym': sym, 'date': date_val, 'qty': qty, 'buy_p': buy_p,
-            'ltp': ltp, 'trend_html': trend_html, 'invested': invested,
-            'overall_pnl': overall_pnl, 'pnl_pct': pnl_pct, 'day_pnl': day_pnl
+            'sym': sym, 'date': date_val, 'days_held': days_held, 'sort_dt': sort_dt,
+            'qty': qty, 'buy_p': buy_p, 'ltp': ltp, 'trend_html': trend_html,
+            'invested': invested, 'overall_pnl': overall_pnl, 'pnl_pct': pnl_pct, 'day_pnl': day_pnl
         })
         
     if port_sort == "Day P&L ⬆️": rows_data.sort(key=lambda x: x['day_pnl'], reverse=True)
@@ -1803,8 +1816,12 @@ def render_portfolio_table(df_port, df_stocks, weekly_trends, port_sort="Default
     elif port_sort == "Total P&L ⬇️": rows_data.sort(key=lambda x: x['overall_pnl'], reverse=False)
     elif port_sort == "P&L % ⬆️": rows_data.sort(key=lambda x: x['pnl_pct'], reverse=True)
     elif port_sort == "P&L % ⬇️": rows_data.sort(key=lambda x: x['pnl_pct'], reverse=False)
+    elif port_sort == "Date (Newest) ⬇️": rows_data.sort(key=lambda x: x['sort_dt'], reverse=True)
+    elif port_sort == "Date (Oldest) ⬆️": rows_data.sort(key=lambda x: x['sort_dt'], reverse=False)
+    elif port_sort == "Days Held ⬆️": rows_data.sort(key=lambda x: x['days_held'], reverse=True)
+    elif port_sort == "Days Held ⬇️": rows_data.sort(key=lambda x: x['days_held'], reverse=False)
 
-    html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-port">💼 LIVE PORTFOLIO TERMINAL</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:12%;">STOCK</th><th style="width:10%;">DATE</th><th style="width:6%;">QTY</th><th style="width:9%;">AVG</th><th style="width:9%;">LTP</th><th style="width:11%;">WK TREND</th><th style="width:13%;">INVESTED (₹)</th><th style="width:10%;">DAY P&L</th><th style="width:10%;">TOT P&L</th><th style="width:10%;">P&L %</th></tr></thead><tbody>'
+    html = f'<table class="term-table"><thead><tr><th colspan="11" class="term-head-port">💼 LIVE PORTFOLIO TERMINAL</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:11%;">STOCK</th><th style="width:9%;">BUY DATE</th><th style="width:6%; color:#ffd700;">DAYS</th><th style="width:5%;">QTY</th><th style="width:8%;">AVG</th><th style="width:8%;">LTP</th><th style="width:10%;">WK TREND</th><th style="width:12%;">INVESTED (₹)</th><th style="width:10%;">DAY P&L</th><th style="width:11%;">TOT P&L</th><th style="width:10%;">P&L %</th></tr></thead><tbody>'
     
     for i, rd in enumerate(rows_data):
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
@@ -1812,7 +1829,8 @@ def render_portfolio_table(df_port, df_stocks, weekly_trends, port_sort="Default
         dpnl_color = "text-green" if rd['day_pnl'] >= 0 else "text-red"
         t_sign = "+" if rd['overall_pnl'] > 0 else ""
         d_sign = "+" if rd['day_pnl'] > 0 else ""
-        html += f'<tr class="{bg_class}"><td class="t-symbol {tpnl_color}"><a href="https://in.tradingview.com/chart/?symbol=NSE:{rd["sym"]}" target="_blank">{rd["sym"]}</a></td><td>{rd["date"]}</td><td>{int(rd["qty"])}</td><td>{rd["buy_p"]:.2f}</td><td>{rd["ltp"]:.2f}</td><td style="font-size:10px;">{rd["trend_html"]}</td><td>{rd["invested"]:,.0f}</td><td class="{dpnl_color}">{d_sign}{rd["day_pnl"]:,.0f}</td><td class="{tpnl_color}">{t_sign}{rd["overall_pnl"]:,.0f}</td><td class="{tpnl_color}">{t_sign}{rd["pnl_pct"]:.2f}%</td></tr>'
+        days_str = f"{rd['days_held']}d" if rd['date'] != '-' else "-"
+        html += f'<tr class="{bg_class}"><td class="t-symbol {tpnl_color}"><a href="https://in.tradingview.com/chart/?symbol=NSE:{rd["sym"]}" target="_blank">{rd["sym"]}</a></td><td>{rd["date"]}</td><td style="color:#ffd700; font-weight:bold;">{days_str}</td><td>{int(rd["qty"])}</td><td>{rd["buy_p"]:.2f}</td><td>{rd["ltp"]:.2f}</td><td style="font-size:10px;">{rd["trend_html"]}</td><td>{rd["invested"]:,.0f}</td><td class="{dpnl_color}">{d_sign}{rd["day_pnl"]:,.0f}</td><td class="{tpnl_color}">{t_sign}{rd["overall_pnl"]:,.0f}</td><td class="{tpnl_color}">{t_sign}{rd["pnl_pct"]:.2f}%</td></tr>'
     
     overall_total_pnl = total_current - total_invested
     overall_total_pct = (overall_total_pnl / total_invested * 100) if total_invested > 0 else 0
@@ -1831,7 +1849,7 @@ def render_portfolio_table(df_port, df_stocks, weekly_trends, port_sort="Default
     ap_color = "text-green" if actual_pnl_value >= 0 else "text-red"
     ap_sign = "+" if actual_pnl_value > 0 else ""
 
-    html += f'<tr class="port-total"><td colspan="7" style="text-align:right; padding-right:15px; font-size:12px;">TOTAL INVESTED: ₹{total_invested:,.0f} &nbsp;|&nbsp; CURRENT: ₹{total_current:,.0f} &nbsp;|&nbsp; ACTUAL P&L: <span class="{ap_color}">{ap_sign}₹{actual_pnl_value:,.0f}</span> &nbsp;|&nbsp; OVERALL P&L:</td><td class="{d_color}">{d_sign}₹{total_day_pnl:,.0f}</td><td class="{o_color}">{o_sign}₹{overall_total_pnl:,.0f}</td><td class="{o_color}">{o_sign}{overall_total_pct:.2f}%</td></tr>'
+    html += f'<tr class="port-total"><td colspan="8" style="text-align:right; padding-right:15px; font-size:12px;">TOTAL INVESTED: ₹{total_invested:,.0f} &nbsp;|&nbsp; CURRENT: ₹{total_current:,.0f} &nbsp;|&nbsp; ACTUAL P&L: <span class="{ap_color}">{ap_sign}₹{actual_pnl_value:,.0f}</span> &nbsp;|&nbsp; OVERALL P&L:</td><td class="{d_color}">{d_sign}₹{total_day_pnl:,.0f}</td><td class="{o_color}">{o_sign}₹{overall_total_pnl:,.0f}</td><td class="{o_color}">{o_sign}{overall_total_pct:.2f}%</td></tr>'
     html += "</tbody></table>"
     return html
 
@@ -2310,7 +2328,7 @@ def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Intraday 
 def render_closed_trades_table(df_closed):
     if df_closed.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border:1px dashed #30363d; border-radius:8px;'>No closed trades yet. Sell a stock to book P&L!</div>"
     
-    html = f'<table class="term-table"><thead><tr><th colspan="7" style="background-color:#4a148c; color:white; text-align:left; padding-left:10px;">📜 CLOSED TRADES (TRADE BOOK & P&L)</th></tr><tr style="background-color: #21262d;"><th style="width:15%; text-align:left;">SELL DATE</th><th style="width:15%; text-align:left;">STOCK</th><th style="width:10%;">QTY</th><th style="width:15%;">BUY AVG</th><th style="width:15%;">SELL AVG</th><th style="width:15%;">REALIZED P&L (₹)</th><th style="width:15%;">P&L %</th></tr></thead><tbody>'
+    html = f'<table class="term-table"><thead><tr><th colspan="8" style="background-color:#4a148c; color:white; text-align:left; padding-left:10px;">📜 CLOSED TRADES (TRADE BOOK & P&L)</th></tr><tr style="background-color: #21262d;"><th style="width:12%; text-align:left;">BUY DATE</th><th style="width:12%; text-align:left;">SELL DATE</th><th style="width:14%; text-align:left;">STOCK</th><th style="width:8%;">QTY</th><th style="width:13%;">BUY AVG</th><th style="width:13%;">SELL AVG</th><th style="width:15%;">REALIZED P&L (₹)</th><th style="width:13%;">P&L %</th></tr></thead><tbody>'
     
     total_realized_pnl = 0
     for i, (_, row) in enumerate(df_closed.iterrows()):
@@ -2333,13 +2351,15 @@ def render_closed_trades_table(df_closed):
         p_color = "text-green" if pnl_rs >= 0 else "text-red"
         p_sign = "+" if pnl_rs > 0 else ""
         
-        sell_date_val = str(row.get("Sell_Date", ""))
+        buy_date_val = str(row.get("Buy_Date", "-"))
+        if buy_date_val in ["nan", "NaN", ""]: buy_date_val = "-"
+        sell_date_val = str(row.get("Sell_Date", "-"))
         
-        html += f'<tr class="{bg_class}"><td style="text-align:left;">{sell_date_val}</td><td class="t-symbol {p_color}" style="text-align:left;"><a href="https://in.tradingview.com/chart/?symbol=NSE:{sym}" target="_blank">{sym}</a></td><td>{qty}</td><td>{buy_p:.2f}</td><td>{sell_p:.2f}</td><td class="{p_color}">{p_sign}{pnl_rs:,.2f}</td><td class="{p_color}">{p_sign}{pnl_pct:.2f}%</td></tr>'
+        html += f'<tr class="{bg_class}"><td style="text-align:left;">{buy_date_val}</td><td style="text-align:left;">{sell_date_val}</td><td class="t-symbol {p_color}" style="text-align:left;"><a href="https://in.tradingview.com/chart/?symbol=NSE:{sym}" target="_blank">{sym}</a></td><td>{qty}</td><td>{buy_p:.2f}</td><td>{sell_p:.2f}</td><td class="{p_color}">{p_sign}{pnl_rs:,.2f}</td><td class="{p_color}">{p_sign}{pnl_pct:.2f}%</td></tr>'
         
     tot_color = "text-green" if total_realized_pnl >= 0 else "text-red"
     tot_sign = "+" if total_realized_pnl > 0 else ""
-    html += f'<tr class="port-total"><td colspan="5" style="text-align:right; padding-right:15px; font-size:13px;">NET REALIZED P&L:</td><td colspan="2" class="{tot_color}" style="font-size:14px; text-align:center;">{tot_sign}₹{total_realized_pnl:,.2f}</td></tr>'
+    html += f'<tr class="port-total"><td colspan="6" style="text-align:right; padding-right:15px; font-size:13px;">NET REALIZED P&L:</td><td colspan="2" class="{tot_color}" style="font-size:14px; text-align:center;">{tot_sign}₹{total_realized_pnl:,.2f}</td></tr>'
     html += "</tbody></table>"
     return html
 
@@ -2369,6 +2389,48 @@ if not df.empty:
 # --- 7. UI SETTINGS ---
 # =========================================================
 
+# 1. MARKET LIVE / CLOSED + MARKET DIRECTION (BUY=GREEN / SELL=RED) AT VERY TOP
+_m_open_top = is_market_open()
+_now_str_top = now_ist().strftime('%d-%b %I:%M:%S %p')
+
+_mkt_dir_text = "BUY 📈"
+_mkt_dir_bg = "#238636"  # Green color for BUY
+_mkt_dir_border = "#2ea043"
+
+if not df.empty and "NIFTY" in df['T'].values:
+    _nrow = df[df['T'] == "NIFTY"].iloc[0]
+    _n_ltp = float(_nrow['P'])
+    _n_vwap = float(_nrow['VWAP'])
+    _n_dayc = float(_nrow['Day_C'])
+    # Nifty Day% negative unna leda VWAP kindha unna SELL (Red Box) chupistundi
+    if _n_dayc < 0 or _n_ltp < _n_vwap:
+        _mkt_dir_text = f"SELL 📉 ({_n_dayc:+.2f}%)"
+        _mkt_dir_bg = "#da3633"  # Red color for SELL
+        _mkt_dir_border = "#f85149"
+    else:
+        _mkt_dir_text = f"BUY 📈 ({_n_dayc:+.2f}%)"
+
+_dir_box_html = (
+    f"<span style='background:{_mkt_dir_bg};border:1px solid {_mkt_dir_border};"
+    f"color:#ffffff;padding:2px 10px;border-radius:4px;font-weight:bold;font-size:12px;'>"
+    f"MARKET: {_mkt_dir_text}</span>"
+)
+
+_status_border = "#238636" if _m_open_top else "#f85149"
+_status_title = "🟢 <b>MARKET LIVE</b> (NSE)" if _m_open_top else "🔴 <b>MARKET CLOSED</b> (Showing Last Data)"
+
+st.markdown(
+    f"<div style='display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;"
+    f"background:#161b22;border:1px solid {_status_border};border-radius:6px;padding:5px 12px;"
+    f"margin-bottom:8px;font-size:12.5px;'>"
+    f"<span>{_status_title}</span>"
+    f"{_dir_box_html}"
+    f"<span style='color:#8b949e;'>🕒 {_now_str_top} IST</span>"
+    f"</div>",
+    unsafe_allow_html=True
+)
+
+# 2. WATCHLIST DROPDOWN + HEATMAP/CHART RADIO IN ONE COMPACT LINE
 top_c1, top_c2 = st.columns([3.2, 1.2])
 with top_c1:
     watchlist_mode = st.selectbox("Watchlist", [
@@ -2527,13 +2589,6 @@ def render_live_ui():
     if st.session_state.pause_refresh:
         st.info("⏸️ Data refresh is paused.")
         return
-    # 🟢🔴 Market Status Badge
-    _m_open = is_market_open()
-    _now_str = now_ist().strftime('%d-%b %I:%M:%S %p')
-    if _m_open:
-        st.markdown(f"<div style='display:flex;justify-content:space-between;align-items:center;background:#161b22;border:1px solid #238636;border-radius:8px;padding:6px 12px;margin-bottom:8px;font-size:13px;'><span>🟢 <b>MARKET LIVE</b> (NSE)</span><span style='color:#8b949e;'>🕒 {_now_str} IST &nbsp;•&nbsp; Auto-refresh: {_effective_refresh}s</span></div>", unsafe_allow_html=True)
-    else:
-        st.markdown(f"<div style='display:flex;justify-content:space-between;align-items:center;background:#161b22;border:1px solid #f85149;border-radius:8px;padding:6px 12px;margin-bottom:8px;font-size:13px;'><span>🔴 <b>MARKET CLOSED</b> (Showing Last Data)</span><span style='color:#8b949e;'>🕒 {_now_str} IST</span></div>", unsafe_allow_html=True)
     
     # render_dhan_status()  <--- ILAA COMMENT CHESEYANDI
     if not df.empty:
