@@ -2986,7 +2986,12 @@ def render_live_ui():
     
                 elif strat == "💥 Dan Zanger (Volume Explosion)":
                     zanger_vol = df_filtered['VolX'] >= 1.8
-                    zanger_ma = (df_filtered['P'] > df_filtered['SMA50']) & (df_filtered['SMA50'] > df_filtered['SMA150'])
+                    zanger_ma = (
+                        (df_filtered['P'] > df_filtered['SMA50']) &
+                        (df_filtered['SMA50'] > df_filtered['SMA150']) &
+                        (df_filtered['SMA150'] > df_filtered['SMA200']) &
+                        (df_filtered['P'] >= (df_filtered['High52W'] * 0.80))
+                    )
                     bar_range = df_filtered['H'] - df_filtered['L']
                     close_position = (df_filtered['P'] - df_filtered['L']) / (bar_range + 0.001)
                     zanger_close = close_position >= 0.70
