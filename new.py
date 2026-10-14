@@ -3860,16 +3860,16 @@ def render_live_ui():
                     st.dataframe(me_df, use_container_width=True, hide_index=True)
             
         elif watchlist_mode == "My Portfolio 💼" and view_mode == "Heat Map":
-         sc1, sc2, sc3 = st.columns([0.4, 0.3, 0.3])
-         _avail_dates = ["All Dates"] + sorted(list(set(df_port_saved['Date'].dropna().astype(str).tolist()))) if not df_port_saved.empty and 'Date' in df_port_saved.columns else ["All Dates"]
-         with sc2:
-             port_date_filter = st.selectbox("📅 Date Filter:", _avail_dates, label_visibility="collapsed")
-         with sc3:
-             port_sort = st.selectbox("↕️ Sort Portfolio:", ["Default", "Date (Newest) ⬇️", "Date (Oldest) ⬆️", "Days Held ⬆️", "Days Held ⬇️", "Day P&L ⬆️", "Day P&L ⬇️", "Total P&L ⬆️", "Total P&L ⬇️", "P&L % ⬆️", "P&L % ⬇️"], label_visibility="collapsed")
-         if port_date_filter != "All Dates" and not df_port_saved.empty:
-             df_port_view = df_port_saved[df_port_saved['Date'].astype(str) == port_date_filter].copy()
-         else:
-             df_port_view = df_port_saved.copy()
+            sc1, sc2, sc3 = st.columns([0.4, 0.3, 0.3])
+            _avail_dates = ["All Dates"] + sorted(list(set(df_port_saved['Date'].dropna().astype(str).tolist()))) if not df_port_saved.empty and 'Date' in df_port_saved.columns else ["All Dates"]
+            with sc2:
+                port_date_filter = st.selectbox("📅 Date Filter:", _avail_dates, label_visibility="collapsed")
+            with sc3:
+                port_sort = st.selectbox("↕️ Sort Portfolio:", ["Default", "Date (Newest) ⬇️", "Date (Oldest) ⬆️", "Days Held ⬆️", "Days Held ⬇️", "Day P&L ⬆️", "Day P&L ⬇️", "Total P&L ⬆️", "Total P&L ⬇️", "P&L % ⬆️", "P&L % ⬇️"], label_visibility="collapsed")
+            if port_date_filter != "All Dates" and not df_port_saved.empty:
+                df_port_view = df_port_saved[df_port_saved['Date'].astype(str) == port_date_filter].copy()
+            else:
+                df_port_view = df_port_saved.copy()
 
             # 📊 Portfolio KPI Strip (NEW)
             try:
@@ -3903,7 +3903,7 @@ def render_live_ui():
                 except Exception as _pe:
                     st.caption(f"Allocation render error: {_pe}")
 
-            st.markdown(render_portfolio_table(df_port_saved, df_all_stocks, weekly_trends, port_sort), unsafe_allow_html=True)
+            st.markdown(render_portfolio_table(df_port_view, df_all_stocks, weekly_trends, port_sort), unsafe_allow_html=True)
             st.markdown("<br>", unsafe_allow_html=True)
             
             with st.expander("🤖 View Portfolio Swing Advisor (Action & Levels)", expanded=False):
@@ -4005,7 +4005,8 @@ def render_live_ui():
                             
                             df_closed = load_closed_trades()
                             buy_date_str = str(port_row.get('Date', '-'))
-                         new_closed_row = pd.DataFrame({"Buy_Date": [buy_date_str], "Sell_Date": [sell_date_str], "Symbol": [sell_sym], "Quantity": [sell_qty], "Buy_Price": [buy_price], "Sell_Price": [sell_price], "PnL_Rs": [pnl_rs], "PnL_Pct": [pnl_pct]})
+                            new_closed_row = pd.DataFrame({"Buy_Date": [buy_date_str], "Sell_Date": [sell_date_str], "Symbol": [sell_sym], "Quantity": [sell_qty], "Buy_Price": [buy_price], "Sell_Price": [sell_price], "PnL_Rs": [pnl_rs], "PnL_Pct": [pnl_pct]})
+                            df_closed = pd.concat([df_closed, new_closed_row], ignore_index=True)
                             save_closed_trades(df_closed)
                             
                             df_port_saved = df_port_saved.copy()
@@ -4191,10 +4192,10 @@ def render_live_ui():
                 st.markdown("<div style='font-size:16px; font-weight:bold; margin-bottom:5px; color:#00BFFF;'>🌍 Global & Main Indices</div>", unsafe_allow_html=True)
                 render_chart_grid(df_indices, show_pin_option=False, key_prefix="idx", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol)
 
-             if not df_sectors.empty:
-                 _sec_c1, _sec_c2 = st.columns([1.3, 4.7])
-                 with _sec_c1:
-                     show_sec_charts = st.toggle("📊 Show Sectoral Indices Charts", value=False)
+                if not df_sectors.empty:
+                    _sec_c1, _sec_c2 = st.columns([1.3, 4.7])
+                    with _sec_c1:
+                        show_sec_charts = st.toggle("📊 Show Sectoral Indices Charts", value=False)
                     
                     if show_sec_charts:
                         render_chart_grid(df_sectors, show_pin_option=False, key_prefix="sec", timeframe=chart_timeframe, chart_dict=chart_dict_to_use, show_crosshair=show_crosshair, show_vol=show_vol, is_sector=True)
