@@ -1085,8 +1085,9 @@ def fetch_all_data():
             # 🔥 END OF NEW CALCULATIONS
             
             if len(df) >= 25:
-                box_top_20 = float(df['High'].iloc[-13:-1].max())
-                box_bot_20 = float(df['Low'].iloc[-13:-1].min())
+                # 20 trading days (4 weeks) base for Darvas & Zanger
+                box_top_20 = float(df['High'].iloc[-21:-1].max())
+                box_bot_20 = float(df['Low'].iloc[-21:-1].min())
             else:
                 box_top_20 = high_52w
                 box_bot_20 = low_52w
@@ -2732,9 +2733,10 @@ def render_live_ui():
             min_c3 = df_filtered['SMA50'] > df_filtered['SMA200']
             min_c4 = df_filtered['SMA150'] > df_filtered['SMA200']
             min_c5 = df_filtered['SMA200'] > df_filtered['SMA200_20D'] 
-            min_c6 = df_filtered['P'] >= (df_filtered['Low52W'] * 1.25) 
-            min_c7 = df_filtered['P'] >= (df_filtered['High52W'] * 0.70) 
-            vcp_base_cond = has_history & min_c1 & min_c2 & min_c3 & min_c4 & min_c5 & min_c6 & min_c7
+            min_c6 = df_filtered['P'] >= (df_filtered['Low52W'] * 1.30)  # Fixed: 30% above 52W Low
+            min_c7 = df_filtered['P'] >= (df_filtered['High52W'] * 0.75) # Fixed: Within 25% of 52W High
+            min_c8 = (df_filtered['SMA50'] > df_filtered['SMA150']) & (df_filtered['P'] > df_filtered['SMA50']) # Fixed: Rule #4 & #5
+            vcp_base_cond = has_history & min_c1 & min_c2 & min_c3 & min_c4 & min_c5 & min_c6 & min_c7 & min_c8
             
             strat_selection = move_type_filter[0] if isinstance(move_type_filter, list) else move_type_filter
             is_intraday = (chart_timeframe == "Intraday (5m)")
@@ -2870,9 +2872,7 @@ def render_live_ui():
                     df_intra_reject['Strategy_Icon'] = "🔴 Dip Reject"
                     dfs_to_concat.append(df_intra_reject)
                 elif strat == "🧲 The 20-EMA Holy Grail Pullback":
-                    # Holy Grail needs Daily 20 EMA, not weekly. Trend must be strong.
                     hg_trend = (df_filtered['P'] > df_filtered['SMA50']) & (df_filtered['SMA50'] > df_filtered['SMA150'])
-                    # Exact test: Low touched 20 EMA, but Price closed above it.
                     hg_pullback = (df_filtered['L'] <= df_filtered['EMA20'] * 1.01) & (df_filtered['P'] >= df_filtered['EMA20'])
                     hg_bounce = (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] > 0)
                     hg_cond = has_history & hg_trend & hg_pullback & hg_bounce
@@ -2880,7 +2880,6 @@ def render_live_ui():
                     df_hg['Strategy_Icon'] = "🟢 Holy Grail"
                     dfs_to_concat.append(df_hg)
     
-                    # Sell logic for Holy Grail
                     hg_sell_trend = (df_filtered['P'] < df_filtered['SMA50']) & (df_filtered['SMA50'] < df_filtered['SMA150'])
                     hg_sell_breakdown = (df_filtered['H'] >= df_filtered['EMA20'] * 0.99) & (df_filtered['P'] <= df_filtered['EMA20'])
                     hg_sell_cond = has_history & hg_sell_trend & hg_sell_breakdown & (df_filtered['Day_C'] < 0)
@@ -2889,18 +2888,18 @@ def render_live_ui():
                     dfs_to_concat.append(df_hg_sell)
     
                 elif strat == "📉 RSI(2) Mean Reversion (Larry Connors)":
-                    # REAL Larry Connors Logic: Price > 200 SMA (Uptrend), but RSI(2) < 15 (Extreme panic)
+                    # Connors Strict Rule: Price > 200 SMA, RSI(2) <= 10
                     lc_trend = df_filtered['P'] > df_filtered['SMA200']
-                    lc_dip = df_filtered['RSI2'] <= 15.0  # Perfect RSI 2 rule
-                    lc_reversal = (df_filtered['P'] > df_filtered['O']) # Reversing today
+                    lc_dip = df_filtered['RSI2'] <= 10.0
+                    lc_reversal = (df_filtered['P'] > df_filtered['O'])
                     lc_cond = has_history & lc_trend & lc_dip & lc_reversal
                     df_lc = df_filtered[lc_cond].copy()
                     df_lc['Strategy_Icon'] = "🟢 RSI(2) Reversal"
                     dfs_to_concat.append(df_lc)
     
-                    # Sell Logic: Price < 200 SMA (Downtrend), but RSI(2) > 85 (Extreme bounce)
+                    # Sell Rule: Price < 200 SMA, RSI(2) >= 90
                     lc_sell_trend = df_filtered['P'] < df_filtered['SMA200']
-                    lc_sell_spike = df_filtered['RSI2'] >= 85.0
+                    lc_sell_spike = df_filtered['RSI2'] >= 90.0
                     lc_sell_down = (df_filtered['P'] < df_filtered['O'])
                     lc_sell_cond = has_history & lc_sell_trend & lc_sell_spike & lc_sell_down
                     df_lc_sell = df_filtered[lc_sell_cond].copy()
@@ -2913,17 +2912,17 @@ def render_live_ui():
                         df_min['Strategy_Icon'] = "🟢 M-VCP"
                         dfs_to_concat.append(df_min)
     
-                    vcp_sell_cond = has_history & (df_filtered['P'] < df_filtered['SMA50']) & (df_filtered['SMA50'] < df_filtered['SMA150'])
+                    vcp_sell_cond = has_history & (df_filtered['P'] < df_filtered['SMA50']) & (df_filtered['SMA50'] < df_filtered['SMA150']) & (df_filtered['SMA150'] < df_filtered['SMA200'])
                     df_vcp_sell = df_filtered[vcp_sell_cond].copy()
                     if not df_vcp_sell.empty:
-                        df_vcp_sell['Strategy_Icon'] = "🔴 M-VCP"
+                        df_vcp_sell['Strategy_Icon'] = "🔴 Trend Breakdown"
                         dfs_to_concat.append(df_vcp_sell)
                     
                 elif strat == "📉 Strict VCP (Price & Vol Contraction)":
-                    # STRICT means Box depth must be less than 8% (0.08), not 25%
-                    recent_tightness = ((df_filtered['Box_Top20'] - df_filtered['Box_Bot20']) / (df_filtered['Box_Bot20'] + 0.001)) <= 0.08 
-                    vcp_vol_dry_strict = df_filtered['VCP_Vol_Dry'] == True
-                    vcp_price_ok = df_filtered['P'] >= (df_filtered['High52W'] * 0.85) # Nearer to highs
+                    # VCP_Contract checks 10-day range <= 75% of 60-day range & <= 15%
+                    recent_tightness = ((df_filtered['Box_Top20'] - df_filtered['Box_Bot20']) / (df_filtered['Box_Bot20'] + 0.001)) <= 0.10
+                    vcp_vol_dry_strict = (df_filtered['VCP_Contract'] == True) & (df_filtered['VCP_Vol_Dry'] == True)
+                    vcp_price_ok = df_filtered['P'] >= (df_filtered['High52W'] * 0.85)
                     strict_vcp_cond = vcp_base_cond & recent_tightness & vcp_vol_dry_strict & vcp_price_ok
                     df_vcp = df_filtered[strict_vcp_cond].copy()
                     df_vcp['Strategy_Icon'] = "🟢 Strict VCP"
@@ -2932,9 +2931,7 @@ def render_live_ui():
                 elif strat == "📦 Nicolas Darvas (Box Breakout)":
                     box_width = ((df_filtered['Box_Top20'] - df_filtered['Box_Bot20']) / (df_filtered['Box_Bot20'] + 0.001)) <= 0.20
                     darvas_trend = df_filtered['P'] > df_filtered['SMA50']
-                    # Real breakout means price is strictly >= Box Top
                     darvas_breakout = df_filtered['P'] >= df_filtered['Box_Top20'] 
-                    # Volume MUST be high for Darvas
                     darvas_vol = df_filtered['VolX'] >= 1.5 
                     
                     darvas_cond = has_history & darvas_trend & darvas_breakout & box_width & darvas_vol
@@ -2944,7 +2941,6 @@ def render_live_ui():
                         dfs_to_concat.append(df_darvas)
     
                 elif strat == "📦 Nicolas Darvas Modified":
-                    # Modified means catching it just before it breaks (Anticipation)
                     darvas_mod_breakout = (df_filtered['P'] >= (df_filtered['Box_Top20'] * 0.98)) & (df_filtered['P'] < df_filtered['Box_Top20'])
                     darvas_mod_vol = df_filtered['VolX'] >= 1.2
                     darvas_mod_trend = df_filtered['P'] > df_filtered['SMA50']
@@ -2954,21 +2950,53 @@ def render_live_ui():
                     if not df_darvas_mod.empty:
                         df_darvas_mod['Strategy_Icon'] = "🟢 Darvas Anticipation"
                         dfs_to_concat.append(df_darvas_mod)
+
+                elif strat == "📈 Stan Weinstein (Stage 2 Uptrend)":
+                    # Stage 2: Price > 150 SMA (30-wk MA), 150 SMA rising, near base, Volume >= 1.5x
+                    w_above = df_filtered['P'] > df_filtered['SMA150']
+                    w_rising = df_filtered['SMA150'] > df_filtered['SMA150_20D']
+                    w_near_base = df_filtered['P'] <= (df_filtered['SMA150'] * 1.15)
+                    w_vol = df_filtered['VolX'] >= 1.5
+                    w_cond = has_history & w_above & w_rising & w_near_base & w_vol
+                    df_w2 = df_filtered[w_cond].copy()
+                    if not df_w2.empty:
+                        df_w2['Strategy_Icon'] = "🟢 Stage 2"
+                        dfs_to_concat.append(df_w2)
+
+                    # Stage 4: Price < 150 SMA, 150 SMA falling
+                    w4_cond = has_history & (df_filtered['P'] < df_filtered['SMA150']) & (df_filtered['SMA150'] < df_filtered['SMA150_20D']) & (df_filtered['P'] >= df_filtered['SMA150'] * 0.85)
+                    df_w4 = df_filtered[w4_cond].copy()
+                    if not df_w4.empty:
+                        df_w4['Strategy_Icon'] = "🔴 Stage 4"
+                        dfs_to_concat.append(df_w4)
     
                 elif strat == "💥 Dan Zanger (Volume Explosion)":
-                    # Zanger = EXPLOSION. Volume > 2.0x
+                    # Zanger: Volume >= 2.0x after Vol Dry-up, Breakout above 20-day Box
                     zanger_vol = df_filtered['VolX'] >= 2.0
                     zanger_ma = (df_filtered['P'] > df_filtered['SMA50']) & (df_filtered['SMA50'] > df_filtered['SMA150'])
-                    # Candle must close near the top 20% of its range
                     bar_range = df_filtered['H'] - df_filtered['L']
                     close_position = (df_filtered['P'] - df_filtered['L']) / (bar_range + 0.001)
                     zanger_close = close_position >= 0.80
                     zanger_breakout = df_filtered['P'] >= df_filtered['Box_Top20']
+                    zanger_dryup = df_filtered['VCP_Vol_Dry'] == True
                     
-                    zanger_cond = has_history & zanger_vol & zanger_ma & zanger_close & zanger_breakout
+                    zanger_cond = has_history & zanger_vol & zanger_ma & zanger_close & zanger_breakout & zanger_dryup
                     df_zanger = df_filtered[zanger_cond].copy()
-                    df_zanger['Strategy_Icon'] = "🟢 Zanger Explosion"
-                    dfs_to_concat.append(df_zanger)
+                    if not df_zanger.empty:
+                        df_zanger['Strategy_Icon'] = "🟢 Zanger Explosion"
+                        dfs_to_concat.append(df_zanger)
+
+                elif strat == "👑 King Strategy (SMA Bounce)":
+                    # Strong Uptrend (50 > 150 > 200 SMA) + Pullback bounce at 50 or 150 SMA
+                    king_trend = (df_filtered['SMA50'] > df_filtered['SMA150']) & (df_filtered['SMA150'] > df_filtered['SMA200'])
+                    touch_50 = (df_filtered['L'] <= df_filtered['SMA50'] * 1.015) & (df_filtered['P'] >= df_filtered['SMA50'])
+                    touch_150 = (df_filtered['L'] <= df_filtered['SMA150'] * 1.015) & (df_filtered['P'] >= df_filtered['SMA150'])
+                    king_bounce = (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] > 0.5) & (df_filtered['VolX'] >= 1.2)
+                    king_cond = has_history & king_trend & (touch_50 | touch_150) & king_bounce
+                    df_king = df_filtered[king_cond].copy()
+                    if not df_king.empty:
+                        df_king['Strategy_Icon'] = "🟢 King SMA Bounce"
+                        dfs_to_concat.append(df_king)
     
                     # Sell logic for Zanger - Reversal
                     zanger_sell_ma = (df_filtered['P'] < df_filtered['SMA50']) & (df_filtered['SMA50'] < df_filtered['SMA150'])
@@ -4270,38 +4298,43 @@ def render_live_ui():
             <h4 style='color:#00BFFF; margin-top:0px;'>1. 👑 King Strategy (SMA Bounce)</h4>
             <ul style='color:#c9d1d9; font-size:14px;'>
                 <li><b>ఎప్పుడు వాడాలి:</b> మంచి క్వాలిటీ స్టాక్స్ ని తక్కువ ధరకు (Buy on Dips) కొనేందుకు.</li>
-                <li><b>లాజిక్ & ఎంట్రీ:</b> లాంగ్ టర్మ్ ట్రెండ్ (50 SMA > 150 SMA > 200 SMA) పైన ఉండాలి. స్టాక్ పడుతూ వచ్చి 50, 150 లేదా 200 SMA దగ్గర సపోర్ట్ తీసుకుని లైవ్ లో వాల్యూమ్ తో బౌన్స్ అయితే కొనాలి.</li>
+                <li><b>లాజిక్ & ఎంట్రీ:</b> లాంగ్ టర్మ్ ట్రెండ్ (50 SMA > 150 SMA > 200 SMA) పైన ఉండాలి. స్టాక్ పడుతూ వచ్చి 50 లేదా 150 SMA దగ్గర సపోర్ట్ తీసుకుని 1.2x వాల్యూమ్ తో బౌన్స్ అయితే కొనాలి.</li>
             </ul>
     
             <h4 style='color:#3fb950; margin-top:15px;'>2. 📈 Minervini Trend Template & Strict VCP</h4>
             <ul style='color:#c9d1d9; font-size:14px;'>
-                <li><b>ఎప్పుడు వాడాలి:</b> పక్కా అప్‌ట్రెండ్ లో కన్సాలిడేట్ అవుతున్న స్టాక్స్ పట్టుకునేందుకు (Stage 2).</li>
-                <li><b>లాజిక్ & ఎంట్రీ:</b> 150 SMA & 200 SMA పైకి వంగి ఉండాలి (స్లోప్). ధర 52-వారాల హైకి 25% లోపలే ఉండాలి. స్ట్రిక్ట్ VCP అయితే గత కొన్ని రోజులుగా వాల్యూమ్ డ్రై అయిపోయి, బాక్స్ రేంజ్ బాగా సన్నబడి (Contraction) బ్రేక్అవుట్ కి రెడీగా ఉండాలి.</li>
+                <li><b>ఎప్పుడు వాడాలి:</b> పక్కా అప్‌ట్రెండ్ లో కన్సాలిడేట్ అవుతున్న స్టాక్స్ పట్టుకునేందుకు.</li>
+                <li><b>లాజిక్ & ఎంట్రీ:</b> 50 SMA > 150 SMA > 200 SMA ఉండాలి, 200 SMA పైకి వంగి ఉండాలి. ధర 52W Low కంటే 30% పైన మరియు 52W High కి 25% లోపలే ఉండాలి. స్ట్రిక్ట్ VCP అయితే గత 60 రోజుల కంటే 10-20 రోజుల బాక్స్ రేంజ్ బాగా తగ్గి (<=10%) వాల్యూమ్ డ్రై అవ్వాలి.</li>
             </ul>
     
             <h4 style='color:#FFD700; margin-top:15px;'>3. 📦 Nicolas Darvas & Modified Box</h4>
             <ul style='color:#c9d1d9; font-size:14px;'>
-                <li><b>ఎప్పుడు వాడాలి:</b> 52-Week లేదా ఆల్-టైమ్ హై దగ్గర కొనేందుకు (Buy High, Sell Higher).</li>
-                <li><b>లాజిక్ & ఎంట్రీ:</b> ధర 50 SMA పైన ఉండాలి. కొన్ని రోజులుగా ఒక బాక్స్ రేంజ్ లో ఉండి, ఈరోజు వాల్యూమ్ తో బాక్స్ పై భాగాన్ని (Box Top) బ్రేక్ చేస్తే కొనాలి. (మోడిఫైడ్ వెర్షన్ అయితే.. బ్రేక్అవుట్ కోసం వెయిట్ చేయకుండా 0.5% దగ్గరలో ఉండగానే అలర్ట్ ఇస్తుంది).</li>
+                <li><b>ఎప్పుడు వాడాలి:</b> 20-రోజుల బాక్స్ బ్రేక్అవుట్ దగ్గర కొనేందుకు (Buy High, Sell Higher).</li>
+                <li><b>లాజిక్ & ఎంట్రీ:</b> ధర 50 SMA పైన ఉండి, గత 20 రోజుల బాక్స్ రేంజ్ పై భాగాన్ని (Box Top) 1.5x వాల్యూమ్ తో బ్రేక్ చేస్తే కొనాలి. (మోడిఫైడ్ వెర్షన్ అయితే బాక్స్ టాప్ కి 2% లోపల బ్రేక్అవుట్ కి రెడీగా ఉన్నప్పుడే అలర్ట్ ఇస్తుంది).</li>
             </ul>
     
             <h4 style='color:#FF8C00; margin-top:15px;'>4. 🧲 The 20-EMA Holy Grail Pullback</h4>
             <ul style='color:#c9d1d9; font-size:14px;'>
-                <li><b>ఎప్పుడు వాడాలి:</b> వేగంగా పెరుగుతున్న స్టాక్స్ కొద్దిగా పుల్ బ్యాక్ (వెనక్కి తగ్గినప్పుడు) ఇచ్చినప్పుడు.</li>
-                <li><b>లాజిక్ & ఎంట్రీ:</b> ట్రెండ్ బాగుండి (50 SMA > 150 SMA), రీసెంట్ గా పడి 10-Week EMA లేదా 20-Day EMA సపోర్ట్ ని టచ్ చేసి ఈరోజు బౌన్స్ ఇస్తుంటే క్యాచ్ చేయాలి. ఆ సపోర్ట్ కిందే స్టాప్ లాస్.</li>
+                <li><b>ఎప్పుడు వాడాలి:</b> వేగంగా పెరుగుతున్న స్టాక్స్ కొద్దిగా పుల్ బ్యాక్ ఇచ్చినప్పుడు.</li>
+                <li><b>లాజిక్ & ఎంట్రీ:</b> ట్రెండ్ బాగుండి (Price > 50 SMA > 150 SMA), రీసెంట్ గా పడి <b>20-Day EMA</b> సపోర్ట్ ని టచ్ చేసి ఈరోజు గ్రీన్ క్యాండిల్ తో బౌన్స్ ఇస్తుంటే క్యాచ్ చేయాలి. 20-EMA కిందే స్టాప్ లాస్.</li>
             </ul>
     
             <h4 style='color:#d29922; margin-top:15px;'>5. 💥 Dan Zanger (Volume Explosion)</h4>
             <ul style='color:#c9d1d9; font-size:14px;'>
-                <li><b>ఎప్పుడు వాడాలి:</b> సడెన్ గా ఆపరేటర్లు / ఇన్‌స్టిట్యూషన్స్ ఎంటర్ అయిన స్టాక్స్ పసిగట్టేందుకు.</li>
-                <li><b>లాజిక్ & ఎంట్రీ:</b> వాల్యూమ్ డ్రై అయిపోయి ప్రశాంతంగా ఉన్న స్టాక్ లో, ఈరోజు సడెన్ గా 1.5 రెట్ల (1.5x) వాల్యూమ్ తో పేలి బాక్స్ బ్రేక్అవుట్ ఇస్తే వెంటనే ఎంటర్ అవ్వాలి.</li>
+                <li><b>ఎప్పుడు వాడాలి:</b> సడెన్ గా ఇన్‌స్టిట్యూషన్స్ ఎంటర్ అయిన స్టాక్స్ పసిగట్టేందుకు.</li>
+                <li><b>లాజిక్ & ఎంట్రీ:</b> వాల్యూమ్ డ్రై అయిపోయి ప్రశాంతంగా ఉన్న స్టాక్ లో, ఈరోజు సడెన్ గా <b>2.0 రెట్ల (2.0x) వాల్యూమ్</b> తో పేలి 20-రోజుల బాక్స్ బ్రేక్అవుట్ ఇచ్చి క్యాండిల్ టాప్ 20% లో క్లోజ్ అయితే ఎంటర్ అవ్వాలి.</li>
             </ul>
     
             <h4 style='color:#f85149; margin-top:15px;'>6. 📉 RSI(2) Mean Reversion (Larry Connors)</h4>
             <ul style='color:#c9d1d9; font-size:14px;'>
-                <li><b>ఎప్పుడు వాడాలి:</b> ఫాస్ట్ స్వింగ్స్ కోసం (2-4 రోజులు ట్రేడ్).</li>
-                <li><b>లాజిక్ & ఎంట్రీ:</b> 200 SMA పైన సేఫ్ ట్రెండ్ లో ఉన్న స్టాక్, ఏదైనా పానిక్ న్యూస్ వల్ల సడెన్ గా పడి 10-EMA కిందకి వస్తే దాన్ని ఫిల్టర్ చేస్తుంది. ఈరోజు మార్కెట్ ముగిసే టైంకి రికవర్ అయ్యి గ్రీన్ క్యాండిల్ వేస్తుంటే కొనాలి (Buy the Blood). మళ్ళీ ధర 5-Day SMA దాటగానే అమ్మేయాలి.</li>
+                <li><b>ఎప్పుడు వాడాలి:</b> ఫాస్ట్ స్వింగ్స్ కోసం (2-5 రోజుల ట్రేడ్).</li>
+                <li><b>లాజిక్ & ఎంట్రీ:</b> 200 SMA పైన అప్‌ట్రెండ్ లో ఉన్న స్టాక్, సడెన్ సెల్లింగ్ వల్ల <b>2-Period RSI <= 10</b> కి పడిపోయి ఈరోజు గ్రీన్ క్యాండిల్ వేస్తుంటే కొనాలి. మళ్ళీ ధర 5-Day SMA దాటగానే (లేదా టేబుల్ లోని ATR టార్గెట్ దగ్గర) ప్రాఫిట్ బుక్ చేయాలి.</li>
+            </ul>
+
+            <h4 style='color:#a371f7; margin-top:15px;'>7. 📈 Stan Weinstein (Stage 2 Uptrend)</h4>
+            <ul style='color:#c9d1d9; font-size:14px;'>
+                <li><b>ఎప్పుడు వాడాలి:</b> బేస్ నుండి కొత్త బుల్ రన్ (Stage 2) ప్రారంభమయ్యే స్టాక్స్ కోసం.</li>
+                <li><b>లాజిక్ & ఎంట్రీ:</b> ధర 150-Day SMA (30-Week MA) పైన ఉండాలి, 150 SMA పైకి స్లోప్ అవుతూ ఉండాలి. బేస్ నుండి మరీ ఎక్కువ దూరం వెళ్ళకుండా (15% లోపల) 1.5x వాల్యూమ్ తో కదులుతుంటే ఎంట్రీ తీసుకోవాలి.</li>
             </ul>
             </div>
             """, unsafe_allow_html=True)
-render_live_ui()
