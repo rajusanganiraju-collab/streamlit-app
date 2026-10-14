@@ -955,6 +955,53 @@ def fetch_all_data():
         if 'Close' in data.columns.levels[0] or 'Open' in data.columns.levels[0]:
             data = data.swaplevel(axis=1)
 
+    # 🔥 MIDNIGHT 12:00 AM YAHOO FINANCE BUG FIX:
+    # రాత్రి 12 దాటాక 1d డేటాలో చివరి ట్రేడింగ్ రోజు క్యాండిల్ మిస్ అయితే, 15m డేటా నుండి ఆ రోజు OHLCV ని యాడ్ చేస్తుంది
+    if isinstance(data.columns, pd.MultiIndex) and "^NSEI" in data.columns.levels[0]:
+        try:
+            _n_1d = data["^NSEI"].dropna(subset=['Close'])
+            _n_15m = yf.download("^NSEI", period="5d", interval="15m", progress=False)
+            if isinstance(_n_15m.columns, pd.MultiIndex):
+                _n_15m = _n_15m.xs("^NSEI", axis=1, level=1) if "^NSEI" in _n_15m.columns.levels[1] else _n_15m.droplevel(0, axis=1)
+            if not _n_1d.empty and not _n_15m.empty:
+                if _n_15m.index.tz is not None:
+                    _n_15m.index = _n_15m.index.tz_convert('Asia/Kolkata').tz_localize(None)
+                _last_1d_dt = pd.to_datetime(_n_1d.index[-1]).date()
+                _last_15m_dt = pd.to_datetime(_n_15m.index[-1]).date()
+                if _last_15m_dt > _last_1d_dt:
+                    _patch_frames = []
+                    for i in range(0, len(tkrs), chunk_size):
+                        _c_tkrs = tkrs[i : i + chunk_size]
+                        _tmp_15m = yf.download(_c_tkrs, period="5d", interval="15m", progress=False, group_by='ticker', threads=5)
+                        if not _tmp_15m.empty:
+                            if len(_c_tkrs) == 1 and not isinstance(_tmp_15m.columns, pd.MultiIndex):
+                                _tmp_15m.columns = pd.MultiIndex.from_product([_c_tkrs, _tmp_15m.columns])
+                            elif isinstance(_tmp_15m.columns, pd.MultiIndex) and ('Close' in _tmp_15m.columns.levels[0] or 'Open' in _tmp_15m.columns.levels[0]):
+                                _tmp_15m = _tmp_15m.swaplevel(axis=1)
+                            _patch_frames.append(_tmp_15m)
+                    if _patch_frames:
+                        _all_15m = pd.concat(_patch_frames, axis=1)
+                        if _all_15m.index.tz is not None:
+                            _all_15m.index = _all_15m.index.tz_convert('Asia/Kolkata').tz_localize(None)
+                        _day_15m = _all_15m[_all_15m.index.date == _last_15m_dt]
+                        if not _day_15m.empty:
+                            _new_row_dict = {}
+                            for _sym in _day_15m.columns.levels[0]:
+                                _sdf = _day_15m[_sym].dropna(subset=['Close'])
+                                if not _sdf.empty:
+                                    _new_row_dict[(_sym, 'Open')] = float(_sdf['Open'].iloc[0])
+                                    _new_row_dict[(_sym, 'High')] = float(_sdf['High'].max())
+                                    _new_row_dict[(_sym, 'Low')] = float(_sdf['Low'].min())
+                                    _new_row_dict[(_sym, 'Close')] = float(_sdf['Close'].iloc[-1])
+                                    _new_row_dict[(_sym, 'Volume')] = float(_sdf['Volume'].sum()) if 'Volume' in _sdf.columns else 0.0
+                            if _new_row_dict:
+                                _new_df = pd.DataFrame(_new_row_dict, index=[pd.Timestamp(_last_15m_dt)])
+                                if data.index.tz is not None:
+                                    data.index = data.index.tz_localize(None)
+                                data = pd.concat([data, _new_df]).sort_index()
+        except Exception:
+            pass
+
     results = []
     minutes = get_minutes_passed()
     fetched_symbols = data.columns.levels[0] if isinstance(data.columns, pd.MultiIndex) else data.columns
@@ -1166,7 +1213,7 @@ def process_5m_data(df_raw):
         df_s['EMA_50'] = df_s['Close'].ewm(span=50, adjust=False).mean()
 
         if 'Volume' in df_s.columns:
-            df_s['Vol_SMA_75'] = df_s['Volume'].rolling(window=75, min_periods=1).mean()  # 🔧 FIX: 5-min candles — 75/day
+            df_s['Vol_SMA_75'] = df_s['Volume'].rolling(window=75, min_periods=1).mean()
         else:
             df_s['Vol_SMA_75'] = 0
             
@@ -1179,8 +1226,12 @@ def process_5m_data(df_raw):
 
         df_s.index = pd.to_datetime(df_s.index)
         unique_dates = sorted(list(set(df_s.index.date)))
-        target_date = unique_dates[-1] 
+        target_date = unique_dates[-1]
         df_day = df_s[df_s.index.date == target_date].copy()
+        
+        # 🔧 FIX: రాత్రి 12 దాటాక గ్లోబల్ ఇండెక్స్‌లలో (SPX/DAX) 1-2 క్యాండిల్స్ మాత్రమే ఉంటే ఎర్ర డబ్బా రాకుండా గత 75 క్యాండిల్స్ చూపిస్తుంది
+        if len(df_day) < 5 and len(unique_dates) >= 2:
+            df_day = df_s.tail(75).copy()
         
         if not df_day.empty:
             df_day['Typical_Price'] = (df_day['High'] + df_day['Low'] + df_day['Close']) / 3
@@ -1193,7 +1244,8 @@ def process_5m_data(df_raw):
             df_day = df_day.bfill().ffill()
             return df_day
         return pd.DataFrame()
-    except: return pd.DataFrame()
+    except:
+        return pd.DataFrame()
 
 # =========================================================
 # 🧠 ADAPTIVE LIVE ENGINE v3 (Self-Learning, Cost-Aware)
