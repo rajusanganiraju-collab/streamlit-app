@@ -1515,17 +1515,13 @@ def adaptive_live_engine(five_min_data, candidates, top_n=8, min_edge=60):
 
 def adaptive_status_html(info):
     col = "#238636" if info.get('active') else "#f85149"
-    head = f"🎯 INSTITUTIONAL ORDER-FLOW & ALPHA SNIPER — {info.get('status', '')}"
-    body = (
-        f"<span style='color:#ffd700;'>{info.get('mkt', '')}</span>"
-        f"<br><span style='color:#8b949e;'>Scanned Stocks: <b>{info.get('n', 0)}</b> &nbsp;•&nbsp; "
-        f"Avg Confluence Score: <b>{info.get('hit', 0):.0f}/100</b> &nbsp;•&nbsp; "
-        f"Method: <b>{info.get('folds', '')}</b></span>"
-        f"<br><span style='color:#c9d1d9;'>Active Pillars: {info.get('drivers', '')}</span>"
-    )
     return (
-        f"<div style='background:#161b22;border:1px solid {col};border-radius:8px;"
-        f"padding:8px 12px;margin:6px 0;font-size:12.5px;'><b>{head}</b><br>{body}</div>"
+        f"<div style='display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;"
+        f"background:#161b22;border:1px solid {col};border-radius:6px;padding:4px 10px;margin:2px 0;font-size:11.5px;'>"
+        f"<span>🎯 <b> Order-Flow Sniper:</b> {info.get('status', '')} &nbsp;|&nbsp; "
+        f"<span style='color:#ffd700;'>{info.get('mkt', '')}</span></span>"
+        f"<span style='color:#8b949e;'>Scanned: <b>{info.get('n', 0)}</b> • Avg Score: <b>{info.get('hit', 0):.0f}/100</b></span>"
+        f"</div>"
     )
 
 
@@ -2418,33 +2414,36 @@ if not df.empty:
 # --- 7. UI SETTINGS ---
 # =========================================================
 
-watchlist_mode = st.selectbox("Watchlist", [
-    "🤖 AI Predictions (F&O)", 
-    "🤖 AI Predictions (Mid Cap)", 
-    "🤖 AI Predictions (Small Cap)", 
-    "High Score Stocks 🔥",
-    "Day Trading Stocks 🚀",
-    "Swing Trading 📈", 
-    "Legendary Strategy 🏆", 
-    "F&O + Top 200 Heatmap 🗺️", 
-    "Terminal Tables 🗃️",
-    "My Portfolio 💼", 
-    "Commodity 🛢️", 
-    "Fundamentals 🏢", 
-    "Mutual Funds 📈", 
-    "Month Effect Advantage 📅"
-], index=0, label_visibility="collapsed")
+top_c1, top_c2 = st.columns([3.2, 1.2])
+with top_c1:
+    watchlist_mode = st.selectbox("Watchlist", [
+        "🤖 AI Predictions (F&O)", 
+        "🤖 AI Predictions (Mid Cap)", 
+        "🤖 AI Predictions (Small Cap)", 
+        "High Score Stocks 🔥",
+        "Day Trading Stocks 🚀",
+        "Swing Trading 📈", 
+        "Legendary Strategy 🏆", 
+        "F&O + Top 200 Heatmap 🗺️", 
+        "Terminal Tables 🗃️",
+        "My Portfolio 💼", 
+        "Commodity 🛢️", 
+        "Fundamentals 🏢", 
+        "Mutual Funds 📈", 
+        "Month Effect Advantage 📅"
+    ], index=0, label_visibility="collapsed")
 
-refresh_sec = 60 if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"] else 30  # 🔧 PERF: 5s/15s → 30s/60s (throttle తగ్గడానికి)
+refresh_sec = 60 if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"] else 30
 
-view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], index=1 if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"] else 0, horizontal=True, label_visibility="collapsed")
-move_type_filter = ["🌊 One Sided Only", "🎯 Reversals Only", "🏹 Rubber Band Stretch"] 
-fund_filter = "Top Ranked Stocks ⭐"
-sort_mode = "Custom Sort"
-chart_timeframe = "Intraday (5m)"
-show_crosshair = False
-show_vol = False
-search_stock = "-- None --"
+with top_c2:
+    view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], index=1 if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"] else 0, horizontal=True, label_visibility="collapsed")
+    move_type_filter = ["🌊 One Sided Only", "🎯 Reversals Only", "🏹 Rubber Band Stretch"] 
+    fund_filter = "Top Ranked Stocks ⭐"
+    sort_mode = "Custom Sort"
+    chart_timeframe = "Intraday (5m)"
+    show_crosshair = False
+    show_vol = False
+    search_stock = "-- None --"
 
 with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
     sc1, sc2, sc3, sc4 = st.columns([3, 2, 2, 1.5])
@@ -3322,13 +3321,16 @@ def render_live_ui():
                 
                 for strat in strats_to_run:
                     if strat == ADAPTIVE_STRAT:
-                        _adp_score = st.slider(
-                            "🎯 Min Institutional Confluence Score (out of 100) — 60=Standard, 75+=Ultra Strict Sniper",
-                            45, 85, 60, 5, key="adp_min_edge",
-                            help="VWAP Control (25) + OrderFlow CVD (25) + Nifty Alpha RS (20) + RVOL (15) + RSI Guard (15)"
-                        )
+                        _s_col1, _s_col2 = st.columns([3.6, 1.2])
+                        with _s_col2:
+                            _adp_score = st.slider(
+                                "Min Score", 45, 85, 60, 5, key="adp_min_edge",
+                                label_visibility="collapsed",
+                                help="🎯 Min Institutional Confluence Score (60=Standard, 75+=Strict Sniper)"
+                            )
                         _adp, _info = adaptive_live_engine(five_min_data, df_filtered['Fetch_T'].tolist(), top_n=8, min_edge=_adp_score)
-                        st.markdown(adaptive_status_html(_info), unsafe_allow_html=True)
+                        with _s_col1:
+                            st.markdown(adaptive_status_html(_info), unsafe_allow_html=True)
                         for _side, _label in (('buy', 'BUY'), ('sell', 'SELL')):
                             _rows = _adp.get(_side, [])
                             if not _rows:
