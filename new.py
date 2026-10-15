@@ -2479,7 +2479,10 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
                         "📉 FIB Retracement (0.382)", 
                         "🌅 15-Min ORB (Opening Range Breakout)"
                     ], 
-                    default=["All Moves"],
+                    default=[
+                        "🧠 Adaptive Live Engine (Self-Learning)",
+                        "All Day Trading Moves 🚀"
+                    ],
                     key="day_trading_filter_key"
                 )
         elif watchlist_mode == "Swing Trading 📈":
