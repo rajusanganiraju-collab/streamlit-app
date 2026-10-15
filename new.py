@@ -647,16 +647,19 @@ def dhan_data_probe(cid, tok, sec_id):
     return out
 
 
-_DH_CID, _DH_TOK = _dhan_creds()
-_DH_HEALTH = dhan_health_check(_DH_CID, _DH_TOK)
-sec_map = get_dhan_security_map()
-rev_sec_map = {str(v): k for k, v in sec_map.items()}
-if _DH_HEALTH['ok']:
-    _DH_PROBE = dhan_data_probe(_DH_CID, _DH_TOK, sec_map.get("RELIANCE", "2885"))
+DHAN_USABLE = False     # ⚡ False ఉన్నప్పుడు అసలు Dhan API / 20MB CSV డౌన్‌లోడ్ అవ్వదు
+dhan = False
+if DHAN_USABLE:
+    _DH_CID, _DH_TOK = _dhan_creds()
+    _DH_HEALTH = dhan_health_check(_DH_CID, _DH_TOK)
+    sec_map = get_dhan_security_map()
+    rev_sec_map = {str(v): k for k, v in sec_map.items()}
+    _DH_PROBE = dhan_data_probe(_DH_CID, _DH_TOK, sec_map.get("RELIANCE", "2885")) if _DH_HEALTH['ok'] else {'ok': False, 'msg': 'skipped', 'n': 0, 'first': '', 'last': ''}
 else:
-    _DH_PROBE = {'ok': False, 'msg': 'skipped (login fail)', 'n': 0, 'first': '', 'last': ''}
-DHAN_USABLE = False     # <--- ILAA FALSE ANI RAYANDI
-dhan = False            # <--- ILAA FALSE ANI RAYANDI
+    _DH_CID, _DH_TOK = "", ""
+    _DH_HEALTH = {'ok': False, 'msg': 'Disabled'}
+    _DH_PROBE = {'ok': False, 'msg': 'Disabled', 'n': 0, 'first': '', 'last': ''}
+    sec_map, rev_sec_map = {}, {}
 
 # if not st.session_state.shown_dhan_status:
 #     if DHAN_USABLE:
@@ -875,7 +878,7 @@ def fetch_cached_5m_data(tkrs_list):
 
     n_yf = 0
     if yf_tkrs:
-        yf_data = yf.download(yf_tkrs, period="5d", interval="5m", progress=False, group_by='ticker', threads=10)
+        yf_data = yf.download(yf_tkrs, period="2d", interval="5m", progress=False, group_by='ticker', threads=10)
         if not yf_data.empty:
             if len(yf_tkrs) == 1:
                 if yf_data.index.tz is not None:
@@ -928,8 +931,21 @@ def fetch_historical_charts_data(tkrs, timeframe):
     return df
 
 # --- DAILY DATA FETCH (YFINANCE - SUPER FAST METHOD) ---
-@st.cache_data(ttl=900, show_spinner=False)  # ⚡ 15-min cache for heavy 15-month indicators
+import os
+
+@st.cache_data(ttl=900, show_spinner=False)
 def fetch_all_data():
+    # ⚡ DISK CACHE: గత 30 నిమిషాల్లో డౌన్‌లోడ్ చేసిన బేస్ డేటా డిస్క్‌లో ఉంటే 0.1 సెకనులో లోడ్ చేస్తుంది
+    _cache_file = "daily_base_cache.pkl"
+    if os.path.exists(_cache_file):
+        try:
+            if (time.time() - os.path.getmtime(_cache_file)) < 1800:  # 30 mins valid
+                _cached_df = pd.read_pickle(_cache_file)
+                if not _cached_df.empty:
+                    return _cached_df
+        except Exception:
+            pass
+
     port_df = load_portfolio()
     port_stocks = [str(sym).upper().strip() for sym in port_df['Symbol'].tolist() if str(sym).strip() != ""]
     base_stocks = NIFTY_50.copy() + FNO_STOCKS + MIDCAP_150 + SMALLCAP_250
@@ -1150,7 +1166,11 @@ def fetch_all_data():
                 "RSI2": current_rsi2, "RSI14": current_rsi14
             })
         except: continue
-    return pd.DataFrame(results)
+    _final_df = pd.DataFrame(results)
+    if not _final_df.empty:
+        try: _final_df.to_pickle("daily_base_cache.pkl")
+        except Exception: pass
+    return _final_df
 
 def process_5m_data(df_raw):
     try:
