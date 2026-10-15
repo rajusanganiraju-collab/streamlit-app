@@ -934,12 +934,18 @@ def fetch_historical_charts_data(tkrs, timeframe):
 import os
 
 @st.cache_data(ttl=900, show_spinner=False)
+import os
+
+# CMD lo HTTP Error 404 istunna symbols ni automatic ga skip chese list
+_SKIP_BAD_SYMS = {"PBFINTECH", "GUJGASLTD", "TVSHLDGS", "TATAMOTORS", "PEL", "LTIM", "JCHAC", "SEAMEC", "TIDEWATER"}
+
+@st.cache_data(ttl=900, show_spinner=False)
 def fetch_all_data():
-    # ⚡ DISK CACHE: గత 30 నిమిషాల్లో డౌన్‌లోడ్ చేసిన బేస్ డేటా డిస్క్‌లో ఉంటే 0.1 సెకనులో లోడ్ చేస్తుంది
-    _cache_file = "daily_base_cache.pkl"
+    # ⚡ FAST DISK CACHE: Okasari save ayyaka 18 gantala varaku 0.1 sec lone disk nundi load avtundi
+    _cache_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "daily_base_cache.pkl")
     if os.path.exists(_cache_file):
         try:
-            if (time.time() - os.path.getmtime(_cache_file)) < 1800:  # 30 mins valid
+            if (time.time() - os.path.getmtime(_cache_file)) < 64800:  # 18 Hours valid
                 _cached_df = pd.read_pickle(_cache_file)
                 if not _cached_df.empty:
                     return _cached_df
@@ -949,14 +955,15 @@ def fetch_all_data():
     port_df = load_portfolio()
     port_stocks = [str(sym).upper().strip() for sym in port_df['Symbol'].tolist() if str(sym).strip() != ""]
     base_stocks = NIFTY_50.copy() + FNO_STOCKS + MIDCAP_150 + SMALLCAP_250
-    all_stocks = set(base_stocks + port_stocks)
+    all_stocks = set(base_stocks + port_stocks) - _SKIP_BAD_SYMS
     tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + list(COMMODITY_MAP.keys()) + [f"{t}.NS" for t in all_stocks if t]
     
     chunk_size = 250
     data_frames = []
     for i in range(0, len(tkrs), chunk_size):
         chunk = tkrs[i : i + chunk_size]
-        temp_data = yf.download(chunk, period="15mo", progress=False, group_by='ticker', threads=10)
+        # timeout=5 valla ye okka stock daggara internet stuck avvadhu
+        temp_data = yf.download(chunk, period="15mo", progress=False, group_by='ticker', threads=10, timeout=5)
         if not temp_data.empty:
             if len(chunk) == 1 and not isinstance(temp_data.columns, pd.MultiIndex):
                 temp_data.columns = pd.MultiIndex.from_product([chunk, temp_data.columns])
@@ -2568,8 +2575,12 @@ import streamlit.components.v1 as components
 @st.cache_data(ttl=25, show_spinner=False)
 def fetch_fast_live_quotes(tkrs_tuple, market_open):
     try:
-        target_list = list(tkrs_tuple) if market_open else (list(INDICES_MAP.keys()) + list(COMMODITY_MAP.keys()))
-        q_data = yf.download(target_list, period="2d", interval="1d", progress=False, group_by='ticker', threads=10)
+        if market_open:
+            _core_set = set(list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + list(COMMODITY_MAP.keys()) + [f"{s}.NS" for s in (set(NIFTY_50 + FNO_STOCKS) - _SKIP_BAD_SYMS)])
+            target_list = [t for t in tkrs_tuple if t in _core_set]
+        else:
+            target_list = list(INDICES_MAP.keys()) + list(COMMODITY_MAP.keys())
+        q_data = yf.download(target_list, period="2d", interval="1d", progress=False, group_by='ticker', threads=10, timeout=5)
         if q_data.empty:
             return {}
         if isinstance(q_data.columns, pd.MultiIndex) and ('Close' in q_data.columns.levels[0] or 'Open' in q_data.columns.levels[0]):
