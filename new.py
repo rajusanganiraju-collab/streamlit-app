@@ -847,63 +847,84 @@ def fetch_single_dhan_5m(symbol, sec_id, cid, tok):
     return symbol, df_
 
 
-@st.cache_data(ttl=25, show_spinner=False)  # 🔧 PERF: 30s→60s (API load తగ్గడానికి)
 def fetch_cached_5m_data(tkrs_list):
+    import os
     t0 = time.time()
-    cid, tok = _dhan_creds()
-    dhan_tasks, yf_tkrs, results_dict = {}, [], {}
-    for tkr in tkrs_list:
-        clean_sym = tkr.replace(".NS", "")
-        if clean_sym in sec_map and not any(idx in tkr for idx in ["^", "=F"]):
-            dhan_tasks[tkr] = (clean_sym, sec_map[clean_sym])
-        else:
-            yf_tkrs.append(tkr)
+    _m_open = is_market_open()
+    # Market open lo 3 mins (180s) cache, Market close lo 18 gantalu (64800s) cache
+    _ttl = 180 if _m_open else 64800
+    _cache_5m_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "intraday_5m_cache.pkl")
+    _bad_syms = globals().get('_SKIP_BAD_SYMS', {"PBFINTECH", "GUJGASLTD", "TVSHLDGS", "TATAMOTORS", "PEL", "LTIM", "JCHAC", "SEAMEC", "TIDEWATER"})
 
-    if not DHAN_USABLE and dhan_tasks:
-        yf_tkrs.extend(list(dhan_tasks.keys()))
-        dhan_tasks = {}
+    # 1. Load from Disk Cache on first startup (0.05 sec)
+    if '5m_store' not in _SS:
+        _SS['5m_store'] = {}
+        _SS['5m_ts'] = {}
+        if os.path.exists(_cache_5m_file):
+            try:
+                if (time.time() - os.path.getmtime(_cache_5m_file)) < _ttl:
+                    _saved = pd.read_pickle(_cache_5m_file)
+                    if isinstance(_saved, dict) and _saved:
+                        _SS['5m_store'] = _saved
+                        _now_init = time.time()
+                        _SS['5m_ts'] = {k: _now_init for k in _saved}
+            except Exception:
+                pass
 
-    n_dhan = 0
-    if dhan_tasks:
-        _SS['deadline'][0] = time.time() + DHAN_BUDGET_SEC
-        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
-            futures = {executor.submit(fetch_single_dhan_5m, tkr, data[1], cid, tok): tkr for tkr, data in dhan_tasks.items()}
-            for future in concurrent.futures.as_completed(futures):
-                tkr, df = future.result()
-                if not df.empty:
-                    results_dict[tkr] = df
-                    n_dhan += 1
-                else:
-                    yf_tkrs.append(tkr)
+    store = _SS['5m_store']
+    ts_map = _SS['5m_ts']
+    now_t = time.time()
+
+    clean_req = [t for t in dict.fromkeys(tkrs_list) if str(t).replace(".NS", "") not in _bad_syms]
+    # Kevalam cache lo leni leda expire ayina stocks matrame download chestundi
+    missing_tkrs = [t for t in clean_req if (t not in store) or ((now_t - ts_map.get(t, 0)) > _ttl)]
 
     n_yf = 0
-    if yf_tkrs:
-        yf_data = yf.download(yf_tkrs, period="2d", interval="5m", progress=False, group_by='ticker', threads=10)
+    if missing_tkrs:
+        yf_data = yf.download(missing_tkrs, period="2d", interval="5m", progress=False, group_by='ticker', threads=25, timeout=5)
         if not yf_data.empty:
-            if len(yf_tkrs) == 1:
+            if len(missing_tkrs) == 1:
                 if yf_data.index.tz is not None:
                     yf_data.index = yf_data.index.tz_localize(None)
-                results_dict[yf_tkrs[0]] = yf_data
+                store[missing_tkrs[0]] = yf_data
+                ts_map[missing_tkrs[0]] = now_t
                 n_yf = 1
-            else:
-                if isinstance(yf_data.columns, pd.MultiIndex):
-                    for tkr in yf_tkrs:
-                        if tkr in yf_data.columns.levels[0]:
-                            df = yf_data[tkr].dropna(subset=['Close'])
-                            if not df.empty:
-                                if df.index.tz is not None:
-                                    df.index = df.index.tz_localize(None)
-                                results_dict[tkr] = df
-                                n_yf += 1
+            elif isinstance(yf_data.columns, pd.MultiIndex):
+                lvl0 = yf_data.columns.levels[0]
+                for tkr in missing_tkrs:
+                    if tkr in lvl0:
+                        df_t = yf_data[tkr].dropna(subset=['Close'])
+                        if not df_t.empty:
+                            if df_t.index.tz is not None:
+                                df_t.index = df_t.index.tz_localize(None)
+                            store[tkr] = df_t
+                            ts_map[tkr] = now_t
+                            n_yf += 1
+
+        # Fail ayina stock malli prathi 30s ki retry avvakunda timestamp mark chestundi
+        for tkr in missing_tkrs:
+            if tkr not in ts_map:
+                ts_map[tkr] = now_t
+
+        if n_yf > 0:
+            try:
+                pd.to_pickle(store, _cache_5m_file)
+            except Exception:
+                pass
 
     with _SS['diag_lock']:
-        _SS['diag']['last_fetch'] = {'dhan': n_dhan, 'yf': n_yf, 'total': len(tkrs_list), 'sec': round(time.time() - t0, 1),
-                                     'when': datetime.now(ZoneInfo("Asia/Kolkata")).strftime('%H:%M:%S')}
+        _SS['diag']['last_fetch'] = {
+            'dhan': 0, 'yf': n_yf, 'total': len(clean_req),
+            'sec': round(time.time() - t0, 2),
+            'when': datetime.now(ZoneInfo("Asia/Kolkata")).strftime('%H:%M:%S')
+        }
 
-    valid_results = {k: v for k, v in results_dict.items() if not v.empty and len(v) > 0}
+    valid_results = {t: store[t] for t in clean_req if t in store and not store[t].empty}
     if valid_results:
         return pd.concat(valid_results.values(), axis=1, keys=valid_results.keys(), sort=False)
     return pd.DataFrame()
+
+fetch_cached_5m_data.clear = lambda: _SS.pop('5m_store', None)
 
 # --- చార్ట్స్ కోసం డేటా (YFINANCE - FAST METHOD) ---
 @st.cache_data(ttl=3600, show_spinner=False)
