@@ -2441,26 +2441,61 @@ if not df.empty:
 # --- 7. UI SETTINGS ---
 # =========================================================
 
-# 1. MARKET LIVE / CLOSED + MARKET DIRECTION (BUY=GREEN / SELL=RED) AT VERY TOP
+# 1. MARKET LIVE / CLOSED + VWAP BREADTH DIRECTION (NIFTY 50 + F&O UNIQUE STOCKS)
 _m_open_top = is_market_open()
 _now_str_top = now_ist().strftime('%d-%b %I:%M:%S %p')
 
-_mkt_dir_text = "BUY 📈"
-_mkt_dir_bg = "#238636"  # Green color for BUY
-_mkt_dir_border = "#2ea043"
+_mkt_dir_text = "NEUTRAL ⚖️"
+_mkt_dir_bg = "#30363d"
+_mkt_dir_border = "#8b949e"
 
-if not df.empty and "NIFTY" in df['T'].values:
-    _nrow = df[df['T'] == "NIFTY"].iloc[0]
-    _n_ltp = float(_nrow['P'])
-    _n_vwap = float(_nrow['VWAP'])
-    _n_dayc = float(_nrow['Day_C'])
-    # Nifty Day% negative unna leda VWAP kindha unna SELL (Red Box) chupistundi
-    if _n_dayc < 0 or _n_ltp < _n_vwap:
-        _mkt_dir_text = f"SELL 📉 ({_n_dayc:+.2f}%)"
-        _mkt_dir_bg = "#da3633"  # Red color for SELL
-        _mkt_dir_border = "#f85149"
-    else:
-        _mkt_dir_text = f"BUY 📈 ({_n_dayc:+.2f}%)"
+if not df.empty:
+    # Nifty 50 + F&O stocks repeat avvakunda unique set theesukovadam
+    _unique_universe = set(NIFTY_50).union(set(FNO_STOCKS))
+    _df_mkt = (
+        df[(~df['Is_Index']) & (~df['Is_Sector']) & (~df['Is_Commodity']) & (df['T'].isin(_unique_universe))]
+        .drop_duplicates(subset=['T'], keep='first')
+    )
+    _tot_stocks = len(_df_mkt)
+    if _tot_stocks > 0:
+        _above_vwap = int((_df_mkt['P'] > _df_mkt['VWAP']).sum())
+        _below_vwap = int((_df_mkt['P'] < _df_mkt['VWAP']).sum())
+        _buy_pct = (_above_vwap / _tot_stocks) * 100.0
+        _sell_pct = (_below_vwap / _tot_stocks) * 100.0
+
+        # ~50% (49% to 51%) unte NEUTRAL
+        if 49.0 <= _buy_pct <= 51.0 or _above_vwap == _below_vwap:
+            _mkt_dir_text = f"NEUTRAL ⚖️ {_above_vwap}/{_tot_stocks} ({_buy_pct:.0f}%)"
+            _mkt_dir_bg = "#484f58"
+            _mkt_dir_border = "#8b949e"
+        # BUY SIDE (Ekkuva stocks VWAP paina unte)
+        elif _above_vwap > _below_vwap:
+            if _buy_pct > 70.0:
+                _mkt_dir_text = f"ULTRA BUY 🔥 {_above_vwap}/{_tot_stocks} ({_buy_pct:.0f}%)"
+                _mkt_dir_bg = "#1b7f37"
+                _mkt_dir_border = "#3fb950"
+            elif _buy_pct > 60.0:
+                _mkt_dir_text = f"STRONG BUY 🚀 {_above_vwap}/{_tot_stocks} ({_buy_pct:.0f}%)"
+                _mkt_dir_bg = "#238636"
+                _mkt_dir_border = "#2ea043"
+            else:
+                _mkt_dir_text = f"BUY 📈 {_above_vwap}/{_tot_stocks} ({_buy_pct:.0f}%)"
+                _mkt_dir_bg = "#1e5f29"
+                _mkt_dir_border = "#238636"
+        # SELL SIDE (Ekkuva stocks VWAP kindha unte)
+        else:
+            if _sell_pct > 70.0:
+                _mkt_dir_text = f"ULTRA SELL 💥 {_below_vwap}/{_tot_stocks} ({_sell_pct:.0f}%)"
+                _mkt_dir_bg = "#c91c1c"
+                _mkt_dir_border = "#ff4d4d"
+            elif _sell_pct > 60.0:
+                _mkt_dir_text = f"STRONG SELL 🩸 {_below_vwap}/{_tot_stocks} ({_sell_pct:.0f}%)"
+                _mkt_dir_bg = "#da3633"
+                _mkt_dir_border = "#f85149"
+            else:
+                _mkt_dir_text = f"SELL 📉 {_below_vwap}/{_tot_stocks} ({_sell_pct:.0f}%)"
+                _mkt_dir_bg = "#b52524"
+                _mkt_dir_border = "#da3633"
 
 _dir_box_html = (
     f"<span style='background:{_mkt_dir_bg};border:1px solid {_mkt_dir_border};"
