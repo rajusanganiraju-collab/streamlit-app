@@ -1181,7 +1181,8 @@ def process_5m_data(df_raw):
         
         # 🔧 FIX: రాత్రి 12 దాటాక గ్లోబల్ ఇండెక్స్‌లలో (SPX/DAX) 1-2 క్యాండిల్స్ మాత్రమే ఉంటే ఎర్ర డబ్బా రాకుండా గత 75 క్యాండిల్స్ చూపిస్తుంది
         if len(df_day) < 5 and len(unique_dates) >= 2:
-            df_day = df_s.tail(75).copy()
+            target_date = unique_dates[-2]
+            df_day = df_s[df_s.index.date == target_date].copy()
         
         if not df_day.empty:
             df_day['Typical_Price'] = (df_day['High'] + df_day['Low'] + df_day['Close']) / 3
@@ -2545,15 +2546,13 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
                         st.rerun()
 
 # =========================================================
-# --- 8. RENDERING (1-SECOND FAST REFRESH +WORKING TIMER) ---
+# --- 8. RENDERING (1-SECOND FAST REFRESH + WORKING TIMER) ---
 # =========================================================
 import streamlit.components.v1 as components
 
 @st.cache_data(ttl=25, show_spinner=False)
 def fetch_fast_live_quotes(tkrs_tuple, market_open):
-    """ప్రతి 30s కి 15 నెలల డేటా కాకుండా కేవలం ఈరోజు 1-రోజు క్యాండిల్ మాత్రమే 1 సెకనులో తెస్తుంది"""
     try:
-        # మార్కెట్ క్లోజ్ ఉన్నప్పుడు కేవలం గ్లోబల్ ఇండెక్స్‌లు & కమోడిటీస్ మాత్రమే ఫెచ్ చేస్తుంది (0.3 sec)
         target_list = list(tkrs_tuple) if market_open else (list(INDICES_MAP.keys()) + list(COMMODITY_MAP.keys()))
         q_data = yf.download(target_list, period="2d", interval="1d", progress=False, group_by='ticker', threads=10)
         if q_data.empty:
@@ -2583,11 +2582,11 @@ def render_live_ui():
         st.info("⏸️ Data refresh is paused.")
         return
 
-    # ⚡ 1. క్యాష్‌లో ఉన్న బేస్ డేటాని 0.01 సెకన్లలో తీసుకుంటుంది (No fetch_all_data.clear()!)
+    # 1. Base data from 15-min cache (0.01 sec)
     df = fetch_all_data().copy()
     _m_open_top = is_market_open()
 
-    # ⚡ 2. కేవలం లేటెస్ట్ ప్రైస్‌లను మాత్రమే 1 సెకనులో అప్‌డేట్ చేస్తుంది
+    # 2. Fast 1-day quote update (1 sec)
     if not df.empty:
         _fast_quotes = fetch_fast_live_quotes(tuple(df['Fetch_T'].tolist()), _m_open_top)
         with LIVE_PRICES_LOCK:
@@ -2615,9 +2614,9 @@ def render_live_ui():
                 if _pc > 0:
                     df.at[_i, 'C'] = ((_ltp - _pc) / _pc) * 100.0
 
-    # 🟢🔴 3. Market Breadth (VWAP Paina/Kindha) + Live Countdown Timer
+    # 3. Market Breadth (VWAP Paina/Kindha) + Live Countdown Timer
     _now_str_top = now_ist().strftime('%d-%b %I:%M:%S %p')
-    _run_ts = int(time.time() * 1000)  # 🔥 ప్రతి రీఫ్రెష్‌లో టైమర్ కచ్చితంగా 30s కి రీసెట్ అవ్వడానికి
+    _run_ts = int(time.time() * 1000)
     _mkt_dir_text = "NEUTRAL ⚖️"
     _mkt_dir_bg = "#30363d"
     _mkt_dir_border = "#8b949e"
@@ -2687,123 +2686,8 @@ def render_live_ui():
         unsafe_allow_html=True
     )
 
-    # ⏱️ JavaScript Countdown Timer (Unique _run_ts వల్ల ప్రతి 30s కి 100% మళ్ళీ 30s నుండి స్టార్ట్ అవుతుంది)
     components.html(
         f"""<!-- refresh_{_run_ts} -->
-        <script>
-        (function() {{
-            const parentDoc = window.parent.document;
-            if (window.parent._stCdInterval) {{
-                clearInterval(window.parent._stCdInterval);
-            }}
-            let secLeft = {_effective_refresh};
-            const updateBadge = () => {{
-                const el = parentDoc.getElementById('live-cd-badge');
-                if (!el) return;
-                if (secLeft > 0) {{
-                    el.innerHTML = '⏳ ' + secLeft + 's';
-                    el.style.color = secLeft <= 5 ? '#ffd700' : '#00BFFF';
-                    secLeft -= 1;
-                }} else {{
-                    el.innerHTML = '🔄 Updating...';
-                    el.style.color = '#3fb950';
-                }}
-            }};
-            updateBadge();
-            window.parent._stCdInterval = setInterval(updateBadge, 1000);
-        }})();
-        </script>
-        """,
-        height=0,
-    )
-        with LIVE_PRICES_LOCK:
-            _live_snap = dict(LIVE_PRICES_GLOBAL)
-        if _live_snap:
-            for _i, _r in df.iterrows():
-                _csym = str(_r['Fetch_T']).replace(".NS", "")
-                if _csym in _live_snap:
-                    _nltp = _live_snap[_csym]
-                    df.at[_i, 'P'] = _nltp
-                    if df.at[_i, 'O'] > 0:
-                        df.at[_i, 'Day_C'] = ((_nltp - df.at[_i, 'O']) / df.at[_i, 'O']) * 100.0
-                    if df.at[_i, 'Prev_C'] > 0:
-                        df.at[_i, 'C'] = ((_nltp - df.at[_i, 'Prev_C']) / df.at[_i, 'Prev_C']) * 100.0
-
-    # 🟢🔴 Market Breadth (VWAP Paina/Kindha) + Live Countdown Timer
-    _m_open_top = is_market_open()
-    _now_str_top = now_ist().strftime('%d-%b %I:%M:%S %p')
-    _mkt_dir_text = "NEUTRAL ⚖️"
-    _mkt_dir_bg = "#30363d"
-    _mkt_dir_border = "#8b949e"
-
-    if not df.empty:
-        _unique_universe = set(NIFTY_50).union(set(FNO_STOCKS))
-        _df_mkt = (
-            df[(~df['Is_Index']) & (~df['Is_Sector']) & (~df['Is_Commodity']) & (df['T'].isin(_unique_universe))]
-            .drop_duplicates(subset=['T'], keep='first')
-        )
-        _tot_stocks = len(_df_mkt)
-        if _tot_stocks > 0:
-            _above_vwap = int((_df_mkt['P'] > _df_mkt['VWAP']).sum())
-            _below_vwap = int((_df_mkt['P'] < _df_mkt['VWAP']).sum())
-            _buy_pct = (_above_vwap / _tot_stocks) * 100.0
-            _sell_pct = (_below_vwap / _tot_stocks) * 100.0
-
-            if 49.0 <= _buy_pct <= 51.0 or _above_vwap == _below_vwap:
-                _mkt_dir_text = f"NEUTRAL ⚖️ {_above_vwap}/{_tot_stocks} ({_buy_pct:.0f}%)"
-                _mkt_dir_bg = "#484f58"
-                _mkt_dir_border = "#8b949e"
-            elif _above_vwap > _below_vwap:
-                if _buy_pct > 70.0:
-                    _mkt_dir_text = f"ULTRA BUY 🔥 {_above_vwap}/{_tot_stocks} ({_buy_pct:.0f}%)"
-                    _mkt_dir_bg = "#1b7f37"
-                    _mkt_dir_border = "#3fb950"
-                elif _buy_pct > 60.0:
-                    _mkt_dir_text = f"STRONG BUY 🚀 {_above_vwap}/{_tot_stocks} ({_buy_pct:.0f}%)"
-                    _mkt_dir_bg = "#238636"
-                    _mkt_dir_border = "#2ea043"
-                else:
-                    _mkt_dir_text = f"BUY 📈 {_above_vwap}/{_tot_stocks} ({_buy_pct:.0f}%)"
-                    _mkt_dir_bg = "#1e5f29"
-                    _mkt_dir_border = "#238636"
-            else:
-                if _sell_pct > 70.0:
-                    _mkt_dir_text = f"ULTRA SELL 💥 {_below_vwap}/{_tot_stocks} ({_sell_pct:.0f}%)"
-                    _mkt_dir_bg = "#c91c1c"
-                    _mkt_dir_border = "#ff4d4d"
-                elif _sell_pct > 60.0:
-                    _mkt_dir_text = f"STRONG SELL 🩸 {_below_vwap}/{_tot_stocks} ({_sell_pct:.0f}%)"
-                    _mkt_dir_bg = "#da3633"
-                    _mkt_dir_border = "#f85149"
-                else:
-                    _mkt_dir_text = f"SELL 📉 {_below_vwap}/{_tot_stocks} ({_sell_pct:.0f}%)"
-                    _mkt_dir_bg = "#b52524"
-                    _mkt_dir_border = "#da3633"
-
-    _dir_box_html = (
-        f"<span style='background:{_mkt_dir_bg};border:1px solid {_mkt_dir_border};"
-        f"color:#ffffff;padding:2px 10px;border-radius:4px;font-weight:bold;font-size:12px;'>"
-        f"MARKET: {_mkt_dir_text}</span>"
-    )
-    _status_border = "#238636" if _m_open_top else "#f85149"
-    _status_title = "🟢 <b>MARKET LIVE</b> (NSE)" if _m_open_top else "🔴 <b>MARKET CLOSED</b> (Showing Last Data)"
-
-    top_status_slot.markdown(
-        f"<div style='display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;"
-        f"background:#161b22;border:1px solid {_status_border};border-radius:6px;padding:5px 12px;"
-        f"margin-bottom:8px;font-size:12.5px;'>"
-        f"<span>{_status_title}</span>"
-        f"{_dir_box_html}"
-        f"<span style='color:#8b949e;'>🕒 {_now_str_top} IST &nbsp;|&nbsp; "
-        f"<span id='live-cd-badge' style='background:#21262d;border:1px solid #30363d;color:#00BFFF;"
-        f"padding:1px 7px;border-radius:4px;font-weight:bold;font-family:monospace;'>⏳ {_effective_refresh}s</span></span>"
-        f"</div>",
-        unsafe_allow_html=True
-    )
-
-    # ⏱️ JavaScript 1-Second Live Countdown Timer (30s -> 29s -> ... -> 0s)
-    components.html(
-        f"""
         <script>
         (function() {{
             const parentDoc = window.parent.document;
