@@ -3960,16 +3960,7 @@ def render_live_ui():
                     st.dataframe(me_df, use_container_width=True, hide_index=True)
             
         elif watchlist_mode == "My Portfolio 💼" and view_mode == "Heat Map":
-            sc1, sc2, sc3 = st.columns([0.4, 0.3, 0.3])
-            _avail_dates = ["All Dates"] + sorted(list(set(df_port_saved['Date'].dropna().astype(str).tolist()))) if not df_port_saved.empty and 'Date' in df_port_saved.columns else ["All Dates"]
-            with sc2:
-                port_date_filter = st.selectbox("📅 Date Filter:", _avail_dates, label_visibility="collapsed")
-            with sc3:
-                port_sort = st.selectbox("↕️ Sort Portfolio:", ["Default", "Date (Newest) ⬇️", "Date (Oldest) ⬆️", "Days Held ⬆️", "Days Held ⬇️", "Day P&L ⬆️", "Day P&L ⬇️", "Total P&L ⬆️", "Total P&L ⬇️", "P&L % ⬆️", "P&L % ⬇️"], label_visibility="collapsed")
-            if port_date_filter != "All Dates" and not df_port_saved.empty:
-                df_port_view = df_port_saved[df_port_saved['Date'].astype(str) == port_date_filter].copy()
-            else:
-                df_port_view = df_port_saved.copy()
+            # 📊 Portfolio KPI Strip (Invested, Current Value, Day P&L, Total P&L, Actual P&L ikkade untayi)
 
             # 📊 Portfolio KPI Strip (with Actual P&L & TradeBook Profit)
             try:
@@ -4009,6 +4000,19 @@ def render_live_ui():
                     render_portfolio_allocation(df_port_saved, df_all_stocks)
                 except Exception as _pe:
                     st.caption(f"Allocation render error: {_pe}")
+
+            # 🎛️ LIVE PORTFOLIO TERMINAL Paina Date Filter & Heading Sort
+            _avail_dates = ["All Dates"] + sorted(list(set(df_port_saved['Date'].dropna().astype(str).tolist()))) if not df_port_saved.empty and 'Date' in df_port_saved.columns else ["All Dates"]
+            sc1, sc2, sc3 = st.columns([0.4, 0.3, 0.3])
+            with sc2:
+                port_date_filter = st.selectbox("📅 Date Filter:", _avail_dates, label_visibility="collapsed")
+            with sc3:
+                port_sort = st.selectbox("↕️ Sort Portfolio:", ["Default", "Date (Newest) ⬇️", "Date (Oldest) ⬆️", "Days Held ⬆️", "Days Held ⬇️", "Day P&L ⬆️", "Day P&L ⬇️", "Total P&L ⬆️", "Total P&L ⬇️", "P&L % ⬆️", "P&L % ⬇️"], label_visibility="collapsed")
+
+            if port_date_filter != "All Dates" and not df_port_saved.empty:
+                df_port_view = df_port_saved[df_port_saved['Date'].astype(str) == port_date_filter].copy()
+            else:
+                df_port_view = df_port_saved.copy()
 
             st.markdown(render_portfolio_table(df_port_view, df_all_stocks, weekly_trends, port_sort), unsafe_allow_html=True)
             st.markdown("<br>", unsafe_allow_html=True)
