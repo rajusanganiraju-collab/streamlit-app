@@ -1225,8 +1225,16 @@ def process_5m_data(df_raw):
     try:
         df_s = df_raw.dropna(subset=['Open', 'High', 'Low', 'Close']).copy()
         if df_s.empty: return pd.DataFrame()
-        df_s = df_s.sort_index()
-        
+        df_s.index = pd.to_datetime(df_s.index)
+        if df_s.index.tz is not None:
+            df_s.index = df_s.index.tz_convert('Asia/Kolkata').tz_localize(None)
+        df_s = df_s[~df_s.index.duplicated(keep='last')].sort_index()
+
+        # USD/INR lanti 24h charts lo off-market dead flat candles ni remove cheyadam
+        is_flat_dup = (df_s['High'] == df_s['Low']) & (df_s['Close'] == df_s['Close'].shift(1))
+        if (~is_flat_dup).sum() >= 20:
+            df_s = df_s[~is_flat_dup].copy()
+
         df_s['EMA_10'] = df_s['Close'].ewm(span=10, adjust=False).mean()
         df_s['EMA_20'] = df_s['Close'].ewm(span=20, adjust=False).mean()
         df_s['EMA_50'] = df_s['Close'].ewm(span=50, adjust=False).mean()
@@ -1235,7 +1243,7 @@ def process_5m_data(df_raw):
             df_s['Vol_SMA_75'] = df_s['Volume'].rolling(window=75, min_periods=1).mean()
         else:
             df_s['Vol_SMA_75'] = 0
-            
+
         df_s['TR'] = pd.concat([
             df_s['High'] - df_s['Low'],
             (df_s['High'] - df_s['Close'].shift(1)).abs(),
@@ -1243,18 +1251,25 @@ def process_5m_data(df_raw):
         ], axis=1).max(axis=1)
         df_s['ATR_13'] = df_s['TR'].ewm(span=13, adjust=False).mean()
 
-        df_s.index = pd.to_datetime(df_s.index)
-        unique_dates = sorted(list(set(df_s.index.date)))
-        target_date = unique_dates[-1]
-        df_day = df_s[df_s.index.date == target_date].copy()
-        
+        # Midnight date cut kakunda Session gap (> 3 hours) batti latest trading session teesukovadam
+        time_diff = df_s.index.to_series().diff()
+        session_ids = (time_diff > pd.Timedelta(hours=3)).cumsum()
+        df_day = df_s[session_ids == session_ids.iloc[-1]].copy()
+
+        first_t = df_day.index[0].time() if not df_day.empty else dt_time(0, 0)
+        is_nse_session = (dt_time(9, 0) <= first_t <= dt_time(9, 30))
+        if not is_nse_session and len(df_day) < 35:
+            df_day = df_s.tail(75).copy()
+        elif len(df_day) > 75:
+            df_day = df_day.tail(75).copy()
+
         if not df_day.empty:
             df_day['Typical_Price'] = (df_day['High'] + df_day['Low'] + df_day['Close']) / 3
             if 'Volume' in df_day.columns and df_day['Volume'].sum() > 0:
                 vol_cumsum = df_day['Volume'].cumsum()
                 df_day['VWAP'] = (df_day['Typical_Price'] * df_day['Volume']).cumsum() / vol_cumsum.replace(0, np.nan)
                 df_day['VWAP'] = df_day['VWAP'].fillna(df_day['Typical_Price'].expanding().mean())
-            else: 
+            else:
                 df_day['VWAP'] = df_day['Typical_Price'].expanding().mean()
             df_day = df_day.bfill().ffill()
             return df_day
@@ -2093,11 +2108,10 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 if fetch_sym not in st.session_state.pinned_stocks: st.session_state.pinned_stocks.append(fetch_sym)
             else:
                 if fetch_sym in st.session_state.pinned_stocks: st.session_state.pinned_stocks.remove(fetch_sym)
-            st.rerun(scope="fragment")  # 🔧 PERF: fragment మాత్రమే rerun
+            st.rerun(scope="fragment")
     
     strat_tag = f" <span style='font-size:10px; background:rgba(0,191,255,0.2); border:1px solid #00BFFF; padding:1px 4px; border-radius:3px; color:#00BFFF;'>{row.get('Strategy_Icon', '')}</span>" if row.get('Strategy_Icon') and row.get('Strategy_Icon') != "Neutral" else ""
     
-    # 🔥 Dynamic pullback logic
     if timeframe == "Intraday (5m)":
         day_high = float(row.get('H', 0))
         day_low = float(row.get('L', 0))
@@ -2131,18 +2145,12 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
             max_val = df_chart['High'].max()
             y_padding = (max_val - min_val) * 0.15 if (max_val - min_val) != 0 else min_val * 0.005 
             
-            # 🔥 PERFECT TIMEZONE FIX 🔥
             if df_chart.index.tz is not None:
                 df_chart.index = df_chart.index.tz_convert('Asia/Kolkata').tz_localize(None)
-                
-            if len(df_chart) > 0:
-                first_hour = df_chart.index[0].hour
-                if first_hour >= 14:
-                    df_chart.index = df_chart.index - pd.Timedelta(hours=5, minutes=30)
-                elif first_hour <= 4:
-                    df_chart.index = df_chart.index + pd.Timedelta(hours=5, minutes=30)
 
             chart_times = pd.to_datetime(df_chart.index)
+            # Sequential integer X-axis valla SPX, USD/INR mariyu holidays lo etuvanti empty space raadu
+            x_idx = list(range(len(df_chart)))
             
             hover_data = (
                 "🕒 " + chart_times.strftime('%d-%b %I:%M %p') + 
@@ -2183,7 +2191,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 def am(col, mask): return np.where(mask, df_chart[col], np.nan)
 
                 fig_obj.add_trace(go.Candlestick(
-                    x=df_chart.index, open=am('Open', mask_norm), high=am('High', mask_norm), low=am('Low', mask_norm), close=am('Close', mask_norm), 
+                    x=x_idx, open=am('Open', mask_norm), high=am('High', mask_norm), low=am('Low', mask_norm), close=am('Close', mask_norm), 
                     increasing_line_color='#2ea043', increasing_fillcolor='#2ea043', increasing_line_width=1,
                     decreasing_line_color='#da3633', decreasing_fillcolor='#da3633', decreasing_line_width=1,
                     showlegend=False, hoverinfo='skip'
@@ -2191,7 +2199,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 
                 if mask_hv_bull.any():
                     fig_obj.add_trace(go.Candlestick(
-                        x=df_chart.index, open=am('Open', mask_hv_bull), high=am('High', mask_hv_bull), low=am('Low', mask_hv_bull), close=am('Close', mask_hv_bull), 
+                        x=x_idx, open=am('Open', mask_hv_bull), high=am('High', mask_hv_bull), low=am('Low', mask_hv_bull), close=am('Close', mask_hv_bull), 
                         increasing_line_color='#00FF00', increasing_fillcolor='#00FF00', increasing_line_width=2,
                         decreasing_line_color='#00FF00', decreasing_fillcolor='#00FF00', decreasing_line_width=2,
                         showlegend=False, hoverinfo='skip'
@@ -2199,7 +2207,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                     
                 if mask_hv_bear.any():
                     fig_obj.add_trace(go.Candlestick(
-                        x=df_chart.index, open=am('Open', mask_hv_bear), high=am('High', mask_hv_bear), low=am('Low', mask_hv_bear), close=am('Close', mask_hv_bear), 
+                        x=x_idx, open=am('Open', mask_hv_bear), high=am('High', mask_hv_bear), low=am('Low', mask_hv_bear), close=am('Close', mask_hv_bear), 
                         increasing_line_color='#FF0000', increasing_fillcolor='#FF0000', increasing_line_width=2,
                         decreasing_line_color='#FF0000', decreasing_fillcolor='#FF0000', decreasing_line_width=2,
                         showlegend=False, hoverinfo='skip'
@@ -2209,22 +2217,22 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.02, row_heights=[0.75, 0.25])
                 apply_standard_candles(fig, is_subplot=True)
                 fig.add_trace(go.Scatter(
-                    x=df_chart.index, y=df_chart['High'], mode='lines', 
+                    x=x_idx, y=df_chart['High'], mode='lines', 
                     line=dict(color='rgba(0,0,0,0)'), showlegend=False, 
                     hoverinfo='text' if show_crosshair else 'skip', 
                     text=hover_data, name="", **hover_kwargs
                 ), row=1, col=1)
                 
                 if timeframe == "Daily Chart":
-                    if 'SMA_50' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_50'], mode='lines', line=dict(color='#FFD700', width=1.5), name='50 SMA', showlegend=False, hoverinfo='skip'), row=1, col=1)
-                    if 'SMA_150' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_150'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), name='150 SMA', showlegend=False, hoverinfo='skip'), row=1, col=1)
-                    if 'SMA_200' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_200'], mode='lines', line=dict(color='#FF4500', width=2), name='200 SMA', showlegend=False, hoverinfo='skip'), row=1, col=1)
+                    if 'SMA_50' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_50'], mode='lines', line=dict(color='#FFD700', width=1.5), name='50 SMA', showlegend=False, hoverinfo='skip'), row=1, col=1)
+                    if 'SMA_150' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_150'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), name='150 SMA', showlegend=False, hoverinfo='skip'), row=1, col=1)
+                    if 'SMA_200' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_200'], mode='lines', line=dict(color='#FF4500', width=2), name='200 SMA', showlegend=False, hoverinfo='skip'), row=1, col=1)
                 elif timeframe == "Weekly Chart":
-                    if 'SMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), name='10 Wk SMA', showlegend=False, hoverinfo='skip'), row=1, col=1)
-                    if 'SMA_40' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_40'], mode='lines', line=dict(color='#FF4500', width=2), name='40 Wk SMA', showlegend=False, hoverinfo='skip'), row=1, col=1)
+                    if 'SMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), name='10 Wk SMA', showlegend=False, hoverinfo='skip'), row=1, col=1)
+                    if 'SMA_40' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_40'], mode='lines', line=dict(color='#FF4500', width=2), name='40 Wk SMA', showlegend=False, hoverinfo='skip'), row=1, col=1)
                 else:
                     offset = -4 if len(df_chart) >= 4 else -1
-                    tag_idx = df_chart.index[offset]
+                    tag_idx = x_idx[offset]
                     last_close = float(df_chart['Close'].iloc[-1])
                     has_vwap = 'VWAP' in df_chart.columns
                     has_ema = 'EMA_10' in df_chart.columns
@@ -2248,11 +2256,11 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                             e_anchor, e_shift = "bottom", 6
 
                     if has_vwap: 
-                        fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='skip'), row=1, col=1)
+                        fig.add_trace(go.Scatter(x=x_idx, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='skip'), row=1, col=1)
                         fig.add_annotation(x=tag_idx, y=tag_y_vwap, text=f"V:{last_vwap:.1f}", showarrow=False, xanchor="right", yanchor=v_anchor, xshift=-5, yshift=v_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#FFD700", borderpad=2, row=1, col=1)
                         
                     if has_ema: 
-                        fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'), row=1, col=1)
+                        fig.add_trace(go.Scatter(x=x_idx, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'), row=1, col=1)
                         fig.add_annotation(x=tag_idx, y=tag_y_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="right", yanchor=e_anchor, xshift=-5, yshift=e_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=2, row=1, col=1)
             
                 vol_colors = []
@@ -2280,7 +2288,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                     vol_colors = ['rgba(46, 160, 67, 0.4)' if c >= o else 'rgba(218, 54, 51, 0.4)' 
                                   for c, o in zip(df_chart['Close'], df_chart['Open'])]
                 
-                fig.add_trace(go.Bar(x=df_chart.index, y=df_chart['Volume'], marker_color=vol_colors, showlegend=False, hoverinfo='skip'), row=2, col=1)
+                fig.add_trace(go.Bar(x=x_idx, y=df_chart['Volume'], marker_color=vol_colors, showlegend=False, hoverinfo='skip'), row=2, col=1)
                 
                 fig.update_layout(margin=dict(l=0, r=45 if show_crosshair else 5, t=0, b=0), height=275, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
                 fig.add_annotation(text=title_html, xref="paper", yref="paper", x=0, xanchor="left", xshift=35, y=0.98, yanchor="top", showarrow=False, font=dict(size=13, color="#ffffff"), bgcolor="rgba(0,0,0,0)", borderwidth=0)
@@ -2306,22 +2314,22 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 fig = go.Figure()
                 apply_standard_candles(fig, is_subplot=False)
                 fig.add_trace(go.Scatter(
-                    x=df_chart.index, y=df_chart['High'], mode='lines', 
+                    x=x_idx, y=df_chart['High'], mode='lines', 
                     line=dict(color='rgba(0,0,0,0)'), showlegend=False, 
                     hoverinfo='text' if show_crosshair else 'skip', 
                     text=hover_data, name="", **hover_kwargs
                 ))
                 
                 if timeframe == "Daily Chart":
-                    if 'SMA_50' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_50'], mode='lines', line=dict(color='#FFD700', width=1.5), name='50 SMA', showlegend=False, hoverinfo='skip'))
-                    if 'SMA_150' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_150'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), name='150 SMA', showlegend=False, hoverinfo='skip'))
-                    if 'SMA_200' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_200'], mode='lines', line=dict(color='#FF4500', width=2), name='200 SMA', showlegend=False, hoverinfo='skip'))
+                    if 'SMA_50' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_50'], mode='lines', line=dict(color='#FFD700', width=1.5), name='50 SMA', showlegend=False, hoverinfo='skip'))
+                    if 'SMA_150' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_150'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), name='150 SMA', showlegend=False, hoverinfo='skip'))
+                    if 'SMA_200' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_200'], mode='lines', line=dict(color='#FF4500', width=2), name='200 SMA', showlegend=False, hoverinfo='skip'))
                 elif timeframe == "Weekly Chart":
-                    if 'SMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), name='10 Wk SMA', showlegend=False, hoverinfo='skip'))
-                    if 'SMA_40' in df_chart.columns: fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['SMA_40'], mode='lines', line=dict(color='#FF4500', width=2), name='40 Wk SMA', showlegend=False, hoverinfo='skip'))
+                    if 'SMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), name='10 Wk SMA', showlegend=False, hoverinfo='skip'))
+                    if 'SMA_40' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_40'], mode='lines', line=dict(color='#FF4500', width=2), name='40 Wk SMA', showlegend=False, hoverinfo='skip'))
                 else:
                     offset = -4 if len(df_chart) >= 4 else -1
-                    tag_idx = df_chart.index[offset]
+                    tag_idx = x_idx[offset]
                     last_close = float(df_chart['Close'].iloc[-1])
                     has_vwap = 'VWAP' in df_chart.columns
                     has_ema = 'EMA_10' in df_chart.columns
@@ -2345,11 +2353,11 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                             e_anchor, e_shift = "bottom", 6
 
                     if has_vwap: 
-                        fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='skip'))
+                        fig.add_trace(go.Scatter(x=x_idx, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='skip'))
                         fig.add_annotation(x=tag_idx, y=tag_y_vwap, text=f"V:{last_vwap:.1f}", showarrow=False, xanchor="right", yanchor=v_anchor, xshift=-5, yshift=v_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#FFD700", borderpad=2)
                         
                     if has_ema: 
-                        fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'))
+                        fig.add_trace(go.Scatter(x=x_idx, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'))
                         fig.add_annotation(x=tag_idx, y=tag_y_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="right", yanchor=e_anchor, xshift=-5, yshift=e_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=2)
             
                 fig.update_layout(margin=dict(l=0, r=45 if show_crosshair else 5, t=0, b=0), height=235, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, xaxis_rangeslider_visible=False)
