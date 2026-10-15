@@ -847,16 +847,37 @@ def fetch_single_dhan_5m(symbol, sec_id, cid, tok):
     return symbol, df_
 
 
+def _sanitize_5m_df(df_in, tkr=None):
+    if df_in is None or not isinstance(df_in, pd.DataFrame) or df_in.empty:
+        return pd.DataFrame()
+    d = df_in.copy()
+    if isinstance(d.columns, pd.MultiIndex):
+        if tkr and tkr in d.columns.get_level_values(0):
+            d = d[tkr].copy()
+        elif tkr and tkr in d.columns.get_level_values(-1):
+            d = d.xs(tkr, axis=1, level=-1).copy()
+        else:
+            d.columns = d.columns.get_level_values(-1)
+    d = d.loc[:, ~d.columns.duplicated()]
+    if 'Close' not in d.columns:
+        return pd.DataFrame()
+    d = d.dropna(subset=['Close'])
+    if d.empty:
+        return pd.DataFrame()
+    d.index = pd.to_datetime(d.index)
+    if d.index.tz is not None:
+        d.index = d.index.tz_localize(None)
+    d = d[~d.index.duplicated(keep='last')].sort_index()
+    return d
+
 def fetch_cached_5m_data(tkrs_list):
     import os
     t0 = time.time()
     _m_open = is_market_open()
-    # Market open lo 3 mins (180s) cache, Market close lo 18 gantalu (64800s) cache
     _ttl = 180 if _m_open else 64800
     _cache_5m_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "intraday_5m_cache.pkl")
     _bad_syms = globals().get('_SKIP_BAD_SYMS', {"PBFINTECH", "GUJGASLTD", "TVSHLDGS", "TATAMOTORS", "PEL", "LTIM", "JCHAC", "SEAMEC", "TIDEWATER"})
 
-    # 1. Load from Disk Cache on first startup (0.05 sec)
     if '5m_store' not in _SS:
         _SS['5m_store'] = {}
         _SS['5m_ts'] = {}
@@ -865,9 +886,9 @@ def fetch_cached_5m_data(tkrs_list):
                 if (time.time() - os.path.getmtime(_cache_5m_file)) < _ttl:
                     _saved = pd.read_pickle(_cache_5m_file)
                     if isinstance(_saved, dict) and _saved:
-                        _SS['5m_store'] = _saved
+                        _SS['5m_store'] = {k: _sanitize_5m_df(v, k) for k, v in _saved.items()}
                         _now_init = time.time()
-                        _SS['5m_ts'] = {k: _now_init for k in _saved}
+                        _SS['5m_ts'] = {k: _now_init for k in _SS['5m_store'] if not _SS['5m_store'][k].empty}
             except Exception:
                 pass
 
@@ -876,32 +897,28 @@ def fetch_cached_5m_data(tkrs_list):
     now_t = time.time()
 
     clean_req = [t for t in dict.fromkeys(tkrs_list) if str(t).replace(".NS", "") not in _bad_syms]
-    # Kevalam cache lo leni leda expire ayina stocks matrame download chestundi
-    missing_tkrs = [t for t in clean_req if (t not in store) or ((now_t - ts_map.get(t, 0)) > _ttl)]
+    missing_tkrs = [t for t in clean_req if (t not in store) or store[t].empty or ((now_t - ts_map.get(t, 0)) > _ttl)]
 
     n_yf = 0
     if missing_tkrs:
         yf_data = yf.download(missing_tkrs, period="2d", interval="5m", progress=False, group_by='ticker', threads=25, timeout=5)
         if not yf_data.empty:
             if len(missing_tkrs) == 1:
-                if yf_data.index.tz is not None:
-                    yf_data.index = yf_data.index.tz_localize(None)
-                store[missing_tkrs[0]] = yf_data
-                ts_map[missing_tkrs[0]] = now_t
-                n_yf = 1
+                df_clean = _sanitize_5m_df(yf_data, missing_tkrs[0])
+                if not df_clean.empty:
+                    store[missing_tkrs[0]] = df_clean
+                    ts_map[missing_tkrs[0]] = now_t
+                    n_yf = 1
             elif isinstance(yf_data.columns, pd.MultiIndex):
-                lvl0 = yf_data.columns.levels[0]
+                lvl0 = yf_data.columns.get_level_values(0).unique()
                 for tkr in missing_tkrs:
                     if tkr in lvl0:
-                        df_t = yf_data[tkr].dropna(subset=['Close'])
-                        if not df_t.empty:
-                            if df_t.index.tz is not None:
-                                df_t.index = df_t.index.tz_localize(None)
-                            store[tkr] = df_t
+                        df_clean = _sanitize_5m_df(yf_data[tkr], tkr)
+                        if not df_clean.empty:
+                            store[tkr] = df_clean
                             ts_map[tkr] = now_t
                             n_yf += 1
 
-        # Fail ayina stock malli prathi 30s ki retry avvakunda timestamp mark chestundi
         for tkr in missing_tkrs:
             if tkr not in ts_map:
                 ts_map[tkr] = now_t
@@ -919,7 +936,14 @@ def fetch_cached_5m_data(tkrs_list):
             'when': datetime.now(ZoneInfo("Asia/Kolkata")).strftime('%H:%M:%S')
         }
 
-    valid_results = {t: store[t] for t in clean_req if t in store and not store[t].empty}
+    valid_results = {}
+    for t in clean_req:
+        if t in store and not store[t].empty:
+            df_c = _sanitize_5m_df(store[t], t)
+            if not df_c.empty:
+                store[t] = df_c
+                valid_results[t] = df_c
+
     if valid_results:
         return pd.concat(valid_results.values(), axis=1, keys=valid_results.keys(), sort=False)
     return pd.DataFrame()
@@ -2459,7 +2483,8 @@ with top_c1:
 refresh_sec = 60 if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"] else 30
 
 with top_c2:
-    view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], index=1 if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"] else 0, horizontal=True, label_visibility="collapsed")
+    default_view_idx = 0 if watchlist_mode in ["My Portfolio 💼", "F&O + Top 200 Heatmap 🗺️"] else 1
+    view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], index=default_view_idx, horizontal=True, label_visibility="collapsed")
     move_type_filter = ["🌊 One Sided Only", "🎯 Reversals Only", "🏹 Rubber Band Stretch"] 
     fund_filter = "Top Ranked Stocks ⭐"
     sort_mode = "Custom Sort"
@@ -2848,6 +2873,7 @@ def render_live_ui():
                 df_filtered = df_filtered[(df_filtered['Strategy_Icon'] != "Neutral") & (df_filtered['S'] >= 11)]
         elif watchlist_mode == "Day Trading Stocks 🚀":
             df_filtered = df_stocks[df_stocks['C'].abs() >= 1.0].copy()
+            df_filtered['Strategy_Icon'] = np.where(df_filtered['Day_C'] >= 0, "🚀 BUY", "🩸 SELL")
         elif watchlist_mode == "High Score Stocks 🔥":
             df_filtered = df_stocks[(df_stocks['S'] >= 11) & (df_stocks['VolX'] >= 1.5)].copy()
         elif watchlist_mode == "Swing Trading 📈":
@@ -2889,7 +2915,9 @@ def render_live_ui():
                 dfs_to_concat.append(df_vcp)
     
             if "All Swing Stocks" in move_type_filter or not move_type_filter:
-                dfs_to_concat.append(df_filtered[df_filtered['Is_Swing'] == True])
+                df_all_sw = df_filtered[df_filtered['Is_Swing'] == True].copy()
+                df_all_sw['Strategy_Icon'] = "🟢 Swing"
+                dfs_to_concat.append(df_all_sw)
     
             if dfs_to_concat:
                 df_filtered = pd.concat(dfs_to_concat).drop_duplicates(subset=['Fetch_T'], keep='last')
@@ -3216,39 +3244,40 @@ def render_live_ui():
                         df_52wl_sell = df_52wl_sell.sort_values(by='Pullback_52W', ascending=False).head(32)
                         dfs_to_concat.append(df_52wl_sell)    
                 elif strat == "⏳ Anticipation SMA Base (20/50/150/200)":
-                    # 1. Trend condition (SMA 150 > SMA 200 ayyi undali)
+                    if 'SMA20' not in df_filtered.columns:
+                        df_filtered['SMA20'] = df_filtered['EMA20']
                     base_trend = (df_filtered['SMA150'] > df_filtered['SMA200']) | (df_filtered['SMA200'] == 0)
                     base_cond = has_history & base_trend
-    
-                    # 2. SMA ki 3% range lo support teeskunevi
-                    near_20 = (df_filtered['P'] >= df_filtered['SMA20'] * 0.97) & (df_filtered['P'] <= df_filtered['SMA20'] * 1.03)
-                    near_50 = (df_filtered['P'] >= df_filtered['SMA50'] * 0.97) & (df_filtered['P'] <= df_filtered['SMA50'] * 1.03)
-                    near_150 = (df_filtered['P'] >= df_filtered['SMA150'] * 0.97) & (df_filtered['P'] <= df_filtered['SMA150'] * 1.03)
-                    near_200 = (df_filtered['P'] >= df_filtered['SMA200'] * 0.97) & (df_filtered['P'] <= df_filtered['SMA200'] * 1.03)
-    
-                    # 20 SMA - Exactly 8 stocks
-                    df_20 = df_filtered[base_cond & near_20].copy()
+
+                    near_20 = (df_filtered['SMA20'] > 0) & (df_filtered['P'] >= df_filtered['SMA20'] * 0.97) & (df_filtered['P'] <= df_filtered['SMA20'] * 1.03)
+                    near_50 = (df_filtered['SMA50'] > 0) & (df_filtered['P'] >= df_filtered['SMA50'] * 0.97) & (df_filtered['P'] <= df_filtered['SMA50'] * 1.03)
+                    near_150 = (df_filtered['SMA150'] > 0) & (df_filtered['P'] >= df_filtered['SMA150'] * 0.97) & (df_filtered['P'] <= df_filtered['SMA150'] * 1.03)
+                    near_200 = (df_filtered['SMA200'] > 0) & (df_filtered['P'] >= df_filtered['SMA200'] * 0.97) & (df_filtered['P'] <= df_filtered['SMA200'] * 1.03)
+
+                    used_idx = set()
+
+                    df_20 = df_filtered[base_cond & near_20].sort_values(by='S', ascending=False).head(8).copy()
                     if not df_20.empty:
                         df_20['Strategy_Icon'] = "🟢 20-SMA Base"
-                        dfs_to_concat.append(df_20.sort_values(by='S', ascending=False).head(8))
-    
-                    # 50 SMA - Exactly 8 stocks (Repeat aveyykunda)
-                    df_50 = df_filtered[base_cond & near_50 & ~df_filtered.index.isin(df_20.index)].copy()
+                        dfs_to_concat.append(df_20)
+                        used_idx.update(df_20.index)
+
+                    df_50 = df_filtered[base_cond & near_50 & ~df_filtered.index.isin(used_idx)].sort_values(by='S', ascending=False).head(8).copy()
                     if not df_50.empty:
                         df_50['Strategy_Icon'] = "🟢 50-SMA Base"
-                        dfs_to_concat.append(df_50.sort_values(by='S', ascending=False).head(8))
-    
-                    # 150 SMA - Exactly 8 stocks
-                    df_150 = df_filtered[base_cond & near_150 & ~df_filtered.index.isin(df_20.index) & ~df_filtered.index.isin(df_50.index)].copy()
+                        dfs_to_concat.append(df_50)
+                        used_idx.update(df_50.index)
+
+                    df_150 = df_filtered[base_cond & near_150 & ~df_filtered.index.isin(used_idx)].sort_values(by='S', ascending=False).head(8).copy()
                     if not df_150.empty:
                         df_150['Strategy_Icon'] = "🟢 150-SMA Base"
-                        dfs_to_concat.append(df_150.sort_values(by='S', ascending=False).head(8))
-    
-                    # 200 SMA - Exactly 8 stocks
-                    df_200 = df_filtered[base_cond & near_200 & ~df_filtered.index.isin(df_20.index) & ~df_filtered.index.isin(df_50.index) & ~df_filtered.index.isin(df_150.index)].copy()
+                        dfs_to_concat.append(df_150)
+                        used_idx.update(df_150.index)
+
+                    df_200 = df_filtered[base_cond & near_200 & ~df_filtered.index.isin(used_idx)].sort_values(by='S', ascending=False).head(8).copy()
                     if not df_200.empty:
                         df_200['Strategy_Icon'] = "🟢 200-SMA Base"
-                        dfs_to_concat.append(df_200.sort_values(by='S', ascending=False).head(8))
+                        dfs_to_concat.append(df_200)
             
             # ---> FINAL CONCAT BLOCK <---
             if dfs_to_concat:
@@ -4340,7 +4369,7 @@ def render_live_ui():
                     display_tkrs.extend(df_indices['Fetch_T'].tolist())
                     display_tkrs.extend(df_sectors['Fetch_T'].tolist())
                 display_tkrs.extend(st.session_state.pinned_stocks)
-                display_tkrs.extend(df_stocks_display['Fetch_T'].head(30).tolist())
+                display_tkrs.extend(df_stocks_display['Fetch_T'].head(65).tolist())
                 display_tkrs = list(set(display_tkrs)) 
                 
                 if display_tkrs:
