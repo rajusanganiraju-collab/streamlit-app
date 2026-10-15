@@ -844,7 +844,7 @@ def fetch_single_dhan_5m(symbol, sec_id, cid, tok):
     return symbol, df_
 
 
-@st.cache_data(ttl=60, show_spinner=False)  # 🔧 PERF: 30s→60s (API load తగ్గడానికి)
+@st.cache_data(ttl=25, show_spinner=False)  # 🔧 PERF: 30s→60s (API load తగ్గడానికి)
 def fetch_cached_5m_data(tkrs_list):
     t0 = time.time()
     cid, tok = _dhan_creds()
@@ -1178,11 +1178,6 @@ def process_5m_data(df_raw):
         unique_dates = sorted(list(set(df_s.index.date)))
         target_date = unique_dates[-1]
         df_day = df_s[df_s.index.date == target_date].copy()
-        
-        # 🔧 FIX: రాత్రి 12 దాటాక గ్లోబల్ ఇండెక్స్‌లలో (SPX/DAX) 1-2 క్యాండిల్స్ మాత్రమే ఉంటే ఎర్ర డబ్బా రాకుండా గత 75 క్యాండిల్స్ చూపిస్తుంది
-        if len(df_day) < 5 and len(unique_dates) >= 2:
-            target_date = unique_dates[-2]
-            df_day = df_s[df_s.index.date == target_date].copy()
         
         if not df_day.empty:
             df_day['Typical_Price'] = (df_day['High'] + df_day['Low'] + df_day['Close']) / 3
@@ -2059,10 +2054,18 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
     title_html = f"<a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; line-height:1.2;'><b>{display_sym}</b>{strat_tag}<br><span style='font-size:12px; color:#cccccc;'>₹{row['P']:.2f} &nbsp;<span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span>{pb_tag}</span></a>"
     
     try:
+        try:
         if not df_chart.empty and 'Low' in df_chart.columns and 'High' in df_chart.columns:
             df_chart = df_chart.copy()
             if timeframe == "Intraday (5m)":
-                df_chart = df_chart.tail(75)  # 🔧 PERF: ఈరోజు candles మాత్రమే render
+                df_chart = df_chart.tail(75)
+                # 🔥 FIX: ఉదయం 9:15 కి 1 నుండి 10 క్యాండిల్స్ మాత్రమే ఉన్నప్పుడు పెద్ద డబ్బాలా రాకుండా 12 స్లాట్స్ వరకు ఖాళీ 5m టైమ్ యాడ్ చేస్తుంది
+                if 0 < len(df_chart) < 12:
+                    _last_ts = pd.to_datetime(df_chart.index[-1])
+                    _pad_idx = [_last_ts + pd.Timedelta(minutes=5 * _k) for _k in range(1, 13 - len(df_chart))]
+                    _pad_df = pd.DataFrame(np.nan, index=_pad_idx, columns=df_chart.columns)
+                    _pad_df['Volume'] = 0
+                    df_chart = pd.concat([df_chart, _pad_df])
             min_val = df_chart['Low'].min()
             max_val = df_chart['High'].max()
             y_padding = (max_val - min_val) * 0.15 if (max_val - min_val) != 0 else min_val * 0.005 
