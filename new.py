@@ -933,9 +933,6 @@ def fetch_historical_charts_data(tkrs, timeframe):
 # --- DAILY DATA FETCH (YFINANCE - SUPER FAST METHOD) ---
 import os
 
-@st.cache_data(ttl=900, show_spinner=False)
-import os
-
 # CMD lo HTTP Error 404 istunna symbols ni automatic ga skip chese list
 _SKIP_BAD_SYMS = {"PBFINTECH", "GUJGASLTD", "TVSHLDGS", "TATAMOTORS", "PEL", "LTIM", "JCHAC", "SEAMEC", "TIDEWATER"}
 
