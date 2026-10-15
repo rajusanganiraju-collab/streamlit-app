@@ -3923,7 +3923,7 @@ def render_live_ui():
             else:
                 df_port_view = df_port_saved.copy()
 
-            # 📊 Portfolio KPI Strip (NEW)
+            # 📊 Portfolio KPI Strip (with Actual P&L & TradeBook Profit)
             try:
                 if not df_port_saved.empty:
                     _lu = df_all_stocks.drop_duplicates(subset=['T']).set_index('T')[['P', 'Prev_C']].to_dict('index')
@@ -3941,11 +3941,18 @@ def render_live_ui():
                         _dpnl += (_ltp - _pc) * _qty
                     _tpnl = _cur - _inv
                     _tpct = (_tpnl / _inv * 100) if _inv > 0 else 0
-                    _k1, _k2, _k3, _k4 = st.columns(4)
+                    try:
+                        _df_cl = load_closed_trades()
+                        _realized_pnl = float(pd.to_numeric(_df_cl['PnL_Rs'], errors='coerce').sum()) if not _df_cl.empty else 0.0
+                    except Exception:
+                        _realized_pnl = 0.0
+                    _actual_pnl = _tpnl + _realized_pnl
+                    _k1, _k2, _k3, _k4, _k5 = st.columns(5)
                     _k1.metric("💰 Invested", f"₹{_inv:,.0f}")
                     _k2.metric("📈 Current Value", f"₹{_cur:,.0f}")
                     _k3.metric("📅 Day P&L", f"₹{_dpnl:,.0f}")
                     _k4.metric("🏆 Total P&L", f"₹{_tpnl:,.0f}", delta=f"{_tpct:+.2f}%")
+                    _k5.metric("💎 Actual P&L", f"₹{_actual_pnl:,.0f}", delta=f"TradeBook: {_realized_pnl:+,.0f}")
             except Exception:
                 pass
             
