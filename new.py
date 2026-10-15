@@ -358,7 +358,7 @@ FNO_STOCKS = [
     "BOSCHLTD", "BPCL", "BRITANNIA", "BSE", "CANBK", "CANFINHOME", "CDSL", "CHAMBLFERT", "CHOLAFIN", "CIPLA",
     "COALINDIA", "COFORGE", "COLPAL", "CONCOR", "COROMANDEL", "CROMPTON", "CUB", "CUMMINSIND", "DABUR", "DALBHARAT",
     "DEEPAKNTR", "DIVISLAB", "DIXON", "DLF", "DRREDDY", "EICHERMOT", "ESCORTS", "EXIDEIND", "FEDERALBNK", "GAIL",
-    "GLENMARK", "GMRINFRA", "GNFC", "GODREJCP", "GODREJPROP", "GRANULES", "GRASIM", "GUJGASLTD", "HAL", "HAVELLS",
+    "GLENMARK", "GMRAIRPORT", "GNFC", "GODREJCP", "GODREJPROP", "GRANULES", "GRASIM", "GUJGASLTD", "HAL", "HAVELLS",
     "HCLTECH", "HDFCAMC", "HDFCBANK", "HDFCLIFE", "HEROMOTOCO", "HINDALCO", "HINDCOPPER", "HINDPETRO", "HINDUNILVR",
     "HUDCO", "ICICIBANK", "ICICIGI", "ICICIPRULI", "IDEA", "IDFCFIRSTB", "IEX", "IGL", "INDHOTEL", "INDIACEM",
     "INDIAMART", "INDIGO", "INDUSINDBK", "INDUSTOWER", "INFY", "IOC", "IPCALAB", "IRCTC", "IRFC", "ITC", "JINDALSTEL",
@@ -369,7 +369,7 @@ FNO_STOCKS = [
     "POWERGRID", "PRESTIGE", "PVRINOX", "RAMCOCEM", "RBLBANK", "RECLTD", "RELIANCE", "SAIL", "SBICARD", "SBILIFE",
     "SBIN", "SHREECEM", "SHRIRAMFIN", "SIEMENS", "SRF", "SUNPHARMA", "SUNTV", "SYNGENE", "TATACHEM", "TATACOMM",
     "TATACONSUM", "TATAMOTORS", "TATAPOWER", "TATASTEEL", "TCS", "TECHM", "TITAN", "TORNTPHARM", "TRENT", "TVSMOTOR",
-    "UBL", "ULTRACEMCO", "UPL", "VEDL", "VOLTAS", "WIPRO", "ZEEL", "ZOMATO", "ZYDUSLIFE"
+    "UBL", "ULTRACEMCO", "UPL", "VEDL", "VOLTAS", "WIPRO", "ZEEL", "ETERNAL", "ZYDUSLIFE"
 ]
 
 MIDCAP_150 = [
@@ -381,26 +381,26 @@ MIDCAP_150 = [
 ]
 
 SMALLCAP_250 = [
-    "AARTIDRUGS", "AAVAS", "AEGISCHEM", "AFFLE", "AJMERA", "AKZOINDIA", "ALEMBICLTD", "ALKYLAMINE", 
-    "ALLCARGO", "ARE&M", "AMBER", "ANANDTHI", "ANURAS", "APLLTD", "APTUS", "ASAHIINDIA", 
+    "AARTIDRUGS", "AAVAS", "AEGISLOG", "AFFLE", "AJMERA", "AKZOINDIA", "ALEMBICLTD", "ALKYLAMINE", 
+    "ALLCARGO", "ARE&M", "AMBER", "ANANDRATHI", "ANURAS", "APLLTD", "APTUS", "ASAHIINDIA", 
     "ASTERDM", "ASTRAZEN", "BAJAJELEC", "BALAMINES", "BALMLAWRIE", "BANARISUG", "BASF", "BDL", 
     "BEML", "BFINVEST", "BHARATRAS", "BIRLACORPN", "BLS", "BOMDYEING", "BRIGADE", "BSOFT", 
     "CAMLINFINE", "CAMS", "CAPLIPOINT", "CARBORUNIV", "CASTROLIND", "CCL", "CEATLTD", "CENTRALBK", 
-    "CENTURYPLY", "CENTURYTEX", "CERA", "CESC", "CHALET", "CHEMPLASTS", "CHENNPETRO", "CIGNITITEC", 
-    "CUB", "CLEAN", "COFFEEDAY", "CRAFTSMAN", "CREDITACC", "CSBBANK", "CYIENT", 
+    "CENTURYPLY", "ABREL", "CERA", "CESC", "CHALET", "CHEMPLASTS", "CHENNPETRO", "CIGNITITEC", 
+    "CUB", "CLEAN", "CRAFTSMAN", "CREDITACC", "CSBBANK", "CYIENT", 
     "DATAPATTNS", "DCBBANK", "DCMSHRIRAM", "DEEPAKFERT", "DELTACORP", "DHANUKA", "DBL", "DODLA", 
     "ECLERX", "EIDPARRY", "EIHOTEL", "EQUITASBNK", "ERIS", "ESABINDIA", "EVEREADY", "FACT", 
     "FDC", "FILATEX", "FINCABLES", "FINEORG", "FINPIPE", "FSL", "GABRIEL", 
     "GAEL", "GALAXYSURF", "GARFIBRES", "GATEWAY", "GICRE", "GILLETTE", "GLAXO", "GMDCLTD", 
     "GMMPFAUDLR", "GODREJAGRO", "GODREJIND", "GOKEX", "GRAPHITE", "GREAVESCOT", "GREENLAM", "GREENPANEL", 
     "GRINDWELL", "GSFC", "GSPL", "GUJALKALI", "HAPPSTMNDS", "HATHWAY", "HCG", "HEG", 
-    "HEIDELBERG", "HERITGFOOD", "HFCL", "HGS", "HIKAL", "HIL", "HIMATSEIDE", "NDLVENTURES", 
-    "HINDZINC", "HOMEFIRST", "HONAUT", "HSCL", "IBREALEST", "ICIL", "IDBI", 
+    "HEIDELBERG", "HERITGFOOD", "HFCL", "HGS", "HIKAL", "BIRLANU", "HIMATSEIDE", 
+    "HINDZINC", "HOMEFIRST", "HONAUT", "HSCL", "EMBDL", "ICIL", "IDBI", 
     "IFBIND", "IIFL", "INDOCO", "INDORAMA", "INFIBEAM", "INGERRAND", 
-    "INOXWIND", "INTELLECT", "IOB", "IONEXCHANG", "IRCON", "ISEC", "ISGEC", "ITI", 
+    "INOXWIND", "INTELLECT", "IOB", "IONEXCHANG", "IRCON", "ISGEC", "ITI", 
     "J&KBANK", "JAGRAN", "JAICORPLTD", "JAMNAAUTO", "JBCHEPHARM", "JCHAC", "JINDALPOLY", "JINDWORLD", 
-    "JKCEMENT", "JKLAKSHMI", "JKPAPER", "JKTYRE", "JMFINANCIL", "JPASSOCIAT", "JPPOWER", 
-    "JTEKTINDIA", "JUBLINGEA", "JUBLPHARMA", "JUSTDIAL", "JYOTHYLAB", "KAJARIACER", "KPIL", 
+    "JKCEMENT", "JKLAKSHMI", "JKPAPER", "JKTYRE", "JMFINANCIL", "JPPOWER", 
+    "JTEKTINDIA", "JUBLINGREA", "JUBLPHARMA", "JUSTDIAL", "JYOTHYLAB", "KAJARIACER", "KPIL", 
     "KANSAINER", "KARURVYSYA", "KEC", "KEI", "KNRCON", "KOLTEPATIL", "KOPRAN", "KPRMILL", 
     "KRBL", "KSB", "KTKBANK", "LAOPALA", "LATENTVIEW", "LMW", "LEMONTREE", "LINDEINDIA", 
     "LUXIND", "MAHABANK", "CIEINDIA", "MAHLIFE", "MAHLOG", "MAHSCOOTER", "MAITHANALL", "MANALIPETC", 
@@ -413,18 +413,18 @@ SMALLCAP_250 = [
     "PRSMJOHNSN", "PSPPROJECT", "PTC", "PUNJABCHEM", "PURVA", "QUESS", "RADICO", "RAILTEL", 
     "RAIN", "RALLIS", "RAMASTEEL", "RAMCOIND", "RAMCOSYS", "RATNAMANI", "RAYMOND", "RBA", 
     "RCF", "REDINGTON", "RELAXO", "REPCOHOME", "RITES", "RKFORGE", "ROLEXRINGS", "ROSSARI", 
-    "ROUTE", "RSYSTEMS", "RUCHIRA", "RUPA", "SAFARI", "SAGCEM", "SANGHIIND", "SANGHVIMOV", 
+    "ROUTE", "RSYSTEMS", "RUCHIRA", "RUPA", "SAFARI", "SAGCEM", "SANGHVIMOV", 
     "SANSERA", "SAPPHIRE", "SARDAEN", "SAREGAMA", "SCHAEFFLER", "SCHAND", "SEAMEC", "SEQUENT", 
     "SFL", "SHALBY", "SHALPAINTS", "SHANKARA", "SHARDACROP", "SHARDAMOTR", "SHILPAMED", "SHOPERSTOP", 
     "SHREYANIND", "SJS", "SKFINDIA", "SNOWMAN", "SOBHA", "SOLARA", "SOMANYCERA", "SONATSOFTW", 
     "SOUTHBANK", "SPANDANA", "SPARC", "STAR", "STARCEMENT", "STCINDIA", "STLTECH", "STOVEKRAFT", 
     "SUBROS", "SUDARSCHEM", "SUMICHEM", "TVSHLDGS", "SUNFLAG", "SUNTECK", "SUPRAJIT", 
-    "SURYAROSNI", "SUVENPHAR", "SYMPHONY", "SYRMA", "TASTYBITE", "TCI", "TCIEXP", 
+    "SURYAROSNI", "COHANCE", "SYMPHONY", "SYRMA", "TASTYBITE", "TCI", "TCIEXP", 
     "TCPLPACK", "TEJASNET", "THANGAMAYL", "THERMAX", "THOMASCOOK", "TIDEWATER", "TIIL", "TIMETECHNO", 
-    "TIMKEN", "TIPSIND", "TNPL", "TOKYOPLAST", "TRITURBINE", "TRIVENI", "TTKPRESTIG", 
+    "TIMKEN", "TIPSMUSIC", "TNPL", "TOKYOPLAST", "TRITURBINE", "TRIVENI", "TTKPRESTIG", 
     "UFO", "UJJIVANSFB", "UNIENTER", "UNIPARTS", "UTIAMC", "VAIBHAVGBL", "VAKRANGEE", "VARROC", 
     "VENKEYS", "VESUVIUS", "VGUARD", "VIDHIING", "VINATIORGA", "VIPIND", "VISAKAIND", "VISHNU", 
-    "VTL", "WABAG", "WELCORP", "WELENT", "WELSPUNLIV", "WSTCSTPAPR", "XYLEM", 
+    "VTL", "WABAG", "WELCORP", "WELENT", "WELSPUNLIV", "WSTCSTPAPR", 
     "YATHARTH", "ZENSARTECH", "ZENTEC", "ZYDUSWELL"
 ]
 
@@ -936,24 +936,36 @@ def fetch_all_data():
     all_stocks = set(base_stocks + port_stocks)
     tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + list(COMMODITY_MAP.keys()) + [f"{t}.NS" for t in all_stocks if t]
     
-    chunk_size = 200
+    chunk_size = 150
     data_frames = []
     for i in range(0, len(tkrs), chunk_size):
         chunk = tkrs[i : i + chunk_size]
-        temp_data = yf.download(chunk, period="15mo", progress=False, group_by='ticker', threads=5)
+        temp_data = yf.download(chunk, period="15mo", progress=False, group_by='ticker', threads=3)
         if not temp_data.empty:
-            if len(chunk) == 1:
+            if len(chunk) == 1 and not isinstance(temp_data.columns, pd.MultiIndex):
                 temp_data.columns = pd.MultiIndex.from_product([chunk, temp_data.columns])
+            elif isinstance(temp_data.columns, pd.MultiIndex) and ('Close' in temp_data.columns.levels[0] or 'Open' in temp_data.columns.levels[0]):
+                temp_data = temp_data.swaplevel(axis=1)
             data_frames.append(temp_data)
-            
+        time.sleep(0.25)
+
     if not data_frames: return pd.DataFrame()
     data = pd.concat(data_frames, axis=1)
     if data.empty: return pd.DataFrame()
 
-    # 🔥 YFINANCE LATEST VERSION BUG FIX
+    # 🔄 AUTO-RETRY FAILED DOWNLOADS (HTTP 429 valla miss ayina stocks ni malli fetch chestundi)
     if isinstance(data.columns, pd.MultiIndex):
-        if 'Close' in data.columns.levels[0] or 'Open' in data.columns.levels[0]:
-            data = data.swaplevel(axis=1)
+        _ok_syms = {s for s in data.columns.levels[0] if not data[s]['Close'].dropna().empty}
+        _missed = [t for t in tkrs if t not in _ok_syms]
+        if 0 < len(_missed) <= 60:
+            time.sleep(0.8)
+            _retry_df = yf.download(_missed, period="15mo", progress=False, group_by='ticker', threads=2)
+            if not _retry_df.empty:
+                if len(_missed) == 1 and not isinstance(_retry_df.columns, pd.MultiIndex):
+                    _retry_df.columns = pd.MultiIndex.from_product([_missed, _retry_df.columns])
+                elif isinstance(_retry_df.columns, pd.MultiIndex) and ('Close' in _retry_df.columns.levels[0] or 'Open' in _retry_df.columns.levels[0]):
+                    _retry_df = _retry_df.swaplevel(axis=1)
+                data = pd.concat([data.drop(columns=[c for c in _missed if c in data.columns.levels[0]], level=0, errors='ignore'), _retry_df], axis=1)
 
     # 🔥 MIDNIGHT 12:00 AM YAHOO FINANCE BUG FIX:
     # రాత్రి 12 దాటాక 1d డేటాలో చివరి ట్రేడింగ్ రోజు క్యాండిల్ మిస్ అయితే, 15m డేటా నుండి ఆ రోజు OHLCV ని యాడ్ చేస్తుంది
@@ -2595,9 +2607,11 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
                         st.rerun()
 
 # =========================================================
-# --- 8. RENDERING ---
+# --- 8. RENDERING (30s LIVE COUNTDOWN + AUTO UPDATE) ---
 # =========================================================
-_effective_refresh = refresh_sec if is_market_open() else 1800  # 🔧 PERF: Market closed → 30 min refresh
+import streamlit.components.v1 as components
+
+_effective_refresh = refresh_sec  # 30s (leda Swing lo 60s) ki okasari ఖచ్చితంగా update avtundi
 
 @st.fragment(run_every=f"{_effective_refresh}s")
 def render_live_ui():
@@ -2605,7 +2619,8 @@ def render_live_ui():
         st.info("⏸️ Data refresh is paused.")
         return
 
-    # 🔄 Prathi 30s refresh ki latest data + live websocket prices tisukovadam
+    # 30s -> 0s dotage varaku cache hold avvakunda fresh data raavadaniki
+    fetch_all_data.clear()
     df = fetch_all_data().copy()
     if not df.empty:
         with LIVE_PRICES_LOCK:
@@ -2621,7 +2636,7 @@ def render_live_ui():
                     if df.at[_i, 'Prev_C'] > 0:
                         df.at[_i, 'C'] = ((_nltp - df.at[_i, 'Prev_C']) / df.at[_i, 'Prev_C']) * 100.0
 
-    # 🟢🔴 Prathi 30s ki Market Breadth (VWAP Paina/Kindha) calculate chesi Top Slot lo update cheyadam
+    # 🟢🔴 Market Breadth (VWAP Paina/Kindha) + Live Countdown Timer
     _m_open_top = is_market_open()
     _now_str_top = now_ist().strftime('%d-%b %I:%M:%S %p')
     _mkt_dir_text = "NEUTRAL ⚖️"
@@ -2678,7 +2693,7 @@ def render_live_ui():
         f"MARKET: {_mkt_dir_text}</span>"
     )
     _status_border = "#238636" if _m_open_top else "#f85149"
-    _status_title = f"🟢 <b>MARKET LIVE</b> (NSE • {_effective_refresh}s)" if _m_open_top else "🔴 <b>MARKET CLOSED</b> (Showing Last Data)"
+    _status_title = "🟢 <b>MARKET LIVE</b> (NSE)" if _m_open_top else "🔴 <b>MARKET CLOSED</b> (Showing Last Data)"
 
     top_status_slot.markdown(
         f"<div style='display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;"
@@ -2686,9 +2701,41 @@ def render_live_ui():
         f"margin-bottom:8px;font-size:12.5px;'>"
         f"<span>{_status_title}</span>"
         f"{_dir_box_html}"
-        f"<span style='color:#8b949e;'>🕒 {_now_str_top} IST</span>"
+        f"<span style='color:#8b949e;'>🕒 {_now_str_top} IST &nbsp;|&nbsp; "
+        f"<span id='live-cd-badge' style='background:#21262d;border:1px solid #30363d;color:#00BFFF;"
+        f"padding:1px 7px;border-radius:4px;font-weight:bold;font-family:monospace;'>⏳ {_effective_refresh}s</span></span>"
         f"</div>",
         unsafe_allow_html=True
+    )
+
+    # ⏱️ JavaScript 1-Second Live Countdown Timer (30s -> 29s -> ... -> 0s)
+    components.html(
+        f"""
+        <script>
+        (function() {{
+            const parentDoc = window.parent.document;
+            if (window.parent._stCdInterval) {{
+                clearInterval(window.parent._stCdInterval);
+            }}
+            let secLeft = {_effective_refresh};
+            const updateBadge = () => {{
+                const el = parentDoc.getElementById('live-cd-badge');
+                if (!el) return;
+                if (secLeft > 0) {{
+                    el.innerHTML = '⏳ ' + secLeft + 's';
+                    el.style.color = secLeft <= 5 ? '#ffd700' : '#00BFFF';
+                    secLeft -= 1;
+                }} else {{
+                    el.innerHTML = '🔄 Updating...';
+                    el.style.color = '#3fb950';
+                }}
+            }};
+            updateBadge();
+            window.parent._stCdInterval = setInterval(updateBadge, 1000);
+        }})();
+        </script>
+        """,
+        height=0,
     )
 
     if not df.empty:
