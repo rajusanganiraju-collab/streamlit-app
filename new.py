@@ -928,7 +928,7 @@ def fetch_historical_charts_data(tkrs, timeframe):
     return df
 
 # --- DAILY DATA FETCH (YFINANCE - SUPER FAST METHOD) ---
-@st.cache_data(ttl=180, show_spinner=False)
+@st.cache_data(ttl=900, show_spinner=False)  # ⚡ 15-min cache for heavy 15-month indicators
 def fetch_all_data():
     port_df = load_portfolio()
     port_stocks = [str(sym).upper().strip() for sym in port_df['Symbol'].tolist() if str(sym).strip() != ""]
@@ -936,83 +936,21 @@ def fetch_all_data():
     all_stocks = set(base_stocks + port_stocks)
     tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + list(COMMODITY_MAP.keys()) + [f"{t}.NS" for t in all_stocks if t]
     
-    chunk_size = 150
+    chunk_size = 250
     data_frames = []
     for i in range(0, len(tkrs), chunk_size):
         chunk = tkrs[i : i + chunk_size]
-        temp_data = yf.download(chunk, period="15mo", progress=False, group_by='ticker', threads=3)
+        temp_data = yf.download(chunk, period="15mo", progress=False, group_by='ticker', threads=10)
         if not temp_data.empty:
             if len(chunk) == 1 and not isinstance(temp_data.columns, pd.MultiIndex):
                 temp_data.columns = pd.MultiIndex.from_product([chunk, temp_data.columns])
             elif isinstance(temp_data.columns, pd.MultiIndex) and ('Close' in temp_data.columns.levels[0] or 'Open' in temp_data.columns.levels[0]):
                 temp_data = temp_data.swaplevel(axis=1)
             data_frames.append(temp_data)
-        time.sleep(0.25)
-
+            
     if not data_frames: return pd.DataFrame()
     data = pd.concat(data_frames, axis=1)
     if data.empty: return pd.DataFrame()
-
-    # 🔄 AUTO-RETRY FAILED DOWNLOADS (HTTP 429 valla miss ayina stocks ni malli fetch chestundi)
-    if isinstance(data.columns, pd.MultiIndex):
-        _ok_syms = {s for s in data.columns.levels[0] if not data[s]['Close'].dropna().empty}
-        _missed = [t for t in tkrs if t not in _ok_syms]
-        if 0 < len(_missed) <= 60:
-            time.sleep(0.8)
-            _retry_df = yf.download(_missed, period="15mo", progress=False, group_by='ticker', threads=2)
-            if not _retry_df.empty:
-                if len(_missed) == 1 and not isinstance(_retry_df.columns, pd.MultiIndex):
-                    _retry_df.columns = pd.MultiIndex.from_product([_missed, _retry_df.columns])
-                elif isinstance(_retry_df.columns, pd.MultiIndex) and ('Close' in _retry_df.columns.levels[0] or 'Open' in _retry_df.columns.levels[0]):
-                    _retry_df = _retry_df.swaplevel(axis=1)
-                data = pd.concat([data.drop(columns=[c for c in _missed if c in data.columns.levels[0]], level=0, errors='ignore'), _retry_df], axis=1)
-
-    # 🔥 MIDNIGHT 12:00 AM YAHOO FINANCE BUG FIX:
-    # రాత్రి 12 దాటాక 1d డేటాలో చివరి ట్రేడింగ్ రోజు క్యాండిల్ మిస్ అయితే, 15m డేటా నుండి ఆ రోజు OHLCV ని యాడ్ చేస్తుంది
-    if isinstance(data.columns, pd.MultiIndex) and "^NSEI" in data.columns.levels[0]:
-        try:
-            _n_1d = data["^NSEI"].dropna(subset=['Close'])
-            _n_15m = yf.download("^NSEI", period="5d", interval="15m", progress=False)
-            if isinstance(_n_15m.columns, pd.MultiIndex):
-                _n_15m = _n_15m.xs("^NSEI", axis=1, level=1) if "^NSEI" in _n_15m.columns.levels[1] else _n_15m.droplevel(0, axis=1)
-            if not _n_1d.empty and not _n_15m.empty:
-                if _n_15m.index.tz is not None:
-                    _n_15m.index = _n_15m.index.tz_convert('Asia/Kolkata').tz_localize(None)
-                _last_1d_dt = pd.to_datetime(_n_1d.index[-1]).date()
-                _last_15m_dt = pd.to_datetime(_n_15m.index[-1]).date()
-                if _last_15m_dt > _last_1d_dt:
-                    _patch_frames = []
-                    for i in range(0, len(tkrs), chunk_size):
-                        _c_tkrs = tkrs[i : i + chunk_size]
-                        _tmp_15m = yf.download(_c_tkrs, period="5d", interval="15m", progress=False, group_by='ticker', threads=5)
-                        if not _tmp_15m.empty:
-                            if len(_c_tkrs) == 1 and not isinstance(_tmp_15m.columns, pd.MultiIndex):
-                                _tmp_15m.columns = pd.MultiIndex.from_product([_c_tkrs, _tmp_15m.columns])
-                            elif isinstance(_tmp_15m.columns, pd.MultiIndex) and ('Close' in _tmp_15m.columns.levels[0] or 'Open' in _tmp_15m.columns.levels[0]):
-                                _tmp_15m = _tmp_15m.swaplevel(axis=1)
-                            _patch_frames.append(_tmp_15m)
-                    if _patch_frames:
-                        _all_15m = pd.concat(_patch_frames, axis=1)
-                        if _all_15m.index.tz is not None:
-                            _all_15m.index = _all_15m.index.tz_convert('Asia/Kolkata').tz_localize(None)
-                        _day_15m = _all_15m[_all_15m.index.date == _last_15m_dt]
-                        if not _day_15m.empty:
-                            _new_row_dict = {}
-                            for _sym in _day_15m.columns.levels[0]:
-                                _sdf = _day_15m[_sym].dropna(subset=['Close'])
-                                if not _sdf.empty:
-                                    _new_row_dict[(_sym, 'Open')] = float(_sdf['Open'].iloc[0])
-                                    _new_row_dict[(_sym, 'High')] = float(_sdf['High'].max())
-                                    _new_row_dict[(_sym, 'Low')] = float(_sdf['Low'].min())
-                                    _new_row_dict[(_sym, 'Close')] = float(_sdf['Close'].iloc[-1])
-                                    _new_row_dict[(_sym, 'Volume')] = float(_sdf['Volume'].sum()) if 'Volume' in _sdf.columns else 0.0
-                            if _new_row_dict:
-                                _new_df = pd.DataFrame(_new_row_dict, index=[pd.Timestamp(_last_15m_dt)])
-                                if data.index.tz is not None:
-                                    data.index = data.index.tz_localize(None)
-                                data = pd.concat([data, _new_df]).sort_index()
-        except Exception:
-            pass
 
     results = []
     minutes = get_minutes_passed()
@@ -2607,11 +2545,37 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
                         st.rerun()
 
 # =========================================================
-# --- 8. RENDERING (30s LIVE COUNTDOWN + AUTO UPDATE) ---
+# --- 8. RENDERING (1-SECOND FAST REFRESH +WORKING TIMER) ---
 # =========================================================
 import streamlit.components.v1 as components
 
-_effective_refresh = refresh_sec  # 30s (leda Swing lo 60s) ki okasari ఖచ్చితంగా update avtundi
+@st.cache_data(ttl=25, show_spinner=False)
+def fetch_fast_live_quotes(tkrs_tuple, market_open):
+    """ప్రతి 30s కి 15 నెలల డేటా కాకుండా కేవలం ఈరోజు 1-రోజు క్యాండిల్ మాత్రమే 1 సెకనులో తెస్తుంది"""
+    try:
+        # మార్కెట్ క్లోజ్ ఉన్నప్పుడు కేవలం గ్లోబల్ ఇండెక్స్‌లు & కమోడిటీస్ మాత్రమే ఫెచ్ చేస్తుంది (0.3 sec)
+        target_list = list(tkrs_tuple) if market_open else (list(INDICES_MAP.keys()) + list(COMMODITY_MAP.keys()))
+        q_data = yf.download(target_list, period="2d", interval="1d", progress=False, group_by='ticker', threads=10)
+        if q_data.empty:
+            return {}
+        if isinstance(q_data.columns, pd.MultiIndex) and ('Close' in q_data.columns.levels[0] or 'Open' in q_data.columns.levels[0]):
+            q_data = q_data.swaplevel(axis=1)
+        out = {}
+        syms = q_data.columns.levels[0] if isinstance(q_data.columns, pd.MultiIndex) else []
+        for s in syms:
+            sdf = q_data[s].dropna(subset=['Close'])
+            if not sdf.empty:
+                ltp = float(sdf['Close'].iloc[-1])
+                op = float(sdf['Open'].iloc[-1])
+                hi = float(sdf['High'].iloc[-1])
+                lo = float(sdf['Low'].iloc[-1])
+                pc = float(sdf['Close'].iloc[-2]) if len(sdf) >= 2 else op
+                out[s] = (ltp, op, hi, lo, pc)
+        return out
+    except Exception:
+        return {}
+
+_effective_refresh = refresh_sec
 
 @st.fragment(run_every=f"{_effective_refresh}s")
 def render_live_ui():
@@ -2619,10 +2583,139 @@ def render_live_ui():
         st.info("⏸️ Data refresh is paused.")
         return
 
-    # 30s -> 0s dotage varaku cache hold avvakunda fresh data raavadaniki
-    fetch_all_data.clear()
+    # ⚡ 1. క్యాష్‌లో ఉన్న బేస్ డేటాని 0.01 సెకన్లలో తీసుకుంటుంది (No fetch_all_data.clear()!)
     df = fetch_all_data().copy()
+    _m_open_top = is_market_open()
+
+    # ⚡ 2. కేవలం లేటెస్ట్ ప్రైస్‌లను మాత్రమే 1 సెకనులో అప్‌డేట్ చేస్తుంది
     if not df.empty:
+        _fast_quotes = fetch_fast_live_quotes(tuple(df['Fetch_T'].tolist()), _m_open_top)
+        with LIVE_PRICES_LOCK:
+            _live_snap = dict(LIVE_PRICES_GLOBAL)
+
+        for _i, _r in df.iterrows():
+            _ft = str(_r['Fetch_T'])
+            _csym = _ft.replace(".NS", "")
+            if _csym in _live_snap:
+                _nltp = _live_snap[_csym]
+                df.at[_i, 'P'] = _nltp
+                if df.at[_i, 'O'] > 0:
+                    df.at[_i, 'Day_C'] = ((_nltp - df.at[_i, 'O']) / df.at[_i, 'O']) * 100.0
+                if df.at[_i, 'Prev_C'] > 0:
+                    df.at[_i, 'C'] = ((_nltp - df.at[_i, 'Prev_C']) / df.at[_i, 'Prev_C']) * 100.0
+            elif _ft in _fast_quotes:
+                _ltp, _op, _hi, _lo, _pc = _fast_quotes[_ft]
+                df.at[_i, 'P'] = _ltp
+                df.at[_i, 'O'] = _op
+                df.at[_i, 'H'] = _hi
+                df.at[_i, 'L'] = _lo
+                df.at[_i, 'VWAP'] = (_hi + _lo + _ltp) / 3.0
+                if _op > 0:
+                    df.at[_i, 'Day_C'] = ((_ltp - _op) / _op) * 100.0
+                if _pc > 0:
+                    df.at[_i, 'C'] = ((_ltp - _pc) / _pc) * 100.0
+
+    # 🟢🔴 3. Market Breadth (VWAP Paina/Kindha) + Live Countdown Timer
+    _now_str_top = now_ist().strftime('%d-%b %I:%M:%S %p')
+    _run_ts = int(time.time() * 1000)  # 🔥 ప్రతి రీఫ్రెష్‌లో టైమర్ కచ్చితంగా 30s కి రీసెట్ అవ్వడానికి
+    _mkt_dir_text = "NEUTRAL ⚖️"
+    _mkt_dir_bg = "#30363d"
+    _mkt_dir_border = "#8b949e"
+
+    if not df.empty:
+        _unique_universe = set(NIFTY_50).union(set(FNO_STOCKS))
+        _df_mkt = (
+            df[(~df['Is_Index']) & (~df['Is_Sector']) & (~df['Is_Commodity']) & (df['T'].isin(_unique_universe))]
+            .drop_duplicates(subset=['T'], keep='first')
+        )
+        _tot_stocks = len(_df_mkt)
+        if _tot_stocks > 0:
+            _above_vwap = int((_df_mkt['P'] > _df_mkt['VWAP']).sum())
+            _below_vwap = int((_df_mkt['P'] < _df_mkt['VWAP']).sum())
+            _buy_pct = (_above_vwap / _tot_stocks) * 100.0
+            _sell_pct = (_below_vwap / _tot_stocks) * 100.0
+
+            if 49.0 <= _buy_pct <= 51.0 or _above_vwap == _below_vwap:
+                _mkt_dir_text = f"NEUTRAL ⚖️ {_above_vwap}/{_tot_stocks} ({_buy_pct:.0f}%)"
+                _mkt_dir_bg = "#484f58"
+                _mkt_dir_border = "#8b949e"
+            elif _above_vwap > _below_vwap:
+                if _buy_pct > 70.0:
+                    _mkt_dir_text = f"ULTRA BUY 🔥 {_above_vwap}/{_tot_stocks} ({_buy_pct:.0f}%)"
+                    _mkt_dir_bg = "#1b7f37"
+                    _mkt_dir_border = "#3fb950"
+                elif _buy_pct > 60.0:
+                    _mkt_dir_text = f"STRONG BUY 🚀 {_above_vwap}/{_tot_stocks} ({_buy_pct:.0f}%)"
+                    _mkt_dir_bg = "#238636"
+                    _mkt_dir_border = "#2ea043"
+                else:
+                    _mkt_dir_text = f"BUY 📈 {_above_vwap}/{_tot_stocks} ({_buy_pct:.0f}%)"
+                    _mkt_dir_bg = "#1e5f29"
+                    _mkt_dir_border = "#238636"
+            else:
+                if _sell_pct > 70.0:
+                    _mkt_dir_text = f"ULTRA SELL 💥 {_below_vwap}/{_tot_stocks} ({_sell_pct:.0f}%)"
+                    _mkt_dir_bg = "#c91c1c"
+                    _mkt_dir_border = "#ff4d4d"
+                elif _sell_pct > 60.0:
+                    _mkt_dir_text = f"STRONG SELL 🩸 {_below_vwap}/{_tot_stocks} ({_sell_pct:.0f}%)"
+                    _mkt_dir_bg = "#da3633"
+                    _mkt_dir_border = "#f85149"
+                else:
+                    _mkt_dir_text = f"SELL 📉 {_below_vwap}/{_tot_stocks} ({_sell_pct:.0f}%)"
+                    _mkt_dir_bg = "#b52524"
+                    _mkt_dir_border = "#da3633"
+
+    _dir_box_html = (
+        f"<span style='background:{_mkt_dir_bg};border:1px solid {_mkt_dir_border};"
+        f"color:#ffffff;padding:2px 10px;border-radius:4px;font-weight:bold;font-size:12px;'>"
+        f"MARKET: {_mkt_dir_text}</span>"
+    )
+    _status_border = "#238636" if _m_open_top else "#f85149"
+    _status_title = "🟢 <b>MARKET LIVE</b> (NSE)" if _m_open_top else "🔴 <b>MARKET CLOSED</b> (Showing Last Data)"
+
+    top_status_slot.markdown(
+        f"<div style='display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;"
+        f"background:#161b22;border:1px solid {_status_border};border-radius:6px;padding:5px 12px;"
+        f"margin-bottom:8px;font-size:12.5px;'>"
+        f"<span>{_status_title}</span>"
+        f"{_dir_box_html}"
+        f"<span style='color:#8b949e;'>🕒 {_now_str_top} IST &nbsp;|&nbsp; "
+        f"<span id='live-cd-badge' data-ts='{_run_ts}' style='background:#21262d;border:1px solid #30363d;color:#00BFFF;"
+        f"padding:1px 7px;border-radius:4px;font-weight:bold;font-family:monospace;'>⏳ {_effective_refresh}s</span></span>"
+        f"</div>",
+        unsafe_allow_html=True
+    )
+
+    # ⏱️ JavaScript Countdown Timer (Unique _run_ts వల్ల ప్రతి 30s కి 100% మళ్ళీ 30s నుండి స్టార్ట్ అవుతుంది)
+    components.html(
+        f"""<!-- refresh_{_run_ts} -->
+        <script>
+        (function() {{
+            const parentDoc = window.parent.document;
+            if (window.parent._stCdInterval) {{
+                clearInterval(window.parent._stCdInterval);
+            }}
+            let secLeft = {_effective_refresh};
+            const updateBadge = () => {{
+                const el = parentDoc.getElementById('live-cd-badge');
+                if (!el) return;
+                if (secLeft > 0) {{
+                    el.innerHTML = '⏳ ' + secLeft + 's';
+                    el.style.color = secLeft <= 5 ? '#ffd700' : '#00BFFF';
+                    secLeft -= 1;
+                }} else {{
+                    el.innerHTML = '🔄 Updating...';
+                    el.style.color = '#3fb950';
+                }}
+            }};
+            updateBadge();
+            window.parent._stCdInterval = setInterval(updateBadge, 1000);
+        }})();
+        </script>
+        """,
+        height=0,
+    )
         with LIVE_PRICES_LOCK:
             _live_snap = dict(LIVE_PRICES_GLOBAL)
         if _live_snap:
