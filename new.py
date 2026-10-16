@@ -2803,6 +2803,13 @@ st.markdown("""
     }
 
     /* 3. Safe Mini-Chart Grid using .pro-mini-board */
+    /* Fix overlapping checkboxes inside Select Strategies */
+    div[data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(div[data-testid="stCheckbox"]) {
+        margin-bottom: 0px !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) > div[data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(div[data-testid="stCheckbox"]) {
+        margin-bottom: -45px !important;
+    }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) {
         display: grid !important;
         gap: 8px !important;
@@ -2846,29 +2853,28 @@ st.markdown("""
         border-top: 1px solid #30363d !important;
         border-bottom: 1px solid #30363d !important;
         border-radius: 0px !important;
-        height: 26px !important;
-        min-height: 26px !important;
-        padding: 0px 2px !important;
-        margin: 0px !important;
+        height: 30px !important;
+        min-height: 30px !important;
+        padding: 0px 4px !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div.stButton > button p {
         font-family: 'Consolas', monospace !important;
-        font-size: 10.5px !important;
+        font-size: 12px !important;
         font-weight: bold !important;
         color: #58a6ff !important;
         margin: 0px !important;
     }
     div[data-testid="stElementContainer"]:has(.tv-sort-hdr-marker) { display: none !important; }
 
-    /* 5. TradingView Flat Watchlist Rows */
+    /* 5. TradingView Flat Watchlist Rows (Bigger Font & Bright Colors) */
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button {
         background-color: transparent !important;
         border: none !important;
-        border-bottom: 1px solid #1e232e !important;
+        border-bottom: 1px solid #21262d !important;
         border-radius: 0px !important;
-        height: 27px !important;
-        min-height: 27px !important;
-        padding: 0px 2px !important;
+        height: 32px !important;
+        min-height: 32px !important;
+        padding: 0px 4px !important;
         margin: 0px !important;
         width: 100% !important;
         display: flex !important;
@@ -2876,16 +2882,18 @@ st.markdown("""
         align-items: center !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button:hover {
-        background-color: #1e2636 !important;
+        background-color: #1f2937 !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p {
         font-family: 'Consolas', 'Courier New', monospace !important;
-        font-size: 10.5px !important;
+        font-size: 12.5px !important;
+        font-weight: bold !important;
+        color: #ffffff !important;
         white-space: pre !important;
         text-align: left !important;
         margin: 0px !important;
         width: 100% !important;
-        letter-spacing: -0.4px !important;
+        letter-spacing: -0.3px !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) { gap: 0px !important; }
     div[data-testid="stElementContainer"]:has(.tv-wl-marker) { display: none !important; }
@@ -3041,7 +3049,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
             y_padding = (max_val - min_val) * 0.15 if (max_val - min_val) != 0 else min_val * 0.005
 
             chart_times = pd.to_datetime(df_chart.index)
-            x_labels = chart_times.strftime('%H:%M') if timeframe == "Intraday (5m)" else chart_times.strftime('%d-%b')
+            x_labels = chart_times.strftime('%I:%M %p') if timeframe == "Intraday (5m)" else chart_times.strftime('%d-%b')
             x_idx = list(range(len(df_chart)))
 
             hover_data = (
@@ -3298,9 +3306,12 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             const d = new Date(ts * 1000);
             const dd = String(d.getUTCDate()).padStart(2, '0');
             const mm = months[d.getUTCMonth()];
-            const hh = String(d.getUTCHours()).padStart(2, '0');
+            let hh = d.getUTCHours();
+            const ampm = hh >= 12 ? 'PM' : 'AM';
+            hh = hh % 12;
+            if (hh === 0) hh = 12;
             const mn = String(d.getUTCMinutes()).padStart(2, '0');
-            return `${{dd}} ${{mm}} ${{hh}}:${{mn}} IST`;
+            return `${{dd}} ${{mm}} ${{hh}}:${{mn}} ${{ampm}}`;
         }}
 
         const chart = LightweightCharts.createChart(container, {{
@@ -3315,9 +3326,17 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             rightPriceScale: {{ borderColor: '#cbd5e1', scaleMargins: {{ top: 0.08, bottom: 0.22 }} }},
             timeScale: {{
                 borderColor: '#cbd5e1', timeVisible: true, secondsVisible: false,
-                rightOffset: 4, barSpacing: 7
+                rightOffset: 4, barSpacing: 7,
+                tickMarkFormatter: (time) => {{
+                    const d = new Date(time * 1000);
+                    let hh = d.getUTCHours();
+                    const ampm = hh >= 12 ? 'PM' : 'AM';
+                    hh = hh % 12;
+                    if (hh === 0) hh = 12;
+                    const mn = String(d.getUTCMinutes()).padStart(2, '0');
+                    return `${{hh}}:${{mn}} ${{ampm}}`;
+                }}
             }}
-        }});
 
         const candleSeries = chart.addCandlestickSeries({{
             upColor: '#15803d', downColor: '#b91c1c',
@@ -4032,7 +4051,7 @@ def render_live_ui():
                     st.markdown(render_highscore_terminal_table(df_stocks_display), unsafe_allow_html=True)
                     st.markdown(render_levels_table(df_stocks_display), unsafe_allow_html=True)
 
-                elif watchlist_mode == "My Portfolio 💼":
+                elif watchlist_mode == "My Portfolio 💼" and view_mode == "Heat Map":
                     # ALWAYS SHOW PORTFOLIO KPI, TABLE, ADD, EDIT, SELL & TRADEBOOK (Both in Heat Map & Chart mode!)
                     try:
                         if not df_port_saved.empty:
@@ -4177,9 +4196,7 @@ def render_live_ui():
                                     save_closed_trades(edited_closed_df)
                                     st.rerun()
 
-                    if view_mode == "Chart 📈" and not df_stocks_display.empty:
-                        st.markdown("<hr class='custom-hr'><div style='font-size:15px; font-weight:bold; margin-bottom:4px; color:#00BFFF;'>📈 My Portfolio Stock Charts</div>", unsafe_allow_html=True)
-                        render_chart_grid(df_stocks_display, True, "port_charts", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
+                    
 
                 elif view_mode == "Heat Map":
                     if not df_indices.empty and watchlist_mode != "Commodity 🛢️":
@@ -4210,18 +4227,17 @@ def render_live_ui():
                         st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
 
                     if watchlist_mode not in ["My Portfolio 💼", "Commodity 🛢️"]:
-                        st.markdown("<div style='font-size:15px; font-weight:bold; margin-bottom:4px; color:#00BFFF;'>🌍 Global & Main Indices (Tick to Open in Pro Grid)</div>", unsafe_allow_html=True)
-                        render_chart_grid(df_indices, True, "idx", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
-                        show_sec_charts = st.toggle("📊 Show Sectoral Indices Charts", value=False)
-                        if show_sec_charts and not df_sectors.empty:
-                            render_chart_grid(df_sectors, True, "sec", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol, is_sector=True)
-                            if st.session_state.get('active_sec'):
-                                st.markdown(f"<div style='font-size:15px; font-weight:bold; margin:8px 0 4px 0; color:#ffd700;'>🌟 Top 6 Active Movers in {st.session_state.active_sec}</div>", unsafe_allow_html=True)
-                                sec_stock_names = TOP_SECTOR_STOCKS.get(st.session_state.active_sec, [])
-                                sec_df = df_stocks[df_stocks['T'].isin(sec_stock_names)].copy()
-                                if not sec_df.empty:
-                                    render_chart_grid(sec_df.head(6), True, "sec_top6", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
-                        st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
+                        with st.expander("🌍 Global & Main Indices (Click to Expand / Minimize)", expanded=True):
+                            render_chart_grid(df_indices, True, "idx", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
+                            show_sec_charts = st.toggle("📊 Show Sectoral Indices Charts", value=False)
+                            if show_sec_charts and not df_sectors.empty:
+                                render_chart_grid(df_sectors, True, "sec", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol, is_sector=True)
+                                if st.session_state.get('active_sec'):
+                                    st.markdown(f"<div style='font-size:15px; font-weight:bold; margin:8px 0 4px 0; color:#ffd700;'>🌟 Top 6 Active Movers in {st.session_state.active_sec}</div>", unsafe_allow_html=True)
+                                    sec_stock_names = TOP_SECTOR_STOCKS.get(st.session_state.active_sec, [])
+                                    sec_df = df_stocks[df_stocks['T'].isin(sec_stock_names)].copy()
+                                    if not sec_df.empty:
+                                        render_chart_grid(sec_df.head(6), True, "sec_top6", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
 
                     if not df_stocks_display.empty:
                         if "AI Predictions" in watchlist_mode or watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆", "Day Trading Stocks 🚀"]:
