@@ -1303,6 +1303,301 @@ def process_5m_data(df_raw):
 #  4. Relative Volume (RVOL) & Intraday Breakout Structure [15 pts]
 #  5. Non-Exhaustion RSI & Extension Guard (No Top-Buying) [15 pts]
 # =========================================================
+# =========================================================
+# 📰 NEWS + VOLUME + PRICE CATALYST ENGINE (ONLY NEWS STOCKS)
+# =========================================================
+import xml.etree.ElementTree as ET
+from email.utils import parsedate_to_datetime
+import urllib.parse
+
+NEWS_STRAT = "📰 News + Vol + Price Breakout (Only News)"
+
+_BULL_CATALYSTS = [
+    ("📰Order-Win", ["order", "bagged", "contract", "letter of award", "loa", "lowest bidder", "l1 bidder", "tender", "deal win"]),
+    ("📰Q-Results", ["net profit rises", "profit jumps", "profit surges", "q1", "q2", "q3", "q4", "ebitda", "revenue grows", "margin expands", "beats estimates"]),
+    ("📰Upgrade", ["buy", "overweight", "outperform", "target price", "raises target", "upgrade", "bullish", "top pick"]),
+    ("📰Approval", ["usfda", "approval", "eir", "clean chit", "patent", "nod", "clearance", "license"]),
+    ("📰Expansion/JV", ["acquisition", "acquires", "joint venture", "mou", "partner", " commissioning", "capacity", "launch", "new plant"]),
+    ("📰Corp-Action", ["dividend", "buyback", "bonus", "stock split", "fundraise", "qip", "preferential"]),
+    ("📰Stake-Buy", ["block deal", "bulk deal", "stake buy", "promoter buys", "fii", "mutual fund buys"])
+]
+
+_BEAR_CATALYSTS = [
+    ("📰Result-Miss", ["profit falls", "profit drops", "net loss", "widens", "misses estimates", "weak results", "margin shrinks", "declines"]),
+    ("📰Downgrade", ["downgrade", "sell call", "underperform", "underweight", "cuts target", "target cut", "reduce"]),
+    ("📰Reg-Alert", ["sebi", "penalty", "notice", "tax demand", "gst", "ed raid", "probe", "show cause", "ban", "default"]),
+    ("📰USFDA-Issue", ["form 483", "observations", "warning letter", "import alert", "recall"]),
+    ("📰Exit/Sale", ["resigns", "steps down", "stake sale", "offloads", "sells stake", "pledge"])
+]
+
+
+def _classify_headline(title_str):
+    t_low = str(title_str).lower()
+    for tag, kw_list in _BEAR_CATALYSTS:
+        if any(k in t_low for k in kw_list):
+            return tag, -1
+    for tag, kw_list in _BULL_CATALYSTS:
+        if any(k in t_low for k in kw_list):
+            return tag, 1
+    return "📰News-Buzz", 0
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_live_stock_news_batch(symbols_tuple, max_age_hours=36):
+    """Fetches fresh news (last 36h) for active F&O stocks using yfinance + Google News RSS fallback."""
+    now_utc = datetime.now(ZoneInfo("UTC"))
+
+    def _fetch_one(fetch_sym):
+        clean_sym = str(fetch_sym).replace(".NS", "").strip()
+        headlines = []
+
+        # 1. Try Google News RSS (Fastest & most accurate for Indian NSE stocks)
+        try:
+            q = urllib.parse.quote(f'"{clean_sym}" share OR stock NSE when:2d')
+            rss_url = f"https://news.google.com/rss/search?q={q}&hl=en-IN&gl=IN&ceid=IN:en"
+            resp = requests.get(rss_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=3.5)
+            if resp.status_code == 200 and resp.content:
+                root = ET.fromstring(resp.content)
+                for item in root.findall("./channel/item")[:4]:
+                    title = (item.findtext("title") or "").strip()
+                    link = (item.findtext("link") or "").strip()
+                    pub_str = (item.findtext("pubDate") or "").strip()
+                    if not title:
+                        continue
+                    age_hr = 12.0
+                    if pub_str:
+                        try:
+                            dt_pub = parsedate_to_datetime(pub_str)
+                            if dt_pub.tzinfo is None:
+                                dt_pub = dt_pub.replace(tzinfo=ZoneInfo("UTC"))
+                            age_hr = (now_utc - dt_pub.astimezone(ZoneInfo("UTC"))).total_seconds() / 3600.0
+                        except Exception:
+                            age_hr = 12.0
+                    if 0 <= age_hr <= max_age_hours:
+                        headlines.append((age_hr, title, link))
+        except Exception:
+            pass
+
+        # 2. Fallback: yfinance Ticker.news
+        if not headlines:
+            try:
+                yf_news = yf.Ticker(fetch_sym).news or []
+                for n_item in yf_news[:4]:
+                    if isinstance(n_item, dict) and 'content' in n_item and isinstance(n_item['content'], dict):
+                        c_obj = n_item['content']
+                        title = str(c_obj.get('title', '')).strip()
+                        link = str((c_obj.get('canonicalUrl') or {}).get('url', '')).strip()
+                        pub_iso = c_obj.get('pubDate', '')
+                        age_hr = 12.0
+                        if pub_iso:
+                            try:
+                                dt_pub = pd.to_datetime(pub_iso, utc=True).to_pydatetime()
+                                age_hr = (now_utc - dt_pub).total_seconds() / 3600.0
+                            except Exception:
+                                age_hr = 12.0
+                    else:
+                        title = str(n_item.get('title', '')).strip()
+                        link = str(n_item.get('link', '')).strip()
+                        ts = n_item.get('providerPublishTime', 0)
+                        age_hr = ((now_utc.timestamp() - float(ts)) / 3600.0) if ts else 12.0
+
+                    if title and (0 <= age_hr <= max_age_hours):
+                        headlines.append((age_hr, title, link))
+            except Exception:
+                pass
+
+        if not headlines:
+            return fetch_sym, None
+
+        # Pick freshest / highest-impact headline
+        headlines.sort(key=lambda x: x[0])
+        best_age, best_title, best_link = headlines[0]
+        cat_tag, sentiment_bias = _classify_headline(best_title)
+
+        # If first headline is generic, check if another recent headline has a specific catalyst
+        if sentiment_bias == 0 and len(headlines) > 1:
+            for age_h, t_str, l_str in headlines[1:]:
+                c_tag, s_bias = _classify_headline(t_str)
+                if s_bias != 0:
+                    best_age, best_title, best_link = age_h, t_str, l_str
+                    cat_tag, sentiment_bias = c_tag, s_bias
+                    break
+
+        return fetch_sym, {
+            "title": best_title,
+            "link": best_link or f"https://www.google.com/search?q={clean_sym}+share+news&tbm=nws",
+            "age_h": round(max(0.1, best_age), 1),
+            "tag": cat_tag,
+            "bias": sentiment_bias,
+            "count": len(headlines)
+        }
+
+    out = {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=12) as ex:
+        futs = [ex.submit(_fetch_one, s) for s in symbols_tuple]
+        for f in concurrent.futures.as_completed(futs):
+            try:
+                k, val = f.result()
+                if val is not None:
+                    out[k] = val
+            except Exception:
+                 continue
+    return out
+
+
+def run_news_vol_price_strategy(df_candidates, processed_charts, min_volx=1.2, min_move_pct=0.75):
+    """
+    Filters ONLY stocks that have:
+      1. Verified Fresh News (last 36h)
+      2. Volume surge (VolX >= min_volx)
+      3. Price + VWAP + 5m Order-Flow Confirmation (with 'Sell the News' Trap Guard)
+    """
+    if df_candidates is None or df_candidates.empty:
+        return pd.DataFrame(), []
+
+    # Step 1: Pre-filter stocks showing Volume + Price activity today
+    active_mask = (
+        (df_candidates['VolX'] >= min_volx) &
+        ((df_candidates['Day_C'].abs() >= min_move_pct) | (df_candidates['C'].abs() >= 1.0))
+    )
+    df_pre = df_candidates[active_mask].copy()
+    if df_pre.empty:
+        return pd.DataFrame(), []
+
+    # Sort by Volume * Move intensity and check top 45 active stocks for fresh news
+    df_pre['_intensity'] = df_pre['VolX'] * (df_pre['Day_C'].abs() + df_pre['C'].abs())
+    df_pre = df_pre.sort_values('_intensity', ascending=False).head(45)
+
+    news_map = fetch_live_stock_news_batch(tuple(df_pre['Fetch_T'].tolist()))
+    if not news_map:
+        return pd.DataFrame(), []
+
+    matched_rows = []
+    feed_records = []
+
+    for idx, row in df_pre.iterrows():
+        ft = row['Fetch_T']
+        if ft not in news_map:
+            continue  # ❌ STRICT RULE: No Fresh News -> Skip!
+
+        n_info = news_map[ft]
+        ltp = float(row['P'])
+        vwap = float(row['VWAP'])
+        open_p = float(row['O'])
+        prev_c = float(row['Prev_C'])
+        day_c = float(row['Day_C'])
+        net_c = float(row['C'])
+        vol_x = float(row['VolX'])
+        w_ema10 = float(row['W_EMA10'])
+
+        # 5-min Intraday EMA10 & Last Candle check
+        df_5m = processed_charts.get(ft, pd.DataFrame())
+        intra_ema10 = float(df_5m['EMA_10'].iloc[-1]) if (not df_5m.empty and 'EMA_10' in df_5m.columns) else vwap
+        vwap_live = float(df_5m['VWAP'].iloc[-1]) if (not df_5m.empty and 'VWAP' in df_5m.columns) else vwap
+
+        # Check Price + Volume Direction
+        is_bull_price = (ltp > vwap_live) and (ltp >= intra_ema10) and (day_c >= min_move_pct or net_c >= 1.2)
+        is_bear_price = (ltp < vwap_live) and (ltp <= intra_ema10) and (day_c <= -min_move_pct or net_c <= -1.2)
+
+        if not (is_bull_price or is_bear_price):
+            continue
+
+        # Score Calculation (0 to 99)
+        score = 55
+        if vol_x >= 2.5: score += 18
+        elif vol_x >= 1.8: score += 13
+        elif vol_x >= 1.3: score += 8
+
+        if abs(day_c) >= 2.5: score += 12
+        elif abs(day_c) >= 1.5: score += 8
+        else: score += 4
+
+        if n_info['age_h'] <= 6.0: score += 8   # Breaking intraday/morning news
+        elif n_info['age_h'] <= 18.0: score += 5
+
+        cat_tag = n_info['tag']
+        bias = n_info['bias']
+
+        if is_bull_price:
+            side_icon = "📰 News BUY"
+            if bias == 1:
+                score += 10
+            elif bias == -1:
+                cat_tag = "📰Short-Squeeze🔥"  # Bad news absorbed, buyers squeezing shorts above VWAP!
+                score += 6
+            if ltp > w_ema10:
+                score += 4
+        else:
+            side_icon = "📰 News SELL"
+            if bias == -1:
+                score += 10
+            elif bias == 1 and open_p > prev_c * 1.005:
+                cat_tag = "📰Sell-The-News🩸"  # Good news Gap-Up dumped below VWAP by Institutions!
+                score += 8
+            if ltp < w_ema10:
+                score += 4
+
+        final_prob = min(99, int(score))
+        row_copy = row.copy()
+        row_copy['Strategy_Icon'] = side_icon
+        row_copy['AI_Prob'] = final_prob
+        row_copy['S'] = max(int(row_copy.get('S', 10)), int(final_prob // 3))
+        row_copy['AlphaTag'] = f"{cat_tag} ({n_info['age_h']:.0f}h) | {row_copy.get('AlphaTag', '')}".strip(" |")
+        matched_rows.append(row_copy)
+
+        feed_records.append({
+            "Stock": row['T'],
+            "Signal": "🟢 BUY" if is_bull_price else "🔴 SELL",
+            "Catalyst": cat_tag,
+            "LTP": ltp,
+            "Day%": day_c,
+            "VolX": vol_x,
+            "Score": final_prob,
+            "Age": f"{n_info['age_h']:.1f}h ago",
+            "Headline": n_info['title'],
+            "Link": n_info['link']
+        })
+
+    if not matched_rows:
+        return pd.DataFrame(), []
+
+    df_out = pd.DataFrame(matched_rows).sort_values(by=['AI_Prob', 'VolX'], ascending=[False, False])
+    feed_records.sort(key=lambda x: (-x['Score'], -x['VolX']))
+    return df_out, feed_records
+
+
+def render_news_catalyst_banner(feed_records):
+    if not feed_records:
+        return ""
+    rows_html = ""
+    for i, r in enumerate(feed_records):
+        bg = "row-dark" if i % 2 == 0 else "row-light"
+        sig_col = "text-green" if "BUY" in r['Signal'] else "text-red"
+        day_col = "text-green" if r['Day%'] >= 0 else "text-red"
+        safe_title = _html.escape(r['Headline'])
+        rows_html += (
+            f"<tr class='{bg}'>"
+            f"<td class='t-symbol'><a href='https://in.tradingview.com/chart/?symbol=NSE:{r['Stock']}' target='_blank'>{r['Stock']}</a></td>"
+            f"<td class='{sig_col}'>{r['Signal']}</td>"
+            f"<td style='color:#ffd700;font-weight:bold;'>{r['Catalyst']}</td>"
+            f"<td>₹{r['LTP']:.2f}</td>"
+            f"<td class='{day_col}'>{r['Day%']:+.2f}%</td>"
+            f"<td style='color:#00BFFF;font-weight:bold;'>{r['VolX']:.1f}x</td>"
+            f"<td style='color:#3fb950;font-weight:bold;'>{r['Score']}%</td>"
+            f"<td style='color:#8b949e;'>{r['Age']}</td>"
+            f"<td style='text-align:left;white-space:normal;line-height:1.3;'>"
+            f"<a href='{r['Link']}' target='_blank' style='color:#e6edf3;'>{safe_title} 🔗</a></td>"
+            f"</tr>"
+        )
+    return (
+        "<table class='term-table'><thead>"
+        "<tr><th colspan='9' class='term-head-brd' style='background:#1f6feb;'>📰 LIVE NEWS + VOLUME + PRICE CATALYST SCANNER (ONLY FRESH NEWS STOCKS)</th></tr>"
+        "<tr style='background:#21262d;'>"
+        "<th style='width:9%;text-align:left;'>STOCK</th><th style='width:7%;'>SIGNAL</th><th style='width:11%;'>CATALYST</th>"
+        "<th style='width:7%;'>LTP</th><th style='width:7%;'>DAY%</th><th style='width:6%;'>VOL</th>"
+        "<th style='width:6%;'>AI%</th><th style='width:7%;'>TIME</th><th style='width:40%;text-align:left;'>BREAKING HEADLINE (CLICK TO READ)</th>"
+        "</tr></thead><tbody>" + rows_html + "</tbody></table>"
+    )
 ADAPTIVE_STRAT = "🧠 Adaptive Live Engine (Self-Learning)"
 _AE_COST_PCT = 0.05
 
@@ -2511,6 +2806,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
                     [
                         "All Moves", 
                         "🧠 Adaptive Live Engine (Self-Learning)",
+                        "📰 News + Vol + Price Breakout (Only News)",
                         "All Day Trading Moves 🚀", 
                         "🔥 First Hour Vol Breakout (ORB+VWAP)", 
                         "💥 Inside Bar Vol Breakout (NR7)", 
@@ -2536,6 +2832,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
                     default=[
                         "🧠 Adaptive Live Engine (Self-Learning)",
                         "All Day Trading Moves 🚀"
+                        "📰 News + Vol + Price Breakout (Only News)",
                     ],
                     key="day_trading_filter_key"
                 )
@@ -3531,10 +3828,11 @@ def render_live_ui():
                     strats_to_run = [s for s in strats_to_run if s != "📉 FIB Retracement (0.382)"]
     
                 if ADAPTIVE_STRAT in move_type_filter and ADAPTIVE_STRAT not in strats_to_run:
-    
                     strats_to_run = list(strats_to_run) + [ADAPTIVE_STRAT]
 
-    
+                if NEWS_STRAT in move_type_filter and NEWS_STRAT not in strats_to_run:
+                    strats_to_run = list(strats_to_run) + [NEWS_STRAT]
+
                 all_dfs = []
                 
                 for strat in strats_to_run:
@@ -3565,6 +3863,34 @@ def render_live_ui():
                             _sub['AlphaTag'] = _sub['Fetch_T'].map(lambda s: f"🎯 {_m[s]['tag']} ({_m[s]['score']}%)" )
                             _sub['S'] = [35 - 2 * _k for _k in range(len(_sub))]
                             all_dfs.append(_sub)
+                        continue
+
+                    if strat == NEWS_STRAT:
+                        _nc1, _nc2, _nc3 = st.columns([2.8, 1.1, 1.1])
+                        with _nc2:
+                            _min_vx = st.slider("Min VolX", 1.0, 3.0, 1.2, 0.1, key="news_min_volx", label_visibility="collapsed", help="Minimum Relative Volume (1.2x)")
+                        with _nc3:
+                            _min_mv = st.slider("Min Price Move %", 0.3, 2.5, 0.75, 0.25, key="news_min_mv", label_visibility="collapsed", help="Minimum Intraday Price Move %")
+
+                        _df_news, _news_feed = run_news_vol_price_strategy(
+                            df_filtered, processed_charts, min_volx=_min_vx, min_move_pct=_min_mv
+                        )
+                        with _nc1:
+                            _n_buy = int(_df_news['Strategy_Icon'].str.contains('BUY').sum()) if not _df_news.empty else 0
+                            _n_sell = int(_df_news['Strategy_Icon'].str.contains('SELL').sum()) if not _df_news.empty else 0
+                            st.markdown(
+                                f"<div style='background:#161b22;border:1px solid #1f6feb;border-radius:6px;padding:6px 12px;margin:2px 0;font-size:12px;'>"
+                                f"📰 <b>News + Vol + Price Catalyst:</b> Found <b>{len(_df_news)}</b> Fresh News Stocks "
+                                f"(<span style='color:#3fb950;'><b>{_n_buy} BUY</b></span> • <span style='color:#f85149;'><b>{_n_sell} SELL</b></span>) "
+                                f"<span style='color:#8b949e;'>| Last 36h Verified News Only</span></div>",
+                                unsafe_allow_html=True
+                            )
+                        if _news_feed:
+                            with st.expander("📰 Live Breaking News Headlines & Catalyst Feed (Click to Open)", expanded=True):
+                                st.markdown(render_news_catalyst_banner(_news_feed), unsafe_allow_html=True)
+
+                        if not _df_news.empty:
+                            all_dfs.append(_df_news)
                         continue
 
                     c_buy = pd.Series(False, index=df_filtered.index)
