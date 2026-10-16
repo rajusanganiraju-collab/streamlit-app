@@ -3806,23 +3806,244 @@ def render_live_ui():
                             )
 
             # =========================================================
-            # 📊 MODE B: DEFAULT MINI-CHARTS / HEATMAP
+            # 📊 MODE B: DEFAULT MINI-CHARTS / PORTFOLIO / HEATMAP
             # =========================================================
             else:
                 if watchlist_mode == "Fundamentals 🏢":
+                    st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-bottom:8px; color:#d29922;'>🏢 Core Fundamentals ({fund_filter})</div>", unsafe_allow_html=True)
                     fund_tickers = df_stocks_display['Fetch_T'].tolist()[:50] if not df_stocks_display.empty else [f"{s}.NS" for s in NIFTY_50[:50]]
                     df_fund = fetch_fundamentals_data(fund_tickers)
                     if not df_fund.empty:
+                        if fund_filter == "🦅 Warren Buffett Value Stocks":
+                            df_fund = df_fund[(df_fund['ROE %'] > 15) & (df_fund['Debt/Equity'] < 0.5) & (df_fund['P/E Ratio'] > 0) & (df_fund['P/E Ratio'] < 25)]
                         st.dataframe(df_fund, use_container_width=True, hide_index=True)
+                    else:
+                        st.info("Fundamentals data not available at the moment.")
+
                 elif watchlist_mode == "Mutual Funds 📈":
+                    st.markdown("<div style='font-size:16px; font-weight:bold; margin-bottom:8px; color:#00BFFF;'>📈 Mutual Funds Screener (Live Morningstar Data)</div>", unsafe_allow_html=True)
+                    mc1, mc2 = st.columns(2)
+                    with mc1:
+                        selected_mf_cat = st.selectbox("Filter by Category", ["All Categories"] + list(MUTUAL_FUNDS.keys()))
+                    with mc2:
+                        sort_period = st.selectbox("Rank By Performance", ["1Y (%)", "3Y CAGR (%)", "5Y CAGR (%)"], index=2)
                     df_mf_raw = fetch_mf_performance()
                     if not df_mf_raw.empty:
-                        st.markdown(render_mf_table(df_mf_raw), unsafe_allow_html=True)
+                        df_mf_raw['Sort_Key'] = pd.to_numeric(df_mf_raw[sort_period].replace('N/A', -999))
+                        df_mf_raw = df_mf_raw.sort_values(by='Sort_Key', ascending=False)
+                        df_mf_data = df_mf_raw[df_mf_raw['Category'] == selected_mf_cat] if selected_mf_cat != "All Categories" else df_mf_raw
+                        df_mf_data = df_mf_data.drop(columns=['Sort_Key'], errors='ignore')
+                        st.markdown(render_mf_table(df_mf_data), unsafe_allow_html=True)
+
+                elif watchlist_mode == "Month Effect Advantage 📅":
+                    st.markdown("<div style='font-size:16px; font-weight:bold; margin-bottom:8px; color:#00BFFF;'>📅 Month Effect Advantage (First 10 Days vs Rest)</div>", unsafe_allow_html=True)
+                    scan_list = st.radio("Select Universe to Scan:", ["Top 200 (Nifty + Midcap)", "NIFTY 50 Only", "Custom Stock"], horizontal=True)
+                    if scan_list == "Custom Stock":
+                        cust_stock = st.selectbox("Select Stock", all_names if all_names else NIFTY_50)
+                        tkr_list = [f"{cust_stock}.NS"]
+                    elif scan_list == "NIFTY 50 Only":
+                        tkr_list = [f"{s}.NS" for s in NIFTY_50]
+                    else:
+                        tkr_list = [f"{s}.NS" for s in NIFTY_50 + MIDCAP_150]
+                    if st.button("🚀 Run 5-Year Month Effect Analysis", width="stretch"):
+                        st.info("Running 5-Year seasonality scan... Please wait.")
+                        end_dt = datetime.now()
+                        start_dt = end_dt - pd.DateOffset(years=5)
+                        m_data = yf.download(tkr_list, start=start_dt, end=end_dt, progress=False, group_by='ticker', threads=10)
+                        me_res = []
+                        for tkr in tkr_list:
+                            try:
+                                df_t = m_data[tkr] if len(tkr_list) > 1 else m_data
+                                df_t = df_t.dropna(subset=['Close']).copy()
+                                if df_t.empty: continue
+                                df_t['Year'], df_t['Month'], df_t['Day'] = df_t.index.year, df_t.index.month, df_t.index.day
+                                f10_rets, rest_rets, wins, tot_m = [], [], 0, 0
+                                for _, grp in df_t.groupby(['Year', 'Month']):
+                                    if len(grp) < 5: continue
+                                    f10, rst = grp[grp['Day'] <= 10], grp[grp['Day'] > 10]
+                                    if not f10.empty and not rst.empty:
+                                        r1 = (f10['Close'].iloc[-1] - f10['Open'].iloc[0]) / f10['Open'].iloc[0] * 100
+                                        r2 = (rst['Close'].iloc[-1] - rst['Open'].iloc[0]) / rst['Open'].iloc[0] * 100
+                                        f10_rets.append(r1); rest_rets.append(r2)
+                                        if r1 > 0: wins += 1
+                                        tot_m += 1
+                                if tot_m > 0:
+                                    me_res.append({
+                                        "Stock": tkr.replace(".NS", ""),
+                                        "Win Rate (1st 10d) %": round(wins / tot_m * 100, 1),
+                                        "Avg 1st-10th Return %": round(sum(f10_rets) / len(f10_rets), 2),
+                                        "Avg Rest Return %": round(sum(rest_rets) / len(rest_rets), 2),
+                                        "Months": tot_m
+                                    })
+                            except Exception:
+                                pass
+                        if me_res:
+                            st.dataframe(pd.DataFrame(me_res).sort_values(by="Win Rate (1st 10d) %", ascending=False), use_container_width=True, hide_index=True)
+
+                elif watchlist_mode == "Terminal Tables 🗃️":
+                    st.markdown(render_highscore_terminal_table(df_stocks_display), unsafe_allow_html=True)
+                    st.markdown(render_levels_table(df_stocks_display), unsafe_allow_html=True)
+
                 elif watchlist_mode == "My Portfolio 💼" and view_mode == "Heat Map":
-                    st.markdown(render_portfolio_table(df_port_saved, df_all_stocks, weekly_trends, "Default"), unsafe_allow_html=True)
-                    with st.expander("📊 Portfolio Allocation", expanded=True):
+                    # 1. Portfolio KPI Metrics Strip
+                    try:
+                        if not df_port_saved.empty:
+                            _lu = df_all_stocks.drop_duplicates(subset=['T']).set_index('T')[['P', 'Prev_C']].to_dict('index')
+                            _inv = _cur = _dpnl = 0.0
+                            for _, _r in df_port_saved.iterrows():
+                                _sym = str(_r['Symbol']).upper().strip()
+                                try:
+                                    _qty, _bp = float(_r['Quantity']), float(_r['Buy_Price'])
+                                except Exception:
+                                    continue
+                                _ltp = float(_lu.get(_sym, {}).get('P', _bp) or _bp)
+                                _pc = float(_lu.get(_sym, {}).get('Prev_C', _bp) or _bp)
+                                _inv += _bp * _qty
+                                _cur += _ltp * _qty
+                                _dpnl += (_ltp - _pc) * _qty
+                            _tpnl = _cur - _inv
+                            _tpct = (_tpnl / _inv * 100) if _inv > 0 else 0
+                            _df_cl = load_closed_trades()
+                            _realized_pnl = float(pd.to_numeric(_df_cl['PnL_Rs'], errors='coerce').sum()) if not _df_cl.empty else 0.0
+                            _actual_pnl = _tpnl + _realized_pnl
+                            _k1, _k2, _k3, _k4, _k5 = st.columns(5)
+                            _k1.metric("💰 Invested", f"₹{_inv:,.0f}")
+                            _k2.metric("📈 Current Value", f"₹{_cur:,.0f}")
+                            _k3.metric("📅 Day P&L", f"₹{_dpnl:,.0f}")
+                            _k4.metric("🏆 Total P&L", f"₹{_tpnl:,.0f}", delta=f"{_tpct:+.2f}%")
+                            _k5.metric("💎 Actual P&L", f"₹{_actual_pnl:,.0f}", delta=f"TradeBook: {_realized_pnl:+,.0f}")
+                    except Exception:
+                        pass
+
+                    # 2. Portfolio Allocation Expander
+                    with st.expander("📊 Portfolio Allocation (Sector • Market-cap • Stock weights)", expanded=False):
                         render_portfolio_allocation(df_port_saved, df_all_stocks)
+
+                    # 3. Date Filter & Portfolio Sort
+                    _avail_dates = ["All Dates"] + sorted(list(set(df_port_saved['Date'].dropna().astype(str).tolist()))) if not df_port_saved.empty and 'Date' in df_port_saved.columns else ["All Dates"]
+                    sc1, sc2, sc3 = st.columns([0.4, 0.3, 0.3])
+                    with sc2:
+                        port_date_filter = st.selectbox("📅 Date Filter:", _avail_dates, label_visibility="collapsed")
+                    with sc3:
+                        port_sort = st.selectbox("↕️ Sort Portfolio:", ["Default", "Date (Newest) ⬇️", "Date (Oldest) ⬆️", "Days Held ⬆️", "Days Held ⬇️", "Day P&L ⬆️", "Day P&L ⬇️", "Total P&L ⬆️", "Total P&L ⬇️", "P&L % ⬆️", "P&L % ⬇️"], label_visibility="collapsed")
+
+                    df_port_view = df_port_saved[df_port_saved['Date'].astype(str) == port_date_filter].copy() if (port_date_filter != "All Dates" and not df_port_saved.empty) else df_port_saved.copy()
+                    st.markdown(render_portfolio_table(df_port_view, df_all_stocks, weekly_trends, port_sort), unsafe_allow_html=True)
+
+                    # 4. Swing Advisor
+                    with st.expander("🤖 View Portfolio Swing Advisor (Action & Levels)", expanded=False):
+                        st.markdown(render_portfolio_swing_advice_table(df_port_saved, df_all_stocks, weekly_trends), unsafe_allow_html=True)
+
+                    # 5. Add Stock Form
+                    with st.expander("➕ Search & Add Stock to Portfolio", expanded=False):
+                        with st.form("portfolio_add_form", clear_on_submit=True):
+                            c1, c2, c3, c4 = st.columns(4)
+                            with c1: new_sym = st.text_input("🔍 NSE Symbol", placeholder="e.g. ITC").upper().strip()
+                            with c2: new_qty = st.number_input("📦 Quantity", min_value=1, value=10)
+                            with c3: new_price = st.number_input("💰 Buy Price (₹)", min_value=0.0, value=100.0)
+                            with c4: new_date = st.date_input("📅 Purchase Date")
+                            c5, c6, c7, c8 = st.columns(4)
+                            with c5: new_sl = st.number_input("🛑 Fixed SL", min_value=0.0, value=0.0)
+                            with c6: new_t1 = st.number_input("🎯 Target 1", min_value=0.0, value=0.0)
+                            with c7: new_t2 = st.number_input("🎯 Target 2", min_value=0.0, value=0.0)
+                            with c8:
+                                st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+                                submit_btn = st.form_submit_button("➕ Verify & Add", width="stretch")
+
+                        if submit_btn and new_sym:
+                            chk_data = yf.download(f"{new_sym}.NS", period="1d", progress=False)
+                            if chk_data.empty:
+                                st.error(f"❌ '{new_sym}' not found in NSE!")
+                            else:
+                                new_date_str = new_date.strftime("%d-%b-%Y")
+                                df_port_saved = df_port_saved.copy()
+                                if new_sym in df_port_saved['Symbol'].values:
+                                    old_row = df_port_saved[df_port_saved['Symbol'] == new_sym].iloc[0]
+                                    old_qty, old_price = float(old_row['Quantity']), float(old_row['Buy_Price'])
+                                    total_qty = old_qty + new_qty
+                                    base_price = ((old_qty * old_price) + (new_qty * new_price)) / total_qty
+                                else:
+                                    total_qty, base_price = new_qty, new_price
+                                calc_sl = new_sl if new_sl > 0 else round(base_price * 0.95, 2)
+                                calc_t1 = new_t1 if new_t1 > 0 else round(base_price * 1.10, 2)
+                                calc_t2 = new_t2 if new_t2 > 0 else round(base_price * 1.15, 2)
+                                if new_sym in df_port_saved['Symbol'].values:
+                                    df_port_saved.loc[df_port_saved['Symbol'] == new_sym, ['Buy_Price', 'Quantity', 'Date', 'SL', 'T1', 'T2']] = [round(base_price, 2), total_qty, new_date_str, calc_sl, calc_t1, calc_t2]
+                                else:
+                                    new_row = pd.DataFrame({"Symbol": [new_sym], "Buy_Price": [new_price], "Quantity": [new_qty], "Date": [new_date_str], "SL": [calc_sl], "T1": [calc_t1], "T2": [calc_t2]})
+                                    df_port_saved = pd.concat([df_port_saved, new_row], ignore_index=True)
+                                save_portfolio(df_port_saved)
+                                fetch_all_data.clear()
+                                load_portfolio.clear()
+                                st.rerun()
+
+                    # 6. Edit Holdings & Sell Stock & TradeBook
+                    if not df_port_saved.empty:
+                        with st.expander("✏️ Edit Existing Holdings (Targets, Qty, Price)", expanded=False):
+                            edited_df = st.data_editor(
+                                df_port_saved, width="stretch", hide_index=True,
+                                column_config={
+                                    "Symbol": st.column_config.TextColumn("Stock Symbol", disabled=True),
+                                    "Quantity": st.column_config.NumberColumn("Quantity", min_value=1, step=1),
+                                    "Buy_Price": st.column_config.NumberColumn("Buy Average (₹)", min_value=0.0, format="%.2f"),
+                                    "SL": st.column_config.NumberColumn("Fixed SL", min_value=0.0, format="%.2f"),
+                                    "T1": st.column_config.NumberColumn("Fixed T1", min_value=0.0, format="%.2f"),
+                                    "T2": st.column_config.NumberColumn("Fixed T2", min_value=0.0, format="%.2f"),
+                                    "Date": st.column_config.TextColumn("Date")
+                                }
+                            )
+                            if st.button("💾 Save Edited Changes", width="stretch"):
+                                save_portfolio(edited_df)
+                                fetch_all_data.clear()
+                                st.rerun()
+
+                        with st.expander("💸 Sell Stock & Book Profit/Loss", expanded=False):
+                            with st.form("portfolio_sell_form"):
+                                rc1, rc2, rc3, rc4 = st.columns([2, 1, 2, 2])
+                                with rc1: sell_sym = st.selectbox("Select Stock to Sell", ["-- Select --"] + df_port_saved['Symbol'].tolist())
+                                with rc2: sell_qty = st.number_input("Qty to Sell", min_value=1, value=1)
+                                with rc3: sell_price = st.number_input("Exit Price (₹)", min_value=0.0, value=0.0)
+                                with rc4:
+                                    st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+                                    sell_btn = st.form_submit_button("💸 Confirm Sell", width="stretch")
+                                if sell_btn and sell_sym != "-- Select --" and sell_price > 0:
+                                    port_row = df_port_saved[df_port_saved['Symbol'] == sell_sym].iloc[0]
+                                    buy_price = float(port_row['Buy_Price'])
+                                    current_qty = int(float(port_row.get('Quantity', 0)))
+                                    sell_qty = min(sell_qty, current_qty)
+                                    pnl_rs = (sell_price - buy_price) * sell_qty
+                                    pnl_pct = ((sell_price - buy_price) / buy_price) * 100
+                                    sell_date_str = datetime.now().strftime("%d-%b-%Y")
+                                    df_closed = load_closed_trades()
+                                    buy_date_str = str(port_row.get('Date', '-'))
+                                    new_closed_row = pd.DataFrame({"Buy_Date": [buy_date_str], "Sell_Date": [sell_date_str], "Symbol": [sell_sym], "Quantity": [sell_qty], "Buy_Price": [buy_price], "Sell_Price": [sell_price], "PnL_Rs": [pnl_rs], "PnL_Pct": [pnl_pct]})
+                                    df_closed = pd.concat([df_closed, new_closed_row], ignore_index=True)
+                                    save_closed_trades(df_closed)
+                                    df_port_saved = df_port_saved[df_port_saved['Symbol'] != sell_sym] if sell_qty == current_qty else df_port_saved.assign(Quantity=np.where(df_port_saved['Symbol'] == sell_sym, current_qty - sell_qty, df_port_saved['Quantity']))
+                                    save_portfolio(df_port_saved)
+                                    fetch_all_data.clear()
+                                    st.rerun()
+
+                        with st.expander("📜 View Trade Book (Closed P&L Ledger)", expanded=False):
+                            df_closed_view = load_closed_trades()
+                            st.markdown(render_closed_trades_table(df_closed_view), unsafe_allow_html=True)
+                            if not df_closed_view.empty:
+                                st.download_button("📥 Download Trade Book (CSV)", data=df_closed_view.to_csv(index=False).encode('utf-8'), file_name="trade_book.csv", mime="text/csv")
+                                edited_closed_df = st.data_editor(df_closed_view, width="stretch", hide_index=True, num_rows="dynamic", key="tradebook_editor")
+                                if st.button("💾 Save Trade Book Changes", width="stretch", key="save_tb"):
+                                    save_closed_trades(edited_closed_df)
+                                    st.rerun()
+
                 elif view_mode == "Heat Map":
+                    if not df_indices.empty and watchlist_mode != "Commodity 🛢️":
+                        html_idx = '<div class="heatmap-grid">'
+                        for _, row in df_indices.iterrows():
+                            pct_val = float(row.get('W_C', row['Day_C'])) if chart_timeframe == "Weekly Chart" else float(row['Day_C'])
+                            bg = "bear-card" if (row['T'] == "INDIA VIX" and pct_val > 0) else ("bull-card" if pct_val > 0 else "neut-card")
+                            if row['T'] != "INDIA VIX" and pct_val < 0: bg = "bear-card"
+                            html_idx += f'<a href="https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(row["Fetch_T"])}" target="_blank" class="stock-card {bg}"><div class="t-score">IDX</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{pct_val:+.2f}%</div></a>'
+                        st.markdown(html_idx + '</div><hr class="custom-hr">', unsafe_allow_html=True)
+
                     if not df_stocks_display.empty:
                         df_buy = df_stocks_display[df_stocks_display[sort_key] >= 0]
                         df_sell = df_stocks_display[df_stocks_display[sort_key] < 0]
@@ -3835,17 +4056,25 @@ def render_live_ui():
                                     bg = card_bg_class(pct_val)
                                     html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">⭐{int(row["S"])}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{pct_val:+.2f}%</div></a>'
                                 st.markdown(html_stk + '</div>', unsafe_allow_html=True)
+
                 else:
+                    # Default Mini-Charts View (Indices with Tick + Positive/Buy + Negative/Sell)
                     if search_stock != "-- None --" and not df_live[df_live['T'] == search_stock].empty:
                         render_chart_grid(pd.DataFrame([df_live[df_live['T'] == search_stock].iloc[0]]), True, "search", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
                         st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
 
                     if watchlist_mode not in ["My Portfolio 💼", "Commodity 🛢️"]:
-                        st.markdown("<div style='font-size:15px; font-weight:bold; margin-bottom:4px; color:#00BFFF;'>🌍 Global & Main Indices</div>", unsafe_allow_html=True)
-                        render_chart_grid(df_indices, False, "idx", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
+                        st.markdown("<div style='font-size:15px; font-weight:bold; margin-bottom:4px; color:#00BFFF;'>🌍 Global & Main Indices (Tick to Open in Pro Grid)</div>", unsafe_allow_html=True)
+                        render_chart_grid(df_indices, True, "idx", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
                         show_sec_charts = st.toggle("📊 Show Sectoral Indices Charts", value=False)
                         if show_sec_charts and not df_sectors.empty:
-                            render_chart_grid(df_sectors, False, "sec", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol, is_sector=True)
+                            render_chart_grid(df_sectors, True, "sec", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol, is_sector=True)
+                            if st.session_state.get('active_sec'):
+                                st.markdown(f"<div style='font-size:15px; font-weight:bold; margin:8px 0 4px 0; color:#ffd700;'>🌟 Top 6 Active Movers in {st.session_state.active_sec}</div>", unsafe_allow_html=True)
+                                sec_stock_names = TOP_SECTOR_STOCKS.get(st.session_state.active_sec, [])
+                                sec_df = df_stocks[df_stocks['T'].isin(sec_stock_names)].copy()
+                                if not sec_df.empty:
+                                    render_chart_grid(sec_df.head(6), True, "sec_top6", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
                         st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
 
                     if not df_stocks_display.empty:
@@ -3866,4 +4095,16 @@ def render_live_ui():
                     else:
                         st.info("ℹ️ No stocks matched this strategy's strict criteria at the moment.")
 
+                # Telugu Strategy Help Guide Expander at Bottom
+                with st.expander("📚 ఈ ట్రేడింగ్ స్ట్రాటజీలను ఎలా వాడాలి? (Telugu Strategy Guide)", expanded=False):
+                    st.markdown("""
+                    <div style='background-color:#161b22; padding:12px; border-radius:8px; border:1px solid #30363d; font-size:13px; color:#c9d1d9;'>
+                    <b>🎯 Order-Flow Sniper:</b> VWAP పైన + EMA 9 > 21 + బయింగ్ వాల్యూమ్ ప్రెషర్ (CVD) + నిఫ్టీ కంటే ఎక్కువ రిలేటివ్ స్ట్రెంత్ ఉన్న స్టాక్స్.<br>
+                    <b>🔥 First Hour Vol Breakout:</b> ఉదయం 9:30 - 10:30 మధ్య VWAP పైన 1.5x వాల్యూమ్ తో బ్రేక్అవుట్ ఇచ్చే స్టాక్స్.<br>
+                    <b>⚡ Sudden VWAP Cross:</b> పెద్ద వాల్యూమ్ తో 5-నిమిషాల క్యాండిల్ VWAP ని క్రాస్ చేసే స్టాక్స్.<br>
+                    <b>📈 Minervini VCP & Darvas Box:</b> 50 > 150 > 200 SMA అప్‌ట్రెండ్ లో ఉండి 52-Week High దగ్గర బ్రేక్అవుట్ ఇచ్చే స్వింగ్ స్టాక్స్.
+                    </div>
+                    """, unsafe_allow_html=True)
+
+render_live_ui()
 render_live_ui()
