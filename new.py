@@ -2756,7 +2756,7 @@ if not df.empty:
     all_names = sorted(df[(~df['Is_Sector']) & (~df['Is_Index']) & (~df['Is_Commodity'])]['T'].unique().tolist())
 
 # =========================================================
-# --- 7. UI SETTINGS & TRADINGVIEW PRO GRID ENGINE (FIXED) ---
+# --- 7. UI SETTINGS & TRADINGVIEW PRO GRID ENGINE ---
 # =========================================================
 import streamlit.components.v1 as components
 
@@ -2769,91 +2769,54 @@ if 'pro_grid_inds' not in st.session_state:
 if 'inspected_stock' not in st.session_state:
     st.session_state.inspected_stock = "NIFTY"
 
-# --- CSS: FIX BLANK LEFT PANEL + COMPACT WATCHLIST + TOP SPACE ---
+# --- CLEAN TOP SPACE, FLAT WATCHLIST ROWS & INDEPENDENT SCROLL CSS ---
 st.markdown("""
     <style>
-    /* 1. Remove Top Empty Space */
+    /* 1. Remove Top Empty Space & Extra HR */
     header[data-testid="stHeader"] { height: 1.2rem !important; background: transparent !important; }
     .block-container { padding-top: 0.35rem !important; padding-bottom: 0.4rem !important; max-width: 99% !important; }
     .block-container > div > div > div > hr { display: none !important; }
 
-    /* 2. Safe Mini-Chart Grid (Replaces buggy .fluid-board so Left 80% NEVER gets hidden!) */
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) {
-        display: grid !important;
-        gap: 10px !important;
-        align-items: start !important;
-    }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) > div[data-testid="stElementContainer"]:has(.pro-mini-board) {
-        display: none !important;
-    }
-    @media screen and (min-width: 1600px) {
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(6, 1fr) !important; }
-    }
-    @media screen and (min-width: 1200px) and (max-width: 1599px) {
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(5, 1fr) !important; }
-    }
-    @media screen and (min-width: 900px) and (max-width: 1199px) {
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(4, 1fr) !important; }
-    }
-    @media screen and (min-width: 650px) and (max-width: 899px) {
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(3, 1fr) !important; }
-    }
-    @media screen and (max-width: 649px) {
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(2, 1fr) !important; gap: 6px !important; }
-    }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) > div[data-testid="stVerticalBlock"] {
-        background-color: #161b22 !important;
-        border: 1px solid #30363d !important;
-        border-radius: 8px !important;
-        padding: 5px !important;
-        position: relative !important;
-        width: 100% !important;
-    }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) > div[data-testid="stVerticalBlock"] div[data-testid="stCheckbox"] {
-        position: absolute !important;
-        top: 10px !important;
-        left: 10px !important;
-        z-index: 100 !important;
-    }
-
-    /* 3. TradingView Style Flat Watchlist Rows (No clipping on Chg%) */
+    /* 2. TradingView Style Flat Watchlist Table Rows inside Right 20% Panel */
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button {
         background-color: transparent !important;
         border: none !important;
         border-bottom: 1px solid #1e232e !important;
         border-radius: 0px !important;
-        height: 28px !important;
-        min-height: 28px !important;
-        padding: 0px 3px !important;
+        height: 29px !important;
+        min-height: 29px !important;
+        padding: 0px 6px !important;
         margin: 0px !important;
         width: 100% !important;
         display: flex !important;
         justify-content: flex-start !important;
         align-items: center !important;
+        transition: background-color 0.1s ease !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button:hover {
         background-color: #1e2636 !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p {
-        font-family: 'Consolas', 'Courier New', monospace !important;
-        font-size: 11px !important;
+        font-family: 'JetBrains Mono', 'Consolas', 'Courier New', monospace !important;
+        font-size: 11.5px !important;
         white-space: pre !important;
         text-align: left !important;
         margin: 0px !important;
         width: 100% !important;
-        letter-spacing: -0.35px !important;
+        letter-spacing: -0.2px !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) {
         gap: 0px !important;
     }
 
+    /* Watchlist Column Header */
     .tv-wl-header {
         display: grid;
-        grid-template-columns: 36% 22% 20% 22%;
+        grid-template-columns: 38% 22% 19% 21%;
         background: #161b22;
         border-top: 1px solid #30363d;
         border-bottom: 1px solid #30363d;
-        padding: 5px 4px;
+        padding: 5px 8px;
         font-family: 'Consolas', monospace;
         font-size: 11px;
         font-weight: bold;
@@ -2872,28 +2835,6 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
-
-
-# --- OVERRIDE render_chart_grid TO USE .pro-mini-board (FIXES HIDDEN LEFT PANEL) ---
-def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Intraday (5m)", chart_dict=None, show_crosshair=False, show_vol=False, is_sector=False):
-    if df_grid is None or df_grid.empty:
-        return
-    if chart_dict is None:
-        chart_dict = {}
-    with st.container():
-        st.markdown("<div class='pro-mini-board'></div>", unsafe_allow_html=True)
-        for _, row in df_grid.iterrows():
-            with st.container():
-                render_chart(
-                    row, chart_dict.get(row['Fetch_T'], pd.DataFrame()),
-                    show_pin=show_pin_option, key_suffix=key_prefix,
-                    timeframe=timeframe, show_crosshair=show_crosshair, show_vol=show_vol
-                )
-                if is_sector:
-                    btn_lbl = "🔽 View Stocks" if st.session_state.active_sec != row['T'] else "🔼 Hide Stocks"
-                    if st.button(btn_lbl, key=f"btn_sec_{row['Fetch_T']}", width="stretch"):
-                        st.session_state.active_sec = None if st.session_state.active_sec == row['T'] else row['T']
-                        st.rerun(scope="fragment")
 
 
 # --- MINI-CHART RENDERER WITH CROSSHAIR SPIKES ON AXIS ---
@@ -3002,7 +2943,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
 
             fig.update_layout(
                 margin=dict(l=0, r=48 if show_crosshair else 5, t=0, b=18 if show_crosshair else 0),
-                height=230, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                height=235, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
                 showlegend=False, xaxis_rangeslider_visible=False,
                 hovermode='closest' if show_crosshair else False, dragmode=False
             )
@@ -3029,7 +2970,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
         st.markdown(f"<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart error: {e}</div>", unsafe_allow_html=True)
 
 
-# --- SUPERTREND HELPER ---
+# --- SUPERTREND HELPER FOR PRO GRID ---
 def _calc_supertrend(df_c, period=7, mult=3.0):
     try:
         hl2 = (df_c['High'] + df_c['Low']) / 2.0
@@ -3052,25 +2993,20 @@ def _calc_supertrend(df_c, period=7, mult=3.0):
         return pd.Series(dtype=float)
 
 
-# --- TRADINGVIEW LIGHTWEIGHT CHARTS ENGINE (STRICTLY SORTED TIMESTAMPS + CROSSHAIR PILLS) ---
+# --- TRADINGVIEW LIGHTWEIGHT CHARTS ENGINE (EXACT CROSSHAIR PRICE + DATE/TIME PILLS) ---
 def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, active_inds, chart_height=370, key_idx=0):
     disp_sym = row_data.get('T', fetch_sym.replace('.NS', ''))
     tf_short = "5m" if timeframe == "Intraday (5m)" else ("1D" if timeframe == "Daily Chart" else "1W")
 
     if df_c is None or df_c.empty:
-        st.info(f"⏳ Fetching chart data for {disp_sym}...")
+        st.info(f"Loading {disp_sym} chart...")
         return
 
-    df_p = df_c.dropna(subset=['Open', 'High', 'Low', 'Close']).tail(110).copy()
-    if df_p.empty:
-        st.info(f"No valid candles for {disp_sym}")
-        return
-
-    df_p.index = pd.to_datetime(df_p.index)
+    df_p = df_c.tail(110).copy()
     if df_p.index.tz is not None:
         df_p.index = df_p.index.tz_convert('Asia/Kolkata').tz_localize(None)
-    df_p = df_p[~df_p.index.duplicated(keep='last')].sort_index()
 
+    # Calculate Indicators for Interactive JS Toggle
     if 'VWAP' not in df_p.columns:
         tp = (df_p['High'] + df_p['Low'] + df_p['Close']) / 3.0
         df_p['VWAP'] = tp.expanding().mean()
@@ -3093,15 +3029,11 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     sr_low = round(float(df_p['Low'].min()), 2)
 
     candles_js, vol_js, vwap_js, ema10_js, ema20_js, kal_js, st_js, bb_u_js, bb_d_js = [], [], [], [], [], [], [], [], []
-    seen_ts = set()
     for dt_idx, r in df_p.iterrows():
-        # Add +19800s (5h30m) so UTC renderer displays exact IST clock time on bottom crosshair label
-        ts = int(pd.Timestamp(dt_idx).timestamp()) + 19800
-        if ts in seen_ts:
-            continue
-        seen_ts.add(ts)
+        # IST Offset timestamp for Lightweight Charts so bottom crosshair pill shows exact IST Date & Time
+        ts = int(pd.Timestamp(dt_idx).timestamp())
         o, h, l, c = round(float(r['Open']), 2), round(float(r['High']), 2), round(float(r['Low']), 2), round(float(r['Close']), 2)
-        v = float(r.get('Volume', 0)) if pd.notna(r.get('Volume', 0)) else 0.0
+        v = float(r.get('Volume', 0))
         candles_js.append({'time': ts, 'open': o, 'high': h, 'low': l, 'close': c})
         vol_js.append({'time': ts, 'value': v, 'color': 'rgba(20, 184, 166, 0.45)' if c >= o else 'rgba(239, 68, 68, 0.45)'})
         if pd.notna(r.get('VWAP')): vwap_js.append({'time': ts, 'value': round(float(r['VWAP']), 2)})
@@ -3117,7 +3049,8 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     txt_hex = "#111827" if is_light else "#d1d5db"
     grid_hex = "#f1f5f9" if is_light else "#1e293b"
     rsi_val = round(float(row_data.get('RSI14', 50.0)), 1)
-    chart_dom_id = f"tv_lw_{key_idx}"
+
+    chart_dom_id = f"tv_lw_{fetch_sym.replace('^','').replace('=','').replace('.','_')}_{key_idx}"
 
     html_code = f"""
     <!DOCTYPE html>
@@ -3145,7 +3078,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         .ibtn.active-st {{ background: #15803d; color: #fff; border-color: #15803d; }}
         .ohlc-overlay {{
             position: absolute; top: 34px; left: 8px; z-index: 20; font-size: 11px;
-            color: {txt_hex}; background: {'rgba(255,255,255,0.85)' if is_light else 'rgba(14,17,23,0.85)'};
+            color: {txt_hex}; background: {'rgba(255,255,255,0.82)' if is_light else 'rgba(14,17,23,0.82)'};
             padding: 2px 6px; border-radius: 4px; pointer-events: none; font-family: monospace;
         }}
     </style>
@@ -3213,6 +3146,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         }});
         volSeries.setData(vData);
 
+        // Indicator Series
         const vwapSeries = chart.addLineSeries({{ color: '#eab308', lineWidth: 2, title: 'VWAP', visible: {'true' if 'VWAP' in active_inds else 'false'} }});
         vwapSeries.setData(vwapData);
 
@@ -3232,6 +3166,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         const bbDnSeries = chart.addLineSeries({{ color: 'rgba(37,99,235,0.4)', lineWidth: 1, priceLineVisible: false, visible: {'true' if 'BB' in active_inds else 'false'} }});
         bbDnSeries.setData(bbDnData);
 
+        // S&R and Pivot Price Lines
         let srLines = [];
         let pivLines = [];
         function drawSR(show) {{
@@ -3275,6 +3210,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             if (k === 'piv') {{ drawPiv(state.piv); document.getElementById('btn_piv').className = 'ibtn ' + (state.piv ? 'active-piv' : ''); }}
         }};
 
+        // Live Top-Left OHLCV Legend Update on Crosshair Move (TradingView Screenshot 2 Style)
         const volLookup = Object.fromEntries(vData.map(x => [x.time, x.value]));
         function updateLegend(bar) {{
             if (!bar) return;
@@ -3308,7 +3244,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
 
 
 # =========================================================
-# --- 8. FAST CACHED ENGINE & LIVE UI RENDERING ---
+# --- 8. LIVE FRAGMENT RENDERING (80% LEFT + 20% RIGHT) ---
 # =========================================================
 @st.cache_data(ttl=25, show_spinner=False)
 def fetch_fast_live_quotes(tkrs_tuple, market_open):
@@ -3339,51 +3275,18 @@ def fetch_fast_live_quotes(tkrs_tuple, market_open):
         return {}
 
 
-@st.cache_data(ttl=30, show_spinner=False)
-def _fast_5m_and_sniper_cache(tickers_tuple):
-    """Caches 5m processing & Order-Flow Sniper for 30s so UI clicks respond in 0.05s!"""
-    five_min_data = fetch_cached_5m_data(list(tickers_tuple))
-    processed_charts = {}
-    nifty_intra_html = ""
-    fetched_5m = five_min_data.columns.levels[0] if isinstance(five_min_data.columns, pd.MultiIndex) else five_min_data.columns
-
-    if "^NSEI" in fetched_5m:
-        try:
-            n_raw = five_min_data["^NSEI"] if isinstance(five_min_data.columns, pd.MultiIndex) else five_min_data
-            n_day = process_5m_data(n_raw)
-            if not n_day.empty and len(n_day) >= 2:
-                n_day_ret = (float(n_day['Close'].iloc[-1]) / float(n_day['Open'].iloc[0]) - 1.0) * 100.0
-                lb_idx = max(0, len(n_day) - 7)
-                n_30m_ret = (float(n_day['Close'].iloc[-1]) / float(n_day['Close'].iloc[lb_idx]) - 1.0) * 100.0
-                n_bias = "🟢 Bullish" if n_day_ret > 0.10 else ("🔴 Bearish" if n_day_ret < -0.10 else "⚪ Sideways")
-                nifty_intra_html = (
-                    f"<span style='color:#ffd700; font-weight:bold; font-size:13.5px; background:#21262d; "
-                    f"border:1px solid #30363d; padding:3px 10px; border-radius:4px;'>"
-                    f"Nifty Intraday: {n_day_ret:+.2f}% &nbsp;|&nbsp; Last 30m: {n_30m_ret:+.2f}% ({n_bias})</span>"
-                )
-        except Exception:
-            pass
-
-    for sym in tickers_tuple:
-        try:
-            df_raw = five_min_data[sym] if isinstance(five_min_data.columns, pd.MultiIndex) else five_min_data
-            processed_charts[sym] = process_5m_data(df_raw)
-        except Exception:
-            processed_charts[sym] = pd.DataFrame()
-
-    sniper_res, _ = adaptive_live_engine(five_min_data, list(tickers_tuple), top_n=12, min_edge=60)
-    return processed_charts, nifty_intra_html, sniper_res
-
-
 _effective_refresh = 30
 
 @st.fragment(run_every=f"{_effective_refresh}s")
 def render_live_ui():
+    # 1. TOP STATUS BAR SLOT (High Visibility, Compact Top Margin)
     top_status_slot = st.empty()
+
+    # 2. 80% LEFT & 20% RIGHT INDEPENDENT SCROLL CONTAINERS
     col_main_80, col_side_20 = st.columns([4.05, 1.15], gap="small")
 
     # ---------------------------------------------------------
-    # 👉 RIGHT 20% PANEL: COMPACT CONTROLS & WATCHLIST
+    # 👉 RIGHT 20% PANEL: COMPACT STRATEGIES & WATCHLIST TABLE
     # ---------------------------------------------------------
     with col_side_20:
         right_panel_box = st.container(height=850, border=True)
@@ -3405,6 +3308,7 @@ def render_live_ui():
                 "Month Effect Advantage 📅"
             ], index=0, label_visibility="collapsed")
 
+            # Clean Strategy Selector (No overlapping red tags!)
             move_type_filter = ["All Day Trading Moves 🚀"]
             fund_filter = "Top Ranked Stocks ⭐"
 
@@ -3460,16 +3364,18 @@ def render_live_ui():
             elif watchlist_mode == "Fundamentals 🏢":
                 fund_filter = st.selectbox("Fundamentals Filter", ["Top Ranked Stocks ⭐", "🦅 Warren Buffett Value Stocks", "Swing Trading Candidates 📈", "Nifty 50 Stocks", "My Portfolio 💼"], index=0, label_visibility="collapsed")
 
+            # Compact Row: Heat Map / Chart + Pro Grid Selector
             default_view_idx = 0 if watchlist_mode in ["My Portfolio 💼", "F&O + Top 200 Heatmap 🗺️"] else 1
             view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], index=default_view_idx, horizontal=True, label_visibility="collapsed")
 
             grid_opts = ["Off", "1", "2", "4", "6"]
             curr_g_idx = grid_opts.index(st.session_state.grid_layout_mode) if st.session_state.grid_layout_mode in grid_opts else 0
-            sel_grid = st.radio("📐 Pro Grid:", grid_opts, index=curr_g_idx, horizontal=True)
+            sel_grid = st.radio("📐 Pro Grid:", grid_opts, index=curr_g_idx, horizontal=True, key="side_grid_radio")
             if sel_grid != st.session_state.grid_layout_mode:
                 st.session_state.grid_layout_mode = sel_grid
                 st.rerun(scope="fragment")
 
+            # Clean Filters Expander (No Order-Flow or News overlap!)
             with st.expander("⚙️ Filters, Sort & Search", expanded=False):
                 st.session_state.pause_refresh = st.toggle("⏸️ Pause Refresh", value=st.session_state.pause_refresh)
                 sort_mode = st.selectbox(
@@ -3489,10 +3395,11 @@ def render_live_ui():
                 show_crosshair = st.toggle("⌖ Mini-Chart Crosshair (Price/Time)", value=True)
                 show_vol = st.toggle("📊 Mini-Chart Vol Bars", value=False)
 
+            # Slot for TradingView Style Watchlist Table & Selected Stock Inspector
             side_watchlist_slot = st.container()
 
     # ---------------------------------------------------------
-    # 👉 FAST DATA ENGINE
+    # 👉 DATA UPDATE & NIFTY INTRADAY / 30M CALCULATION
     # ---------------------------------------------------------
     if st.session_state.pause_refresh:
         with col_main_80:
@@ -3517,7 +3424,6 @@ def render_live_ui():
             elif _ft in _fast_quotes:
                 _ltp, _op, _hi, _lo, _pc = _fast_quotes[_ft]
                 df_live.at[_i, 'P'], df_live.at[_i, 'O'], df_live.at[_i, 'H'], df_live.at[_i, 'L'] = _ltp, _op, _hi, _lo
-                df_live.at[_i, 'Prev_C'] = _pc
                 df_live.at[_i, 'VWAP'] = (_hi + _lo + _ltp) / 3.0
                 if _op > 0: df_live.at[_i, 'Day_C'] = ((_ltp - _op) / _op) * 100.0
                 if _pc > 0: df_live.at[_i, 'C'] = ((_ltp - _pc) / _pc) * 100.0
@@ -3543,13 +3449,197 @@ def render_live_ui():
     else: strict_allowed = set(NIFTY_50 + FNO_STOCKS)
 
     df_stocks = df_all_stocks[df_all_stocks['T'].isin(strict_allowed)].copy()
-    df_filtered = df_stocks.copy()
+    df_nifty = df_all_stocks[df_all_stocks['T'].isin(NIFTY_50)].copy()
+    sector_perf = df_nifty.groupby('Sector')['C'].mean().sort_values(ascending=False)
+    valid_sectors = [s for s in sector_perf.index if s != "OTHER"]
+    top_buy_sector, top_sell_sector = (valid_sectors[0], valid_sectors[-1]) if valid_sectors else ("PHARMA", "IT")
 
-    # Fast Cached 5-Min Charts & Sniper Results
-    core_tkrs = tuple(sorted(list(set(df_indices['Fetch_T'].tolist() + df_sectors['Fetch_T'].tolist() + df_stocks['Fetch_T'].tolist() + st.session_state.pinned_stocks))))
-    processed_charts, nifty_intra_html, sniper_cached_res = _fast_5m_and_sniper_cache(core_tkrs)
+    df_buy_sector = df_nifty[df_nifty['Sector'] == top_buy_sector].sort_values(by=['S', 'C'], ascending=[False, False])
+    df_sell_sector = df_nifty[df_nifty['Sector'] == top_sell_sector].sort_values(by=['S', 'C'], ascending=[False, True])
+    df_independent = df_nifty[(~df_nifty['Sector'].isin([top_buy_sector, top_sell_sector])) & (df_nifty['S'] >= 5)].sort_values(by='S', ascending=False).head(8)
+    df_broader = df_all_stocks[(df_all_stocks['T'].isin(FNO_STOCKS)) & (~df_all_stocks['T'].isin(NIFTY_50)) & (df_all_stocks['S'] >= 5)].sort_values(by='S', ascending=False).head(8)
 
-    # Top Status Bar
+    df_filtered = pd.DataFrame(columns=df_stocks.columns)
+
+    if watchlist_mode == "Terminal Tables 🗃️":
+        terminal_tickers = pd.concat([df_buy_sector, df_sell_sector, df_independent, df_broader])['Fetch_T'].unique().tolist()
+        df_filtered = df_all_stocks[df_all_stocks['Fetch_T'].isin(terminal_tickers)]
+    elif watchlist_mode == "My Portfolio 💼":
+        port_tickers = [f"{str(sym).upper().strip()}.NS" for sym in df_port_saved['Symbol'].tolist() if str(sym).strip() != ""]
+        df_filtered = df_all_stocks[df_all_stocks['Fetch_T'].isin(port_tickers)]
+    elif watchlist_mode == "Commodity 🛢️":
+        df_filtered = df_commodities.copy()
+    elif watchlist_mode == "Fundamentals 🏢":
+        if fund_filter == "Swing Trading Candidates 📈": df_filtered = df_stocks[(df_stocks['Is_Swing'] == True) | (df_stocks['Is_W_Pullback'] == True)]
+        elif fund_filter == "Nifty 50 Stocks": df_filtered = df_all_stocks[df_all_stocks['T'].isin(NIFTY_50)]
+        elif fund_filter == "My Portfolio 💼":
+            port_tickers = [f"{str(sym).upper().strip()}.NS" for sym in df_port_saved['Symbol'].tolist() if str(sym).strip() != ""]
+            df_filtered = df_all_stocks[df_all_stocks['Fetch_T'].isin(port_tickers)]
+        else: df_filtered = df_stocks[df_stocks['S'] >= 6]
+    elif watchlist_mode == "F&O + Top 200 Heatmap 🗺️":
+        fno_and_nifty = list(set(NIFTY_50 + FNO_STOCKS))
+        df_filtered = df_all_stocks[df_all_stocks['T'].isin(fno_and_nifty)].copy().sort_values(by="Day_C", ascending=False)
+    elif "AI Predictions" in watchlist_mode:
+        df_filtered = df_stocks.copy()
+        ai_predictions, ai_probs = [], []
+        for _, row in df_filtered.iterrows():
+            up_prob, dn_prob = 0, 0
+            if row['P'] > row['VWAP']: up_prob += 25
+            if row['VolX'] >= 1.5: up_prob += 20
+            if row.get('Bull_P', 0) >= 80: up_prob += 30
+            if abs(row['O'] - row['L']) < (row['P'] * 0.002): up_prob += 25
+            if row['P'] < row['VWAP']: dn_prob += 25
+            if row['VolX'] >= 1.5: dn_prob += 20
+            if row.get('Bear_P', 0) >= 80: dn_prob += 30
+            if abs(row['O'] - row['H']) < (row['P'] * 0.002): dn_prob += 25
+            if up_prob >= 70: ai_predictions.append("🚀 AI PREDICTS: UP"); ai_probs.append(up_prob)
+            elif dn_prob >= 70: ai_predictions.append("🩸 AI PREDICTS: DOWN"); ai_probs.append(dn_prob)
+            else: ai_predictions.append("Neutral"); ai_probs.append(0)
+        df_filtered['Strategy_Icon'] = ai_predictions
+        df_filtered['AI_Prob'] = ai_probs
+        if "All Moves" in move_type_filter or len(move_type_filter) == 0:
+            df_filtered = df_filtered[(df_filtered['Strategy_Icon'] != "Neutral") & (df_filtered['S'] >= 11)]
+    elif watchlist_mode == "Day Trading Stocks 🚀":
+        df_filtered = df_stocks[df_stocks['C'].abs() >= 1.0].copy()
+        df_filtered['Strategy_Icon'] = np.where(df_filtered['Day_C'] >= 0, "🚀 BUY", "🩸 SELL")
+    elif watchlist_mode == "High Score Stocks 🔥":
+        df_filtered = df_stocks[(df_stocks['S'] >= 11) & (df_stocks['VolX'] >= 1.5)].copy()
+    elif watchlist_mode == "Swing Trading 📈":
+        df_filtered = df_stocks.copy()
+        dfs_to_concat = []
+        vcp_base_cond = (
+            (df_filtered['P'] > df_filtered['SMA150']) & ((df_filtered['P'] > df_filtered['SMA200']) | (df_filtered['SMA200'] == 0)) &
+            ((df_filtered['SMA150'] > df_filtered['SMA200']) | (df_filtered['SMA200'] == 0)) &
+            ((df_filtered['SMA200'] > df_filtered['SMA200_20D']) | (df_filtered['SMA200'] == 0)) &
+            (df_filtered['P'] > df_filtered['SMA50']) & (df_filtered['SMA50'] > df_filtered['SMA150']) &
+            (df_filtered['P'] >= (df_filtered['Low52W'] * 1.30)) & (df_filtered['P'] >= (df_filtered['High52W'] * 0.75))
+        )
+        if "📈 Minervini Trend Template (VCP)" in move_type_filter:
+            df_min = df_filtered[df_filtered['T'].isin(NIFTY_50 + FNO_STOCKS) & vcp_base_cond].copy()
+            df_min['Strategy_Icon'] = "📈 M-VCP"
+            dfs_to_concat.append(df_min)
+        if "🔥 Minervini MidCap 150" in move_type_filter:
+            df_mid = df_filtered[df_filtered['T'].isin(MIDCAP_150) & vcp_base_cond].copy()
+            df_mid['Strategy_Icon'] = "🔥 Mid VCP"
+            dfs_to_concat.append(df_mid)
+        if "🚀 Minervini SmallCap 250" in move_type_filter:
+            df_small = df_filtered[df_filtered['T'].isin(SMALLCAP_250) & vcp_base_cond].copy()
+            df_small['Strategy_Icon'] = "🚀 Small VCP"
+            dfs_to_concat.append(df_small)
+        if "📉 Strict VCP (Price & Vol Contraction)" in move_type_filter:
+            strict_vcp_cond = (df_filtered['VCP_Contract'] == True) & (df_filtered['VCP_Vol_Dry'] == True)
+            df_vcp = df_filtered[df_filtered['T'].isin(NIFTY_50 + FNO_STOCKS) & vcp_base_cond & strict_vcp_cond].copy()
+            df_vcp['Strategy_Icon'] = "📉 VCP"
+            dfs_to_concat.append(df_vcp)
+        if "All Swing Stocks" in move_type_filter or not move_type_filter:
+            df_all_sw = df_filtered[df_filtered['Is_Swing'] == True].copy()
+            df_all_sw['Strategy_Icon'] = "🟢 Swing"
+            dfs_to_concat.append(df_all_sw)
+        df_filtered = pd.concat(dfs_to_concat).drop_duplicates(subset=['Fetch_T'], keep='last').sort_values(by="Day_C", ascending=False).head(40) if dfs_to_concat else pd.DataFrame(columns=df_filtered.columns)
+
+    elif watchlist_mode == "Legendary Strategy 🏆":
+        strict_allowed = set(NIFTY_50 + FNO_STOCKS + MIDCAP_150)
+        df_filtered = df_all_stocks[df_all_stocks['T'].isin(strict_allowed)].copy()
+        dfs_to_concat = []
+        has_history = (df_filtered['SMA200'] > 0) & (df_filtered['SMA150'] > 0)
+        vcp_base_cond = (
+            has_history & (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['P'] > df_filtered['SMA200']) &
+            (df_filtered['SMA50'] > df_filtered['SMA200']) & (df_filtered['SMA150'] > df_filtered['SMA200']) &
+            (df_filtered['SMA200'] > df_filtered['SMA200_20D']) & (df_filtered['P'] >= (df_filtered['Low52W'] * 1.30)) &
+            (df_filtered['P'] >= (df_filtered['High52W'] * 0.75)) & (df_filtered['SMA50'] > df_filtered['SMA150']) &
+            (df_filtered['P'] > df_filtered['SMA50'])
+        )
+        strat_selection = move_type_filter[0] if isinstance(move_type_filter, list) else move_type_filter
+        strats_to_run = [
+            "🧲 The 20-EMA Holy Grail Pullback", "📉 RSI(2) Mean Reversion (Larry Connors)",
+            "📈 Minervini Trend Template (VCP)", "📉 Strict VCP (Price & Vol Contraction)",
+            "📦 Nicolas Darvas (Box Breakout)", "📦 Nicolas Darvas Modified",
+            "📈 Stan Weinstein (Stage 2 Uptrend)", "💥 Dan Zanger (Volume Explosion)", "👑 King Strategy (SMA Bounce)"
+        ] if strat_selection == "All Swing Trading Moves 📈" else [strat_selection]
+
+        for strat in strats_to_run:
+            if strat == "🧲 The 20-EMA Holy Grail Pullback":
+                hg_cond = has_history & (df_filtered['P'] > df_filtered['SMA50']) & (df_filtered['SMA50'] > df_filtered['SMA150']) & (df_filtered['L'] <= df_filtered['EMA20'] * 1.015) & (df_filtered['P'] >= df_filtered['EMA20'] * 0.995) & ((df_filtered['P'] > df_filtered['O']) | (df_filtered['Day_C'] > 0))
+                df_hg = df_filtered[hg_cond].copy()
+                if not df_hg.empty: df_hg['Strategy_Icon'] = "🟢 Holy Grail"; dfs_to_concat.append(df_hg)
+            elif strat == "📉 RSI(2) Mean Reversion (Larry Connors)":
+                lc_c = has_history & (df_filtered['P'] > df_filtered['SMA200']) & (df_filtered['P'] < df_filtered['SMA20']) & ((df_filtered['RSI2'] <= 10.0) | ((df_filtered['RSI2'] <= 25.0) & (df_filtered['P'] > df_filtered['O'])))
+                df_lc = df_filtered[lc_c].copy()
+                if not df_lc.empty: df_lc['Strategy_Icon'] = "🟢 RSI(2) Reversal"; dfs_to_concat.append(df_lc)
+            elif strat == "📈 Minervini Trend Template (VCP)":
+                df_min = df_filtered[vcp_base_cond].copy()
+                if not df_min.empty: df_min['Strategy_Icon'] = "🟢 M-VCP"; dfs_to_concat.append(df_min)
+            elif strat == "📉 Strict VCP (Price & Vol Contraction)":
+                s_vcp = vcp_base_cond & (((df_filtered['Box_Top20'] - df_filtered['Box_Bot20']) / (df_filtered['Box_Bot20'] + 0.001)) <= 0.15) & (df_filtered['VCP_Contract'] == True) & (df_filtered['VCP_Vol_Dry'] == True) & (df_filtered['P'] >= (df_filtered['High52W'] * 0.80))
+                df_vcp = df_filtered[s_vcp].copy()
+                if not df_vcp.empty: df_vcp['Strategy_Icon'] = "🟢 Strict VCP"; dfs_to_concat.append(df_vcp)
+            elif strat == "📦 Nicolas Darvas (Box Breakout)":
+                d_c = has_history & (df_filtered['P'] > df_filtered['SMA50']) & (df_filtered['SMA50'] > df_filtered['SMA150']) & (df_filtered['SMA150'] > df_filtered['SMA200']) & (df_filtered['P'] >= (df_filtered['Box_Top20'] * 0.998)) & (df_filtered['VolX'] >= 1.2)
+                df_d = df_filtered[d_c].copy()
+                if not df_d.empty: df_d['Strategy_Icon'] = "🟢 Darvas Breakout"; dfs_to_concat.append(df_d)
+            elif strat == "📦 Nicolas Darvas Modified":
+                dm_c = has_history & (df_filtered['P'] > df_filtered['SMA50']) & (df_filtered['P'] >= (df_filtered['Box_Top20'] * 0.975)) & (df_filtered['P'] <= (df_filtered['Box_Top20'] * 1.01))
+                df_dm = df_filtered[dm_c].copy()
+                if not df_dm.empty: df_dm['Strategy_Icon'] = "🟢 Darvas Anticipation"; dfs_to_concat.append(df_dm)
+            elif strat == "📈 Stan Weinstein (Stage 2 Uptrend)":
+                w2 = has_history & (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['SMA50'] > df_filtered['SMA150']) & (df_filtered['SMA150'] > df_filtered['SMA150_20D'])
+                df_w2 = df_filtered[w2].copy()
+                if not df_w2.empty: df_w2['Strategy_Icon'] = "🟢 Stage 2"; dfs_to_concat.append(df_w2)
+            elif strat == "💥 Dan Zanger (Volume Explosion)":
+                z_c = has_history & (df_filtered['VolX'] >= 1.8) & (df_filtered['P'] > df_filtered['SMA50']) & (df_filtered['P'] >= (df_filtered['Box_Top20'] * 0.99))
+                df_z = df_filtered[z_c].copy()
+                if not df_z.empty: df_z['Strategy_Icon'] = "🟢 Zanger Explosion"; dfs_to_concat.append(df_z)
+            elif strat == "👑 King Strategy (SMA Bounce)":
+                t50 = (df_filtered['L'] <= df_filtered['SMA50'] * 1.02) & (df_filtered['P'] >= df_filtered['SMA50'] * 0.99)
+                k_c = has_history & (df_filtered['SMA50'] > df_filtered['SMA150']) & t50
+                df_k = df_filtered[k_c].copy()
+                if not df_k.empty: df_k['Strategy_Icon'] = "🟢 King SMA Bounce"; dfs_to_concat.append(df_k)
+            elif strat == "🎯 52WH Pullback & 52WL Breakdown (Top 32)":
+                df_52b = df_filtered[has_history & (df_filtered['P'] > df_filtered['SMA200']) & (df_filtered['Pullback_52W'] <= 15.0)].sort_values(by='S', ascending=False).head(32).copy()
+                if not df_52b.empty: df_52b['Strategy_Icon'] = "🟢 52WH Pullback"; dfs_to_concat.append(df_52b)
+                dist_52l = ((df_filtered['P'] - df_filtered['Low52W']) / df_filtered['Low52W']) * 100
+                df_52s = df_filtered[has_history & (df_filtered['P'] < df_filtered['SMA200']) & (dist_52l <= 15.0)].sort_values(by='Pullback_52W', ascending=False).head(32).copy()
+                if not df_52s.empty: df_52s['Strategy_Icon'] = "🔴 52WL Breakdown"; dfs_to_concat.append(df_52s)
+            elif strat == "⏳ Anticipation SMA Base (20/50/150/200)":
+                base_c = has_history & ((df_filtered['SMA150'] > df_filtered['SMA200']) | (df_filtered['SMA200'] == 0))
+                for col_sma, lbl_sma in [('SMA20', '🟢 20-SMA Base'), ('SMA50', '🟢 50-SMA Base'), ('SMA150', '🟢 150-SMA Base'), ('SMA200', '🟢 200-SMA Base')]:
+                    near_m = (df_filtered[col_sma] > 0) & (df_filtered['P'] >= df_filtered[col_sma] * 0.97) & (df_filtered['P'] <= df_filtered[col_sma] * 1.03)
+                    sub_s = df_filtered[base_c & near_m].sort_values(by='S', ascending=False).head(8).copy()
+                    if not sub_s.empty: sub_s['Strategy_Icon'] = lbl_sma; dfs_to_concat.append(sub_s)
+
+        sort_metric = "W_C" if chart_timeframe == "Weekly Chart" else "Day_C"
+        df_filtered = pd.concat(dfs_to_concat).drop_duplicates(subset=['Fetch_T'], keep='last').sort_values(by=sort_metric, ascending=False) if dfs_to_concat else pd.DataFrame(columns=df_filtered.columns)
+
+    # 5-Minute Data Fetch
+    all_display_tickers = list(set(df_indices['Fetch_T'].tolist() + df_sectors['Fetch_T'].tolist() + df_filtered['Fetch_T'].tolist() + st.session_state.pinned_stocks))
+    if search_stock != "-- None --" and not df_live[df_live['T'] == search_stock].empty:
+        s_ft = df_live[df_live['T'] == search_stock]['Fetch_T'].iloc[0]
+        if s_ft not in all_display_tickers: all_display_tickers.append(s_ft)
+
+    five_min_data = fetch_cached_5m_data(all_display_tickers)
+    processed_charts, weekly_trends = {}, {}
+
+    # Compute Nifty Intraday & Last 30m for Top Status Bar (Exactly as requested!)
+    nifty_intra_html = ""
+    fetched_5m_symbols = five_min_data.columns.levels[0] if isinstance(five_min_data.columns, pd.MultiIndex) else five_min_data.columns
+    if "^NSEI" in fetched_5m_symbols:
+        try:
+            n_raw = five_min_data["^NSEI"] if isinstance(five_min_data.columns, pd.MultiIndex) else five_min_data
+            n_day = process_5m_data(n_raw)
+            if not n_day.empty and len(n_day) >= 2:
+                n_day_ret = (float(n_day['Close'].iloc[-1]) / float(n_day['Open'].iloc[0]) - 1.0) * 100.0
+                lb_idx = max(0, len(n_day) - 7)
+                n_30m_ret = (float(n_day['Close'].iloc[-1]) / float(n_day['Close'].iloc[lb_idx]) - 1.0) * 100.0
+                n_bias = "🟢 Bullish" if n_day_ret > 0.10 else ("🔴 Bearish" if n_day_ret < -0.10 else "⚪ Sideways")
+                nifty_intra_html = (
+                    f"<span style='color:#ffd700; font-weight:bold; font-size:13.5px; background:#21262d; "
+                    f"border:1px solid #30363d; padding:3px 10px; border-radius:4px;'>"
+                    f"Nifty Intraday: {n_day_ret:+.2f}% &nbsp;|&nbsp; Last 30m: {n_30m_ret:+.2f}% ({n_bias})</span>"
+                )
+        except Exception:
+            pass
+
+    # Render Top Status Bar (Larger Font + Market Breadth + Nifty Intraday & 30m side-by-side)
     _now_str_top = now_ist().strftime('%d-%b %I:%M:%S %p')
     _run_ts = int(time.time() * 1000)
     _mkt_dir_text, _mkt_dir_bg, _mkt_dir_border = "NEUTRAL ⚖️", "#30363d", "#8b949e"
@@ -3585,83 +3675,108 @@ def render_live_ui():
         unsafe_allow_html=True
     )
 
+    components.html(
+        f"""<!-- refresh_{_run_ts} -->
+        <script>
+        (function() {{
+            const parentDoc = window.parent.document;
+            if (window.parent._stCdInterval) clearInterval(window.parent._stCdInterval);
+            let secLeft = {_effective_refresh};
+            const updateBadge = () => {{
+                const el = parentDoc.getElementById('live-cd-badge');
+                if (!el) return;
+                if (secLeft > 0) {{
+                    el.innerHTML = '⏳ ' + secLeft + 's';
+                    el.style.color = secLeft <= 5 ? '#ffd700' : '#00BFFF';
+                    secLeft -= 1;
+                }} else {{
+                    el.innerHTML = '🔄 Updating...';
+                    el.style.color = '#3fb950';
+                }}
+            }};
+            updateBadge();
+            window.parent._stCdInterval = setInterval(updateBadge, 1000);
+        }})();
+        </script>""",
+        height=0,
+    )
+
     df_lookup = df_live.drop_duplicates(subset=['Fetch_T'], keep='first').set_index('Fetch_T').to_dict('index')
-    weekly_trends = {}
-    for sym, sym_row in df_lookup.items():
-        w_ema10, w_ema50, last_p = float(sym_row.get('W_EMA10', 0)), float(sym_row.get('W_EMA50', 0)), float(sym_row.get('P', 0))
-        weekly_trends[sym] = 'Bullish' if (last_p > w_ema10 and w_ema10 >= w_ema50) else ('Bearish' if (last_p < w_ema10 and w_ema10 <= w_ema50) else 'Neutral')
+    for sym in all_display_tickers:
+        try: df_raw = five_min_data[sym] if isinstance(five_min_data.columns, pd.MultiIndex) else five_min_data
+        except KeyError: df_raw = pd.DataFrame()
+        processed_charts[sym] = process_5m_data(df_raw)
+        sym_row = df_lookup.get(sym)
+        if sym_row:
+            w_ema10, w_ema50, last_p = float(sym_row['W_EMA10']), float(sym_row['W_EMA50']), float(sym_row['P'])
+            weekly_trends[sym] = 'Bullish' if (last_p > w_ema10 and w_ema10 >= w_ema50) else ('Bearish' if (last_p < w_ema10 and w_ema10 <= w_ema50) else 'Neutral')
 
     # Filter Strategy Execution
+    df_stocks_display = pd.DataFrame(columns=df_filtered.columns)
     sort_key = "W_C" if chart_timeframe == "Weekly Chart" else "Day_C"
 
-    if watchlist_mode == "My Portfolio 💼":
-        port_tickers = [f"{str(sym).upper().strip()}.NS" for sym in df_port_saved['Symbol'].tolist() if str(sym).strip() != ""]
-        df_filtered = df_all_stocks[df_all_stocks['Fetch_T'].isin(port_tickers)].copy()
-    elif watchlist_mode == "Commodity 🛢️":
-        df_filtered = df_commodities.copy()
-    elif watchlist_mode == "F&O + Top 200 Heatmap 🗺️":
-        df_filtered = df_all_stocks[df_all_stocks['T'].isin(set(NIFTY_50 + FNO_STOCKS))].copy()
-    elif watchlist_mode == "Day Trading Stocks 🚀":
-        df_filtered = df_stocks[df_stocks['C'].abs() >= 1.0].copy()
-        df_filtered['Strategy_Icon'] = np.where(df_filtered['Day_C'] >= 0, "🚀 BUY", "🩸 SELL")
-    elif watchlist_mode == "High Score Stocks 🔥":
-        df_filtered = df_stocks[(df_stocks['S'] >= 11) & (df_stocks['VolX'] >= 1.5)].copy()
-    elif "AI Predictions" in watchlist_mode:
-        base_buy = (df_filtered['P'] > df_filtered['W_EMA10']) & (df_filtered['P'] > df_filtered['VWAP'])
-        base_sell = (df_filtered['P'] < df_filtered['W_EMA10']) & (df_filtered['P'] < df_filtered['VWAP'])
-        all_dfs = []
-        for strat in move_type_filter:
-            if strat == ADAPTIVE_STRAT:
-                for _side, _label in (('buy', 'BUY'), ('sell', 'SELL')):
-                    _rows = sniper_cached_res.get(_side, [])
-                    if not _rows: continue
-                    _m = {r['sym']: r for r in _rows}
-                    _sub = df_filtered[df_filtered['Fetch_T'].isin(list(_m.keys()))].copy()
-                    if _sub.empty: continue
-                    _sub['AI_Prob'] = _sub['Fetch_T'].map(lambda s: _m[s]['score'])
-                    _sub = _sub.sort_values('AI_Prob', ascending=False)
-                    _sub['Strategy_Icon'] = f"🎯 Sniper {_label}"
-                    _sub['S'] = [35 - 2 * _k for _k in range(len(_sub))]
-                    all_dfs.append(_sub)
-            elif strat == NEWS_STRAT:
-                _df_news, _ = run_news_vol_price_strategy(df_filtered, processed_charts, min_volx=1.2, min_move_pct=0.75)
-                if not _df_news.empty: all_dfs.append(_df_news)
-            else:
-                c_buy = base_buy & (df_filtered['Day_C'] > 0.6) & (df_filtered['VolX'] >= 1.1)
-                c_sell = base_sell & (df_filtered['Day_C'] < -0.6) & (df_filtered['VolX'] >= 1.1)
-                tb = df_filtered[c_buy].sort_values(by=['VolX', 'Day_C'], ascending=[False, False]).head(12).copy()
-                if not tb.empty: tb['Strategy_Icon'] = "🚀 BUY"; all_dfs.append(tb)
-                ts = df_filtered[c_sell].sort_values(by=['VolX', 'Day_C'], ascending=[False, True]).head(12).copy()
-                if not ts.empty: ts['Strategy_Icon'] = "🩸 SELL"; all_dfs.append(ts)
-        if all_dfs:
-            df_filtered = pd.concat(all_dfs).drop_duplicates(subset=['Fetch_T'])
+    if not df_filtered.empty:
+        df_filtered = df_filtered.copy()
+        if "AI Predictions" in watchlist_mode:
+            base_buy = (df_filtered['P'] > df_filtered['W_EMA10']) & (df_filtered['P'] > df_filtered['VWAP'])
+            base_sell = (df_filtered['P'] < df_filtered['W_EMA10']) & (df_filtered['P'] < df_filtered['VWAP'])
+            strats_to_run = [
+                "🔥 First Hour Vol Breakout (ORB+VWAP)", "💥 Inside Bar Vol Breakout (NR7)",
+                "🧲 Intraday Dip & Support Bounce", "⚡ Sudden VWAP Cross (Any Time)"
+            ] if "All Day Trading Moves 🚀" in move_type_filter else move_type_filter
+
+            all_dfs = []
+            for strat in strats_to_run:
+                if strat == ADAPTIVE_STRAT:
+                    _adp, _ = adaptive_live_engine(five_min_data, df_filtered['Fetch_T'].tolist(), top_n=12, min_edge=60)
+                    for _side, _label in (('buy', 'BUY'), ('sell', 'SELL')):
+                        _rows = _adp.get(_side, [])
+                        if not _rows: continue
+                        _m = {r['sym']: r for r in _rows}
+                        _sub = df_filtered[df_filtered['Fetch_T'].isin(list(_m.keys()))].copy()
+                        if _sub.empty: continue
+                        _sub['AI_Prob'] = _sub['Fetch_T'].map(lambda s: _m[s]['score'])
+                        _sub = _sub.sort_values('AI_Prob', ascending=False)
+                        _sub['Strategy_Icon'] = f"🎯 Sniper {_label}"
+                        _sub['S'] = [35 - 2 * _k for _k in range(len(_sub))]
+                        all_dfs.append(_sub)
+                    continue
+                if strat == NEWS_STRAT:
+                    _df_news, _ = run_news_vol_price_strategy(df_filtered, processed_charts, min_volx=1.2, min_move_pct=0.75)
+                    if not _df_news.empty: all_dfs.append(_df_news)
+                    continue
+
+                c_buy = base_buy & (df_filtered['Day_C'] > 0.8) & (df_filtered['VolX'] >= 1.2)
+                c_sell = base_sell & (df_filtered['Day_C'] < -0.8) & (df_filtered['VolX'] >= 1.2)
+                top_buy = df_filtered[c_buy].sort_values(by=['VolX', 'Day_C'], ascending=[False, False]).head(8).copy()
+                if not top_buy.empty: top_buy['Strategy_Icon'] = "🚀 BUY"; all_dfs.append(top_buy)
+                top_sell = df_filtered[c_sell].sort_values(by=['VolX', 'Day_C'], ascending=[False, True]).head(8).copy()
+                if not top_sell.empty: top_sell['Strategy_Icon'] = "🩸 SELL"; all_dfs.append(top_sell)
+
+            if all_dfs:
+                df_filtered = pd.concat(all_dfs).drop_duplicates(subset=['Fetch_T'])
+
+        if sort_mode == "% Change Up 🟢": df_stocks_display = df_filtered.sort_values(by=sort_key, ascending=False)
+        elif sort_mode == "% Change Down 🔴": df_stocks_display = df_filtered.sort_values(by=sort_key, ascending=True)
+        elif sort_mode == "52W Pullback Max 📉 (Deep Discount)": df_stocks_display = df_filtered.sort_values(by=['Pullback_52W', 'S'], ascending=[False, False])
+        elif sort_mode == "Score Wise Up ⭐":
+            df_stocks_display = pd.concat([
+                df_filtered[df_filtered[sort_key] >= 0].sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, False]),
+                df_filtered[df_filtered[sort_key] < 0].sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, True])
+            ])
         else:
-            df_filtered['Strategy_Icon'] = np.where(df_filtered['Day_C'] >= 0, "🚀 BUY", "🩸 SELL")
-            df_filtered = df_filtered.sort_values(by='S', ascending=False).head(24)
-
-    elif watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"]:
-        has_history = (df_filtered['SMA200'] > 0) & (df_filtered['SMA150'] > 0)
-        vcp_c = has_history & (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['P'] > df_filtered['SMA50']) & (df_filtered['SMA50'] > df_filtered['SMA150'])
-        df_filtered = df_filtered[vcp_c].copy()
-        df_filtered['Strategy_Icon'] = "🟢 M-VCP"
-
-    if sort_mode == "% Change Up 🟢": df_stocks_display = df_filtered.sort_values(by=sort_key, ascending=False)
-    elif sort_mode == "% Change Down 🔴": df_stocks_display = df_filtered.sort_values(by=sort_key, ascending=True)
-    elif sort_mode == "52W Pullback Max 📉 (Deep Discount)": df_stocks_display = df_filtered.sort_values(by=['Pullback_52W', 'S'], ascending=[False, False])
-    else:
-        df_stocks_display = pd.concat([
-            df_filtered[df_filtered[sort_key] >= 0].sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, False]),
-            df_filtered[df_filtered[sort_key] < 0].sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, True])
-        ])
+            df_stocks_display = df_filtered.sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, False])
 
     # ---------------------------------------------------------
-    # 👉 POPULATE RIGHT 20% WATCHLIST (NO CLIPPING ON CHG%)
+    # 👉 POPULATE RIGHT 20% WATCHLIST (TRADINGVIEW SCREENSHOT 2 STYLE)
     # ---------------------------------------------------------
     with side_watchlist_slot:
         st.markdown("<div class='tv-wl-header'><span>Symbol</span><span style='text-align:right;'>Last</span><span style='text-align:right;'>Chg</span><span style='text-align:right;'>Chg%</span></div>", unsafe_allow_html=True)
 
+        # Scrollable Watchlist Table Container
         with st.container(height=360, border=False):
             st.markdown("<div class='tv-wl-marker'></div>", unsafe_allow_html=True)
+            # Combine NIFTY, BANKNIFTY + Filtered Strategy Stocks
             wl_rows = []
             for idx_sym in ["NIFTY", "BANKNIFTY"]:
                 ir = df_indices[df_indices['T'] == idx_sym]
@@ -3671,17 +3786,17 @@ def render_live_ui():
 
             for r_item in wl_rows:
                 s_ft = r_item['Fetch_T']
-                s_name = str(r_item['T'])[:9]
+                s_name = str(r_item['T'])[:10]
                 s_ltp = float(r_item['P'])
+                s_prev = float(r_item.get('Prev_C', s_ltp))
+                s_chg_pts = s_ltp - s_prev
                 s_chg_pct = float(r_item['Day_C'])
-                s_prev = float(r_item.get('Prev_C', 0))
-                s_chg_pts = (s_ltp - s_prev) if (s_prev > 0 and abs(s_ltp - s_prev) > 0.01) else (s_ltp * s_chg_pct / 100.0)
                 is_sel = s_ft in st.session_state.pinned_stocks
                 ico = "☑" if is_sel else ("🟢" if s_chg_pct >= 0 else "🔴")
                 col_tag = "green" if s_chg_pct >= 0 else "red"
 
-                # Compact 33-char width so Chg% is 100% visible without clipping!
-                row_label = f"{ico}{s_name:<9}{s_ltp:>8.1f} :{col_tag}[{s_chg_pts:>+6.1f}] :{col_tag}[{s_chg_pct:>+5.1f}%]"
+                # Exact Aligned Columns: Symbol | Last | Chg | Chg%
+                row_label = f"{ico} {s_name:<10} {s_ltp:>8.2f} :{col_tag}[{s_chg_pts:>+7.2f}] :{col_tag}[{s_chg_pct:>+6.2f}%]"
                 if st.button(row_label, key=f"tv_wl_{s_ft}", width="stretch"):
                     st.session_state.inspected_stock = r_item['T']
                     if is_sel:
@@ -3697,16 +3812,21 @@ def render_live_ui():
                         st.session_state.grid_layout_mode = "Off"
                     st.rerun(scope="fragment")
 
-        # Bottom Stock Inspector Card
+        # 💎 TRADINGVIEW BOTTOM STOCK INSPECTOR CARD (Like Screenshot 2 Bottom-Right)
         insp_sym = st.session_state.inspected_stock
         insp_df = df_live[df_live['T'] == insp_sym]
-        insp_row = insp_df.iloc[0] if not insp_df.empty else (df_stocks_display.iloc[0] if not df_stocks_display.empty else None)
+        if insp_df.empty and not df_stocks_display.empty:
+            insp_row = df_stocks_display.iloc[0]
+        elif not insp_df.empty:
+            insp_row = insp_df.iloc[0]
+        else:
+            insp_row = None
 
         if insp_row is not None:
             i_p = float(insp_row['P'])
+            i_pc = float(insp_row.get('Prev_C', i_p))
+            i_pts = i_p - i_pc
             i_pct = float(insp_row['Day_C'])
-            i_pc = float(insp_row.get('Prev_C', 0))
-            i_pts = (i_p - i_pc) if (i_pc > 0 and abs(i_p - i_pc) > 0.01) else (i_p * i_pct / 100.0)
             i_h, i_l = float(insp_row.get('H', i_p)), float(insp_row.get('L', i_p))
             i_vx = float(insp_row.get('VolX', 1.0))
             i_sec = str(insp_row.get('Sector', 'NSE EQUITY'))
@@ -3720,13 +3840,13 @@ def render_live_ui():
                 f"<span style='font-weight:bold; font-size:13.5px; color:#fff;'>🔍 {insp_row['T']} <span style='font-size:10px; color:#8b949e;'>• NSE</span></span>"
                 f"<span style='font-size:10px; background:#1e293b; color:#38bdf8; padding:1px 6px; border-radius:4px;'>{i_strat}</span></div>"
                 f"<div style='font-size:10.5px; color:#8b949e; margin-bottom:4px;'>{i_sec}</div>"
-                f"<div style='font-size:19px; font-weight:bold; color:#fff; font-family:monospace;'>₹{i_p:,.2f} "
-                f"<span style='font-size:12px; color:{c_hex};'>{i_pts:+.2f} ({i_pct:+.2f}%)</span></div>"
-                f"<div style='display:flex; justify-content:space-between; font-size:10px; color:#8b949e; margin-top:5px;'>"
+                f"<div style='font-size:20px; font-weight:bold; color:#fff; font-family:monospace;'>₹{i_p:,.2f} "
+                f"<span style='font-size:12.5px; color:{c_hex};'>{i_pts:+.2f} ({i_pct:+.2f}%)</span></div>"
+                f"<div style='display:flex; justify-content:space-between; font-size:10px; color:#8b949e; margin-top:6px;'>"
                 f"<span>L: ₹{i_l:.1f}</span><span>Day Range</span><span>H: ₹{i_h:.1f}</span></div>"
                 f"<div style='width:100%; background:#21262d; height:5px; border-radius:3px; margin-top:2px;'>"
                 f"<div style='width:{pos_pct}%; background:{c_hex}; height:5px; border-radius:3px;'></div></div>"
-                f"<div style='display:flex; justify-content:space-between; font-size:10.5px; color:#c9d1d9; margin-top:5px;'>"
+                f"<div style='display:flex; justify-content:space-between; font-size:10.5px; color:#c9d1d9; margin-top:6px;'>"
                 f"<span>RVOL: <b style='color:#00BFFF;'>{i_vx:.1f}x</b></span>"
                 f"<span>VWAP: <b style='color:#ffd700;'>₹{float(insp_row.get('VWAP', i_p)):.1f}</b></span></div>"
                 f"</div>",
@@ -3734,14 +3854,14 @@ def render_live_ui():
             )
 
     # ---------------------------------------------------------
-    # 👉 LEFT 80% SCROLL CONTAINER (PRO GRID OR MINI-CHARTS)
+    # 👉 LEFT 80% INDEPENDENT SCROLL CONTAINER (PRO GRID OR MINI-CHARTS)
     # ---------------------------------------------------------
     with col_main_80:
         left_main_box = st.container(height=850, border=False)
         with left_main_box:
             weekly_charts, daily_charts = {}, {}
             if chart_timeframe in ["Weekly Chart", "Daily Chart"]:
-                display_tkrs = list(set(df_indices['Fetch_T'].tolist() + st.session_state.pinned_stocks + df_stocks_display['Fetch_T'].head(40).tolist()))
+                display_tkrs = list(set(df_indices['Fetch_T'].tolist() + st.session_state.pinned_stocks + df_stocks_display['Fetch_T'].head(45).tolist()))
                 if display_tkrs:
                     hist_data = fetch_historical_charts_data(display_tkrs, chart_timeframe)
                     for sym in display_tkrs:
@@ -3773,4 +3893,99 @@ def render_live_ui():
                         st.session_state.grid_layout_mode = "Off"
                         st.rerun(scope="fragment")
                 with gbar2:
-                    st.session_
+                    st.session_state.pro_grid_theme = st.selectbox(
+                        "Theme", ["Light (White)", "Dark (Terminal)"],
+                        index=0 if "Light" in st.session_state.pro_grid_theme else 1,
+                        label_visibility="collapsed"
+                    )
+                with gbar3:
+                    if st.button("🗑️ Clear Selected", width="stretch"):
+                        st.session_state.pinned_stocks = []
+                        st.session_state.grid_layout_mode = "Off"
+                        st.rerun(scope="fragment")
+
+                max_charts = int(st.session_state.grid_layout_mode)
+                grid_syms = st.session_state.pinned_stocks[:max_charts]
+                if not grid_syms and not df_stocks_display.empty:
+                    grid_syms = df_stocks_display['Fetch_T'].head(max_charts).tolist()
+
+                if not grid_syms:
+                    st.info("💡 కుడివైపు వాచ్‌లిస్ట్ లోని స్టాక్ పైన క్లిక్ చేయండి లేదా మినీ-చార్ట్ పైన టిక్ చేయండి!")
+                else:
+                    n_cols = 1 if max_charts == 1 else (2 if max_charts <= 4 else 3)
+                    c_height = 560 if max_charts == 1 else (385 if max_charts <= 4 else 365)
+                    rows_chunks = [grid_syms[i:i + n_cols] for i in range(0, len(grid_syms), n_cols)]
+                    for r_idx, chunk_syms in enumerate(rows_chunks):
+                        g_cols = st.columns(n_cols, gap="small")
+                        for c_idx, g_sym in enumerate(chunk_syms):
+                            with g_cols[c_idx]:
+                                r_info = df_lookup.get(g_sym, {'T': g_sym.replace('.NS', ''), 'Fetch_T': g_sym})
+                                df_c_sym = chart_dict_to_use.get(g_sym, pd.DataFrame())
+                                render_pro_grid_chart(
+                                    g_sym, r_info, df_c_sym, chart_timeframe,
+                                    st.session_state.pro_grid_theme, st.session_state.pro_grid_inds,
+                                    chart_height=c_height, key_idx=(r_idx * 10 + c_idx)
+                                )
+
+            # =========================================================
+            # 📊 MODE B: DEFAULT MINI-CHARTS / HEATMAP (NO EXTRA BANNERS!)
+            # =========================================================
+            else:
+                if watchlist_mode == "Fundamentals 🏢":
+                    fund_tickers = df_stocks_display['Fetch_T'].tolist()[:50] if not df_stocks_display.empty else [f"{s}.NS" for s in NIFTY_50[:50]]
+                    df_fund = fetch_fundamentals_data(fund_tickers)
+                    if not df_fund.empty:
+                        st.dataframe(df_fund, use_container_width=True, hide_index=True)
+                elif watchlist_mode == "Mutual Funds 📈":
+                    df_mf_raw = fetch_mf_performance()
+                    if not df_mf_raw.empty:
+                        st.markdown(render_mf_table(df_mf_raw), unsafe_allow_html=True)
+                elif watchlist_mode == "My Portfolio 💼" and view_mode == "Heat Map":
+                    st.markdown(render_portfolio_table(df_port_saved, df_all_stocks, weekly_trends, "Default"), unsafe_allow_html=True)
+                    with st.expander("📊 Portfolio Allocation", expanded=True):
+                        render_portfolio_allocation(df_port_saved, df_all_stocks)
+                elif view_mode == "Heat Map":
+                    if not df_stocks_display.empty:
+                        df_buy = df_stocks_display[df_stocks_display[sort_key] >= 0]
+                        df_sell = df_stocks_display[df_stocks_display[sort_key] < 0]
+                        for df_sec, title, col in [(df_buy, f"🟢 POSITIVE / BUY ({watchlist_mode})", "#3fb950"), (df_sell, f"🔴 NEGATIVE / SELL ({watchlist_mode})", "#f85149")]:
+                            if not df_sec.empty:
+                                st.markdown(f"<div style='font-size:15px; font-weight:bold; margin: 6px 0 4px 0; color:{col};'>{title}</div>", unsafe_allow_html=True)
+                                html_stk = '<div class="heatmap-grid">'
+                                for _, row in df_sec.iterrows():
+                                    pct_val = float(row.get('W_C', row['Day_C'])) if chart_timeframe == "Weekly Chart" else float(row['Day_C'])
+                                    bg = card_bg_class(pct_val)
+                                    html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">⭐{int(row["S"])}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{pct_val:+.2f}%</div></a>'
+                                st.markdown(html_stk + '</div>', unsafe_allow_html=True)
+                else:
+                    if search_stock != "-- None --" and not df_live[df_live['T'] == search_stock].empty:
+                        render_chart_grid(pd.DataFrame([df_live[df_live['T'] == search_stock].iloc[0]]), True, "search", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
+                        st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
+
+                    if watchlist_mode not in ["My Portfolio 💼", "Commodity 🛢️"]:
+                        st.markdown("<div style='font-size:15px; font-weight:bold; margin-bottom:4px; color:#00BFFF;'>🌍 Global & Main Indices</div>", unsafe_allow_html=True)
+                        render_chart_grid(df_indices, False, "idx", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
+                        show_sec_charts = st.toggle("📊 Show Sectoral Indices Charts", value=False)
+                        if show_sec_charts and not df_sectors.empty:
+                            render_chart_grid(df_sectors, False, "sec", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol, is_sector=True)
+                        st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
+
+                    if not df_stocks_display.empty:
+                        if "AI Predictions" in watchlist_mode or watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆", "Day Trading Stocks 🚀"]:
+                            df_sell_chart = df_stocks_display[df_stocks_display['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4|🩸|52WL', na=False)].head(24)
+                            df_buy_chart = df_stocks_display[~df_stocks_display['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4|🩸|52WL', na=False)].head(24)
+                        else:
+                            df_buy_chart = df_stocks_display[df_stocks_display[sort_key] >= 0].head(24)
+                            df_sell_chart = df_stocks_display[df_stocks_display[sort_key] < 0].head(24)
+
+                        if not df_buy_chart.empty:
+                            st.markdown(f"<div style='font-size:15px; font-weight:bold; margin:6px 0 4px 0; color:#3fb950;'>🟢 POSITIVE / BUY ({watchlist_mode})</div>", unsafe_allow_html=True)
+                            render_chart_grid(df_buy_chart, True, "main_buy", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
+
+                        if not df_sell_chart.empty:
+                            st.markdown(f"<div style='font-size:15px; font-weight:bold; margin:14px 0 4px 0; color:#f85149;'>🔴 NEGATIVE / SELL ({watchlist_mode})</div>", unsafe_allow_html=True)
+                            render_chart_grid(df_sell_chart, True, "main_sell", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
+                    else:
+                        st.info("ℹ️ No stocks matched this strategy's strict criteria at the moment.")
+
+render_live_ui()
