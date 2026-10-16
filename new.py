@@ -2831,7 +2831,7 @@ with st.expander("⚙️ Filters, Sorting, Search & Alerts", expanded=False):
                     ], 
                     default=[
                         "🧠 Adaptive Live Engine (Self-Learning)",
-                        "All Day Trading Moves 🚀"
+                        "All Day Trading Moves 🚀",
                         "📰 News + Vol + Price Breakout (Only News)",
                     ],
                     key="day_trading_filter_key"
