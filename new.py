@@ -2671,7 +2671,7 @@ st.markdown("""
     }
     div[data-testid="stElementContainer"]:has(.tv-sort-hdr-marker) { display: none !important; }
 
-    /* 4-Column Aligned Watchlist Rows (34% | 22% | 22% | 22%) */
+    /* 4-Column Aligned Watchlist Rows (No Wrapping - 100% Straight Columns) */
     div[data-testid="stVerticalBlockBorderWrapper"]:has(.tv-wl-marker),
     div[data-testid="stVerticalBlockBorderWrapper"]:has(.tv-wl-marker) > div {
         padding: 0px !important; margin: 0px !important; border: none !important;
@@ -2684,19 +2684,29 @@ st.markdown("""
         display: block !important; margin: 0px !important; padding: 0px !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button {
-        border-bottom: 1px solid #21262d !important; height: 30px !important; min-height: 30px !important; padding: 4px 2px !important;
+        border-bottom: 1px solid #21262d !important; height: 29px !important; min-height: 29px !important; padding: 3px 2px !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button:hover {
         background-color: #1f2937 !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p {
-        display: grid !important; grid-template-columns: 34% 22% 22% 22% !important;
-        width: 100% !important; align-items: center !important;
+        display: grid !important;
+        grid-template-columns: 35% 23% 21% 21% !important;
+        width: 100% !important;
+        align-items: center !important;
         font-family: 'Consolas', 'Courier New', monospace !important;
-        font-size: 12px !important; font-weight: bold !important; margin: 0px !important; padding: 0px !important;
+        font-size: 11px !important;
+        font-weight: bold !important;
+        letter-spacing: -0.3px !important;
+        margin: 0px !important;
+        padding: 0px !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > * {
+        white-space: nowrap !important;
+        overflow: hidden !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > *:nth-child(1) {
-        text-align: left !important; color: #ffffff !important; white-space: nowrap !important; overflow: hidden !important;
+        text-align: left !important; color: #ffffff !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > *:nth-child(2) {
         text-align: right !important; color: #ffffff !important;
@@ -2707,6 +2717,21 @@ st.markdown("""
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) { gap: 0px !important; }
     div[data-testid="stElementContainer"]:has(.tv-wl-marker) { display: none !important; }
+
+    /* Compact Interactive Indicator Buttons on Pro Grid Chart Header */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-hdr-bar-marker) div.stButton > button {
+        height: 26px !important; min-height: 26px !important; padding: 0px 4px !important; border-radius: 4px !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-hdr-bar-marker) div.stButton > button p {
+        font-size: 10.5px !important; font-weight: bold !important; white-space: nowrap !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-hdr-bar-marker) div.stButton > button[kind="primary"] {
+        background-color: #2563eb !important; border: 1px solid #3b82f6 !important; color: #ffffff !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-hdr-bar-marker) div.stButton > button[kind="secondary"] {
+        background-color: #1f2937 !important; border: 1px solid #374151 !important; color: #9ca3af !important;
+    }
+    div[data-testid="stElementContainer"]:has(.pro-hdr-bar-marker) { display: none !important; }
 
     /* Red Close [X] Button */
     div[data-testid="stElementContainer"]:has(.close-x-marker) + div div.stButton > button {
@@ -2962,44 +2987,77 @@ def _calc_supertrend(df_c, period=7, mult=3.0):
         return pd.Series(dtype=float)
 
 
+def _toggle_pro_ind(ind_name):
+    if ind_name in st.session_state.pro_grid_inds:
+        st.session_state.pro_grid_inds.remove(ind_name)
+    else:
+        st.session_state.pro_grid_inds.append(ind_name)
+
+
 def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, active_inds, chart_height=370, key_idx=0, current_grid_syms=None):
     disp_sym = row_data.get('T', fetch_sym.replace('.NS', ''))
-    tf_short = "5m" if timeframe == "Intraday (5m)" else ("1D" if timeframe == "Daily Chart" else "1W")
     if current_grid_syms is None:
         current_grid_syms = []
+    if 'pro_tf_map' not in st.session_state:
+        st.session_state.pro_tf_map = {}
 
-    hc1, hc2 = st.columns([11.0, 1.0], gap="small")
-    with hc1:
-        ltp_v = float(row_data.get('P', 0))
-        chg_v = float(row_data.get('Day_C', 0))
-        c_col = "#3fb950" if chg_v >= 0 else "#f85149"
-        rsi_val = round(float(row_data.get('RSI14', 50.0)), 1)
-        all_badges = [
-            ("EMAs", "#7c3aed"), ("S&R", "#16a34a"), ("Pivots(R1,S1)", "#d97706"),
-            ("VWAP", "#2563eb"), ("BB", "#0284c7"), ("Kalman", "#0d9488"), ("ST(7,3)", "#15803d")
+    default_tf = "5m" if timeframe == "Intraday (5m)" else ("1D" if timeframe == "Daily Chart" else "1W")
+    tf_short = st.session_state.pro_tf_map.get(fetch_sym, default_tf)
+
+    ltp_v = float(row_data.get('P', 0))
+    chg_v = float(row_data.get('Day_C', 0))
+    c_col = "#3fb950" if chg_v >= 0 else "#f85149"
+    rsi_val = round(float(row_data.get('RSI14', 50.0)), 1)
+
+    # Interactive Chart Header Bar: Stock Info + Working 5m/1D/1W Selector + Working Indicator Buttons + Close [X]
+    with st.container():
+        st.markdown("<div class='pro-hdr-bar-marker'></div>", unsafe_allow_html=True)
+        h_cols = st.columns([2.7, 1.0, 0.72, 0.62, 0.85, 0.75, 0.58, 0.82, 0.82, 0.52], gap="small")
+        with h_cols[0]:
+            st.markdown(
+                f"<div style='background:#111622; border:1px solid #2b313f; border-radius:4px; padding:3px 6px; white-space:nowrap; overflow:hidden;'>"
+                f"<b style='color:#fff; font-size:12px; font-family:monospace;'>{disp_sym}</b> "
+                f"<span style='color:{c_col}; font-size:11.5px; font-family:monospace; font-weight:bold;'>₹{ltp_v:,.1f} ({chg_v:+.1f}%)</span> "
+                f"<span style='color:#a855f7; font-size:10.5px; font-family:monospace;'>RSI:{rsi_val}</span></div>",
+                unsafe_allow_html=True
+            )
+        with h_cols[1]:
+            tf_opts = ["5m", "1D", "1W"]
+            sel_tf = st.selectbox(
+                "TF", tf_opts, index=tf_opts.index(tf_short) if tf_short in tf_opts else 0,
+                key=f"tf_sel_{fetch_sym}_{key_idx}", label_visibility="collapsed"
+            )
+            if sel_tf != tf_short:
+                st.session_state.pro_tf_map[fetch_sym] = sel_tf
+                tf_short = sel_tf
+
+        ind_list = [
+            ("EMAs", "EMAs"), ("S&R", "S&R"), ("Pivots", "Pivots(R1,S1)"),
+            ("VWAP", "VWAP"), ("BB", "BB"), ("Kalman", "Kalman"), ("ST(7,3)", "ST(7,3)")
         ]
-        pills_html = "".join([
-            f"<span style='background:{col if name in active_inds else '#1f2937'}; color:{'#fff' if name in active_inds else '#9ca3af'}; "
-            f"padding:1px 6px; border-radius:3px; font-size:10px; font-weight:bold; margin-left:3px;'>{name}</span>"
-            for name, col in all_badges
-        ])
-        st.markdown(
-            f"<div style='background:#111622; border:1px solid #2b313f; border-radius:6px 6px 0 0; padding:5px 10px; "
-            f"display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;'>"
-            f"<span style='font-weight:bold; font-size:13px; color:#fff; font-family:monospace;'>"
-            f"{disp_sym} <span style='background:#1e293b; color:#38bdf8; padding:1px 6px; border-radius:4px; font-size:11px;'>{tf_short}</span> "
-            f"<span style='color:{c_col};'>₹{ltp_v:,.2f} ({chg_v:+.2f}%)</span> "
-            f"<span style='color:#a855f7; font-size:11px;'>RSI:{rsi_val}</span></span>"
-            f"<div>{pills_html}</div></div>",
-            unsafe_allow_html=True
-        )
-    with hc2:
-        st.markdown("<div class='close-x-marker'></div>", unsafe_allow_html=True)
-        st.button(
-            "✖", key=f"close_x_{fetch_sym}_{key_idx}",
-            help=f"Close {disp_sym} Chart", width="stretch",
-            on_click=_close_pro_chart, args=(fetch_sym, current_grid_syms)
-        )
+        for idx_b, (btn_lbl, ind_key) in enumerate(ind_list):
+            with h_cols[2 + idx_b]:
+                is_on = ind_key in active_inds
+                st.button(
+                    btn_lbl, key=f"ind_btn_{ind_key}_{fetch_sym}_{key_idx}",
+                    type="primary" if is_on else "secondary", width="stretch",
+                    on_click=_toggle_pro_ind, args=(ind_key,)
+                )
+        with h_cols[9]:
+            st.markdown("<div class='close-x-marker'></div>", unsafe_allow_html=True)
+            st.button(
+                "✖", key=f"close_x_{fetch_sym}_{key_idx}",
+                help=f"Close {disp_sym}", width="stretch",
+                on_click=_close_pro_chart, args=(fetch_sym, current_grid_syms)
+            )
+
+    # If user switched chart timeframe to 1D or 1W on the chart header, load historical data automatically!
+    if tf_short in ["1D", "1W"] and timeframe == "Intraday (5m)":
+        h_tf = "Daily Chart" if tf_short == "1D" else "Weekly Chart"
+        h_raw = fetch_historical_charts_data([fetch_sym], h_tf)
+        if not h_raw.empty:
+            df_c = h_raw[fetch_sym] if isinstance(h_raw.columns, pd.MultiIndex) else h_raw
+            df_c = df_c.dropna(subset=['Close']).copy()
 
     if df_c is None or df_c.empty:
         st.info(f"⏳ Loading chart data for {disp_sym}...")
@@ -3317,7 +3375,7 @@ def render_live_ui():
                 )
                 search_stock = st.selectbox("Search Stock", ["-- None --"] + all_names)
                 chart_timeframe = st.radio("Timeframe", ["Intraday (5m)", "Daily Chart", "Weekly Chart"], index=1 if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"] else 0)
-                show_crosshair = st.toggle("⌖ Mini-Chart Crosshair (Price/Time)", value=True)
+                show_crosshair = st.toggle("⌖ Mini-Chart Crosshair (Price/Time)", value=False)
                 show_vol = st.toggle("📊 Mini-Chart Vol Bars", value=False)
 
             side_watchlist_slot = st.container()
@@ -3674,8 +3732,10 @@ def render_live_ui():
                 elif watchlist_mode == "Mutual Funds 📈":
                     st.markdown("<div style='font-size:16px; font-weight:bold; margin-bottom:8px; color:#00BFFF;'>📈 Mutual Funds Screener</div>", unsafe_allow_html=True)
                     mc1, mc2 = st.columns(2)
-                    with mc1: selected_mf_cat = st.selectbox("Filter by Category", ["All Categories"] + list(MUTUAL_FUNDS.keys()))
-                    with mc2: sort_period = st.selectbox("Rank By Performance", ["1Y (%)", "3Y CAGR (%)", "5Y CAGR (%)"], index=2)
+                    with mc1:
+                        selected_mf_cat = st.selectbox("Filter by Category", ["All Categories"] + list(MUTUAL_FUNDS.keys()))
+                    with mc2:
+                        sort_period = st.selectbox("Rank By Performance", ["1Y (%)", "3Y CAGR (%)", "5Y CAGR (%)"], index=2)
                     df_mf_raw = fetch_mf_performance()
                     if not df_mf_raw.empty:
                         df_mf_raw['Sort_Key'] = pd.to_numeric(df_mf_raw[sort_period].replace('N/A', -999))
