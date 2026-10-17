@@ -2842,44 +2842,96 @@ st.markdown("""
         z-index: 100 !important;
     }
 
-    /* 4. Clickable Sort Header Buttons (Symbol | Last | Chg | Chg%) */
+    /* 4. Right 20% Panel Compact Spacing & Single-Line Pro Grid */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .right-panel-marker) {
+        gap: 4px !important;
+    }
+    div[data-testid="stElementContainer"]:has(.right-panel-marker) { display: none !important; }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .right-panel-marker) div[data-testid="stRadio"] {
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        background: #161b22 !important;
+        border: 1px solid #30363d !important;
+        border-radius: 6px !important;
+        padding: 3px 8px !important;
+        margin: 0px !important;
+        min-height: 30px !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .right-panel-marker) div[data-testid="stRadio"] > label {
+        margin-bottom: 0px !important;
+        white-space: nowrap !important;
+        font-size: 11.5px !important;
+        color: #58a6ff !important;
+        font-weight: bold !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .right-panel-marker) div[data-testid="stRadio"] div[role="radiogroup"] {
+        gap: 6px !important;
+        flex-wrap: nowrap !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .right-panel-marker) div[data-testid="stExpander"] summary {
+        padding: 4px 8px !important;
+        min-height: 30px !important;
+    }
+
+    /* 5. TradingView Style Sortable Table Header (Symbol | Last | Chg | Chg%) */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stHorizontalBlock"] {
+        gap: 0px !important;
+        border: 1px solid #30363d !important;
+        background-color: #161b22 !important;
+    }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div.stButton > button {
         background-color: #161b22 !important;
         border: none !important;
-        border-top: 1px solid #30363d !important;
-        border-bottom: 1px solid #30363d !important;
+        border-right: 1px solid #2b313f !important;
         border-radius: 0px !important;
-        height: 26px !important;
-        min-height: 26px !important;
-        padding: 0px 2px !important;
+        height: 25px !important;
+        min-height: 25px !important;
+        padding: 0px 4px !important;
         margin: 0px !important;
+        width: 100% !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div.stButton > button:hover {
+        background-color: #21262d !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div.stButton > button p {
-        font-family: 'Consolas', monospace !important;
-        font-size: 10.5px !important;
-        font-weight: bold !important;
-        color: #58a6ff !important;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace !important;
+        font-size: 11px !important;
+        font-weight: 700 !important;
+        color: #8b949e !important;
         margin: 0px !important;
     }
     div[data-testid="stElementContainer"]:has(.tv-sort-hdr-marker) { display: none !important; }
 
-    /* 5. TradingView Flat Watchlist Rows (No-Wrap Clean Table Layout) */
+    /* 6. TradingView Exact 4-Column Table Rows */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) {
+        gap: 0px !important;
+        border-left: 1px solid #21262d !important;
+        border-right: 1px solid #21262d !important;
+    }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button {
-        background-color: transparent !important;
+        background-color: #0e1117 !important;
         border: none !important;
-        border-bottom: 1px solid #1e232e !important;
+        border-bottom: 1px solid #21262d !important;
         border-radius: 0px !important;
-        height: 28px !important;
-        min-height: 28px !important;
-        padding: 0px 2px !important;
+        height: 27px !important;
+        min-height: 27px !important;
+        padding: 0px !important;
         margin: 0px !important;
         width: 100% !important;
+        display: block !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button:hover {
-        background-color: #1e2636 !important;
+        background-color: #161f30 !important;
     }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button > div,
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button div[data-testid="stMarkdownContainer"] {
         width: 100% !important;
+        max-width: 100% !important;
+        display: block !important;
+        margin: 0px !important;
+        padding: 0px !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p {
         display: grid !important;
@@ -2887,35 +2939,46 @@ st.markdown("""
         align-items: center !important;
         width: 100% !important;
         font-family: 'Consolas', 'Courier New', monospace !important;
-        font-size: 11px !important;
-        font-weight: 600 !important;
+        font-size: 11.5px !important;
         margin: 0px !important;
+        padding: 0px !important;
         white-space: nowrap !important;
     }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p span {
-        white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: clip !important;
-    }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p span:nth-child(1) {
-        text-align: left !important;
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > code {
+        background: transparent !important;
         color: #e6edf3 !important;
-        font-weight: bold !important;
+        font-weight: 700 !important;
+        font-size: 11px !important;
+        text-align: left !important;
+        padding: 0px 4px !important;
+        border-right: 1px solid #21262d !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
     }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p span:nth-child(2) {
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > span {
+        color: #f0f6fc !important;
+        font-weight: 600 !important;
         text-align: right !important;
-        color: #ffd700 !important;
-        font-weight: bold !important;
+        padding: 0px 4px !important;
+        border-right: 1px solid #21262d !important;
     }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p span:nth-child(3),
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p span:nth-child(4) {
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > strong {
+        color: #2ea043 !important;
+        font-weight: 600 !important;
         text-align: right !important;
-        font-weight: bold !important;
+        padding: 0px 4px !important;
     }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) { gap: 0px !important; }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > em {
+        color: #f85149 !important;
+        font-style: normal !important;
+        font-weight: 600 !important;
+        text-align: right !important;
+        padding: 0px 4px !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > *:nth-child(3) {
+        border-right: 1px solid #21262d !important;
+    }
     div[data-testid="stElementContainer"]:has(.tv-wl-marker) { display: none !important; }
-
-    /* Red Close [X] Button Styling */
     div[data-testid="stElementContainer"]:has(.close-x-marker) + div div.stButton > button {
         background-color: #dc2626 !important;
         border: 1px solid #ef4444 !important;
@@ -3545,6 +3608,7 @@ def render_live_ui():
     with col_side_20:
         right_panel_box = st.container(height=720, border=True)
         with right_panel_box:
+            st.markdown("<div class='right-panel-marker'></div>", unsafe_allow_html=True)
             watchlist_mode = st.selectbox("Watchlist / Strategy", [
                 "🤖 AI Predictions (F&O)",
                 "🤖 AI Predictions (Mid Cap)",
@@ -3565,7 +3629,6 @@ def render_live_ui():
             move_type_filter = ["All Day Trading Moves 🚀"]
             fund_filter = "Top Ranked Stocks ⭐"
 
-            # MULTI-STRATEGY TICK SELECTION POPOVER (Checkboxes for multiple strategies!)
             if "AI Predictions" in watchlist_mode:
                 ai_strat_options = [
                     ADAPTIVE_STRAT,
@@ -3631,13 +3694,15 @@ def render_live_ui():
                 fund_filter = st.selectbox("Fundamentals Filter", ["Top Ranked Stocks ⭐", "🦅 Warren Buffett Value Stocks", "Swing Trading Candidates 📈", "Nifty 50 Stocks", "My Portfolio 💼"], index=0, label_visibility="collapsed")
 
             default_view_idx = 0 if watchlist_mode in ["My Portfolio 💼", "F&O + Top 200 Heatmap 🗺️"] else 1
-            view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], index=default_view_idx, horizontal=True, label_visibility="collapsed")
+            view_mode = st.radio("Mode:", ["Heat Map", "Chart 📈"], index=default_view_idx, horizontal=True)
 
+            # 📐 Pro Grid okate line lo:
             grid_opts = ["Off", "1", "2", "4", "6"]
             curr_g_idx = grid_opts.index(st.session_state.grid_layout_mode) if st.session_state.grid_layout_mode in grid_opts else 0
-            sel_grid = st.radio("📐 Pro Grid:", grid_opts, index=curr_g_idx, horizontal=True)
+            sel_grid = st.radio("📐 Grid:", grid_opts, index=curr_g_idx, horizontal=True)
             st.session_state.grid_layout_mode = sel_grid
 
+            # ⚙️ Filters, Sort & Search paiki jaripamu + Crosshair Default OFF (value=False):
             with st.expander("⚙️ Filters, Sort & Search", expanded=False):
                 st.session_state.pause_refresh = st.toggle("⏸️ Pause Refresh", value=st.session_state.pause_refresh)
                 sort_mode = st.selectbox(
@@ -3654,7 +3719,7 @@ def render_live_ui():
                 )
                 search_stock = st.selectbox("Search Stock", ["-- None --"] + all_names)
                 chart_timeframe = st.radio("Timeframe", ["Intraday (5m)", "Daily Chart", "Weekly Chart"], index=1 if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"] else 0)
-                show_crosshair = st.toggle("⌖ Mini-Chart Crosshair (Price/Time)", value=True)
+                show_crosshair = st.toggle("⌖ Mini-Chart Crosshair (Price/Time)", value=False)
                 show_vol = st.toggle("📊 Mini-Chart Vol Bars", value=False)
 
             side_watchlist_slot = st.container()
@@ -3801,57 +3866,64 @@ def render_live_ui():
     # 👉 POPULATE RIGHT 20% WATCHLIST WITH CLICKABLE SORT HEADERS
     # ---------------------------------------------------------
     with side_watchlist_slot:
-        st.markdown("<div class='tv-sort-hdr-marker'></div>", unsafe_allow_html=True)
-        sh1, sh2, sh3, sh4 = st.columns([1.4, 0.95, 0.85, 0.95], gap="small")
-        arr = "▲" if st.session_state.wl_sort_asc else "▼"
-        with sh1:
-            st.button(f"Symbol{arr if st.session_state.wl_sort_col=='Symbol' else ''}", key="s_sym", width="stretch", on_click=_set_wl_sort, args=("Symbol",))
-        with sh2:
-            st.button(f"Last{arr if st.session_state.wl_sort_col=='Last' else ''}", key="s_lst", width="stretch", on_click=_set_wl_sort, args=("Last",))
-        with sh3:
-            st.button(f"Chg{arr if st.session_state.wl_sort_col=='Chg' else ''}", key="s_chg", width="stretch", on_click=_set_wl_sort, args=("Chg",))
-        with sh4:
-            st.button(f"Chg%{arr if st.session_state.wl_sort_col=='Chg%' else ''}", key="s_pct", width="stretch", on_click=_set_wl_sort, args=("Chg%",))
+        with st.expander("📋 Watchlist Table (Click Headers to Sort)", expanded=True):
+            full_tbl = st.checkbox("🔎 Expand Full Table Height", value=False, key="exp_wl_tbl")
+            st.markdown("<div class='tv-sort-hdr-marker'></div>", unsafe_allow_html=True)
+            sh1, sh2, sh3, sh4 = st.columns([0.34, 0.22, 0.22, 0.22], gap="small")
+            arr = "▲" if st.session_state.wl_sort_asc else "▼"
+            with sh1:
+                st.button(f"Symbol{arr if st.session_state.wl_sort_col=='Symbol' else ''}", key="s_sym", width="stretch", on_click=_set_wl_sort, args=("Symbol",))
+            with sh2:
+                st.button(f"Last{arr if st.session_state.wl_sort_col=='Last' else ''}", key="s_lst", width="stretch", on_click=_set_wl_sort, args=("Last",))
+            with sh3:
+                st.button(f"Chg{arr if st.session_state.wl_sort_col=='Chg' else ''}", key="s_chg", width="stretch", on_click=_set_wl_sort, args=("Chg",))
+            with sh4:
+                st.button(f"Chg%{arr if st.session_state.wl_sort_col=='Chg%' else ''}", key="s_pct", width="stretch", on_click=_set_wl_sort, args=("Chg%",))
 
-        with st.container(height=245, border=False):
-            st.markdown("<div class='tv-wl-marker'></div>", unsafe_allow_html=True)
-            wl_rows = []
-            for idx_sym in ["NIFTY", "BANKNIFTY"]:
-                ir = df_indices[df_indices['T'] == idx_sym]
-                if not ir.empty: wl_rows.append(ir.iloc[0])
-            for _, sr in df_stocks_display.head(45).iterrows():
-                wl_rows.append(sr)
+            tbl_h = 430 if full_tbl else 250
+            with st.container(height=tbl_h, border=False):
+                st.markdown("<div class='tv-wl-marker'></div>", unsafe_allow_html=True)
+                wl_rows = []
+                for idx_sym in ["NIFTY", "BANKNIFTY"]:
+                    ir = df_indices[df_indices['T'] == idx_sym]
+                    if not ir.empty: wl_rows.append(ir.iloc[0])
+                for _, sr in df_stocks_display.head(45).iterrows():
+                    wl_rows.append(sr)
 
-            for r_item in wl_rows:
-                s_ft = r_item['Fetch_T']
-                s_name = str(r_item['T'])[:8]
-                s_ltp = float(r_item['P'])
-                s_chg_pct = float(r_item['Day_C'])
-                s_open = float(r_item.get('O', 0))
-                # Chg mariyu Chg% rendu oke base (Intraday Day_C) meeda exact ga match avvadaniki:
-                s_chg_pts = (s_ltp - s_open) if s_open > 0 else (s_ltp * s_chg_pct / 100.0)
-                is_sel = s_ft in st.session_state.pinned_stocks
-                ico = "☑" if is_sel else ("🟢" if s_chg_pct >= 0 else "🔴")
-                col_tag = "green" if s_chg_pct >= 0 else "red"
+                for r_item in wl_rows:
+                    s_ft = r_item['Fetch_T']
+                    s_name = str(r_item['T'])[:8]
+                    s_ltp = float(r_item['P'])
+                    s_chg_pct = float(r_item['Day_C'])
+                    s_open = float(r_item.get('O', 0))
+                    s_chg_pts = (s_ltp - s_open) if s_open > 0 else (s_ltp * s_chg_pct / 100.0)
+                    is_sel = s_ft in st.session_state.pinned_stocks
+                    ico = "☑" if is_sel else ("🟢" if s_chg_pct >= 0 else "🔴")
 
-                p_str = f"{s_ltp:.0f}" if s_ltp >= 10000 else f"{s_ltp:.1f}"
-                c_str = f"{s_chg_pts:+.0f}" if abs(s_chg_pts) >= 100 else f"{s_chg_pts:+.1f}"
+                    p_str = f"{s_ltp:.1f}" if s_ltp < 10000 else f"{s_ltp:.0f}"
+                    c_str = f"{s_chg_pts:+.1f}" if abs(s_chg_pts) < 100 else f"{s_chg_pts:+.0f}"
+                    pct_str = f"{s_chg_pct:+.2f}%"
 
-                row_label = f":blue[{ico}{s_name}] :orange[{p_str}] :{col_tag}[{c_str}] :{col_tag}[{s_chg_pct:+.1f}%]"
-                st.button(
-                    row_label, key=f"tv_wl_{s_ft}", width="stretch",
-                    on_click=_toggle_wl_stock, args=(s_ft, r_item['T'])
-                )
+                    # Positive unte <strong> (Green), Negative unte <em> (Red)
+                    if s_chg_pct >= 0:
+                        row_label = f"`{ico} {s_name}` :orange[{p_str}] **{c_str}** **{pct_str}**"
+                    else:
+                        row_label = f"`{ico} {s_name}` :orange[{p_str}] *{c_str}* *{pct_str}*"
+
+                    st.button(
+                        row_label, key=f"tv_wl_{s_ft}", width="stretch",
+                        on_click=_toggle_wl_stock, args=(s_ft, r_item['T'])
+                    )
 
         insp_sym = st.session_state.inspected_stock
         insp_df = df_live[df_live['T'] == insp_sym]
         insp_row = insp_df.iloc[0] if not insp_df.empty else (df_stocks_display.iloc[0] if not df_stocks_display.empty else None)
 
-        if insp_row is not None:
+        if insp_row is not None and not full_tbl:
             i_p = float(insp_row['P'])
             i_pct = float(insp_row['Day_C'])
-            i_pc = float(insp_row.get('Prev_C', 0))
-            i_pts = (i_p - i_pc) if (i_pc > 0 and abs(i_p - i_pc) > 0.01) else (i_p * i_pct / 100.0)
+            i_open = float(insp_row.get('O', 0))
+            i_pts = (i_p - i_open) if i_open > 0 else (i_p * i_pct / 100.0)
             i_h, i_l = float(insp_row.get('H', i_p)), float(insp_row.get('L', i_p))
             i_vx = float(insp_row.get('VolX', 1.0))
             i_sec = str(insp_row.get('Sector', 'NSE EQUITY'))
@@ -3860,17 +3932,17 @@ def render_live_ui():
             c_hex = "#3fb950" if i_pct >= 0 else "#f85149"
 
             st.markdown(
-                f"<div style='background:#111622; border-top:1px solid #30363d; padding:6px 8px; margin-top:2px; border-radius:6px;'>"
+                f"<div style='background:#111622; border:1px solid #30363d; padding:6px 8px; margin-top:2px; border-radius:6px;'>"
                 f"<div style='display:flex; justify-content:space-between; align-items:center;'>"
                 f"<span style='font-weight:bold; font-size:12.5px; color:#fff;'>🔍 {insp_row['T']}</span>"
                 f"<span style='font-size:9.5px; background:#1e293b; color:#38bdf8; padding:1px 5px; border-radius:4px;'>{i_strat}</span></div>"
-                f"<div style='font-size:17px; font-weight:bold; color:#fff; font-family:monospace; margin-top:2px;'>₹{i_p:,.2f} "
+                f"<div style='font-size:16px; font-weight:bold; color:#fff; font-family:monospace; margin-top:2px;'>₹{i_p:,.2f} "
                 f"<span style='font-size:11.5px; color:{c_hex};'>{i_pts:+.2f} ({i_pct:+.2f}%)</span></div>"
-                f"<div style='display:flex; justify-content:space-between; font-size:9.5px; color:#8b949e; margin-top:4px;'>"
+                f"<div style='display:flex; justify-content:space-between; font-size:9.5px; color:#8b949e; margin-top:3px;'>"
                 f"<span>L: ₹{i_l:.1f}</span><span>Day Range ({i_sec})</span><span>H: ₹{i_h:.1f}</span></div>"
                 f"<div style='width:100%; background:#21262d; height:4px; border-radius:3px; margin-top:2px;'>"
                 f"<div style='width:{pos_pct}%; background:{c_hex}; height:4px; border-radius:3px;'></div></div>"
-                f"<div style='display:flex; justify-content:space-between; font-size:10px; color:#c9d1d9; margin-top:4px;'>"
+                f"<div style='display:flex; justify-content:space-between; font-size:10px; color:#c9d1d9; margin-top:3px;'>"
                 f"<span>RVOL: <b style='color:#00BFFF;'>{i_vx:.1f}x</b></span>"
                 f"<span>VWAP: <b style='color:#ffd700;'>₹{float(insp_row.get('VWAP', i_p)):.1f}</b></span></div>"
                 f"</div>",
