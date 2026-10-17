@@ -2756,7 +2756,7 @@ if not df.empty:
     all_names = sorted(df[(~df['Is_Sector']) & (~df['Is_Index']) & (~df['Is_Commodity'])]['T'].unique().tolist())
 
 # =========================================================
-# --- 7. UI SETTINGS & TRADINGVIEW PRO GRID ENGINE (COMPLETE) ---
+# --- 7. UI SETTINGS & TRADINGVIEW PRO GRID ENGINE (FULL) ---
 # =========================================================
 import streamlit.components.v1 as components
 import calendar
@@ -2778,44 +2778,34 @@ if 'selected_ai_strats' not in st.session_state:
 if 'selected_sw_strats' not in st.session_state:
     st.session_state.selected_sw_strats = ["📈 Minervini Trend Template (VCP)"]
 
-# --- CSS: ZERO 1-INCH SIDE MARGINS + SORTABLE WATCHLIST + PRO GRID ---
+# --- CSS: ZERO SIDE MARGINS (EDGE-TO-EDGE) + CLICKABLE SORT HEADERS + WATCHLIST ---
 st.markdown("""
     <style>
-    /* 1. Eliminate 1-inch Left & Right Margins across all Streamlit containers */
-    header[data-testid="stHeader"] { height: 0.5rem !important; background: transparent !important; }
-    .block-container,
-    div[data-testid="stAppViewBlockContainer"],
-    div[data-testid="stMainBlockContainer"],
-    .main .block-container,
-    section.main > div {
-        padding-top: 0.15rem !important;
-        padding-bottom: 0.15rem !important;
-        padding-left: 0.15rem !important;
-        padding-right: 0.15rem !important;
+    /* 1. Edge-to-Edge Full Width (Removes 1-inch space on Left, Right & Top) */
+    header[data-testid="stHeader"] { height: 0.8rem !important; background: transparent !important; }
+    .block-container {
+        padding-top: 0.2rem !important;
+        padding-bottom: 0.2rem !important;
+        padding-left: 0.3rem !important;
+        padding-right: 0.3rem !important;
         max-width: 100% !important;
-        width: 100% !important;
     }
     .block-container > div > div > div > hr { display: none !important; }
 
-    /* 2. Prevent old Line 148 (.fluid-board) from hiding Left 80% Container */
+    /* 2. Neutralize old Line 148 (.fluid-board) so Left 80% Container is NEVER hidden */
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div:nth-child(1) {
         display: block !important;
     }
 
     /* 3. Safe Mini-Chart Grid using .pro-mini-board */
-    /* Fix overlapping checkboxes inside Select Strategies */
-    div[data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(div[data-testid="stCheckbox"]) {
-        margin-bottom: 0px !important;
-    }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) > div[data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(div[data-testid="stCheckbox"]) {
-        margin-bottom: -45px !important;
-    }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) {
         display: grid !important;
         gap: 8px !important;
         align-items: start !important;
     }
-    div[data-testid="stElementContainer"]:has(.pro-mini-board) { display: none !important; }
+    div[data-testid="stElementContainer"]:has(.pro-mini-board) {
+        display: none !important;
+    }
     @media screen and (min-width: 1600px) {
         div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(6, 1fr) !important; }
     }
@@ -2846,35 +2836,36 @@ st.markdown("""
         z-index: 100 !important;
     }
 
-    /* 4. Clickable Sort Header Buttons (Symbol | Last | Chg | Chg%) */
+    /* 4. Clickable Watchlist Sort Header Bar (Symbol | Last | Chg | Chg%) */
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div.stButton > button {
         background-color: #161b22 !important;
         border: none !important;
         border-top: 1px solid #30363d !important;
         border-bottom: 1px solid #30363d !important;
         border-radius: 0px !important;
-        height: 30px !important;
-        min-height: 30px !important;
-        padding: 0px 4px !important;
+        height: 26px !important;
+        min-height: 26px !important;
+        padding: 0px 2px !important;
+        margin: 0px !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div.stButton > button p {
         font-family: 'Consolas', monospace !important;
-        font-size: 12px !important;
+        font-size: 10.5px !important;
         font-weight: bold !important;
         color: #58a6ff !important;
         margin: 0px !important;
     }
     div[data-testid="stElementContainer"]:has(.tv-sort-hdr-marker) { display: none !important; }
 
-    /* 5. TradingView Flat Watchlist Rows (Bigger Font & Bright Colors) */
+    /* 5. TradingView Flat Watchlist Rows */
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button {
         background-color: transparent !important;
         border: none !important;
-        border-bottom: 1px solid #21262d !important;
+        border-bottom: 1px solid #1e232e !important;
         border-radius: 0px !important;
-        height: 32px !important;
-        min-height: 32px !important;
-        padding: 0px 4px !important;
+        height: 27px !important;
+        min-height: 27px !important;
+        padding: 0px 2px !important;
         margin: 0px !important;
         width: 100% !important;
         display: flex !important;
@@ -2882,34 +2873,25 @@ st.markdown("""
         align-items: center !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button:hover {
-        background-color: #1f2937 !important;
+        background-color: #1e2636 !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p {
         font-family: 'Consolas', 'Courier New', monospace !important;
-        font-size: 12.5px !important;
-        font-weight: bold !important;
-        color: #ffffff !important;
+        font-size: 10.5px !important;
         white-space: pre !important;
         text-align: left !important;
         margin: 0px !important;
         width: 100% !important;
-        letter-spacing: -0.3px !important;
+        letter-spacing: -0.4px !important;
     }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) { gap: 0px !important; }
-    div[data-testid="stElementContainer"]:has(.tv-wl-marker) { display: none !important; }
-
-    /* Red Close [X] Button Styling */
-    div[data-testid="stElementContainer"]:has(.close-x-marker) + div div.stButton > button {
-        background-color: #dc2626 !important;
-        border: 1px solid #ef4444 !important;
-        color: #ffffff !important;
-        height: 28px !important;
-        min-height: 28px !important;
-        padding: 0px !important;
-        font-weight: bold !important;
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) {
+        gap: 0px !important;
     }
-    div[data-testid="stElementContainer"]:has(.close-x-marker) { display: none !important; }
+    div[data-testid="stElementContainer"]:has(.tv-wl-marker) {
+        display: none !important;
+    }
 
+    /* Mobile Protection */
     @media screen and (max-width: 768px) {
         div[data-testid="stHorizontalBlock"] { flex-direction: column-reverse !important; }
         div[data-testid="stColumn"] { width: 100% !important; flex: 1 1 100% !important; }
@@ -2918,8 +2900,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# --- IST TIMEZONE CONVERTER FOR 5-MIN CHARTS (FIXES UTC 03:45 -> IST 09:15) ---
-def _fix_ist_df(df_in):
+# --- IST TIMEZONE FIX FOR 5-MIN CHARTS ---
+def _ sanitize_5m_ist(df_in):
+    """Ensures 5-min candle timestamps are converted from UTC to Indian Standard Time (09:15 - 15:30 IST)."""
     if df_in is None or df_in.empty:
         return pd.DataFrame()
     d = df_in.copy()
@@ -2927,13 +2910,14 @@ def _fix_ist_df(df_in):
     if d.index.tz is not None:
         d.index = d.index.tz_convert('Asia/Kolkata').tz_localize(None)
     else:
-        # Cached yfinance 5m data stripped UTC without adding +5:30 (starts at 03:45 instead of 09:15)
-        if len(d.index) > 0 and (3 <= d.index.hour.min() <= 4) and (d.index.hour.max() <= 11):
+        # If cache stripped UTC without converting to IST, NSE candles start at 03:45 instead of 09:15
+        min_hr = d.index.hour.min()
+        if 3 <= min_hr <= 4:
             d.index = d.index + pd.Timedelta(hours=5, minutes=30)
     return d[~d.index.duplicated(keep='last')].sort_index()
 
 
-# --- CALLBACK HELPERS ---
+# --- CALLBACK HELPERS FOR INSTANT CLICK RESPONSE ---
 def _toggle_wl_stock(s_ft, s_disp):
     st.session_state.inspected_stock = s_disp
     if s_ft in st.session_state.pinned_stocks:
@@ -2950,6 +2934,8 @@ def _toggle_wl_stock(s_ft, s_disp):
 
 
 def _close_pro_chart(s_ft, current_grid_syms):
+    """Closes a specific chart when clicking the red [X] button in Pro Grid."""
+    # Ensure pinned_stocks holds the active grid stocks first so removing works even on auto-filled charts
     active_list = list(st.session_state.pinned_stocks) if st.session_state.pinned_stocks else list(current_grid_syms)
     if s_ft in active_list:
         active_list.remove(s_ft)
@@ -2986,7 +2972,7 @@ def _set_wl_sort(col_name):
         st.session_state.wl_sort_asc = True if col_name == "Symbol" else False
 
 
-# --- MINI-CHART GRID & SINGLE CHART (WITH TICK ON ALL INDICES & IST TIME) ---
+# --- OVERRIDE render_chart_grid SO IT NEVER USES .fluid-board ---
 def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Intraday (5m)", chart_dict=None, show_crosshair=False, show_vol=False, is_sector=False):
     if df_grid is None or df_grid.empty:
         return
@@ -2998,7 +2984,7 @@ def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Intraday 
             with st.container():
                 render_chart(
                     row, chart_dict.get(row['Fetch_T'], pd.DataFrame()),
-                    show_pin=True,  # Tick enabled on ALL Indices, Sectors & Stocks!
+                    show_pin=True,  # Enabled Tick on ALL charts including Indices & Sectors!
                     key_suffix=key_prefix,
                     timeframe=timeframe, show_crosshair=show_crosshair, show_vol=show_vol
                 )
@@ -3008,6 +2994,7 @@ def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Intraday 
                         st.session_state.active_sec = None if st.session_state.active_sec == row['T'] else row['T']
 
 
+# --- MINI-CHART RENDERER WITH TICK ON ALL INDICES & IST TIMINGS ---
 def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intraday (5m)", show_crosshair=False, show_vol=False):
     display_sym = row['T']
     fetch_sym = row['Fetch_T']
@@ -3016,6 +3003,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
     sign = "+" if pct_val > 0 else ""
     tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
 
+    # Tick Checkbox enabled for ALL stocks, Indices (NIFTY, BANKNIFTY, DAX, etc.) & Commodities
     if show_pin:
         cb_key = f"cb_{fetch_sym}_{key_suffix}" if key_suffix else f"cb_{fetch_sym}"
         is_pinned = fetch_sym in st.session_state.pinned_stocks
@@ -3042,14 +3030,14 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
 
     try:
         if not df_chart.empty and 'Low' in df_chart.columns and 'High' in df_chart.columns:
-            df_chart = _fix_ist_df(df_chart) if timeframe == "Intraday (5m)" else df_chart.copy()
+            df_chart = _sanitize_5m_ist(df_chart) if timeframe == "Intraday (5m)" else df_chart.copy()
             if timeframe == "Intraday (5m)":
                 df_chart = df_chart.tail(75)
             min_val, max_val = df_chart['Low'].min(), df_chart['High'].max()
             y_padding = (max_val - min_val) * 0.15 if (max_val - min_val) != 0 else min_val * 0.005
 
             chart_times = pd.to_datetime(df_chart.index)
-            x_labels = chart_times.strftime('%I:%M %p') if timeframe == "Intraday (5m)" else chart_times.strftime('%d-%b')
+            x_labels = chart_times.strftime('%H:%M') if timeframe == "Intraday (5m)" else chart_times.strftime('%d-%b')
             x_idx = list(range(len(df_chart)))
 
             hover_data = (
@@ -3162,7 +3150,8 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     if current_grid_syms is None:
         current_grid_syms = []
 
-    hc1, hc2 = st.columns([11.0, 1.0], gap="small")
+    # Top Header Row with Stock Name & Red Close [✖] Button
+    hc1, hc2 = st.columns([10.5, 1.2], gap="small")
     with hc1:
         ltp_v = float(row_data.get('P', 0))
         chg_v = float(row_data.get('Day_C', 0))
@@ -3177,7 +3166,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             unsafe_allow_html=True
         )
     with hc2:
-        st.markdown("<div class='close-x-marker'></div>", unsafe_allow_html=True)
         st.button(
             "✖", key=f"close_x_{fetch_sym}_{key_idx}",
             help=f"Close {disp_sym} Chart", width="stretch",
@@ -3188,7 +3176,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         st.info(f"⏳ Loading chart data for {disp_sym}...")
         return
 
-    df_p = _fix_ist_df(df_c) if timeframe == "Intraday (5m)" else df_c.dropna(subset=['Open', 'High', 'Low', 'Close']).copy()
+    df_p = _sanitize_5m_ist(df_c) if timeframe == "Intraday (5m)" else df_c.dropna(subset=['Open', 'High', 'Low', 'Close']).copy()
     df_p = df_p.tail(110).copy()
     if df_p.empty:
         st.info(f"No valid candles for {disp_sym}")
@@ -3218,7 +3206,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     candles_js, vol_js, vwap_js, ema10_js, ema20_js, kal_js, st_js, bb_u_js, bb_d_js = [], [], [], [], [], [], [], [], []
     seen_ts = set()
     for dt_idx, r in df_p.iterrows():
-        # calendar.timegm maps naive IST datetime directly to UTC epoch so LightweightCharts displays exact IST (09:15 - 15:30)!
+        # calendar.timegm treats naive IST datetime directly as UTC seconds so LightweightCharts renders exact IST (09:15 - 15:30)!
         ts = int(calendar.timegm(pd.Timestamp(dt_idx).timetuple()))
         if ts in seen_ts:
             continue
@@ -3273,7 +3261,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     </head>
     <body>
         <div class="hdr-bar">
-            <span style="color:#a855f7; font-weight:bold;">RSI(14): {rsi_val} &nbsp;|&nbsp; IST Timings</span>
+            <span style="color:#a855f7; font-weight:bold;">RSI(14): {rsi_val} &nbsp;|&nbsp; IST (5m)</span>
             <div class="ind-bar">
                 <span id="btn_ema" class="ibtn {'active-ema' if 'EMAs' in active_inds else ''}" onclick="toggleInd('ema')">EMAs</span>
                 <span id="btn_sr" class="ibtn {'active-sr' if 'S&R' in active_inds else ''}" onclick="toggleInd('sr')">S&R</span>
@@ -3306,12 +3294,9 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             const d = new Date(ts * 1000);
             const dd = String(d.getUTCDate()).padStart(2, '0');
             const mm = months[d.getUTCMonth()];
-            let hh = d.getUTCHours();
-            const ampm = hh >= 12 ? 'PM' : 'AM';
-            hh = hh % 12;
-            if (hh === 0) hh = 12;
+            const hh = String(d.getUTCHours()).padStart(2, '0');
             const mn = String(d.getUTCMinutes()).padStart(2, '0');
-            return `${{dd}} ${{mm}} ${{hh}}:${{mn}} ${{ampm}}`;
+            return `${{dd}} ${{mm}} ${{hh}}:${{mn}} IST`;
         }}
 
         const chart = LightweightCharts.createChart(container, {{
@@ -3326,17 +3311,9 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             rightPriceScale: {{ borderColor: '#cbd5e1', scaleMargins: {{ top: 0.08, bottom: 0.22 }} }},
             timeScale: {{
                 borderColor: '#cbd5e1', timeVisible: true, secondsVisible: false,
-                rightOffset: 4, barSpacing: 7,
-                tickMarkFormatter: (time) => {{
-                    const d = new Date(time * 1000);
-                    let hh = d.getUTCHours();
-                    const ampm = hh >= 12 ? 'PM' : 'AM';
-                    hh = hh % 12;
-                    if (hh === 0) hh = 12;
-                    const mn = String(d.getUTCMinutes()).padStart(2, '0');
-                    return `${{hh}}:${{mn}} ${{ampm}}`;
-                }}
+                rightOffset: 4, barSpacing: 7
             }}
+        }});
 
         const candleSeries = chart.addCandlestickSeries({{
             upColor: '#15803d', downColor: '#b91c1c',
@@ -3489,7 +3466,7 @@ def _fast_5m_and_sniper_cache(tickers_tuple):
     if "^NSEI" in fetched_5m:
         try:
             n_raw = five_min_data["^NSEI"] if isinstance(five_min_data.columns, pd.MultiIndex) else five_min_data
-            n_day = _fix_ist_df(process_5m_data(n_raw))
+            n_day = _sanitize_5m_ist(process_5m_data(n_raw))
             if not n_day.empty and len(n_day) >= 2:
                 n_day_ret = (float(n_day['Close'].iloc[-1]) / float(n_day['Open'].iloc[0]) - 1.0) * 100.0
                 lb_idx = max(0, len(n_day) - 7)
@@ -3506,7 +3483,7 @@ def _fast_5m_and_sniper_cache(tickers_tuple):
     for sym in tickers_tuple:
         try:
             df_raw = five_min_data[sym] if isinstance(five_min_data.columns, pd.MultiIndex) else five_min_data
-            processed_charts[sym] = _fix_ist_df(process_5m_data(df_raw))
+            processed_charts[sym] = _sanitize_5m_ist(process_5m_data(df_raw))
         except Exception:
             processed_charts[sym] = pd.DataFrame()
 
@@ -3518,14 +3495,14 @@ _effective_refresh = 30
 
 @st.fragment(run_every=f"{_effective_refresh}s")
 def render_live_ui():
-    # 80% LEFT & 20% RIGHT COLUMNS AT VERY TOP (Market Closed inside 80%, AI Predictions at very top of 20%!)
-    col_main_80, col_side_20 = st.columns([4.02, 1.22], gap="small")
+    # 80% LEFT & 20% RIGHT COLUMNS AT VERY TOP (Market Closed bar inside 80%, AI Predictions at very top of 20%!)
+    col_main_80, col_side_20 = st.columns([4.0, 1.22], gap="small")
 
     # ---------------------------------------------------------
     # 👉 RIGHT 20% PANEL: MOVED ALL THE WAY TO THE TOP
     # ---------------------------------------------------------
     with col_side_20:
-        right_panel_box = st.container(height=720, border=True)
+        right_panel_box = st.container(height=715, border=True)
         with right_panel_box:
             watchlist_mode = st.selectbox("Watchlist / Strategy", [
                 "🤖 AI Predictions (F&O)",
@@ -3561,7 +3538,7 @@ def render_live_ui():
                     "💥 PDH / PDL Breakout",
                     "All Moves"
                 ]
-                with st.popover(f"🎯 Select Strategies ({len(st.session_state.selected_ai_strats)} Ticked)", use_container_width=True):
+                with st.popover(f"🎯 Strategies ({len(st.session_state.selected_ai_strats)} Ticked)", use_container_width=True):
                     st.caption("Tick multiple strategies below:")
                     new_sel_ai = []
                     for s_opt in ai_strat_options:
@@ -3757,6 +3734,7 @@ def render_live_ui():
         df_filtered = df_filtered[vcp_c].copy()
         df_filtered['Strategy_Icon'] = "🟢 M-VCP"
 
+    # Compute Point Change column for sorting
     if not df_filtered.empty:
         df_filtered = df_filtered.copy()
         df_filtered['Chg_Pts'] = np.where(
@@ -3764,6 +3742,9 @@ def render_live_ui():
             df_filtered['P'] - df_filtered['Prev_C'],
             df_filtered['P'] * df_filtered['Day_C'] / 100.0
         )
+
+    # Apply Watchlist Header Click Sort OR Filter Sort
+    if not df_filtered.empty:
         scol = st.session_state.wl_sort_col
         sasc = st.session_state.wl_sort_asc
         if scol == "Symbol":
@@ -3784,18 +3765,18 @@ def render_live_ui():
     # ---------------------------------------------------------
     with side_watchlist_slot:
         st.markdown("<div class='tv-sort-hdr-marker'></div>", unsafe_allow_html=True)
-        sh1, sh2, sh3, sh4 = st.columns([1.4, 0.95, 0.85, 0.95], gap="small")
+        sh1, sh2, sh3, sh4 = st.columns([1.45, 0.95, 0.85, 0.95], gap="small")
         arr = "▲" if st.session_state.wl_sort_asc else "▼"
         with sh1:
-            st.button(f"Symbol{arr if st.session_state.wl_sort_col=='Symbol' else ''}", key="s_sym", width="stretch", on_click=_set_wl_sort, args=("Symbol",))
+            st.button(f"Symbol {arr if st.session_state.wl_sort_col=='Symbol' else ''}", key="sort_btn_sym", width="stretch", on_click=_set_wl_sort, args=("Symbol",))
         with sh2:
-            st.button(f"Last{arr if st.session_state.wl_sort_col=='Last' else ''}", key="s_lst", width="stretch", on_click=_set_wl_sort, args=("Last",))
+            st.button(f"Last {arr if st.session_state.wl_sort_col=='Last' else ''}", key="sort_btn_last", width="stretch", on_click=_set_wl_sort, args=("Last",))
         with sh3:
-            st.button(f"Chg{arr if st.session_state.wl_sort_col=='Chg' else ''}", key="s_chg", width="stretch", on_click=_set_wl_sort, args=("Chg",))
+            st.button(f"Chg {arr if st.session_state.wl_sort_col=='Chg' else ''}", key="sort_btn_chg", width="stretch", on_click=_set_wl_sort, args=("Chg",))
         with sh4:
-            st.button(f"Chg%{arr if st.session_state.wl_sort_col=='Chg%' else ''}", key="s_pct", width="stretch", on_click=_set_wl_sort, args=("Chg%",))
+            st.button(f"Chg% {arr if st.session_state.wl_sort_col=='Chg%' else ''}", key="sort_btn_pct", width="stretch", on_click=_set_wl_sort, args=("Chg%",))
 
-        with st.container(height=310, border=False):
+        with st.container(height=305, border=False):
             st.markdown("<div class='tv-wl-marker'></div>", unsafe_allow_html=True)
             wl_rows = []
             for idx_sym in ["NIFTY", "BANKNIFTY"]:
@@ -3821,6 +3802,7 @@ def render_live_ui():
                     on_click=_toggle_wl_stock, args=(s_ft, r_item['T'])
                 )
 
+        # Bottom Stock Inspector Card
         insp_sym = st.session_state.inspected_stock
         insp_df = df_live[df_live['T'] == insp_sym]
         insp_row = insp_df.iloc[0] if not insp_df.empty else (df_stocks_display.iloc[0] if not df_stocks_display.empty else None)
@@ -3859,6 +3841,7 @@ def render_live_ui():
     # 👉 LEFT 80% COLUMN: MARKET STATUS BAR + SCROLLABLE CHARTS
     # ---------------------------------------------------------
     with col_main_80:
+        # MARKET CLOSED / LIVE STATUS BAR STRICTLY INSIDE 80% COLUMN
         _now_str_top = now_ist().strftime('%d-%b %I:%M:%S %p')
         _run_ts = int(time.time() * 1000)
         _mkt_dir_text, _mkt_dir_bg, _mkt_dir_border = "NEUTRAL ⚖️", "#30363d", "#8b949e"
@@ -3920,7 +3903,7 @@ def render_live_ui():
             height=0,
         )
 
-        left_main_box = st.container(height=670, border=False)
+        left_main_box = st.container(height=665, border=False)
         with left_main_box:
             weekly_charts, daily_charts = {}, {}
             if chart_timeframe in ["Weekly Chart", "Daily Chart"]:
@@ -3993,66 +3976,22 @@ def render_live_ui():
             # =========================================================
             else:
                 if watchlist_mode == "Fundamentals 🏢":
-                    st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-bottom:8px; color:#d29922;'>🏢 Core Fundamentals ({fund_filter})</div>", unsafe_allow_html=True)
                     fund_tickers = df_stocks_display['Fetch_T'].tolist()[:50] if not df_stocks_display.empty else [f"{s}.NS" for s in NIFTY_50[:50]]
                     df_fund = fetch_fundamentals_data(fund_tickers)
                     if not df_fund.empty:
-                        if fund_filter == "🦅 Warren Buffett Value Stocks":
-                            df_fund = df_fund[(df_fund['ROE %'] > 15) & (df_fund['Debt/Equity'] < 0.5) & (df_fund['P/E Ratio'] > 0) & (df_fund['P/E Ratio'] < 25)]
                         st.dataframe(df_fund, use_container_width=True, hide_index=True)
 
                 elif watchlist_mode == "Mutual Funds 📈":
-                    st.markdown("<div style='font-size:16px; font-weight:bold; margin-bottom:8px; color:#00BFFF;'>📈 Mutual Funds Screener (Live Morningstar Data)</div>", unsafe_allow_html=True)
-                    mc1, mc2 = st.columns(2)
-                    with mc1:
-                        selected_mf_cat = st.selectbox("Filter by Category", ["All Categories"] + list(MUTUAL_FUNDS.keys()))
-                    with mc2:
-                        sort_period = st.selectbox("Rank By Performance", ["1Y (%)", "3Y CAGR (%)", "5Y CAGR (%)"], index=2)
                     df_mf_raw = fetch_mf_performance()
                     if not df_mf_raw.empty:
-                        df_mf_raw['Sort_Key'] = pd.to_numeric(df_mf_raw[sort_period].replace('N/A', -999))
-                        df_mf_raw = df_mf_raw.sort_values(by='Sort_Key', ascending=False)
-                        df_mf_data = df_mf_raw[df_mf_raw['Category'] == selected_mf_cat] if selected_mf_cat != "All Categories" else df_mf_raw
-                        df_mf_data = df_mf_data.drop(columns=['Sort_Key'], errors='ignore')
-                        st.markdown(render_mf_table(df_mf_data), unsafe_allow_html=True)
-
-                elif watchlist_mode == "Month Effect Advantage 📅":
-                    st.markdown("<div style='font-size:16px; font-weight:bold; margin-bottom:8px; color:#00BFFF;'>📅 Month Effect Advantage (First 10 Days vs Rest)</div>", unsafe_allow_html=True)
-                    scan_list = st.radio("Select Universe to Scan:", ["Top 200 (Nifty + Midcap)", "NIFTY 50 Only", "Custom Stock"], horizontal=True)
-                    tkr_list = [f"{s}.NS" for s in (NIFTY_50 if scan_list == "NIFTY 50 Only" else (NIFTY_50 + MIDCAP_150))]
-                    if st.button("🚀 Run 5-Year Month Effect Analysis", width="stretch"):
-                        end_dt = datetime.now()
-                        start_dt = end_dt - pd.DateOffset(years=5)
-                        m_data = yf.download(tkr_list, start=start_dt, end=end_dt, progress=False, group_by='ticker', threads=10)
-                        me_res = []
-                        for tkr in tkr_list:
-                            try:
-                                df_t = m_data[tkr].dropna(subset=['Close']).copy()
-                                if df_t.empty: continue
-                                df_t['Year'], df_t['Month'], df_t['Day'] = df_t.index.year, df_t.index.month, df_t.index.day
-                                f10_rets, rest_rets, wins, tot_m = [], [], 0, 0
-                                for _, grp in df_t.groupby(['Year', 'Month']):
-                                    if len(grp) < 5: continue
-                                    f10, rst = grp[grp['Day'] <= 10], grp[grp['Day'] > 10]
-                                    if not f10.empty and not rst.empty:
-                                        r1 = (f10['Close'].iloc[-1] - f10['Open'].iloc[0]) / f10['Open'].iloc[0] * 100
-                                        r2 = (rst['Close'].iloc[-1] - rst['Open'].iloc[0]) / rst['Open'].iloc[0] * 100
-                                        f10_rets.append(r1); rest_rets.append(r2)
-                                        if r1 > 0: wins += 1
-                                        tot_m += 1
-                                if tot_m > 0:
-                                    me_res.append({"Stock": tkr.replace(".NS", ""), "Win Rate (1st 10d) %": round(wins / tot_m * 100, 1), "Avg 1st-10th Return %": round(sum(f10_rets) / len(f10_rets), 2), "Avg Rest Return %": round(sum(rest_rets) / len(rest_rets), 2), "Months": tot_m})
-                            except Exception:
-                                pass
-                        if me_res:
-                            st.dataframe(pd.DataFrame(me_res).sort_values(by="Win Rate (1st 10d) %", ascending=False), use_container_width=True, hide_index=True)
+                        st.markdown(render_mf_table(df_mf_raw), unsafe_allow_html=True)
 
                 elif watchlist_mode == "Terminal Tables 🗃️":
                     st.markdown(render_highscore_terminal_table(df_stocks_display), unsafe_allow_html=True)
                     st.markdown(render_levels_table(df_stocks_display), unsafe_allow_html=True)
 
                 elif watchlist_mode == "My Portfolio 💼" and view_mode == "Heat Map":
-                    # ALWAYS SHOW PORTFOLIO KPI, TABLE, ADD, EDIT, SELL & TRADEBOOK (Both in Heat Map & Chart mode!)
+                    # 1. Portfolio KPI Metrics Strip
                     try:
                         if not df_port_saved.empty:
                             _lu = df_all_stocks.drop_duplicates(subset=['T']).set_index('T')[['P', 'Prev_C']].to_dict('index')
@@ -4082,9 +4021,11 @@ def render_live_ui():
                     except Exception:
                         pass
 
+                    # 2. Portfolio Allocation Expander
                     with st.expander("📊 Portfolio Allocation (Sector • Market-cap • Stock weights)", expanded=False):
                         render_portfolio_allocation(df_port_saved, df_all_stocks)
 
+                    # 3. Date Filter & Portfolio Sort
                     _avail_dates = ["All Dates"] + sorted(list(set(df_port_saved['Date'].dropna().astype(str).tolist()))) if not df_port_saved.empty and 'Date' in df_port_saved.columns else ["All Dates"]
                     sc1, sc2, sc3 = st.columns([0.4, 0.3, 0.3])
                     with sc2:
@@ -4095,9 +4036,11 @@ def render_live_ui():
                     df_port_view = df_port_saved[df_port_saved['Date'].astype(str) == port_date_filter].copy() if (port_date_filter != "All Dates" and not df_port_saved.empty) else df_port_saved.copy()
                     st.markdown(render_portfolio_table(df_port_view, df_all_stocks, weekly_trends, port_sort), unsafe_allow_html=True)
 
+                    # 4. Swing Advisor
                     with st.expander("🤖 View Portfolio Swing Advisor (Action & Levels)", expanded=False):
                         st.markdown(render_portfolio_swing_advice_table(df_port_saved, df_all_stocks, weekly_trends), unsafe_allow_html=True)
 
+                    # 5. Add Stock Form
                     with st.expander("➕ Search & Add Stock to Portfolio", expanded=False):
                         with st.form("portfolio_add_form", clear_on_submit=True):
                             c1, c2, c3, c4 = st.columns(4)
@@ -4140,6 +4083,7 @@ def render_live_ui():
                                 load_portfolio.clear()
                                 st.rerun()
 
+                    # 6. Edit Holdings & Sell Stock & TradeBook
                     if not df_port_saved.empty:
                         with st.expander("✏️ Edit Existing Holdings (Targets, Qty, Price)", expanded=False):
                             edited_df = st.data_editor(
@@ -4196,18 +4140,7 @@ def render_live_ui():
                                     save_closed_trades(edited_closed_df)
                                     st.rerun()
 
-                    
-
                 elif view_mode == "Heat Map":
-                    if not df_indices.empty and watchlist_mode != "Commodity 🛢️":
-                        html_idx = '<div class="heatmap-grid">'
-                        for _, row in df_indices.iterrows():
-                            pct_val = float(row.get('W_C', row['Day_C'])) if chart_timeframe == "Weekly Chart" else float(row['Day_C'])
-                            bg = "bear-card" if (row['T'] == "INDIA VIX" and pct_val > 0) else ("bull-card" if pct_val > 0 else "neut-card")
-                            if row['T'] != "INDIA VIX" and pct_val < 0: bg = "bear-card"
-                            html_idx += f'<a href="https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(row["Fetch_T"])}" target="_blank" class="stock-card {bg}"><div class="t-score">IDX</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{pct_val:+.2f}%</div></a>'
-                        st.markdown(html_idx + '</div><hr class="custom-hr">', unsafe_allow_html=True)
-
                     if not df_stocks_display.empty:
                         df_buy = df_stocks_display[df_stocks_display[sort_key] >= 0]
                         df_sell = df_stocks_display[df_stocks_display[sort_key] < 0]
@@ -4220,24 +4153,18 @@ def render_live_ui():
                                     bg = card_bg_class(pct_val)
                                     html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">⭐{int(row["S"])}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{pct_val:+.2f}%</div></a>'
                                 st.markdown(html_stk + '</div>', unsafe_allow_html=True)
-
                 else:
                     if search_stock != "-- None --" and not df_live[df_live['T'] == search_stock].empty:
                         render_chart_grid(pd.DataFrame([df_live[df_live['T'] == search_stock].iloc[0]]), True, "search", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
                         st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
 
                     if watchlist_mode not in ["My Portfolio 💼", "Commodity 🛢️"]:
-                        with st.expander("🌍 Global & Main Indices (Click to Expand / Minimize)", expanded=True):
-                            render_chart_grid(df_indices, True, "idx", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
-                            show_sec_charts = st.toggle("📊 Show Sectoral Indices Charts", value=False)
-                            if show_sec_charts and not df_sectors.empty:
-                                render_chart_grid(df_sectors, True, "sec", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol, is_sector=True)
-                                if st.session_state.get('active_sec'):
-                                    st.markdown(f"<div style='font-size:15px; font-weight:bold; margin:8px 0 4px 0; color:#ffd700;'>🌟 Top 6 Active Movers in {st.session_state.active_sec}</div>", unsafe_allow_html=True)
-                                    sec_stock_names = TOP_SECTOR_STOCKS.get(st.session_state.active_sec, [])
-                                    sec_df = df_stocks[df_stocks['T'].isin(sec_stock_names)].copy()
-                                    if not sec_df.empty:
-                                        render_chart_grid(sec_df.head(6), True, "sec_top6", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
+                        st.markdown("<div style='font-size:15px; font-weight:bold; margin-bottom:4px; color:#00BFFF;'>🌍 Global & Main Indices (Tick to Open in Pro Grid)</div>", unsafe_allow_html=True)
+                        render_chart_grid(df_indices, True, "idx", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
+                        show_sec_charts = st.toggle("📊 Show Sectoral Indices Charts", value=False)
+                        if show_sec_charts and not df_sectors.empty:
+                            render_chart_grid(df_sectors, True, "sec", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol, is_sector=True)
+                        st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
 
                     if not df_stocks_display.empty:
                         if "AI Predictions" in watchlist_mode or watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆", "Day Trading Stocks 🚀"]:
