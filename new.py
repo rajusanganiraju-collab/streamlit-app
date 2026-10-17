@@ -2863,15 +2863,15 @@ st.markdown("""
     }
     div[data-testid="stElementContainer"]:has(.tv-sort-hdr-marker) { display: none !important; }
 
-    /* 5. TradingView Flat Watchlist Rows (Aligned 4-Column Table Layout) */
+    /* 5. TradingView Flat Watchlist Rows (No-Wrap Clean Table Layout) */
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button {
         background-color: transparent !important;
         border: none !important;
-        border-bottom: 1px solid #21262d !important;
+        border-bottom: 1px solid #1e232e !important;
         border-radius: 0px !important;
-        height: 30px !important;
-        min-height: 30px !important;
-        padding: 0px 4px !important;
+        height: 28px !important;
+        min-height: 28px !important;
+        padding: 0px 2px !important;
         margin: 0px !important;
         width: 100% !important;
     }
@@ -2883,20 +2883,24 @@ st.markdown("""
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p {
         display: grid !important;
-        grid-template-columns: 1.4fr 0.95fr 0.85fr 0.95fr !important;
+        grid-template-columns: 34% 22% 22% 22% !important;
         align-items: center !important;
         width: 100% !important;
         font-family: 'Consolas', 'Courier New', monospace !important;
-        font-size: 12px !important;
+        font-size: 11px !important;
         font-weight: 600 !important;
         margin: 0px !important;
+        white-space: nowrap !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p span {
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: clip !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p span:nth-child(1) {
         text-align: left !important;
         color: #e6edf3 !important;
         font-weight: bold !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p span:nth-child(2) {
         text-align: right !important;
@@ -3360,6 +3364,8 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         const volSeries = chart.addHistogramSeries({{
             priceFormat: {{ type: 'volume' }},
             priceScaleId: '',
+            lastValueVisible: false,
+            priceLineVisible: false,
             scaleMargins: {{ top: 0.80, bottom: 0 }}
         }});
         volSeries.setData(vData);
@@ -3433,9 +3439,9 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             const pct = ((bar.close - bar.open) / bar.open * 100).toFixed(2);
             const col = bar.close >= bar.open ? '#16a34a' : '#dc2626';
             const v = volLookup[bar.time] || 0;
-            const vStr = v >= 1000000 ? (v/1000000).toFixed(2)+'M' : (v/1000).toFixed(1)+'K';
+            const vStr = v > 0 ? (v >= 1000000 ? '&nbsp;Vol <b>'+(v/1000000).toFixed(2)+'M</b>' : '&nbsp;Vol <b>'+(v/1000).toFixed(1)+'K</b>') : '';
             const tStr = fmtIST(bar.time);
-            ohlcBox.innerHTML = `🕒 <b>${{tStr}}</b> &nbsp; O<b>${{bar.open}}</b> H<b>${{bar.high}}</b> L<b>${{bar.low}}</b> C<b>${{bar.close}}</b> <span style="color:${{col}};font-weight:bold;">${{chg>=0?'+'+chg:chg}} (${{pct>=0?'+'+pct:pct}}%)</span> &nbsp;Vol <b>${{vStr}}</b>`;
+            ohlcBox.innerHTML = `🕒 <b>${{tStr}}</b> &nbsp; O<b>${{bar.open}}</b> H<b>${{bar.high}}</b> L<b>${{bar.low}}</b> C<b>${{bar.close}}</b> <span style="color:${{col}};font-weight:bold;">${{chg>=0?'+'+chg:chg}} (${{pct>=0?'+'+pct:pct}}%)</span> ${{vStr}}`;
         }}
         if (cData.length > 0) updateLegend(cData[cData.length - 1]);
         chart.subscribeCrosshairMove(param => {{
@@ -3807,7 +3813,7 @@ def render_live_ui():
         with sh4:
             st.button(f"Chg%{arr if st.session_state.wl_sort_col=='Chg%' else ''}", key="s_pct", width="stretch", on_click=_set_wl_sort, args=("Chg%",))
 
-        with st.container(height=310, border=False):
+        with st.container(height=245, border=False):
             st.markdown("<div class='tv-wl-marker'></div>", unsafe_allow_html=True)
             wl_rows = []
             for idx_sym in ["NIFTY", "BANKNIFTY"]:
@@ -3821,13 +3827,17 @@ def render_live_ui():
                 s_name = str(r_item['T'])[:8]
                 s_ltp = float(r_item['P'])
                 s_chg_pct = float(r_item['Day_C'])
-                s_prev = float(r_item.get('Prev_C', 0))
-                s_chg_pts = (s_ltp - s_prev) if (s_prev > 0 and abs(s_ltp - s_prev) > 0.01) else (s_ltp * s_chg_pct / 100.0)
+                s_open = float(r_item.get('O', 0))
+                # Chg mariyu Chg% rendu oke base (Intraday Day_C) meeda exact ga match avvadaniki:
+                s_chg_pts = (s_ltp - s_open) if s_open > 0 else (s_ltp * s_chg_pct / 100.0)
                 is_sel = s_ft in st.session_state.pinned_stocks
                 ico = "☑" if is_sel else ("🟢" if s_chg_pct >= 0 else "🔴")
                 col_tag = "green" if s_chg_pct >= 0 else "red"
 
-                row_label = f":blue[{ico} {s_name}] :orange[{s_ltp:.1f}] :{col_tag}[{s_chg_pts:+.1f}] :{col_tag}[{s_chg_pct:+.1f}%]"
+                p_str = f"{s_ltp:.0f}" if s_ltp >= 10000 else f"{s_ltp:.1f}"
+                c_str = f"{s_chg_pts:+.0f}" if abs(s_chg_pts) >= 100 else f"{s_chg_pts:+.1f}"
+
+                row_label = f":blue[{ico}{s_name}] :orange[{p_str}] :{col_tag}[{c_str}] :{col_tag}[{s_chg_pct:+.1f}%]"
                 st.button(
                     row_label, key=f"tv_wl_{s_ft}", width="stretch",
                     on_click=_toggle_wl_stock, args=(s_ft, r_item['T'])
@@ -3962,6 +3972,15 @@ def render_live_ui():
             # 🔥 MODE A: PRO MULTI-CHART GRID (1, 2, 4, 6 STOCKS)
             # =========================================================
             if st.session_state.grid_layout_mode != "Off":
+                st.markdown("""
+                    <style>
+                    div[data-testid="stElementContainer"]:has(.pro-ActionBar) + div div.stButton > button {
+                        height: 30px !important; min-height: 30px !important; padding: 0px 8px !important; font-size: 12px !important;
+                    }
+                    div[data-testid="stElementContainer"]:has(.pro-ActionBar) { display: none !important; }
+                    </style>
+                    <div class='pro-ActionBar'></div>
+                """, unsafe_allow_html=True)
                 gbar1, gbar2, gbar3 = st.columns([1.2, 1.4, 1.0], gap="small")
                 with gbar1:
                     if st.button("🔙 Back to Mini-Charts", width="stretch"):
@@ -3985,7 +4004,7 @@ def render_live_ui():
                 grid_syms = combined_syms[:max_charts]
 
                 n_cols = 1 if max_charts == 1 else (2 if max_charts <= 4 else 3)
-                c_height = 510 if max_charts == 1 else (340 if max_charts <= 4 else 320)
+                c_height = 560 if max_charts == 1 else (340 if max_charts <= 4 else 320)
                 rows_chunks = [grid_syms[i:i + n_cols] for i in range(0, len(grid_syms), n_cols)]
                 for r_idx, chunk_syms in enumerate(rows_chunks):
                     g_cols = st.columns(n_cols, gap="small")
