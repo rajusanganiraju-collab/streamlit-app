@@ -2544,6 +2544,13 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                     e_anchor = "bottom" if last_close <= last_ema else "top"
                     v_shift = 6 if v_anchor == "bottom" else -6
                     e_shift = 6 if e_anchor == "bottom" else -6
+                    if has_vwap and has_ema and abs(tag_y_vwap - tag_y_ema) / (tag_y_vwap + 0.001) < 0.008:
+                    if tag_y_vwap >= tag_y_ema:
+                        v_anchor, v_shift = "bottom", 6
+                        e_anchor, e_shift = "top", -6
+                    else:
+                        v_anchor, v_shift = "top", -6
+                        e_anchor, e_shift = "bottom", 6
 
                     if has_vwap and has_ema and abs(tag_y_vwap - tag_y_ema) / (tag_y_vwap + 0.001) < 0.005:
                         if tag_y_vwap >= tag_y_ema:
@@ -2805,29 +2812,23 @@ st.markdown("""
         display: block !important;
     }
 
-    /* 3. Safe Mini-Chart Grid using .pro-mini-board */
+    /* 3. Safe Mini-Chart Grid using .pro-mini-board (With Card Borders & Inside Checkbox) */
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) {
         display: grid !important;
         gap: 8px !important;
         align-items: start !important;
     }
     div[data-testid="stElementContainer"]:has(.pro-mini-board) { display: none !important; }
-    @media screen and (min-width: 1600px) {
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(6, 1fr) !important; }
-    }
-    @media screen and (min-width: 1200px) and (max-width: 1599px) {
+    @media screen and (min-width: 1200px) {
         div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(5, 1fr) !important; }
     }
     @media screen and (min-width: 900px) and (max-width: 1199px) {
         div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(4, 1fr) !important; }
     }
-    @media screen and (min-width: 650px) and (max-width: 899px) {
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(3, 1fr) !important; }
-    }
-    @media screen and (max-width: 649px) {
+    @media screen and (max-width: 899px) {
         div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(2, 1fr) !important; gap: 6px !important; }
     }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) > div[data-testid="stVerticalBlock"] {
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) > div {
         background-color: #161b22 !important;
         border: 1px solid #30363d !important;
         border-radius: 8px !important;
@@ -2835,10 +2836,11 @@ st.markdown("""
         position: relative !important;
         width: 100% !important;
     }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) > div[data-testid="stVerticalBlock"] div[data-testid="stCheckbox"] {
-        position: absolute !important;
-        top: 8px !important;
-        left: 8px !important;
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) div[data-testid="stElementContainer"]:has(div[data-testid="stCheckbox"]) {
+        margin-bottom: -38px !important;
+        position: relative !important;
+        top: 6px !important;
+        left: 6px !important;
         z-index: 100 !important;
     }
 
@@ -2874,6 +2876,13 @@ st.markdown("""
         padding: 4px 8px !important;
         min-height: 30px !important;
     }
+    div[data-testid="stExpanderDetails"]:has(.tv-sort-hdr-marker) {
+        padding: 2px 2px 4px 2px !important;
+    }
+    div[data-testid="stVerticalBlockBorderWrapper"]:has(.tv-wl-marker),
+    div[data-testid="stVerticalBlockBorderWrapper"]:has(.tv-wl-marker) > div {
+        padding: 0px !important;
+    }
 
     /* 5. TradingView Style Sortable Table Header (Symbol | Last | Chg | Chg%) */
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stHorizontalBlock"] {
@@ -2888,7 +2897,7 @@ st.markdown("""
         border-radius: 0px !important;
         height: 25px !important;
         min-height: 25px !important;
-        padding: 0px 4px !important;
+        padding: 0px 2px !important;
         margin: 0px !important;
         width: 100% !important;
     }
@@ -2897,14 +2906,14 @@ st.markdown("""
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div.stButton > button p {
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace !important;
-        font-size: 11px !important;
+        font-size: 10.5px !important;
         font-weight: 700 !important;
         color: #8b949e !important;
         margin: 0px !important;
     }
     div[data-testid="stElementContainer"]:has(.tv-sort-hdr-marker) { display: none !important; }
 
-    /* 6. TradingView Exact 4-Column Table Rows (Strict Single-Line No-Wrap) */
+    /* 6. TradingView Exact 4-Column Table Rows (Fixed 10.5px Font & No Overlap) */
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) {
         gap: 0px !important;
         border-left: 1px solid #21262d !important;
@@ -2917,7 +2926,7 @@ st.markdown("""
         border-radius: 0px !important;
         height: 26px !important;
         min-height: 26px !important;
-        padding: 0px 2px !important;
+        padding: 0px !important;
         margin: 0px !important;
         width: 100% !important;
         display: block !important;
@@ -2935,7 +2944,7 @@ st.markdown("""
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p {
         display: grid !important;
-        grid-template-columns: 38% 20% 20% 22% !important;
+        grid-template-columns: 36% 22% 20% 22% !important;
         align-items: center !important;
         width: 100% !important;
         font-family: 'Consolas', 'Courier New', monospace !important;
@@ -2949,7 +2958,7 @@ st.markdown("""
         background: transparent !important;
         color: #e6edf3 !important;
         font-weight: 700 !important;
-        font-size: 10.5px !important;
+        font-size: 10px !important;
         text-align: left !important;
         padding: 0px 3px !important;
         border-right: 1px solid #21262d !important;
@@ -2959,29 +2968,35 @@ st.markdown("""
         display: block !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > span {
-        color: #f0f6fc !important;
+        color: #ffd700 !important;
+        font-size: 10.5px !important;
         font-weight: 600 !important;
         text-align: right !important;
         padding: 0px 4px !important;
         border-right: 1px solid #21262d !important;
         white-space: nowrap !important;
+        overflow: hidden !important;
         display: block !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > strong {
         color: #2ea043 !important;
+        font-size: 10.5px !important;
         font-weight: 600 !important;
         text-align: right !important;
         padding: 0px 4px !important;
         white-space: nowrap !important;
+        overflow: hidden !important;
         display: block !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > em {
         color: #f85149 !important;
+        font-size: 10.5px !important;
         font-style: normal !important;
         font-weight: 600 !important;
         text-align: right !important;
         padding: 0px 4px !important;
         white-space: nowrap !important;
+        overflow: hidden !important;
         display: block !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > *:nth-child(3) {
@@ -3866,9 +3881,8 @@ def render_live_ui():
     # ---------------------------------------------------------
     with side_watchlist_slot:
         with st.expander("📋 Watchlist Table (Click Headers to Sort)", expanded=True):
-            full_tbl = st.checkbox("🔎 Expand Full Table Height", value=False, key="exp_wl_tbl")
             st.markdown("<div class='tv-sort-hdr-marker'></div>", unsafe_allow_html=True)
-            sh1, sh2, sh3, sh4 = st.columns([0.38, 0.20, 0.20, 0.22], gap="small")
+            sh1, sh2, sh3, sh4 = st.columns([0.36, 0.22, 0.20, 0.22], gap="small")
             arr = "▲" if st.session_state.wl_sort_asc else "▼"
             with sh1:
                 st.button(f"Symbol{arr if st.session_state.wl_sort_col=='Symbol' else ''}", key="s_sym", width="stretch", on_click=_set_wl_sort, args=("Symbol",))
@@ -3879,8 +3893,7 @@ def render_live_ui():
             with sh4:
                 st.button(f"Chg%{arr if st.session_state.wl_sort_col=='Chg%' else ''}", key="s_pct", width="stretch", on_click=_set_wl_sort, args=("Chg%",))
 
-            tbl_h = 420 if full_tbl else 195
-            with st.container(height=tbl_h, border=False):
+            with st.container(height=235, border=False):
                 st.markdown("<div class='tv-wl-marker'></div>", unsafe_allow_html=True)
                 wl_rows = []
                 for idx_sym in ["NIFTY", "BANKNIFTY"]:
@@ -3903,7 +3916,6 @@ def render_live_ui():
                     c_str = f"{s_chg_pts:+.1f}" if abs(s_chg_pts) < 100 else f"{s_chg_pts:+.0f}"
                     pct_str = f"{s_chg_pct:+.2f}%"
 
-                    # {ico}{s_name} madhya space lekunda pettam kabatti eppudu kindha line ki viragadhu
                     if s_chg_pct >= 0:
                         row_label = f"`{ico}{s_name}` :orange[{p_str}] **{c_str}** **{pct_str}**"
                     else:
@@ -3918,7 +3930,7 @@ def render_live_ui():
         insp_df = df_live[df_live['T'] == insp_sym]
         insp_row = insp_df.iloc[0] if not insp_df.empty else (df_stocks_display.iloc[0] if not df_stocks_display.empty else None)
 
-        if insp_row is not None and not full_tbl:
+        if insp_row is not None:
             i_p = float(insp_row['P'])
             i_pct = float(insp_row['Day_C'])
             i_open = float(insp_row.get('O', 0))
