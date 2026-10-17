@@ -3062,7 +3062,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
             y_padding = (max_val - min_val) * 0.15 if (max_val - min_val) != 0 else min_val * 0.005
 
             chart_times = pd.to_datetime(df_chart.index)
-            x_labels = chart_times.strftime('%H:%M') if timeframe == "Intraday (5m)" else chart_times.strftime('%d-%b')
+            x_labels = chart_times.strftime('%I:%M %p') if timeframe == "Intraday (5m)" else chart_times.strftime('%d-%b')
             x_idx = list(range(len(df_chart)))
 
             hover_data = (
@@ -3319,9 +3319,12 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             const d = new Date(ts * 1000);
             const dd = String(d.getUTCDate()).padStart(2, '0');
             const mm = months[d.getUTCMonth()];
-            const hh = String(d.getUTCHours()).padStart(2, '0');
+            let H = d.getUTCHours();
+            const ampm = H >= 12 ? 'PM' : 'AM';
+            H = H % 12 || 12;
+            const hh = String(H).padStart(2, '0');
             const mn = String(d.getUTCMinutes()).padStart(2, '0');
-            return `${{dd}} ${{mm}} ${{hh}}:${{mn}} IST`;
+            return `${{dd}} ${{mm}} ${{hh}}:${{mn}} ${{ampm}} IST`;
         }}
 
         const chart = LightweightCharts.createChart(container, {{
@@ -3336,10 +3339,17 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             rightPriceScale: {{ borderColor: '#cbd5e1', scaleMargins: {{ top: 0.08, bottom: 0.22 }} }},
             timeScale: {{
                 borderColor: '#cbd5e1', timeVisible: true, secondsVisible: false,
-                rightOffset: 4, barSpacing: 7
+                rightOffset: 4, barSpacing: 7,
+                tickMarkFormatter: (time, tickMarkType, locale) => {{
+                    const d = new Date(time * 1000);
+                    let H = d.getUTCHours();
+                    const mn = String(d.getUTCMinutes()).padStart(2, '0');
+                    const ampm = H >= 12 ? 'PM' : 'AM';
+                    H = H % 12 || 12;
+                    return `${{H}}:${{mn}} ${{ampm}}`;
+                }}
             }}
         }});
-
         const candleSeries = chart.addCandlestickSeries({{
             upColor: '#15803d', downColor: '#b91c1c',
             borderUpColor: '#15803d', borderDownColor: '#b91c1c',
