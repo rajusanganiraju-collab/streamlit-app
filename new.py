@@ -2780,7 +2780,7 @@ if 'pro_grid_inds' not in st.session_state:
 if 'inspected_stock' not in st.session_state:
     st.session_state.inspected_stock = "NIFTY"
 if 'wl_sort_col' not in st.session_state:
-    st.session_state.wl_sort_col = "Chg%"
+    st.session_state.wl_sort_col = None
 if 'wl_sort_asc' not in st.session_state:
     st.session_state.wl_sort_asc = False
 if 'selected_ai_strats' not in st.session_state:
@@ -2788,7 +2788,7 @@ if 'selected_ai_strats' not in st.session_state:
 if 'selected_sw_strats' not in st.session_state:
     st.session_state.selected_sw_strats = ["📈 Minervini Trend Template (VCP)"]
 
-# --- CSS: ZERO 1-INCH SIDE MARGINS + SORTABLE WATCHLIST + PRO GRID ---
+# --- CSS: ZERO SIDE MARGINS + EXCEL WATCHLIST + COMPACT MULTI-CHART GRID ---
 st.markdown("""
     <style>
     /* 1. Eliminate 1-inch Left & Right Margins across all Streamlit containers */
@@ -2807,7 +2807,19 @@ st.markdown("""
     }
     .block-container > div > div > div > hr { display: none !important; }
 
-    /* 2. Prevent old Line 148 (.fluid-board) from hiding Left 80% Container */
+    /* 2. Fix Select Strategies Popover Checkbox Overlap */
+    div[data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(div[data-testid="stCheckbox"]) {
+        margin-bottom: 0px !important;
+        position: static !important;
+    }
+    div[data-testid="stPopoverBody"] div[data-testid="stElementContainer"]:has(div[data-testid="stCheckbox"]) {
+        margin-bottom: 6px !important;
+        position: static !important;
+    }
+    div[data-testid="stPopoverBody"] div[data-testid="stCheckbox"] label {
+        padding: 4px 2px !important;
+        min-height: 24px !important;
+    }
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div:nth-child(1) {
         display: block !important;
     }
@@ -2884,20 +2896,23 @@ st.markdown("""
         padding: 0px !important;
     }
 
-    /* 5. TradingView Style Sortable Table Header (Symbol | Last | Chg | Chg%) */
+    /* 5. Excel-Style Sortable Table Header (Symbol | Last | Chg | Chg%) */
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stHorizontalBlock"] {
         gap: 0px !important;
-        border: 1px solid #30363d !important;
+        border: 1px solid #3b4252 !important;
         background-color: #161b22 !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stColumn"] {
+        padding: 0px !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div.stButton > button {
         background-color: #161b22 !important;
         border: none !important;
-        border-right: 1px solid #2b313f !important;
+        border-right: 1px solid #3b4252 !important;
         border-radius: 0px !important;
         height: 25px !important;
         min-height: 25px !important;
-        padding: 0px 2px !important;
+        padding: 0px 4px !important;
         margin: 0px !important;
         width: 100% !important;
     }
@@ -2905,39 +2920,46 @@ st.markdown("""
         background-color: #21262d !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div.stButton > button p {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace !important;
-        font-size: 10.5px !important;
+        font-family: 'Consolas', monospace !important;
+        font-size: 11px !important;
         font-weight: 700 !important;
-        color: #8b949e !important;
+        color: #58a6ff !important;
         margin: 0px !important;
     }
     div[data-testid="stElementContainer"]:has(.tv-sort-hdr-marker) { display: none !important; }
 
-    /* 6. TradingView Exact 4-Column Table Rows (Fixed 10.5px Font & No Overlap) */
+    /* 6. Excel Sheet 4-Column Watchlist Rows (Symbol Strictly Left-Aligned) */
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) {
         gap: 0px !important;
-        border-left: 1px solid #21262d !important;
-        border-right: 1px solid #21262d !important;
+        border: 1px solid #2b313f !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton {
+        width: 100% !important;
+        margin: 0px !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button {
         background-color: #0e1117 !important;
         border: none !important;
-        border-bottom: 1px solid #21262d !important;
+        border-bottom: 1px solid #2b313f !important;
         border-radius: 0px !important;
         height: 26px !important;
         min-height: 26px !important;
         padding: 0px !important;
         margin: 0px !important;
         width: 100% !important;
-        display: block !important;
+        display: flex !important;
+        justify-content: stretch !important;
+        align-items: stretch !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button:hover {
         background-color: #161f30 !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button > div,
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button div[data-testid="stMarkdownContainer"] {
+        flex: 1 1 100% !important;
         width: 100% !important;
         max-width: 100% !important;
+        height: 26px !important;
         display: block !important;
         margin: 0px !important;
         padding: 0px !important;
@@ -2947,24 +2969,28 @@ st.markdown("""
         grid-template-columns: 36% 22% 20% 22% !important;
         align-items: center !important;
         width: 100% !important;
+        min-width: 100% !important;
+        height: 26px !important;
         font-family: 'Consolas', 'Courier New', monospace !important;
         font-size: 10.5px !important;
-        line-height: 24px !important;
         margin: 0px !important;
         padding: 0px !important;
         white-space: nowrap !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > code {
         background: transparent !important;
-        color: #e6edf3 !important;
+        color: #ffffff !important;
         font-weight: 700 !important;
-        font-size: 10px !important;
+        font-size: 10.5px !important;
         text-align: left !important;
-        padding: 0px 3px !important;
-        border-right: 1px solid #21262d !important;
+        padding: 0px 0px 0px 5px !important;
+        margin: 0px !important;
+        height: 26px !important;
+        line-height: 26px !important;
+        border-right: 1px solid #2b313f !important;
+        border-radius: 0px !important;
         white-space: nowrap !important;
         overflow: hidden !important;
-        text-overflow: clip !important;
         display: block !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > span {
@@ -2972,10 +2998,11 @@ st.markdown("""
         font-size: 10.5px !important;
         font-weight: 600 !important;
         text-align: right !important;
-        padding: 0px 4px !important;
-        border-right: 1px solid #21262d !important;
+        padding: 0px 4px 0px 0px !important;
+        height: 26px !important;
+        line-height: 26px !important;
+        border-right: 1px solid #2b313f !important;
         white-space: nowrap !important;
-        overflow: hidden !important;
         display: block !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > strong {
@@ -2983,9 +3010,10 @@ st.markdown("""
         font-size: 10.5px !important;
         font-weight: 600 !important;
         text-align: right !important;
-        padding: 0px 4px !important;
+        padding: 0px 4px 0px 0px !important;
+        height: 26px !important;
+        line-height: 26px !important;
         white-space: nowrap !important;
-        overflow: hidden !important;
         display: block !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > em {
@@ -2994,15 +3022,51 @@ st.markdown("""
         font-style: normal !important;
         font-weight: 600 !important;
         text-align: right !important;
-        padding: 0px 4px !important;
+        padding: 0px 4px 0px 0px !important;
+        height: 26px !important;
+        line-height: 26px !important;
         white-space: nowrap !important;
-        overflow: hidden !important;
         display: block !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > *:nth-child(3) {
-        border-right: 1px solid #21262d !important;
+        border-right: 1px solid #2b313f !important;
     }
     div[data-testid="stElementContainer"]:has(.tv-wl-marker) { display: none !important; }
+
+    /* 7. Compact Close [X] Button & Top Action Bar in Multi-Chart Grid */
+    div[data-testid="stHorizontalBlock"]:has(.close-x-marker) {
+        align-items: center !important;
+        margin-bottom: -6px !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(.close-x-marker) div.stButton > button {
+        background-color: #dc2626 !important;
+        border: 1px solid #ef4444 !important;
+        color: #ffffff !important;
+        height: 24px !important;
+        min-height: 24px !important;
+        padding: 0px !important;
+        margin: 0px !important;
+        border-radius: 4px !important;
+    }
+    div[data-testid="stElementContainer"]:has(.close-x-marker) { display: none !important; }
+    div[data-testid="stHorizontalBlock"]:has(.pro-ActionBar) {
+        align-items: center !important;
+        margin-bottom: -4px !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(.pro-ActionBar) div.stButton > button {
+        height: 28px !important;
+        min-height: 28px !important;
+        padding: 0px 8px !important;
+        font-size: 12px !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(.pro-ActionBar) div[data-testid="stSelectbox"] > div > div {
+        min-height: 28px !important;
+        height: 28px !important;
+        font-size: 12px !important;
+        padding-top: 0px !important;
+        padding-bottom: 0px !important;
+    }
+    div[data-testid="stElementContainer"]:has(.pro-ActionBar) { display: none !important; }
 
     @media screen and (max-width: 768px) {
         div[data-testid="stHorizontalBlock"] { flex-direction: column-reverse !important; }
@@ -3012,7 +3076,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# --- IST TIMEZONE CONVERTER FOR 5-MIN CHARTS (FIXES UTC 03:45 -> IST 09:15) ---
+# --- IST TIMEZONE CONVERTER FOR 5-MIN CHARTS ---
 def _fix_ist_df(df_in):
     if df_in is None or df_in.empty:
         return pd.DataFrame()
@@ -3021,7 +3085,6 @@ def _fix_ist_df(df_in):
     if d.index.tz is not None:
         d.index = d.index.tz_convert('Asia/Kolkata').tz_localize(None)
     else:
-        # Cached yfinance 5m data stripped UTC without adding +5:30 (starts at 03:45 instead of 09:15)
         if len(d.index) > 0 and (3 <= d.index.hour.min() <= 4) and (d.index.hour.max() <= 11):
             d.index = d.index + pd.Timedelta(hours=5, minutes=30)
     return d[~d.index.duplicated(keep='last')].sort_index()
@@ -3080,7 +3143,11 @@ def _set_wl_sort(col_name):
         st.session_state.wl_sort_asc = True if col_name == "Symbol" else False
 
 
-# --- MINI-CHART GRID & SINGLE CHART (WITH TICK ON ALL INDICES & IST TIME) ---
+def _on_filter_sort_change():
+    st.session_state.wl_sort_col = None
+
+
+# --- MINI-CHART GRID & SINGLE CHART (WITH TICK ON ALL INDICES & 12-HOUR IST TIME) ---
 def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Intraday (5m)", chart_dict=None, show_crosshair=False, show_vol=False, is_sector=False):
     if df_grid is None or df_grid.empty:
         return
@@ -3092,7 +3159,7 @@ def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Intraday 
             with st.container():
                 render_chart(
                     row, chart_dict.get(row['Fetch_T'], pd.DataFrame()),
-                    show_pin=True,  # Tick enabled on ALL Indices, Sectors & Stocks!
+                    show_pin=True,
                     key_suffix=key_prefix,
                     timeframe=timeframe, show_crosshair=show_crosshair, show_vol=show_vol
                 )
@@ -3190,6 +3257,14 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 v_shift = 6 if v_anchor == "bottom" else -6
                 e_shift = 6 if e_anchor == "bottom" else -6
 
+                if has_vwap and has_ema and abs(tag_y_vwap - tag_y_ema) / (tag_y_vwap + 0.001) < 0.008:
+                    if tag_y_vwap >= tag_y_ema:
+                        v_anchor, v_shift = "bottom", 6
+                        e_anchor, e_shift = "top", -6
+                    else:
+                        v_anchor, v_shift = "top", -6
+                        e_anchor, e_shift = "bottom", 6
+
                 if has_vwap:
                     fig.add_trace(go.Scatter(x=x_idx, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='skip'))
                     fig.add_annotation(x=tag_idx, y=tag_y_vwap, text=f"V:{last_vwap:.1f}", showarrow=False, xanchor="right", yanchor=v_anchor, xshift=-5, yshift=v_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#FFD700", borderpad=2)
@@ -3249,24 +3324,24 @@ def _calc_supertrend(df_c, period=7, mult=3.0):
         return pd.Series(dtype=float)
 
 
-# --- PRO GRID CHART ENGINE WITH IST TIMINGS + RED CLOSE [X] BUTTON ---
+# --- PRO GRID CHART ENGINE WITH 12-HOUR IST TIMINGS + COMPACT CLOSE [X] ---
 def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, active_inds, chart_height=370, key_idx=0, current_grid_syms=None):
     disp_sym = row_data.get('T', fetch_sym.replace('.NS', ''))
     tf_short = "5m" if timeframe == "Intraday (5m)" else ("1D" if timeframe == "Daily Chart" else "1W")
     if current_grid_syms is None:
         current_grid_syms = []
 
-    hc1, hc2 = st.columns([11.0, 1.0], gap="small")
+    hc1, hc2 = st.columns([11.2, 0.8], gap="small")
     with hc1:
         ltp_v = float(row_data.get('P', 0))
         chg_v = float(row_data.get('Day_C', 0))
         c_col = "#3fb950" if chg_v >= 0 else "#f85149"
         st.markdown(
-            f"<div style='background:#111622; border:1px solid #2b313f; border-radius:6px; padding:4px 10px; "
+            f"<div style='background:#111622; border:1px solid #2b313f; border-radius:4px; padding:2px 8px; height:24px; "
             f"display:flex; justify-content:space-between; align-items:center;'>"
-            f"<span style='font-weight:bold; font-size:13px; color:#fff; font-family:monospace;'>"
-            f"{disp_sym} <span style='background:#1e293b; color:#38bdf8; padding:1px 6px; border-radius:4px; font-size:11px;'>{tf_short}</span></span>"
-            f"<span style='font-family:monospace; font-size:12.5px; color:#fff;'>₹{ltp_v:,.2f} "
+            f"<span style='font-weight:bold; font-size:12px; color:#fff; font-family:monospace;'>"
+            f"{disp_sym} <span style='background:#1e293b; color:#38bdf8; padding:1px 5px; border-radius:3px; font-size:10px;'>{tf_short}</span></span>"
+            f"<span style='font-family:monospace; font-size:12px; color:#fff;'>₹{ltp_v:,.2f} "
             f"<b style='color:{c_col};'>({chg_v:+.2f}%)</b></span></div>",
             unsafe_allow_html=True
         )
@@ -3312,7 +3387,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     candles_js, vol_js, vwap_js, ema10_js, ema20_js, kal_js, st_js, bb_u_js, bb_d_js = [], [], [], [], [], [], [], [], []
     seen_ts = set()
     for dt_idx, r in df_p.iterrows():
-        # calendar.timegm maps naive IST datetime directly to UTC epoch so LightweightCharts displays exact IST (09:15 - 15:30)!
         ts = int(calendar.timegm(pd.Timestamp(dt_idx).timetuple()))
         if ts in seen_ts:
             continue
@@ -3335,6 +3409,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     grid_hex = "#f1f5f9" if is_light else "#1e293b"
     rsi_val = round(float(row_data.get('RSI14', 50.0)), 1)
     chart_dom_id = f"tv_lw_{key_idx}"
+    bar_sp = 5 if len(current_grid_syms) >= 2 else 7
 
     html_code = f"""
     <!DOCTYPE html>
@@ -3344,12 +3419,12 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     <style>
         body {{ margin: 0; padding: 0; background: {bg_hex}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace; overflow: hidden; border: 1px solid #2b313f; border-radius: 6px; }}
         .hdr-bar {{
-            background: #111622; color: #fff; padding: 4px 8px; display: flex; justify-content: space-between; align-items: center;
-            border-bottom: 1px solid #2b313f; font-size: 11px; user-select: none;
+            background: #111622; color: #fff; padding: 3px 8px; display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid #2b313f; font-size: 10.5px; user-select: none;
         }}
         .ind-bar {{ display: flex; gap: 3px; flex-wrap: wrap; align-items: center; }}
         .ibtn {{
-            padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: bold; cursor: pointer;
+            padding: 1px 5px; border-radius: 3px; font-size: 9.5px; font-weight: bold; cursor: pointer;
             background: #1f2937; color: #9ca3af; border: 1px solid #374151; transition: 0.12s;
         }}
         .ibtn.active-vwap {{ background: #2563eb; color: #fff; border-color: #2563eb; }}
@@ -3359,15 +3434,15 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         .ibtn.active-kal {{ background: #0d9488; color: #fff; border-color: #0d9488; }}
         .ibtn.active-st {{ background: #15803d; color: #fff; border-color: #15803d; }}
         .ohlc-overlay {{
-            position: absolute; top: 30px; left: 8px; z-index: 20; font-size: 11px;
+            position: absolute; top: 26px; left: 6px; z-index: 20; font-size: 10.5px;
             color: {txt_hex}; background: {'rgba(255,255,255,0.85)' if is_light else 'rgba(14,17,23,0.85)'};
-            padding: 2px 6px; border-radius: 4px; pointer-events: none; font-family: monospace;
+            padding: 1px 5px; border-radius: 4px; pointer-events: none; font-family: monospace;
         }}
     </style>
     </head>
     <body>
         <div class="hdr-bar">
-            <span style="color:#a855f7; font-weight:bold;">RSI(14): {rsi_val} &nbsp;|&nbsp; IST Timings</span>
+            <span style="color:#a855f7; font-weight:bold;">RSI(14): {rsi_val} | IST</span>
             <div class="ind-bar">
                 <span id="btn_ema" class="ibtn {'active-ema' if 'EMAs' in active_inds else ''}" onclick="toggleInd('ema')">EMAs</span>
                 <span id="btn_sr" class="ibtn {'active-sr' if 'S&R' in active_inds else ''}" onclick="toggleInd('sr')">S&R</span>
@@ -3379,7 +3454,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             </div>
         </div>
         <div id="ohlc_{chart_dom_id}" class="ohlc-overlay">Move cursor to inspect OHLCV</div>
-        <div id="{chart_dom_id}" style="width: 100%; height: {chart_height - 28}px;"></div>
+        <div id="{chart_dom_id}" style="width: 100%; height: {chart_height - 26}px;"></div>
 
         <script>
         const cData = {json.dumps(candles_js)};
@@ -3409,7 +3484,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         }}
 
         const chart = LightweightCharts.createChart(container, {{
-            layout: {{ background: {{ type: 'solid', color: '{bg_hex}' }}, textColor: '{txt_hex}', fontSize: 11 }},
+            layout: {{ background: {{ type: 'solid', color: '{bg_hex}' }}, textColor: '{txt_hex}', fontSize: 10.5 }},
             localization: {{ timeFormatter: fmtIST }},
             grid: {{ vertLines: {{ color: '{grid_hex}' }}, horzLines: {{ color: '{grid_hex}' }} }},
             crosshair: {{
@@ -3420,7 +3495,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             rightPriceScale: {{ borderColor: '#cbd5e1', scaleMargins: {{ top: 0.08, bottom: 0.22 }} }},
             timeScale: {{
                 borderColor: '#cbd5e1', timeVisible: true, secondsVisible: false,
-                rightOffset: 4, barSpacing: 7,
+                rightOffset: 3, barSpacing: {bar_sp},
                 tickMarkFormatter: (time, tickMarkType, locale) => {{
                     const d = new Date(time * 1000);
                     let H = d.getUTCHours();
@@ -3431,6 +3506,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 }}
             }}
         }});
+
         const candleSeries = chart.addCandlestickSeries({{
             upColor: '#15803d', downColor: '#b91c1c',
             borderUpColor: '#15803d', borderDownColor: '#b91c1c',
@@ -3446,6 +3522,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             scaleMargins: {{ top: 0.80, bottom: 0 }}
         }});
         volSeries.setData(vData);
+        chart.timeScale().fitContent();
 
         const vwapSeries = chart.addLineSeries({{ color: '#eab308', lineWidth: 2, title: 'VWAP', visible: {'true' if 'VWAP' in active_inds else 'false'} }});
         vwapSeries.setData(vwapData);
@@ -3607,17 +3684,14 @@ def _fast_5m_and_sniper_cache(tickers_tuple):
 
     sniper_res, _ = adaptive_live_engine(five_min_data, list(tickers_tuple), top_n=12, min_edge=60)
     return processed_charts, nifty_intra_html, sniper_res
-
-
-_effective_refresh = 30
+    _effective_refresh = 30
 
 @st.fragment(run_every=f"{_effective_refresh}s")
 def render_live_ui():
-    # 80% LEFT & 20% RIGHT COLUMNS AT VERY TOP (Market Closed inside 80%, AI Predictions at very top of 20%!)
     col_main_80, col_side_20 = st.columns([4.02, 1.22], gap="small")
 
     # ---------------------------------------------------------
-    # 👉 RIGHT 20% PANEL: MOVED ALL THE WAY TO THE TOP
+    # 👉 RIGHT 20% PANEL: COMPACT CONTROLS + EXCEL WATCHLIST
     # ---------------------------------------------------------
     with col_side_20:
         right_panel_box = st.container(height=720, border=True)
@@ -3710,13 +3784,11 @@ def render_live_ui():
             default_view_idx = 0 if watchlist_mode in ["My Portfolio 💼", "F&O + Top 200 Heatmap 🗺️"] else 1
             view_mode = st.radio("Mode:", ["Heat Map", "Chart 📈"], index=default_view_idx, horizontal=True)
 
-            # 📐 Pro Grid okate line lo:
             grid_opts = ["Off", "1", "2", "4", "6"]
             curr_g_idx = grid_opts.index(st.session_state.grid_layout_mode) if st.session_state.grid_layout_mode in grid_opts else 0
             sel_grid = st.radio("📐 Grid:", grid_opts, index=curr_g_idx, horizontal=True)
             st.session_state.grid_layout_mode = sel_grid
 
-            # ⚙️ Filters, Sort & Search paiki jaripamu + Crosshair Default OFF (value=False):
             with st.expander("⚙️ Filters, Sort & Search", expanded=False):
                 st.session_state.pause_refresh = st.toggle("⏸️ Pause Refresh", value=st.session_state.pause_refresh)
                 sort_mode = st.selectbox(
@@ -3729,7 +3801,9 @@ def render_live_ui():
                         "% Change Down 🔴",
                         "Score Wise Down ⬇️"
                     ],
-                    index=0
+                    index=0,
+                    key="main_sort_sel",
+                    on_change=_on_filter_sort_change
                 )
                 search_stock = st.selectbox("Search Stock", ["-- None --"] + all_names)
                 chart_timeframe = st.radio("Timeframe", ["Intraday (5m)", "Daily Chart", "Weekly Chart"], index=1 if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"] else 0)
@@ -3857,10 +3931,13 @@ def render_live_ui():
     if not df_filtered.empty:
         df_filtered = df_filtered.copy()
         df_filtered['Chg_Pts'] = np.where(
-            (df_filtered['Prev_C'] > 0) & ((df_filtered['P'] - df_filtered['Prev_C']).abs() > 0.01),
-            df_filtered['P'] - df_filtered['Prev_C'],
+            df_filtered['O'] > 0,
+            df_filtered['P'] - df_filtered['O'],
             df_filtered['P'] * df_filtered['Day_C'] / 100.0
         )
+        df_filtered['Intra_DH_PB'] = np.where(df_filtered['H'] > 0, ((df_filtered['H'] - df_filtered['P']) / df_filtered['H']) * 100, 0.0)
+        df_filtered['Intra_DL_Bounce'] = np.where(df_filtered['L'] > 0, ((df_filtered['P'] - df_filtered['L']) / df_filtered['L']) * 100, 0.0)
+
         scol = st.session_state.wl_sort_col
         sasc = st.session_state.wl_sort_asc
         if scol == "Symbol":
@@ -3872,12 +3949,27 @@ def render_live_ui():
         elif scol == "Chg%":
             df_stocks_display = df_filtered.sort_values(by=sort_key, ascending=sasc)
         else:
-            df_stocks_display = df_filtered.sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, False])
+            if sort_mode == "Intraday Pullback Max 📉 (DH / DL)":
+                is_sell_m = df_filtered['Day_C'] < 0
+                df_stocks_display = pd.concat([
+                    df_filtered[~is_sell_m].sort_values(by=['Intra_DH_PB', 'S'], ascending=[False, False]),
+                    df_filtered[is_sell_m].sort_values(by=['Intra_DL_Bounce', 'S'], ascending=[False, False])
+                ])
+            elif sort_mode == "52W Pullback Max 📉 (Deep Discount)":
+                df_stocks_display = df_filtered.sort_values(by=['Pullback_52W', 'S'], ascending=[False, False])
+            elif sort_mode == "% Change Up 🟢":
+                df_stocks_display = df_filtered.sort_values(by=sort_key, ascending=False)
+            elif sort_mode == "% Change Down 🔴":
+                df_stocks_display = df_filtered.sort_values(by=sort_key, ascending=True)
+            elif sort_mode == "Score Wise Down ⬇️":
+                df_stocks_display = df_filtered.sort_values(by=['S', 'VolX', sort_key], ascending=[True, False, True])
+            else:
+                df_stocks_display = df_filtered.sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, False])
     else:
         df_stocks_display = df_filtered.copy()
 
     # ---------------------------------------------------------
-    # 👉 POPULATE RIGHT 20% WATCHLIST WITH CLICKABLE SORT HEADERS
+    # 👉 POPULATE RIGHT 20% EXCEL WATCHLIST WITH CLICKABLE SORT HEADERS
     # ---------------------------------------------------------
     with side_watchlist_slot:
         with st.expander("📋 Watchlist Table (Click Headers to Sort)", expanded=True):
@@ -3910,7 +4002,7 @@ def render_live_ui():
                     s_open = float(r_item.get('O', 0))
                     s_chg_pts = (s_ltp - s_open) if s_open > 0 else (s_ltp * s_chg_pct / 100.0)
                     is_sel = s_ft in st.session_state.pinned_stocks
-                    ico = "☑" if is_sel else ("🟢" if s_chg_pct >= 0 else "🔴")
+                    ico = "✓ " if is_sel else ("🟢" if s_chg_pct >= 0 else "🔴")
 
                     p_str = f"{s_ltp:.1f}" if s_ltp < 10000 else f"{s_ltp:.0f}"
                     c_str = f"{s_chg_pts:+.1f}" if abs(s_chg_pts) < 100 else f"{s_chg_pts:+.0f}"
@@ -4055,17 +4147,9 @@ def render_live_ui():
             # 🔥 MODE A: PRO MULTI-CHART GRID (1, 2, 4, 6 STOCKS)
             # =========================================================
             if st.session_state.grid_layout_mode != "Off":
-                st.markdown("""
-                    <style>
-                    div[data-testid="stElementContainer"]:has(.pro-ActionBar) + div div.stButton > button {
-                        height: 30px !important; min-height: 30px !important; padding: 0px 8px !important; font-size: 12px !important;
-                    }
-                    div[data-testid="stElementContainer"]:has(.pro-ActionBar) { display: none !important; }
-                    </style>
-                    <div class='pro-ActionBar'></div>
-                """, unsafe_allow_html=True)
                 gbar1, gbar2, gbar3 = st.columns([1.2, 1.4, 1.0], gap="small")
                 with gbar1:
+                    st.markdown("<div class='pro-ActionBar'></div>", unsafe_allow_html=True)
                     if st.button("🔙 Back to Mini-Charts", width="stretch"):
                         st.session_state.grid_layout_mode = "Off"
                         st.rerun(scope="fragment")
@@ -4087,7 +4171,7 @@ def render_live_ui():
                 grid_syms = combined_syms[:max_charts]
 
                 n_cols = 1 if max_charts == 1 else (2 if max_charts <= 4 else 3)
-                c_height = 560 if max_charts == 1 else (340 if max_charts <= 4 else 320)
+                c_height = 580 if max_charts <= 2 else 268
                 rows_chunks = [grid_syms[i:i + n_cols] for i in range(0, len(grid_syms), n_cols)]
                 for r_idx, chunk_syms in enumerate(rows_chunks):
                     g_cols = st.columns(n_cols, gap="small")
@@ -4166,7 +4250,6 @@ def render_live_ui():
                     st.markdown(render_levels_table(df_stocks_display), unsafe_allow_html=True)
 
                 elif watchlist_mode == "My Portfolio 💼" and view_mode == "Heat Map":
-                    # ALWAYS SHOW PORTFOLIO KPI, TABLE, ADD, EDIT, SELL & TRADEBOOK (Both in Heat Map & Chart mode!)
                     try:
                         if not df_port_saved.empty:
                             _lu = df_all_stocks.drop_duplicates(subset=['T']).set_index('T')[['P', 'Prev_C']].to_dict('index')
@@ -4228,34 +4311,257 @@ def render_live_ui():
                                 submit_btn = st.form_submit_button("➕ Verify & Add", width="stretch")
 
                         if submit_btn and new_sym:
-                            chk_data = yf.download(f"{new_sym}.NS", period="1d", progress=False)
-                            if chk_data.empty:
-                                st.error(f"❌ '{new_sym}' not found in NSE!")
+                            chk_data = yf.download(f"{new_sym}.NS", period="1d
+# =========================================================
+            # 🔥 MODE A: PRO MULTI-CHART GRID (1, 2, 4, 6 STOCKS)
+            # =========================================================
+            if st.session_state.grid_layout_mode != "Off":
+                gbar1, gbar2, gbar3 = st.columns([1.2, 1.4, 1.0], gap="small")
+                with gbar1:
+                    st.markdown("<div class='pro-ActionBar'></div>", unsafe_allow_html=True)
+                    if st.button("🔙 Back to Mini-Charts", width="stretch"):
+                        st.session_state.grid_layout_mode = "Off"
+                        st.rerun(scope="fragment")
+                with gbar2:
+                    st.session_state.pro_grid_theme = st.selectbox(
+                        "Theme", ["Light (White)", "Dark (Terminal)"],
+                        index=0 if "Light" in st.session_state.pro_grid_theme else 1,
+                        label_visibility="collapsed"
+                    )
+                with gbar3:
+                    if st.button("🗑️ Clear All Charts", width="stretch"):
+                        st.session_state.pinned_stocks = []
+                        st.session_state.grid_layout_mode = "Off"
+                        st.rerun(scope="fragment")
+
+                max_charts = int(st.session_state.grid_layout_mode)
+                fallback_candidates = ["^NSEBANK", "^NSEI"] + df_stocks_display['Fetch_T'].tolist()
+                combined_syms = list(dict.fromkeys(st.session_state.pinned_stocks + fallback_candidates))
+                grid_syms = combined_syms[:max_charts]
+
+                n_cols = 1 if max_charts == 1 else (2 if max_charts <= 4 else 3)
+                c_height = 580 if max_charts <= 2 else 268
+                rows_chunks = [grid_syms[i:i + n_cols] for i in range(0, len(grid_syms), n_cols)]
+                for r_idx, chunk_syms in enumerate(rows_chunks):
+                    g_cols = st.columns(n_cols, gap="small")
+                    for c_idx, g_sym in enumerate(chunk_syms):
+                        with g_cols[c_idx]:
+                            r_info = df_lookup.get(g_sym, {'T': g_sym.replace('.NS', ''), 'Fetch_T': g_sym})
+                            df_c_sym = chart_dict_to_use.get(g_sym, pd.DataFrame())
+                            render_pro_grid_chart(
+                                g_sym, r_info, df_c_sym, chart_timeframe,
+                                st.session_state.pro_grid_theme, st.session_state.pro_grid_inds,
+                                chart_height=c_height, key_idx=(r_idx * 10 + c_idx),
+                                current_grid_syms=grid_syms
+                            )
+
+            # =========================================================
+            # 📊 MODE B: DEFAULT MINI-CHARTS / PORTFOLIO / HEATMAP
+            # =========================================================
+            else:
+                if watchlist_mode == "Fundamentals 🏢":
+                    st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-bottom:8px; color:#d29922;'>🏢 Core Fundamentals ({fund_filter})</div>", unsafe_allow_html=True)
+                    fund_tickers = df_stocks_display['Fetch_T'].tolist()[:50] if not df_stocks_display.empty else [f"{s}.NS" for s in NIFTY_50[:50]]
+                    df_fund = fetch_fundamentals_data(fund_tickers)
+                    if not df_fund.empty:
+                        if fund_filter == "🦅 Warren Buffett Value Stocks":
+                            df_fund = df_fund[(df_fund['ROE %'] > 15) & (df_fund['Debt/Equity'] < 0.5) & (df_fund['P/E Ratio'] > 0) & (df_fund['P/E Ratio'] < 25)]
+                        html_fund = '<table class="term-table"><thead><tr><th colspan="10" class="term-head-fund" style="background-color: #d29922; color: #161b22;">📊 FUNDAMENTAL & TECHNICAL METRICS</th></tr><tr><th style="text-align:left;">STOCK</th><th>SECTOR</th><th>LTP (₹)</th><th>TECH SCORE</th><th>MKT CAP (Cr)</th><th>P/E</th><th>ROE %</th><th>D/E Ratio</th><th>DIV YIELD</th><th>52W HIGH</th></tr></thead><tbody>'
+                        for _, row in df_fund.iterrows():
+                            stock_name = row["Fetch_T"].replace(".NS", "")
+                            tech_row = df_stocks_display[df_stocks_display['Fetch_T'] == row["Fetch_T"]]
+                            ltp_val, score_val = (float(tech_row['P'].iloc[0]), int(tech_row['S'].iloc[0])) if not tech_row.empty else (0.0, 0)
+                            html_fund += f'<tr><td class="t-symbol">{stock_name}</td><td>{row["Sector"]}</td><td>{ltp_val:.2f}</td><td style="color:#ffd700;">⭐ {score_val}</td><td>{row["Market_Cap (Cr)"]:,.2f}</td><td>{row["P/E Ratio"]}</td><td class="text-green">{row["ROE %"]}%</td><td>{row["Debt/Equity"]}</td><td>{row["Div Yield %"]}%</td><td class="text-green">₹{row["52W High"]}</td></tr>'
+                        html_fund += '</tbody></table>'
+                        st.markdown(html_fund, unsafe_allow_html=True)
+                    else:
+                        st.info("Fundamentals data not available at the moment.")
+
+                elif watchlist_mode == "Mutual Funds 📈":
+                    st.markdown("<div style='font-size:16px; font-weight:bold; margin-bottom:8px; color:#00BFFF;'>📈 Mutual Funds Screener (Live Morningstar Data)</div>", unsafe_allow_html=True)
+                    mc1, mc2 = st.columns(2)
+                    with mc1:
+                        selected_mf_cat = st.selectbox("Filter by Category", ["All Categories"] + list(MUTUAL_FUNDS.keys()))
+                    with mc2:
+                        sort_period = st.selectbox("Rank By Performance", ["1Y (%)", "3Y CAGR (%)", "5Y CAGR (%)"], index=2)
+                    with st.spinner("Fetching Live Data from Morningstar..."):
+                        df_mf_raw = fetch_mf_performance()
+                    if not df_mf_raw.empty:
+                        df_mf_raw['Sort_Key'] = pd.to_numeric(df_mf_raw[sort_period].replace('N/A', -999))
+                        df_mf_raw = df_mf_raw.sort_values(by='Sort_Key', ascending=False)
+                        df_mf_data = df_mf_raw[df_mf_raw['Category'] == selected_mf_cat] if selected_mf_cat != "All Categories" else df_mf_raw
+                        df_mf_data = df_mf_data.drop(columns=['Sort_Key'], errors='ignore')
+                        st.markdown(render_mf_table(df_mf_data), unsafe_allow_html=True)
+                        st.markdown(f"<p style='font-size:11px; color:#888;'><i>*Note: Funds are auto-ranked based on <b>{sort_period}</b>. Returns > 20% are highlighted in Bright Green.</i></p>", unsafe_allow_html=True)
+                    else:
+                        st.error("Failed to fetch Mutual Fund data.")
+
+                elif watchlist_mode == "Month Effect Advantage 📅":
+                    st.markdown("<div style='font-size:16px; font-weight:bold; margin-bottom:8px; color:#00BFFF;'>📅 Month Effect Advantage (First 10 Days vs Rest)</div>", unsafe_allow_html=True)
+                    st.markdown("<p style='font-size:13px; color:#c9d1d9;'>Top 200 stocks gata 5 yellalo prati nela <b>modati 10 rojullo</b> kachitamga momentum iche best stocks.</p>", unsafe_allow_html=True)
+                    scan_list = st.radio("Select Universe to Scan:", ["Top 200 (Nifty + Midcap)", "NIFTY 50 Only", "Custom Stock"], horizontal=True)
+                    if scan_list == "Custom Stock":
+                        cust_stock = st.selectbox("Select Stock", all_names if all_names else NIFTY_50)
+                        tkr_list = [f"{cust_stock}.NS"]
+                    elif scan_list == "NIFTY 50 Only":
+                        tkr_list = [f"{s}.NS" for s in NIFTY_50]
+                    else:
+                        tkr_list = [f"{s}.NS" for s in NIFTY_50 + MIDCAP_150]
+
+                    if st.button("🚀 Run 5-Year Month Effect Analysis", width="stretch"):
+                        end_dt = datetime.now()
+                        start_dt = end_dt - pd.DateOffset(years=5)
+                        m_data = yf.download(tkr_list, start=start_dt, end=end_dt, progress=False, group_by='ticker', threads=10)
+                        me_res = []
+                        for tkr in tkr_list:
+                            try:
+                                df_t = m_data[tkr] if len(tkr_list) > 1 else m_data
+                                df_t = df_t.dropna(subset=['Close']).copy()
+                                if df_t.empty: continue
+                                df_t['Year'], df_t['Month'], df_t['Day'] = df_t.index.year, df_t.index.month, df_t.index.day
+                                f10_rets, rest_rets, losing_rets, wins, tot_m = [], [], [], 0, 0
+                                for _, grp in df_t.groupby(['Year', 'Month']):
+                                    if len(grp) < 5: continue
+                                    f10, rst = grp[grp['Day'] <= 10], grp[grp['Day'] > 10]
+                                    if not f10.empty and not rst.empty:
+                                        r1 = (f10['Close'].iloc[-1] - f10['Open'].iloc[0]) / f10['Open'].iloc[0] * 100
+                                        r2 = (rst['Close'].iloc[-1] - rst['Open'].iloc[0]) / rst['Open'].iloc[0] * 100
+                                        f10_rets.append(r1); rest_rets.append(r2)
+                                        if r1 > 0: wins += 1
+                                        if r1 < 0: losing_rets.append(r1)
+                                        tot_m += 1
+                                if tot_m > 0:
+                                    avg_loss = sum(losing_rets) / len(losing_rets) if losing_rets else 0.0
+                                    me_res.append({
+                                        "Stock": tkr.replace(".NS", ""),
+                                        "Win Rate (1st 10 Days) %": round(wins / tot_m * 100, 2),
+                                        "Avg 1st-10th Return (%)": round(sum(f10_rets) / len(f10_rets), 2),
+                                        "Avg Loss on Fail (%)": round(avg_loss, 2),
+                                        "Avg Rest Return (%)": round(sum(rest_rets) / len(rest_rets), 2),
+                                        "Total Months": tot_m
+                                    })
+                            except Exception:
+                                pass
+                        if me_res:
+                            me_df = pd.DataFrame(me_res).sort_values(by=["Win Rate (1st 10 Days) %", "Avg 1st-10th Return (%)"], ascending=[False, False])
+                            strict_cond = (
+                                (me_df["Win Rate (1st 10 Days) %"] >= 55) &
+                                (me_df["Avg 1st-10th Return (%)"] > 0.5) &
+                                (me_df["Avg 1st-10th Return (%)"] > me_df["Avg Rest Return (%)"]) &
+                                (me_df["Avg Loss on Fail (%)"] >= -6.0)
+                            )
+                            st.markdown("### 🏆 Top 10 Best Stocks (High Probability Swing)")
+                            top_10 = me_df[strict_cond].head(10)
+                            if not top_10.empty:
+                                st.dataframe(top_10, use_container_width=True, hide_index=True)
+                            st.markdown("### 📊 Full Data Analysis")
+                            st.dataframe(me_df, use_container_width=True, hide_index=True)
+
+                elif watchlist_mode == "Terminal Tables 🗃️":
+                    st.markdown(render_highscore_terminal_table(df_stocks_display), unsafe_allow_html=True)
+                    st.markdown(render_levels_table(df_stocks_display), unsafe_allow_html=True)
+
+                elif watchlist_mode == "My Portfolio 💼" and view_mode == "Heat Map":
+                    try:
+                        if not df_port_saved.empty:
+                            _lu = df_all_stocks.drop_duplicates(subset=['T']).set_index('T')[['P', 'Prev_C']].to_dict('index')
+                            _inv = _cur = _dpnl = 0.0
+                            for _, _r in df_port_saved.iterrows():
+                                _sym = str(_r['Symbol']).upper().strip()
+                                try:
+                                    _qty, _bp = float(_r['Quantity']), float(_r['Buy_Price'])
+                                except Exception:
+                                    continue
+                                _ltp = float(_lu.get(_sym, {}).get('P', _bp) or _bp)
+                                _pc = float(_lu.get(_sym, {}).get('Prev_C', _bp) or _bp)
+                                _inv += _bp * _qty
+                                _cur += _ltp * _qty
+                                _dpnl += (_ltp - _pc) * _qty
+                            _tpnl = _cur - _inv
+                            _tpct = (_tpnl / _inv * 100) if _inv > 0 else 0
+                            _df_cl = load_closed_trades()
+                            _realized_pnl = float(pd.to_numeric(_df_cl['PnL_Rs'], errors='coerce').sum()) if not _df_cl.empty else 0.0
+                            _actual_pnl = _tpnl + _realized_pnl
+                            _k1, _k2, _k3, _k4, _k5 = st.columns(5)
+                            _k1.metric("💰 Invested", f"₹{_inv:,.0f}")
+                            _k2.metric("📈 Current Value", f"₹{_cur:,.0f}")
+                            _k3.metric("📅 Day P&L", f"₹{_dpnl:,.0f}")
+                            _k4.metric("🏆 Total P&L", f"₹{_tpnl:,.0f}", delta=f"{_tpct:+.2f}%")
+                            _k5.metric("💎 Actual P&L", f"₹{_actual_pnl:,.0f}", delta=f"TradeBook: {_realized_pnl:+,.0f}")
+                    except Exception:
+                        pass
+
+                    with st.expander("📊 Portfolio Allocation (Sector • Market-cap • Stock weights)", expanded=True):
+                        try:
+                            render_portfolio_allocation(df_port_saved, df_all_stocks)
+                        except Exception as _pe:
+                            st.caption(f"Allocation render error: {_pe}")
+
+                    _avail_dates = ["All Dates"] + sorted(list(set(df_port_saved['Date'].dropna().astype(str).tolist()))) if not df_port_saved.empty and 'Date' in df_port_saved.columns else ["All Dates"]
+                    sc1, sc2, sc3 = st.columns([0.4, 0.3, 0.3])
+                    with sc2:
+                        port_date_filter = st.selectbox("📅 Date Filter:", _avail_dates, label_visibility="collapsed")
+                    with sc3:
+                        port_sort = st.selectbox("↕️ Sort Portfolio:", ["Default", "Date (Newest) ⬇️", "Date (Oldest) ⬆️", "Days Held ⬆️", "Days Held ⬇️", "Day P&L ⬆️", "Day P&L ⬇️", "Total P&L ⬆️", "Total P&L ⬇️", "P&L % ⬆️", "P&L % ⬇️"], label_visibility="collapsed")
+
+                    df_port_view = df_port_saved[df_port_saved['Date'].astype(str) == port_date_filter].copy() if (port_date_filter != "All Dates" and not df_port_saved.empty) else df_port_saved.copy()
+                    st.markdown(render_portfolio_table(df_port_view, df_all_stocks, weekly_trends, port_sort), unsafe_allow_html=True)
+                    st.markdown("<br>", unsafe_allow_html=True)
+
+                    with st.expander("🤖 View Portfolio Swing Advisor (Action & Levels)", expanded=False):
+                        st.markdown(render_portfolio_swing_advice_table(df_port_saved, df_all_stocks, weekly_trends), unsafe_allow_html=True)
+
+                    with st.expander("➕ Search & Add Stock to Portfolio", expanded=False):
+                        with st.form("portfolio_add_form", clear_on_submit=True):
+                            c1, c2, c3, c4 = st.columns(4)
+                            with c1: new_sym = st.text_input("🔍 NSE Symbol", placeholder="e.g. ITC").upper().strip()
+                            with c2: new_qty = st.number_input("📦 Quantity", min_value=1, value=10)
+                            with c3: new_price = st.number_input("💰 Buy Price (₹)", min_value=0.0, value=100.0)
+                            with c4: new_date = st.date_input("📅 Purchase Date")
+                            c5, c6, c7, c8 = st.columns(4)
+                            with c5: new_sl = st.number_input("🛑 Fixed SL", min_value=0.0, value=0.0)
+                            with c6: new_t1 = st.number_input("🎯 Target 1", min_value=0.0, value=0.0)
+                            with c7: new_t2 = st.number_input("🎯 Target 2", min_value=0.0, value=0.0)
+                            with c8:
+                                st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+                                submit_btn = st.form_submit_button("➕ Verify & Add", width="stretch")
+
+                        if submit_btn:
+                            if new_sym:
+                                chk_data = yf.download(f"{new_sym}.NS", period="1d", progress=False)
+                                if chk_data.empty:
+                                    st.error(f"❌ '{new_sym}' not found in NSE!")
+                                else:
+                                    new_date_str = new_date.strftime("%d-%b-%Y")
+                                    df_port_saved = df_port_saved.copy()
+                                    if new_sym in df_port_saved['Symbol'].values:
+                                        old_row = df_port_saved[df_port_saved['Symbol'] == new_sym].iloc[0]
+                                        old_qty, old_price = float(old_row['Quantity']), float(old_row['Buy_Price'])
+                                        total_qty = old_qty + new_qty
+                                        base_price = ((old_qty * old_price) + (new_qty * new_price)) / total_qty
+                                    else:
+                                        total_qty, base_price = new_qty, new_price
+                                    calc_sl = new_sl if new_sl > 0 else round(base_price * 0.95, 2)
+                                    calc_t1 = new_t1 if new_t1 > 0 else round(base_price * 1.10, 2)
+                                    calc_t2 = new_t2 if new_t2 > 0 else round(base_price * 1.15, 2)
+                                    if new_sym in df_port_saved['Symbol'].values:
+                                        df_port_saved.loc[df_port_saved['Symbol'] == new_sym, ['Buy_Price', 'Quantity', 'Date', 'SL', 'T1', 'T2']] = [round(base_price, 2), total_qty, new_date_str, calc_sl, calc_t1, calc_t2]
+                                        st.success(f"✅ {new_sym} యావరేజ్ చేయబడింది! (New Avg: ₹{round(base_price, 2)}, SL: {calc_sl})")
+                                    else:
+                                        new_row = pd.DataFrame({"Symbol": [new_sym], "Buy_Price": [new_price], "Quantity": [new_qty], "Date": [new_date_str], "SL": [calc_sl], "T1": [calc_t1], "T2": [calc_t2]})
+                                        df_port_saved = pd.concat([df_port_saved, new_row], ignore_index=True)
+                                        st.success(f"✅ {new_sym} పోర్ట్‌ఫోలియోలో యాడ్ చేయబడింది! (SL: {calc_sl}, T1: {calc_t1})")
+                                    save_portfolio(df_port_saved)
+                                    fetch_all_data.clear()
+                                    load_portfolio.clear()
+                                    time.sleep(1)
+                                    st.rerun()
                             else:
-                                new_date_str = new_date.strftime("%d-%b-%Y")
-                                df_port_saved = df_port_saved.copy()
-                                if new_sym in df_port_saved['Symbol'].values:
-                                    old_row = df_port_saved[df_port_saved['Symbol'] == new_sym].iloc[0]
-                                    old_qty, old_price = float(old_row['Quantity']), float(old_row['Buy_Price'])
-                                    total_qty = old_qty + new_qty
-                                    base_price = ((old_qty * old_price) + (new_qty * new_price)) / total_qty
-                                else:
-                                    total_qty, base_price = new_qty, new_price
-                                calc_sl = new_sl if new_sl > 0 else round(base_price * 0.95, 2)
-                                calc_t1 = new_t1 if new_t1 > 0 else round(base_price * 1.10, 2)
-                                calc_t2 = new_t2 if new_t2 > 0 else round(base_price * 1.15, 2)
-                                if new_sym in df_port_saved['Symbol'].values:
-                                    df_port_saved.loc[df_port_saved['Symbol'] == new_sym, ['Buy_Price', 'Quantity', 'Date', 'SL', 'T1', 'T2']] = [round(base_price, 2), total_qty, new_date_str, calc_sl, calc_t1, calc_t2]
-                                else:
-                                    new_row = pd.DataFrame({"Symbol": [new_sym], "Buy_Price": [new_price], "Quantity": [new_qty], "Date": [new_date_str], "SL": [calc_sl], "T1": [calc_t1], "T2": [calc_t2]})
-                                    df_port_saved = pd.concat([df_port_saved, new_row], ignore_index=True)
-                                save_portfolio(df_port_saved)
-                                fetch_all_data.clear()
-                                load_portfolio.clear()
-                                st.rerun()
+                                st.warning("Type a symbol first!")
 
                     if not df_port_saved.empty:
                         with st.expander("✏️ Edit Existing Holdings (Targets, Qty, Price)", expanded=False):
+                            st.markdown("<p style='font-size:12px; color:#888;'><i>Modify your SL, Targets, or Buy Price directly in the table below and click Save.</i></p>", unsafe_allow_html=True)
                             edited_df = st.data_editor(
                                 df_port_saved, width="stretch", hide_index=True,
                                 column_config={
@@ -4285,7 +4591,8 @@ def render_live_ui():
                                 if sell_btn and sell_sym != "-- Select --" and sell_price > 0:
                                     port_row = df_port_saved[df_port_saved['Symbol'] == sell_sym].iloc[0]
                                     buy_price = float(port_row['Buy_Price'])
-                                    current_qty = int(float(port_row.get('Quantity', 0)))
+                                    try: current_qty = int(float(port_row['Quantity']))
+                                    except: current_qty = 0
                                     sell_qty = min(sell_qty, current_qty)
                                     pnl_rs = (sell_price - buy_price) * sell_qty
                                     pnl_pct = ((sell_price - buy_price) / buy_price) * 100
@@ -4295,7 +4602,9 @@ def render_live_ui():
                                     new_closed_row = pd.DataFrame({"Buy_Date": [buy_date_str], "Sell_Date": [sell_date_str], "Symbol": [sell_sym], "Quantity": [sell_qty], "Buy_Price": [buy_price], "Sell_Price": [sell_price], "PnL_Rs": [pnl_rs], "PnL_Pct": [pnl_pct]})
                                     df_closed = pd.concat([df_closed, new_closed_row], ignore_index=True)
                                     save_closed_trades(df_closed)
-                                    df_port_saved = df_port_saved[df_port_saved['Symbol'] != sell_sym] if sell_qty == current_qty else df_port_saved.assign(Quantity=np.where(df_port_saved['Symbol'] == sell_sym, current_qty - sell_qty, df_port_saved['Quantity']))
+                                    df_port_saved = df_port_saved.copy()
+                                    if sell_qty == current_qty: df_port_saved = df_port_saved[df_port_saved['Symbol'] != sell_sym]
+                                    else: df_port_saved.loc[df_port_saved['Symbol'] == sell_sym, 'Quantity'] = current_qty - sell_qty
                                     save_portfolio(df_port_saved)
                                     fetch_all_data.clear()
                                     st.rerun()
@@ -4305,13 +4614,19 @@ def render_live_ui():
                             st.markdown(render_closed_trades_table(df_closed_view), unsafe_allow_html=True)
                             if not df_closed_view.empty:
                                 st.download_button("📥 Download Trade Book (CSV)", data=df_closed_view.to_csv(index=False).encode('utf-8'), file_name="trade_book.csv", mime="text/csv")
-                                edited_closed_df = st.data_editor(df_closed_view, width="stretch", hide_index=True, num_rows="dynamic", key="tradebook_editor")
+                                st.markdown("<hr style='border-color:#30363d; margin-top:15px;'>", unsafe_allow_html=True)
+                                st.markdown("<p style='font-size:12px; color:#ffd700;'>✏️ <b>Edit / Delete Closed Trades:</b> (రో ని సెలెక్ట్ చేసి Delete నొక్కండి, తర్వాత Save నొక్కండి)</p>", unsafe_allow_html=True)
+                                edited_closed_df = st.data_editor(
+                                    df_closed_view, width="stretch", hide_index=True,
+                                    num_rows="dynamic", key="tradebook_editor"
+                                )
                                 if st.button("💾 Save Trade Book Changes", width="stretch", key="save_tb"):
                                     save_closed_trades(edited_closed_df)
+                                    st.success("✅ Trade Book అప్డేట్ అయ్యింది!")
+                                    time.sleep(1)
                                     st.rerun()
-
-                    
-                elif view_mode == "Heat Map":
+                            elif view_mode == "Heat Map":
+                    map_sort_key = "W_C" if chart_timeframe == "Weekly Chart" else "Day_C"
                     if not df_indices.empty and watchlist_mode != "Commodity 🛢️":
                         html_idx = '<div class="heatmap-grid">'
                         for _, row in df_indices.iterrows():
@@ -4321,18 +4636,50 @@ def render_live_ui():
                             html_idx += f'<a href="https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(row["Fetch_T"])}" target="_blank" class="stock-card {bg}"><div class="t-score">IDX</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{pct_val:+.2f}%</div></a>'
                         st.markdown(html_idx + '</div><hr class="custom-hr">', unsafe_allow_html=True)
 
+                    if not df_sectors.empty and watchlist_mode != "Commodity 🛢️":
+                        df_sectors_hm = df_sectors.sort_values(by=map_sort_key, ascending=False)
+                        html_sec = '<div class="heatmap-grid">'
+                        for _, row in df_sectors_hm.iterrows():
+                            pct_val = float(row.get('W_C', row['Day_C'])) if chart_timeframe == "Weekly Chart" else float(row['Day_C'])
+                            bg = card_bg_class(pct_val)
+                            html_sec += f'<a href="https://in.tradingview.com/chart/?symbol={TV_SECTOR_URL.get(row["Fetch_T"], "")}" target="_blank" class="stock-card {bg}"><div class="t-score" style="color:#00BFFF;">SEC</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{pct_val:+.2f}%</div></a>'
+                        st.markdown(html_sec + '</div><hr class="custom-hr">', unsafe_allow_html=True)
+
                     if not df_stocks_display.empty:
-                        df_buy = df_stocks_display[df_stocks_display[sort_key] >= 0]
-                        df_sell = df_stocks_display[df_stocks_display[sort_key] < 0]
+                        if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆", "Day Trading Stocks 🚀"] or "AI Predictions" in watchlist_mode:
+                            df_sell = df_stocks_display[df_stocks_display['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4|🩸', na=False)]
+                            df_buy = df_stocks_display[~df_stocks_display['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4|🩸', na=False)]
+                        else:
+                            df_buy = df_stocks_display[df_stocks_display[sort_key] >= 0]
+                            df_sell = df_stocks_display[df_stocks_display[sort_key] < 0]
+
                         for df_sec, title, col in [(df_buy, f"🟢 POSITIVE / BUY ({watchlist_mode})", "#3fb950"), (df_sell, f"🔴 NEGATIVE / SELL ({watchlist_mode})", "#f85149")]:
                             if not df_sec.empty:
-                                st.markdown(f"<div style='font-size:15px; font-weight:bold; margin: 6px 0 4px 0; color:{col};'>{title}</div>", unsafe_allow_html=True)
+                                st.markdown(f"<div style='font-size:15px; font-weight:bold; margin: 10px 0 4px 0; color:{col};'>{title}</div>", unsafe_allow_html=True)
                                 html_stk = '<div class="heatmap-grid">'
                                 for _, row in df_sec.iterrows():
                                     pct_val = float(row.get('W_C', row['Day_C'])) if chart_timeframe == "Weekly Chart" else float(row['Day_C'])
                                     bg = card_bg_class(pct_val)
-                                    html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">⭐{int(row["S"])}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{pct_val:+.2f}%</div></a>'
+                                    pb_val = row.get('Pullback_52W', 0)
+                                    pb_html = f" | <span style='color:#FFD700; font-size:10px;'>📉-{pb_val:.0f}%</span>" if pb_val >= 3.0 else ""
+                                    html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">⭐{int(row["S"])}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{pct_val:+.2f}%{pb_html}</div></a>'
                                 st.markdown(html_stk + '</div>', unsafe_allow_html=True)
+
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        if "AI Predictions" in watchlist_mode:
+                            with st.expander("🤖 View AI Predictive Radar (Probability Based)", expanded=True):
+                                st.markdown(render_highscore_terminal_table(df_stocks_display), unsafe_allow_html=True)
+                        elif watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"]:
+                            with st.expander(f"🌊 View {watchlist_mode} Radar (Ranked Table)", expanded=True):
+                                st.markdown(render_swing_terminal_table(df_stocks_display), unsafe_allow_html=True)
+                        elif watchlist_mode in ["High Score Stocks 🔥", "Day Trading Stocks 🚀"]:
+                            with st.expander("🔥 View Day Trading Radar (Ranked Table)", expanded=True):
+                                st.markdown(render_highscore_terminal_table(df_stocks_display), unsafe_allow_html=True)
+                        elif watchlist_mode != "Commodity 🛢️":
+                            with st.expander("🎯 View Trading Levels (Targets & Stop Loss)", expanded=True):
+                                st.markdown(render_levels_table(df_stocks_display), unsafe_allow_html=True)
+                    else:
+                        st.info("No items found.")
 
                 else:
                     if search_stock != "-- None --" and not df_live[df_live['T'] == search_stock].empty:
@@ -4352,13 +4699,27 @@ def render_live_ui():
                                     if not sec_df.empty:
                                         render_chart_grid(sec_df.head(6), True, "sec_top6", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
 
-                    if not df_stocks_display.empty:
-                        if "AI Predictions" in watchlist_mode or watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆", "Day Trading Stocks 🚀"]:
-                            df_sell_chart = df_stocks_display[df_stocks_display['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4|🩸|52WL', na=False)].head(24)
-                            df_buy_chart = df_stocks_display[~df_stocks_display['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4|🩸|52WL', na=False)].head(24)
+                    pinned_df = df_live[df_live['Fetch_T'].isin(st.session_state.pinned_stocks)].copy()
+                    unpinned_df = df_stocks_display[~df_stocks_display['Fetch_T'].isin(pinned_df['Fetch_T'].tolist())] if not df_stocks_display.empty else pd.DataFrame()
+
+                    if not pinned_df.empty and watchlist_mode != "My Portfolio 💼":
+                        st.markdown("<div style='font-size:15px; font-weight:bold; margin:6px 0 4px 0; color:#ffd700;'>📌 Pinned Priority Charts</div>", unsafe_allow_html=True)
+                        render_chart_grid(pinned_df, True, "pin", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
+                        st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
+
+                    if watchlist_mode == "My Portfolio 💼":
+                        if not df_stocks_display.empty:
+                            st.markdown("<div style='font-size:15px; font-weight:bold; margin-bottom:4px; color:#00BFFF;'>📈 My Portfolio Stock Charts</div>", unsafe_allow_html=True)
+                            render_chart_grid(df_stocks_display, True, "port_only_charts", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
                         else:
-                            df_buy_chart = df_stocks_display[df_stocks_display[sort_key] >= 0].head(24)
-                            df_sell_chart = df_stocks_display[df_stocks_display[sort_key] < 0].head(24)
+                            st.info("ℹ️ Portfolio is empty.")
+                    elif not unpinned_df.empty:
+                        if "AI Predictions" in watchlist_mode or watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆", "Day Trading Stocks 🚀"]:
+                            df_sell_chart = unpinned_df[unpinned_df['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4|🩸|52WL', na=False)].head(24)
+                            df_buy_chart = unpinned_df[~unpinned_df['Strategy_Icon'].str.contains('🔴|SELL|DOWN|Stage 4|🩸|52WL', na=False)].head(24)
+                        else:
+                            df_buy_chart = unpinned_df[unpinned_df[sort_key] >= 0].head(32)
+                            df_sell_chart = unpinned_df[unpinned_df[sort_key] < 0].head(32)
 
                         if not df_buy_chart.empty:
                             st.markdown(f"<div style='font-size:15px; font-weight:bold; margin:6px 0 4px 0; color:#3fb950;'>🟢 POSITIVE / BUY ({watchlist_mode})</div>", unsafe_allow_html=True)
@@ -4367,7 +4728,99 @@ def render_live_ui():
                         if not df_sell_chart.empty:
                             st.markdown(f"<div style='font-size:15px; font-weight:bold; margin:14px 0 4px 0; color:#f85149;'>🔴 NEGATIVE / SELL ({watchlist_mode})</div>", unsafe_allow_html=True)
                             render_chart_grid(df_sell_chart, True, "main_sell", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
-                    else:
-                        st.info("ℹ️ No stocks matched this strategy's strict criteria at the moment.")
+                    elif df_stocks_display.empty:
+                        st.info("ℹ️ No stocks matched this strategy's strict criteria at the moment. (ఏ స్టాక్స్ ఈ కండిషన్స్ ని మ్యాచ్ చేయలేదు)")
+
+                # =========================================================
+                # --- 📚 STRATEGY HELP GUIDE IN TELUGU (DYNAMIC) ---
+                # =========================================================
+                if "AI Predictions" in watchlist_mode or watchlist_mode == "Day Trading Stocks 🚀":
+                    st.markdown("<hr style='border-color:#30363d; margin-top:20px;'>", unsafe_allow_html=True)
+                    with st.expander("📚 ఈ డే ట్రేడింగ్ స్ట్రాటజీలను ఎలా వాడాలి? (Telugu Day Trading Guide)", expanded=False):
+                        st.markdown("""
+                        <div style='background-color:#161b22; padding:15px; border-radius:10px; border: 1px solid #30363d;'>
+                        <h4 style='color:#00BFFF; margin-top:0px;'>🤖 AI Predictions Core Logic</h4>
+                        <p style='color:#c9d1d9; font-size:14px; margin-bottom:15px;'>ఆల్గారిథమ్ వాల్యూమ్, VWAP దూరం, బుల్స్/బేర్స్ పవర్ (Bulls Power > 80), మరియు ఓపెన్=లో (O=L) లాంటి కండిషన్స్ ని చెక్ చేసి లైవ్ లో ఒక స్కోర్ ఇస్తుంది. ఈ స్కోర్ 70% దాటితేనే "🚀 AI PREDICTS: UP" లేదా "🩸 AI PREDICTS: DOWN" అని చూపిస్తుంది.</p>
+
+                        <h4 style='color:#3fb950; margin-top:15px;'>1. 🔥 First Hour Vol Breakout (ORB+VWAP)</h4>
+                        <ul style='color:#c9d1d9; font-size:14px;'>
+                            <li><b>ఎప్పుడు వాడాలి:</b> మార్నింగ్ 9:30 AM నుండి 10:30 AM మధ్యలో.</li>
+                            <li><b>లాజిక్ & ఎంట్రీ:</b> స్టాక్ కచ్చితంగా VWAP పైన ఉండాలి. ఉదయం ఓపెన్ అయిన ప్రైస్ కిందకి పడకుండా (Open Drive) పైకి వెళ్తూ, 1.5 రెట్ల (1.5x) వాల్యూమ్ తో బ్రేక్అవుట్ ఇస్తుంటే కొనాలి. VWAP కింద స్టాప్ లాస్.</li>
+                        </ul>
+
+                        <h4 style='color:#FFD700; margin-top:15px;'>2. ⚡ Sudden VWAP Cross (Any Time)</h4>
+                        <ul style='color:#c9d1d9; font-size:14px;'>
+                            <li><b>ఎప్పుడు వాడాలి:</b> రోజంతా ఎప్పుడైనా (ముఖ్యంగా మధ్యాహ్నం 1:00 PM తర్వాత బెస్ట్).</li>
+                            <li><b>లాజిక్ & ఎంట్రీ:</b> అప్పటిదాకా VWAP కింద నెగటివ్ లో ఉన్న స్టాక్, సడెన్ గా పెద్ద వాల్యూమ్ తో (>= 1.3x) ఒకే 5-నిమిషాల క్యాండిల్ లో VWAP ని కింద నుండి పైకి క్రాస్ చేస్తే కొనాలి. క్రాస్ చేసిన క్యాండిల్ కిందే స్టాప్ లాస్.</li>
+                        </ul>
+
+                        <h4 style='color:#FF8C00; margin-top:15px;'>3. 🧲 Intraday Dip & Support Bounce</h4>
+                        <ul style='color:#c9d1d9; font-size:14px;'>
+                            <li><b>ఎప్పుడు వాడాలి:</b> మార్నింగ్ పెరిగి కాస్త వెనక్కి తగ్గినప్పుడు (Low Risk Entry కోసం).</li>
+                            <li><b>లాజిక్ & ఎంట్రీ:</b> డే హై నుండి స్టాక్ 1% నుండి 3% వరకు పడి, కరెక్ట్ గా VWAP లైన్ లేదా 10-EMA లైన్ దగ్గర సపోర్ట్ తీసుకుని గ్రీన్ క్యాండిల్ వేస్తూ బౌన్స్ అవుతుంటే కొనాలి. సపోర్ట్ కిందే స్టాప్ లాస్.</li>
+                        </ul>
+
+                        <h4 style='color:#d29922; margin-top:15px;'>4. 💥 Inside Bar Vol Breakout (NR7)</h4>
+                        <ul style='color:#c9d1d9; font-size:14px;'>
+                            <li><b>ఎప్పుడు వాడాలి:</b> మొమెంటం బ్రేక్అవుట్స్ క్యాచ్ చేయడానికి.</li>
+                            <li><b>లాజిక్ & ఎంట్రీ:</b> నిన్న ఒకే చిన్న రేంజ్ లో కదలకుండా ఉన్న (Inside Bar / Narrow Range) స్టాక్, ఈరోజు ఆ రేంజ్ ని వాల్యూమ్ తో బ్రేక్ చేస్తుంటే బ్రేక్అవుట్ ఎంట్రీ తీసుకోవాలి.</li>
+                        </ul>
+
+                        <h4 style='color:#2ea043; margin-top:15px;'>5. 🚀 Gap & Go (Open = Low)</h4>
+                        <ul style='color:#c9d1d9; font-size:14px;'>
+                            <li><b>ఎప్పుడు వాడాలి:</b> స్ట్రాంగ్ పాజిటివ్ ట్రెండ్ ఉన్న రోజుల్లో.</li>
+                            <li><b>లాజిక్ & ఎంట్రీ:</b> గ్యాప్ అప్ తో ఓపెన్ అయిన స్టాక్, ఆ ఓపెన్ ప్రైస్ నే కనిష్టంగా (Open = Low) మార్చుకుని కిందకి రాకుండా పైకే వెళ్తుంటే ఈ స్కానర్ చూపిస్తుంది. ఈ స్టాక్స్ రోజంతా ట్రెండింగ్ లో ఉంటాయి.</li>
+                        </ul>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                elif watchlist_mode == "Legendary Strategy 🏆" or watchlist_mode == "Swing Trading 📈":
+                    st.markdown("<hr style='border-color:#30363d; margin-top:20px;'>", unsafe_allow_html=True)
+                    with st.expander("📚 ఈ స్వింగ్ ట్రేడింగ్ స్ట్రాటజీలను ఎలా వాడాలి? (Telugu Swing Trading Guide)", expanded=False):
+                        st.markdown("""
+                        <div style='background-color:#161b22; padding:15px; border-radius:10px; border: 1px solid #30363d;'>
+                        <h4 style='color:#00BFFF; margin-top:0px;'>1. 👑 King Strategy (SMA Bounce)</h4>
+                        <ul style='color:#c9d1d9; font-size:14px;'>
+                            <li><b>ఎప్పుడు వాడాలి:</b> మంచి క్వాలిటీ స్టాక్స్ ని తక్కువ ధరకు (Buy on Dips) కొనేందుకు.</li>
+                            <li><b>లాజిక్ & ఎంట్రీ:</b> లాంగ్ టర్మ్ ట్రెండ్ (50 SMA > 150 SMA > 200 SMA) పైన ఉండాలి. స్టాక్ పడుతూ వచ్చి 50 లేదా 150 SMA దగ్గర సపోర్ట్ తీసుకుని 1.2x వాల్యూమ్ తో బౌన్స్ అయితే కొనాలి.</li>
+                        </ul>
+
+                        <h4 style='color:#3fb950; margin-top:15px;'>2. 📈 Minervini Trend Template & Strict VCP</h4>
+                        <ul style='color:#c9d1d9; font-size:14px;'>
+                            <li><b>ఎప్పుడు వాడాలి:</b> పక్కా అప్‌ట్రెండ్ లో కన్సాలిడేట్ అవుతున్న స్టాక్స్ పట్టుకునేందుకు.</li>
+                            <li><b>లాజిక్ & ఎంట్రీ:</b> 50 SMA > 150 SMA > 200 SMA ఉండాలి, 200 SMA పైకి వంగి ఉండాలి. ధర 52W Low కంటే 30% పైన మరియు 52W High కి 25% లోపలే ఉండాలి.</li>
+                        </ul>
+
+                        <h4 style='color:#FFD700; margin-top:15px;'>3. 📦 Nicolas Darvas & Modified Box</h4>
+                        <ul style='color:#c9d1d9; font-size:14px;'>
+                            <li><b>ఎప్పుడు వాడాలి:</b> 20-రోజుల బాక్స్ బ్రేక్అవుట్ దగ్గర కొనేందుకు (Buy High, Sell Higher).</li>
+                            <li><b>లాజిక్ & ఎంట్రీ:</b> ధర 50 SMA పైన ఉండి, గత 20 రోజుల బాక్స్ రేంజ్ పై భాగాన్ని (Box Top) 1.5x వాల్యూమ్ తో బ్రేక్ చేస్తే కొనాలి.</li>
+                        </ul>
+
+                        <h4 style='color:#FF8C00; margin-top:15px;'>4. 🧲 The 20-EMA Holy Grail Pullback</h4>
+                        <ul style='color:#c9d1d9; font-size:14px;'>
+                            <li><b>ఎప్పుడు వాడాలి:</b> వేగంగా పెరుగుతున్న స్టాక్స్ కొద్దిగా పుల్ బ్యాక్ ఇచ్చినప్పుడు.</li>
+                            <li><b>లాజిక్ & ఎంట్రీ:</b> ట్రెండ్ బాగుండి (Price > 50 SMA > 150 SMA), రీసెంట్ గా పడి <b>20-Day EMA</b> సపోర్ట్ ని టచ్ చేసి ఈరోజు గ్రీన్ క్యాండిల్ తో బౌన్స్ ఇస్తుంటే క్యాచ్ చేయాలి.</li>
+                        </ul>
+
+                        <h4 style='color:#d29922; margin-top:15px;'>5. 💥 Dan Zanger (Volume Explosion)</h4>
+                        <ul style='color:#c9d1d9; font-size:14px;'>
+                            <li><b>ఎప్పుడు వాడాలి:</b> సడెన్ గా ఇన్‌స్టిట్యూషన్స్ ఎంటర్ అయిన స్టాక్స్ పసిగట్టేందుకు.</li>
+                            <li><b>లాజిక్ & ఎంట్రీ:</b> వాల్యూమ్ డ్రై అయిపోయి ప్రశాంతంగా ఉన్న స్టాక్ లో, ఈరోజు సడెన్ గా <b>2.0 రెట్ల (2.0x) వాల్యూమ్</b> తో పేలి 20-రోజుల బాక్స్ బ్రేక్అవుట్ ఇచ్చి క్యాండిల్ టాప్ 20% లో క్లోజ్ అయితే ఎంటర్ అవ్వాలి.</li>
+                        </ul>
+
+                        <h4 style='color:#f85149; margin-top:15px;'>6. 📉 RSI(2) Mean Reversion (Larry Connors)</h4>
+                        <ul style='color:#c9d1d9; font-size:14px;'>
+                            <li><b>ఎప్పుడు వాడాలి:</b> ఫాస్ట్ స్వింగ్స్ కోసం (2-5 రోజుల ట్రేడ్).</li>
+                            <li><b>లాజిక్ & ఎంట్రీ:</b> 200 SMA పైన అప్‌ట్రెండ్ లో ఉన్న స్టాక్, సడెన్ సెల్లింగ్ వల్ల <b>2-Period RSI <= 10</b> కి పడిపోయి ఈరోజు గ్రీన్ క్యాండిల్ వేస్తుంటే కొనాలి.</li>
+                        </ul>
+
+                        <h4 style='color:#a371f7; margin-top:15px;'>7. 📈 Stan Weinstein (Stage 2 Uptrend)</h4>
+                        <ul style='color:#c9d1d9; font-size:14px;'>
+                            <li><b>ఎప్పుడు వాడాలి:</b> బేస్ నుండి కొత్త బుల్ రన్ (Stage 2) ప్రారంభమయ్యే స్టాక్స్ కోసం.</li>
+                            <li><b>లాజిక్ & ఎంట్రీ:</b> ధర 150-Day SMA (30-Week MA) పైన ఉండాలి, 150 SMA పైకి స్లోప్ అవుతూ ఉండాలి.</li>
+                        </ul>
+                        </div>
+                        """, unsafe_allow_html=True)
 
 render_live_ui()
