@@ -4238,18 +4238,17 @@ def render_live_ui():
                         st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
 
                     if watchlist_mode not in ["My Portfolio 💼", "Commodity 🛢️"]:
-                        st.markdown("<div style='font-size:15px; font-weight:bold; margin-bottom:4px; color:#00BFFF;'>🌍 Global & Main Indices (Tick to Open in Pro Grid)</div>", unsafe_allow_html=True)
-                        render_chart_grid(df_indices, True, "idx", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
-                        show_sec_charts = st.toggle("📊 Show Sectoral Indices Charts", value=False)
-                        if show_sec_charts and not df_sectors.empty:
-                            render_chart_grid(df_sectors, True, "sec", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol, is_sector=True)
-                            if st.session_state.get('active_sec'):
-                                st.markdown(f"<div style='font-size:15px; font-weight:bold; margin:8px 0 4px 0; color:#ffd700;'>🌟 Top 6 Active Movers in {st.session_state.active_sec}</div>", unsafe_allow_html=True)
-                                sec_stock_names = TOP_SECTOR_STOCKS.get(st.session_state.active_sec, [])
-                                sec_df = df_stocks[df_stocks['T'].isin(sec_stock_names)].copy()
-                                if not sec_df.empty:
-                                    render_chart_grid(sec_df.head(6), True, "sec_top6", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
-                        st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
+                        with st.expander("🌍 Global & Sectoral Indices Charts (Click to Expand / Minimize)", expanded=False):
+                            render_chart_grid(df_indices, True, "idx", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
+                            show_sec_charts = st.toggle("📊 Show Sectoral Indices Charts", value=False)
+                            if show_sec_charts and not df_sectors.empty:
+                                render_chart_grid(df_sectors, True, "sec", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol, is_sector=True)
+                                if st.session_state.get('active_sec'):
+                                    st.markdown(f"<div style='font-size:15px; font-weight:bold; margin:8px 0 4px 0; color:#ffd700;'>🌟 Top 6 Active Movers in {st.session_state.active_sec}</div>", unsafe_allow_html=True)
+                                    sec_stock_names = TOP_SECTOR_STOCKS.get(st.session_state.active_sec, [])
+                                    sec_df = df_stocks[df_stocks['T'].isin(sec_stock_names)].copy()
+                                    if not sec_df.empty:
+                                        render_chart_grid(sec_df.head(6), True, "sec_top6", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
 
                     if not df_stocks_display.empty:
                         if "AI Predictions" in watchlist_mode or watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆", "Day Trading Stocks 🚀"]:
