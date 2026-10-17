@@ -3976,15 +3976,75 @@ def render_live_ui():
             # =========================================================
             else:
                 if watchlist_mode == "Fundamentals 🏢":
+                    st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-bottom:8px; color:#d29922;'>🏢 Core Fundamentals ({fund_filter})</div>", unsafe_allow_html=True)
                     fund_tickers = df_stocks_display['Fetch_T'].tolist()[:50] if not df_stocks_display.empty else [f"{s}.NS" for s in NIFTY_50[:50]]
                     df_fund = fetch_fundamentals_data(fund_tickers)
                     if not df_fund.empty:
+                        if fund_filter == "🦅 Warren Buffett Value Stocks":
+                            df_fund = df_fund[(df_fund['ROE %'] > 15) & (df_fund['Debt/Equity'] < 0.5) & (df_fund['P/E Ratio'] > 0) & (df_fund['P/E Ratio'] < 25)]
                         st.dataframe(df_fund, use_container_width=True, hide_index=True)
+                    else:
+                        st.info("Fundamentals data not available at the moment.")
 
                 elif watchlist_mode == "Mutual Funds 📈":
+                    st.markdown("<div style='font-size:16px; font-weight:bold; margin-bottom:8px; color:#00BFFF;'>📈 Mutual Funds Screener (Live Morningstar Data)</div>", unsafe_allow_html=True)
+                    mc1, mc2 = st.columns(2)
+                    with mc1:
+                        selected_mf_cat = st.selectbox("Filter by Category", ["All Categories"] + list(MUTUAL_FUNDS.keys()))
+                    with mc2:
+                        sort_period = st.selectbox("Rank By Performance", ["1Y (%)", "3Y CAGR (%)", "5Y CAGR (%)"], index=2)
                     df_mf_raw = fetch_mf_performance()
                     if not df_mf_raw.empty:
-                        st.markdown(render_mf_table(df_mf_raw), unsafe_allow_html=True)
+                        df_mf_raw['Sort_Key'] = pd.to_numeric(df_mf_raw[sort_period].replace('N/A', -999))
+                        df_mf_raw = df_mf_raw.sort_values(by='Sort_Key', ascending=False)
+                        df_mf_data = df_mf_raw[df_mf_raw['Category'] == selected_mf_cat] if selected_mf_cat != "All Categories" else df_mf_raw
+                        df_mf_data = df_mf_data.drop(columns=['Sort_Key'], errors='ignore')
+                        st.markdown(render_mf_table(df_mf_data), unsafe_allow_html=True)
+
+                elif watchlist_mode == "Month Effect Advantage 📅":
+                    st.markdown("<div style='font-size:16px; font-weight:bold; margin-bottom:8px; color:#00BFFF;'>📅 Month Effect Advantage (First 10 Days vs Rest)</div>", unsafe_allow_html=True)
+                    scan_list = st.radio("Select Universe to Scan:", ["Top 200 (Nifty + Midcap)", "NIFTY 50 Only", "Custom Stock"], horizontal=True)
+                    if scan_list == "Custom Stock":
+                        cust_stock = st.selectbox("Select Stock", all_names if all_names else NIFTY_50)
+                        tkr_list = [f"{cust_stock}.NS"]
+                    elif scan_list == "NIFTY 50 Only":
+                        tkr_list = [f"{s}.NS" for s in NIFTY_50]
+                    else:
+                        tkr_list = [f"{s}.NS" for s in NIFTY_50 + MIDCAP_150]
+                    if st.button("🚀 Run 5-Year Month Effect Analysis", width="stretch"):
+                        st.info("Running 5-Year seasonality scan... Please wait.")
+                        end_dt = datetime.now()
+                        start_dt = end_dt - pd.DateOffset(years=5)
+                        m_data = yf.download(tkr_list, start=start_dt, end=end_dt, progress=False, group_by='ticker', threads=10)
+                        me_res = []
+                        for tkr in tkr_list:
+                            try:
+                                df_t = m_data[tkr] if len(tkr_list) > 1 else m_data
+                                df_t = df_t.dropna(subset=['Close']).copy()
+                                if df_t.empty: continue
+                                df_t['Year'], df_t['Month'], df_t['Day'] = df_t.index.year, df_t.index.month, df_t.index.day
+                                f10_rets, rest_rets, wins, tot_m = [], [], 0, 0
+                                for _, grp in df_t.groupby(['Year', 'Month']):
+                                    if len(grp) < 5: continue
+                                    f10, rst = grp[grp['Day'] <= 10], grp[grp['Day'] > 10]
+                                    if not f10.empty and not rst.empty:
+                                        r1 = (f10['Close'].iloc[-1] - f10['Open'].iloc[0]) / f10['Open'].iloc[0] * 100
+                                        r2 = (rst['Close'].iloc[-1] - rst['Open'].iloc[0]) / rst['Open'].iloc[0] * 100
+                                        f10_rets.append(r1); rest_rets.append(r2)
+                                        if r1 > 0: wins += 1
+                                        tot_m += 1
+                                if tot_m > 0:
+                                    me_res.append({
+                                        "Stock": tkr.replace(".NS", ""),
+                                        "Win Rate (1st 10d) %": round(wins / tot_m * 100, 1),
+                                        "Avg 1st-10th Return %": round(sum(f10_rets) / len(f10_rets), 2),
+                                        "Avg Rest Return %": round(sum(rest_rets) / len(rest_rets), 2),
+                                        "Months": tot_m
+                                    })
+                            except Exception:
+                                pass
+                        if me_res:
+                            st.dataframe(pd.DataFrame(me_res).sort_values(by="Win Rate (1st 10d) %", ascending=False), use_container_width=True, hide_index=True)
 
                 elif watchlist_mode == "Terminal Tables 🗃️":
                     st.markdown(render_highscore_terminal_table(df_stocks_display), unsafe_allow_html=True)
@@ -4141,6 +4201,15 @@ def render_live_ui():
                                     st.rerun()
 
                 elif view_mode == "Heat Map":
+                    if not df_indices.empty and watchlist_mode != "Commodity 🛢️":
+                        html_idx = '<div class="heatmap-grid">'
+                        for _, row in df_indices.iterrows():
+                            pct_val = float(row.get('W_C', row['Day_C'])) if chart_timeframe == "Weekly Chart" else float(row['Day_C'])
+                            bg = "bear-card" if (row['T'] == "INDIA VIX" and pct_val > 0) else ("bull-card" if pct_val > 0 else "neut-card")
+                            if row['T'] != "INDIA VIX" and pct_val < 0: bg = "bear-card"
+                            html_idx += f'<a href="https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(row["Fetch_T"])}" target="_blank" class="stock-card {bg}"><div class="t-score">IDX</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{pct_val:+.2f}%</div></a>'
+                        st.markdown(html_idx + '</div><hr class="custom-hr">', unsafe_allow_html=True)
+
                     if not df_stocks_display.empty:
                         df_buy = df_stocks_display[df_stocks_display[sort_key] >= 0]
                         df_sell = df_stocks_display[df_stocks_display[sort_key] < 0]
@@ -4153,7 +4222,9 @@ def render_live_ui():
                                     bg = card_bg_class(pct_val)
                                     html_stk += f'<a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank" class="stock-card {bg}"><div class="t-score">⭐{int(row["S"])}</div><div class="t-name">{row["T"]}</div><div class="t-price">{row["P"]:.2f}</div><div class="t-pct">{pct_val:+.2f}%</div></a>'
                                 st.markdown(html_stk + '</div>', unsafe_allow_html=True)
+
                 else:
+                    # Default Mini-Charts View (Indices with Tick + Positive/Buy + Negative/Sell)
                     if search_stock != "-- None --" and not df_live[df_live['T'] == search_stock].empty:
                         render_chart_grid(pd.DataFrame([df_live[df_live['T'] == search_stock].iloc[0]]), True, "search", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
                         st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
@@ -4164,6 +4235,12 @@ def render_live_ui():
                         show_sec_charts = st.toggle("📊 Show Sectoral Indices Charts", value=False)
                         if show_sec_charts and not df_sectors.empty:
                             render_chart_grid(df_sectors, True, "sec", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol, is_sector=True)
+                            if st.session_state.get('active_sec'):
+                                st.markdown(f"<div style='font-size:15px; font-weight:bold; margin:8px 0 4px 0; color:#ffd700;'>🌟 Top 6 Active Movers in {st.session_state.active_sec}</div>", unsafe_allow_html=True)
+                                sec_stock_names = TOP_SECTOR_STOCKS.get(st.session_state.active_sec, [])
+                                sec_df = df_stocks[df_stocks['T'].isin(sec_stock_names)].copy()
+                                if not sec_df.empty:
+                                    render_chart_grid(sec_df.head(6), True, "sec_top6", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
                         st.markdown("<hr class='custom-hr'>", unsafe_allow_html=True)
 
                     if not df_stocks_display.empty:
@@ -4183,5 +4260,16 @@ def render_live_ui():
                             render_chart_grid(df_sell_chart, True, "main_sell", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
                     else:
                         st.info("ℹ️ No stocks matched this strategy's strict criteria at the moment.")
+
+                # Telugu Strategy Help Guide Expander at Bottom
+                with st.expander("📚 ఈ ట్రేడింగ్ స్ట్రాటజీలను ఎలా వాడాలి? (Telugu Strategy Guide)", expanded=False):
+                    st.markdown("""
+                    <div style='background-color:#161b22; padding:12px; border-radius:8px; border:1px solid #30363d; font-size:13px; color:#c9d1d9;'>
+                    <b>🎯 Order-Flow Sniper:</b> VWAP పైన + EMA 9 > 21 + బయింగ్ వాల్యూమ్ ప్రెషర్ (CVD) + నిఫ్టీ కంటే ఎక్కువ రిలేటివ్ స్ట్రెంత్ ఉన్న స్టాక్స్.<br>
+                    <b>🔥 First Hour Vol Breakout:</b> ఉదయం 9:30 - 10:30 మధ్య VWAP పైన 1.5x వాల్యూమ్ తో బ్రేక్అవుట్ ఇచ్చే స్టాక్స్.<br>
+                    <b>⚡ Sudden VWAP Cross:</b> పెద్ద వాల్యూమ్ తో 5-నిమిషాల క్యాండిల్ VWAP ని క్రాస్ చేసే స్టాక్స్.<br>
+                    <b>📈 Minervini VCP & Darvas Box:</b> 50 > 150 > 200 SMA అప్‌ట్రెండ్ లో ఉండి 52-Week High దగ్గర బ్రేక్అవుట్ ఇచ్చే స్వింగ్ స్టాక్స్.
+                    </div>
+                    """, unsafe_allow_html=True)
 
 render_live_ui()
