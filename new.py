@@ -2904,7 +2904,7 @@ st.markdown("""
     }
     div[data-testid="stElementContainer"]:has(.tv-sort-hdr-marker) { display: none !important; }
 
-    /* 6. TradingView Exact 4-Column Table Rows */
+    /* 6. TradingView Exact 4-Column Table Rows (Strict Single-Line No-Wrap) */
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) {
         gap: 0px !important;
         border-left: 1px solid #21262d !important;
@@ -2915,9 +2915,9 @@ st.markdown("""
         border: none !important;
         border-bottom: 1px solid #21262d !important;
         border-radius: 0px !important;
-        height: 27px !important;
-        min-height: 27px !important;
-        padding: 0px !important;
+        height: 26px !important;
+        min-height: 26px !important;
+        padding: 0px 2px !important;
         margin: 0px !important;
         width: 100% !important;
         display: block !important;
@@ -2935,11 +2935,12 @@ st.markdown("""
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p {
         display: grid !important;
-        grid-template-columns: 34% 22% 22% 22% !important;
+        grid-template-columns: 38% 20% 20% 22% !important;
         align-items: center !important;
         width: 100% !important;
         font-family: 'Consolas', 'Courier New', monospace !important;
-        font-size: 11.5px !important;
+        font-size: 10.5px !important;
+        line-height: 24px !important;
         margin: 0px !important;
         padding: 0px !important;
         white-space: nowrap !important;
@@ -2948,12 +2949,14 @@ st.markdown("""
         background: transparent !important;
         color: #e6edf3 !important;
         font-weight: 700 !important;
-        font-size: 11px !important;
+        font-size: 10.5px !important;
         text-align: left !important;
-        padding: 0px 4px !important;
+        padding: 0px 3px !important;
         border-right: 1px solid #21262d !important;
+        white-space: nowrap !important;
         overflow: hidden !important;
-        text-overflow: ellipsis !important;
+        text-overflow: clip !important;
+        display: block !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > span {
         color: #f0f6fc !important;
@@ -2961,12 +2964,16 @@ st.markdown("""
         text-align: right !important;
         padding: 0px 4px !important;
         border-right: 1px solid #21262d !important;
+        white-space: nowrap !important;
+        display: block !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > strong {
         color: #2ea043 !important;
         font-weight: 600 !important;
         text-align: right !important;
         padding: 0px 4px !important;
+        white-space: nowrap !important;
+        display: block !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > em {
         color: #f85149 !important;
@@ -2974,21 +2981,13 @@ st.markdown("""
         font-weight: 600 !important;
         text-align: right !important;
         padding: 0px 4px !important;
+        white-space: nowrap !important;
+        display: block !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > *:nth-child(3) {
         border-right: 1px solid #21262d !important;
     }
     div[data-testid="stElementContainer"]:has(.tv-wl-marker) { display: none !important; }
-    div[data-testid="stElementContainer"]:has(.close-x-marker) + div div.stButton > button {
-        background-color: #dc2626 !important;
-        border: 1px solid #ef4444 !important;
-        color: #ffffff !important;
-        height: 28px !important;
-        min-height: 28px !important;
-        padding: 0px !important;
-        font-weight: bold !important;
-    }
-    div[data-testid="stElementContainer"]:has(.close-x-marker) { display: none !important; }
 
     @media screen and (max-width: 768px) {
         div[data-testid="stHorizontalBlock"] { flex-direction: column-reverse !important; }
@@ -3869,7 +3868,7 @@ def render_live_ui():
         with st.expander("📋 Watchlist Table (Click Headers to Sort)", expanded=True):
             full_tbl = st.checkbox("🔎 Expand Full Table Height", value=False, key="exp_wl_tbl")
             st.markdown("<div class='tv-sort-hdr-marker'></div>", unsafe_allow_html=True)
-            sh1, sh2, sh3, sh4 = st.columns([0.34, 0.22, 0.22, 0.22], gap="small")
+            sh1, sh2, sh3, sh4 = st.columns([0.38, 0.20, 0.20, 0.22], gap="small")
             arr = "▲" if st.session_state.wl_sort_asc else "▼"
             with sh1:
                 st.button(f"Symbol{arr if st.session_state.wl_sort_col=='Symbol' else ''}", key="s_sym", width="stretch", on_click=_set_wl_sort, args=("Symbol",))
@@ -3880,7 +3879,7 @@ def render_live_ui():
             with sh4:
                 st.button(f"Chg%{arr if st.session_state.wl_sort_col=='Chg%' else ''}", key="s_pct", width="stretch", on_click=_set_wl_sort, args=("Chg%",))
 
-            tbl_h = 430 if full_tbl else 250
+            tbl_h = 420 if full_tbl else 195
             with st.container(height=tbl_h, border=False):
                 st.markdown("<div class='tv-wl-marker'></div>", unsafe_allow_html=True)
                 wl_rows = []
@@ -3904,11 +3903,11 @@ def render_live_ui():
                     c_str = f"{s_chg_pts:+.1f}" if abs(s_chg_pts) < 100 else f"{s_chg_pts:+.0f}"
                     pct_str = f"{s_chg_pct:+.2f}%"
 
-                    # Positive unte <strong> (Green), Negative unte <em> (Red)
+                    # {ico}{s_name} madhya space lekunda pettam kabatti eppudu kindha line ki viragadhu
                     if s_chg_pct >= 0:
-                        row_label = f"`{ico} {s_name}` :orange[{p_str}] **{c_str}** **{pct_str}**"
+                        row_label = f"`{ico}{s_name}` :orange[{p_str}] **{c_str}** **{pct_str}**"
                     else:
-                        row_label = f"`{ico} {s_name}` :orange[{p_str}] *{c_str}* *{pct_str}*"
+                        row_label = f"`{ico}{s_name}` :orange[{p_str}] *{c_str}* *{pct_str}*"
 
                     st.button(
                         row_label, key=f"tv_wl_{s_ft}", width="stretch",
@@ -3932,17 +3931,17 @@ def render_live_ui():
             c_hex = "#3fb950" if i_pct >= 0 else "#f85149"
 
             st.markdown(
-                f"<div style='background:#111622; border:1px solid #30363d; padding:6px 8px; margin-top:2px; border-radius:6px;'>"
+                f"<div style='background:#111622; border:1px solid #30363d; padding:5px 8px; margin-top:2px; border-radius:6px;'>"
                 f"<div style='display:flex; justify-content:space-between; align-items:center;'>"
-                f"<span style='font-weight:bold; font-size:12.5px; color:#fff;'>🔍 {insp_row['T']}</span>"
-                f"<span style='font-size:9.5px; background:#1e293b; color:#38bdf8; padding:1px 5px; border-radius:4px;'>{i_strat}</span></div>"
-                f"<div style='font-size:16px; font-weight:bold; color:#fff; font-family:monospace; margin-top:2px;'>₹{i_p:,.2f} "
-                f"<span style='font-size:11.5px; color:{c_hex};'>{i_pts:+.2f} ({i_pct:+.2f}%)</span></div>"
-                f"<div style='display:flex; justify-content:space-between; font-size:9.5px; color:#8b949e; margin-top:3px;'>"
+                f"<span style='font-weight:bold; font-size:12px; color:#fff;'>🔍 {insp_row['T']}</span>"
+                f"<span style='font-size:9px; background:#1e293b; color:#38bdf8; padding:1px 5px; border-radius:4px;'>{i_strat}</span></div>"
+                f"<div style='font-size:15px; font-weight:bold; color:#fff; font-family:monospace; margin-top:1px;'>₹{i_p:,.2f} "
+                f"<span style='font-size:11px; color:{c_hex};'>{i_pts:+.2f} ({i_pct:+.2f}%)</span></div>"
+                f"<div style='display:flex; justify-content:space-between; font-size:9px; color:#8b949e; margin-top:2px;'>"
                 f"<span>L: ₹{i_l:.1f}</span><span>Day Range ({i_sec})</span><span>H: ₹{i_h:.1f}</span></div>"
                 f"<div style='width:100%; background:#21262d; height:4px; border-radius:3px; margin-top:2px;'>"
                 f"<div style='width:{pos_pct}%; background:{c_hex}; height:4px; border-radius:3px;'></div></div>"
-                f"<div style='display:flex; justify-content:space-between; font-size:10px; color:#c9d1d9; margin-top:3px;'>"
+                f"<div style='display:flex; justify-content:space-between; font-size:9.5px; color:#c9d1d9; margin-top:2px;'>"
                 f"<span>RVOL: <b style='color:#00BFFF;'>{i_vx:.1f}x</b></span>"
                 f"<span>VWAP: <b style='color:#ffd700;'>₹{float(insp_row.get('VWAP', i_p)):.1f}</b></span></div>"
                 f"</div>",
