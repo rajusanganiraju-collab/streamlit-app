@@ -2545,12 +2545,12 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                     v_shift = 6 if v_anchor == "bottom" else -6
                     e_shift = 6 if e_anchor == "bottom" else -6
                     if has_vwap and has_ema and abs(tag_y_vwap - tag_y_ema) / (tag_y_vwap + 0.001) < 0.008:
-                    if tag_y_vwap >= tag_y_ema:
-                        v_anchor, v_shift = "bottom", 6
-                        e_anchor, e_shift = "top", -6
-                    else:
-                        v_anchor, v_shift = "top", -6
-                        e_anchor, e_shift = "bottom", 6
+                        if tag_y_vwap >= tag_y_ema:
+                            v_anchor, v_shift = "bottom", 6
+                            e_anchor, e_shift = "top", -6
+                        else:
+                            v_anchor, v_shift = "top", -6
+                            e_anchor, e_shift = "bottom", 6
 
                     if has_vwap and has_ema and abs(tag_y_vwap - tag_y_ema) / (tag_y_vwap + 0.001) < 0.005:
                         if tag_y_vwap >= tag_y_ema:
