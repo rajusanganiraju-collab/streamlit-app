@@ -178,7 +178,10 @@ st.markdown("""
     @media screen and (max-width: 650px) { div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) { grid-template-columns: repeat(2, 1fr) !important; gap: 6px !important; } }
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] { background-color: #161b22 !important; border: 1px solid #30363d !important; border-radius: 8px !important; padding: 5px !important; position: relative !important; width: 100% !important; }
     div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] div[data-testid="stCheckbox"] { position: absolute !important; top: 10px !important; left: 10px !important; z-index: 100 !important; }
-    div[data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(div[data-testid="stCheckbox"]) { margin-bottom: -45px !important; position: relative !important; z-index: 50 !important; }
+    div[data-testid="stVerticalBlock"]:has(> div:nth-child(1) .fluid-board) > div[data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(div[data-testid="stCheckbox"]),
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) > div[data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:has(div[data-testid="stCheckbox"]) { margin-bottom: -45px !important; position: relative !important; z-index: 50 !important; }
+    div[data-testid="stPopoverBody"] div[data-testid="stElementContainer"]:has(div[data-testid="stCheckbox"]) { margin-bottom: 6px !important; position: static !important; }
+    div[data-testid="stPopoverBody"] div[data-testid="stCheckbox"] label { padding: 4px 2px !important; min-height: 24px !important; }
     div[data-testid="stCheckbox"] label { padding: 0 !important; min-height: 0 !important; }
     div.stButton > button { border-radius: 8px !important; border: 1px solid #30363d !important; background-color: #161b22 !important; height: 45px !important; }
     .heatmap-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 8px; padding: 5px 0; }
@@ -2860,32 +2863,50 @@ st.markdown("""
     }
     div[data-testid="stElementContainer"]:has(.tv-sort-hdr-marker) { display: none !important; }
 
-    /* 5. TradingView Flat Watchlist Rows */
+    /* 5. TradingView Flat Watchlist Rows (Aligned 4-Column Table Layout) */
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button {
         background-color: transparent !important;
         border: none !important;
-        border-bottom: 1px solid #1e232e !important;
+        border-bottom: 1px solid #21262d !important;
         border-radius: 0px !important;
-        height: 27px !important;
-        min-height: 27px !important;
-        padding: 0px 2px !important;
+        height: 30px !important;
+        min-height: 30px !important;
+        padding: 0px 4px !important;
         margin: 0px !important;
         width: 100% !important;
-        display: flex !important;
-        justify-content: flex-start !important;
-        align-items: center !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button:hover {
         background-color: #1e2636 !important;
     }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p {
-        font-family: 'Consolas', 'Courier New', monospace !important;
-        font-size: 10.5px !important;
-        white-space: pre !important;
-        text-align: left !important;
-        margin: 0px !important;
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button div[data-testid="stMarkdownContainer"] {
         width: 100% !important;
-        letter-spacing: -0.4px !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p {
+        display: grid !important;
+        grid-template-columns: 1.4fr 0.95fr 0.85fr 0.95fr !important;
+        align-items: center !important;
+        width: 100% !important;
+        font-family: 'Consolas', 'Courier New', monospace !important;
+        font-size: 12px !important;
+        font-weight: 600 !important;
+        margin: 0px !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p span:nth-child(1) {
+        text-align: left !important;
+        color: #e6edf3 !important;
+        font-weight: bold !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p span:nth-child(2) {
+        text-align: right !important;
+        color: #ffd700 !important;
+        font-weight: bold !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p span:nth-child(3),
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p span:nth-child(4) {
+        text-align: right !important;
+        font-weight: bold !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) { gap: 0px !important; }
     div[data-testid="stElementContainer"]:has(.tv-wl-marker) { display: none !important; }
@@ -3796,7 +3817,7 @@ def render_live_ui():
                 ico = "☑" if is_sel else ("🟢" if s_chg_pct >= 0 else "🔴")
                 col_tag = "green" if s_chg_pct >= 0 else "red"
 
-                row_label = f"{ico}{s_name:<8}{s_ltp:>7.1f} :{col_tag}[{s_chg_pts:>+6.1f}] :{col_tag}[{s_chg_pct:>+5.1f}%]"
+                row_label = f":blue[{ico} {s_name}] :orange[{s_ltp:.1f}] :{col_tag}[{s_chg_pts:+.1f}] :{col_tag}[{s_chg_pct:+.1f}%]"
                 st.button(
                     row_label, key=f"tv_wl_{s_ft}", width="stretch",
                     on_click=_toggle_wl_stock, args=(s_ft, r_item['T'])
@@ -4032,7 +4053,7 @@ def render_live_ui():
                     st.markdown(render_highscore_terminal_table(df_stocks_display), unsafe_allow_html=True)
                     st.markdown(render_levels_table(df_stocks_display), unsafe_allow_html=True)
 
-                elif watchlist_mode == "My Portfolio 💼":
+                elif watchlist_mode == "My Portfolio 💼" and view_mode == "Heat Map":
                     # ALWAYS SHOW PORTFOLIO KPI, TABLE, ADD, EDIT, SELL & TRADEBOOK (Both in Heat Map & Chart mode!)
                     try:
                         if not df_port_saved.empty:
@@ -4177,10 +4198,7 @@ def render_live_ui():
                                     save_closed_trades(edited_closed_df)
                                     st.rerun()
 
-                    if view_mode == "Chart 📈" and not df_stocks_display.empty:
-                        st.markdown("<hr class='custom-hr'><div style='font-size:15px; font-weight:bold; margin-bottom:4px; color:#00BFFF;'>📈 My Portfolio Stock Charts</div>", unsafe_allow_html=True)
-                        render_chart_grid(df_stocks_display, True, "port_charts", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
-
+                    
                 elif view_mode == "Heat Map":
                     if not df_indices.empty and watchlist_mode != "Commodity 🛢️":
                         html_idx = '<div class="heatmap-grid">'
