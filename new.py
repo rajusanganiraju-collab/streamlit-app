@@ -2697,48 +2697,62 @@ st.markdown("""
     }
     div[data-testid="stElementContainer"]:has(.tv-sort-hdr-marker) { display: none !important; }
 
-    /* Remove 16px internal padding from scrollable watchlist box */
-    div[data-testid="stVerticalBlockBorderWrapper"]:has(.tv-wl-marker) {
-        padding: 0px !important; border: none !important;
-    }
+    /* Remove 16px internal padding from scrollable watchlist box & Align 4 Columns */
+    div[data-testid="stVerticalBlockBorderWrapper"]:has(.tv-wl-marker),
     div[data-testid="stVerticalBlockBorderWrapper"]:has(.tv-wl-marker) > div {
         padding: 0px !important;
+        margin: 0px !important;
+        border: none !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button {
-        background-color: transparent !important; border: none !important;
-        border-bottom: 1px solid #21262d !important; border-radius: 0px !important;
-        height: 30px !important; min-height: 30px !important;
-        padding: 0px 2px !important; margin: 0px !important; width: 100% !important;
-        display: flex !important; justify-content: flex-start !important; align-items: center !important;
+        background-color: transparent !important;
+        border: none !important;
+        border-bottom: 1px solid #21262d !important;
+        border-radius: 0px !important;
+        height: 30px !important;
+        min-height: 30px !important;
+        padding: 0px 4px !important;
+        margin: 0px !important;
+        width: 100% !important;
+        display: block !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button > div {
-        width: 100% !important; display: flex !important; justify-content: flex-start !important; margin: 0px !important; padding: 0px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        display: block !important;
+        margin: 0px !important;
+        padding: 0px !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button:hover {
         background-color: #1f2937 !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p {
+        display: grid !important;
+        grid-template-columns: 34% 22% 22% 22% !important;
+        width: 100% !important;
+        align-items: center !important;
         font-family: 'Consolas', 'Courier New', monospace !important;
-        font-size: 12px !important; font-weight: bold !important; color: #ffffff !important;
-        white-space: pre !important; text-align: left !important;
-        margin: 0px !important; padding: 0px !important; width: 100% !important; letter-spacing: -0.2px !important;
+        font-size: 12px !important;
+        font-weight: bold !important;
+        margin: 0px !important;
+        padding: 0px !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > *:nth-child(1) {
+        text-align: left !important;
+        color: #ffffff !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > *:nth-child(2) {
+        text-align: right !important;
+        color: #ffffff !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > *:nth-child(3),
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > *:nth-child(4) {
+        text-align: right !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) { gap: 0px !important; }
     div[data-testid="stElementContainer"]:has(.tv-wl-marker) { display: none !important; }
-
-    /* Red Close [X] Button */
-    div[data-testid="stElementContainer"]:has(.close-x-marker) + div div.stButton > button {
-        background-color: #dc2626 !important; border: 1px solid #ef4444 !important;
-        color: #ffffff !important; height: 28px !important; min-height: 28px !important; padding: 0px !important; font-weight: bold !important;
-    }
-    div[data-testid="stElementContainer"]:has(.close-x-marker) { display: none !important; }
-
-    @media screen and (max-width: 768px) {
-        div[data-testid="stHorizontalBlock"] { flex-direction: column-reverse !important; }
-        div[data-testid="stColumn"] { width: 100% !important; flex: 1 1 100% !important; }
-    }
-    </style>
-""", unsafe_allow_html=True)
 
 
 # --- IST TIMEZONE CONVERTER ---
@@ -3494,7 +3508,7 @@ def render_live_ui():
     # ---------------------------------------------------------
     with side_watchlist_slot:
         st.markdown("<div class='tv-sort-hdr-marker'></div>", unsafe_allow_html=True)
-        sh1, sh2, sh3, sh4 = st.columns([1.3, 0.9, 0.85, 0.95], gap="small")
+        sh1, sh2, sh3, sh4 = st.columns([1.36, 0.88, 0.88, 0.88], gap="small")
         arr = "▲" if st.session_state.wl_sort_asc else "▼"
         with sh1:
             st.button(f"Symbol{arr if st.session_state.wl_sort_col=='Symbol' else ''}", key="s_sym", width="stretch", on_click=_set_wl_sort, args=("Symbol",))
@@ -3525,7 +3539,8 @@ def render_live_ui():
                 ico = "☑" if is_sel else ("🟢" if s_chg_pct >= 0 else "🔴")
                 col_tag = "green" if s_chg_pct >= 0 else "red"
 
-                row_label = f"{ico}{s_name:<8}{s_ltp:>7.1f} :{col_tag}[{s_chg_pts:>+6.1f}] :{col_tag}[{s_chg_pct:>+5.1f}%]"
+                # 4 Exact Grid Columns: Symbol (34%) | Last (22%) | Chg (22%) | Chg% (22%)
+                row_label = f"**{ico}{s_name}** **{s_ltp:.1f}** :{col_tag}[{s_chg_pts:+.1f}] :{col_tag}[{s_chg_pct:+.1f}%]"
                 st.button(
                     row_label, key=f"tv_wl_{s_ft}", width="stretch",
                     on_click=_toggle_wl_stock, args=(s_ft, r_item['T'])
