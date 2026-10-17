@@ -3834,4 +3834,4 @@ def render_live_ui():
                         st.info("ℹ️ No stocks matched this strategy's strict criteria at the moment.")
 
 render_live_ui()
-                        df_mf_raw['Sort_Key'] = pd.to_
+                       
