@@ -2386,6 +2386,7 @@ def render_levels_table(df_subset):
     html += "</tbody></table>"
     return html
 
+# --- MINI-CHART RENDERER (NO V/E OVERLAP + EXPAND & SCREENSHOT BUTTONS + 12H IST) ---
 def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intraday (5m)", show_crosshair=False, show_vol=False):
     display_sym = row['T']
     fetch_sym = row['Fetch_T']
@@ -2393,25 +2394,19 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
     color_hex = "#da3633" if pct_val < 0 else "#2ea043"
     sign = "+" if pct_val > 0 else ""
     tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
-    
-    if show_pin and display_sym not in ["NIFTY", "BANKNIFTY", "INDIA VIX", "SPX", "DAX", "USD/INR"] and not row.get('Is_Commodity'):
+
+    if show_pin:
         cb_key = f"cb_{fetch_sym}_{key_suffix}" if key_suffix else f"cb_{fetch_sym}"
         is_pinned = fetch_sym in st.session_state.pinned_stocks
-        pin_val = st.checkbox("pin", value=is_pinned, key=cb_key, label_visibility="collapsed")
-        if pin_val != is_pinned:
-            if pin_val:
-                if fetch_sym not in st.session_state.pinned_stocks: st.session_state.pinned_stocks.append(fetch_sym)
-            else:
-                if fetch_sym in st.session_state.pinned_stocks: st.session_state.pinned_stocks.remove(fetch_sym)
-            st.rerun(scope="fragment")
-    
+        st.checkbox(
+            "pin", value=is_pinned, key=cb_key, label_visibility="collapsed",
+            on_change=_on_pin_checkbox_change, args=(fetch_sym, display_sym, cb_key)
+        )
+
     strat_tag = f" <span style='font-size:10px; background:rgba(0,191,255,0.2); border:1px solid #00BFFF; padding:1px 4px; border-radius:3px; color:#00BFFF;'>{row.get('Strategy_Icon', '')}</span>" if row.get('Strategy_Icon') and row.get('Strategy_Icon') != "Neutral" else ""
-    
+
     if timeframe == "Intraday (5m)":
-        day_high = float(row.get('H', 0))
-        day_low = float(row.get('L', 0))
-        ltp_now = float(row.get('P', 0))
-        
+        day_high, day_low, ltp_now = float(row.get('H', 0)), float(row.get('L', 0)), float(row.get('P', 0))
         if pct_val >= 0:
             intraday_pb = ((day_high - ltp_now) / day_high) * 100 if day_high > 0 else 0
             pb_tag = f" &nbsp;<span style='color:#FF8C00; font-size:11px;'>📉 -{intraday_pb:.1f}% DH</span>" if intraday_pb >= 0.1 else ""
@@ -2419,262 +2414,110 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
             intraday_bounce = ((ltp_now - day_low) / day_low) * 100 if day_low > 0 else 0
             pb_tag = f" &nbsp;<span style='color:#00BFFF; font-size:11px;'>📈 +{intraday_bounce:.1f}% DL</span>" if intraday_bounce >= 0.1 else ""
     else:
-        strat_icon = str(row.get('Strategy_Icon', ''))
-        if "🔴" in strat_icon or "SELL" in strat_icon or "Stage 4" in strat_icon or "Breakdown" in strat_icon or "Holy Grail" in strat_icon:
-            low_52w = float(row.get('Low52W', 0))
-            ltp_now = float(row.get('P', 0))
-            dist_52wl = ((ltp_now - low_52w) / low_52w) * 100 if low_52w > 0 else 0
-            pb_tag = f" &nbsp;<span style='color:#f85149; font-size:11px;'>🩸 +{dist_52wl:.1f}% 52WL</span>" if dist_52wl >= 0.1 else ""
-        else:
-            pb_val = float(row.get('Pullback_52W', 0))
-            pb_tag = f" &nbsp;<span style='color:#FF8C00; font-size:11px;'>📉 -{pb_val:.1f}% 52WH</span>" if pb_val >= 0.1 else ""
-    
+        pb_val = float(row.get('Pullback_52W', 0))
+        pb_tag = f" &nbsp;<span style='color:#FF8C00; font-size:11px;'>📉 -{pb_val:.1f}% 52WH</span>" if pb_val >= 0.1 else ""
+
     title_html = f"<a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; line-height:1.2;'><b>{display_sym}</b>{strat_tag}<br><span style='font-size:12px; color:#cccccc;'>₹{row['P']:.2f} &nbsp;<span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span>{pb_tag}</span></a>"
-    
+
     try:
         if not df_chart.empty and 'Low' in df_chart.columns and 'High' in df_chart.columns:
-            df_chart = df_chart.copy()
+            df_chart = _fix_ist_df(df_chart) if timeframe == "Intraday (5m)" else df_chart.copy()
             if timeframe == "Intraday (5m)":
                 df_chart = df_chart.tail(75)
-            min_val = df_chart['Low'].min()
-            max_val = df_chart['High'].max()
-            y_padding = (max_val - min_val) * 0.15 if (max_val - min_val) != 0 else min_val * 0.005 
-            
-            if df_chart.index.tz is not None:
-                df_chart.index = df_chart.index.tz_convert('Asia/Kolkata').tz_localize(None)
+            min_val, max_val = df_chart['Low'].min(), df_chart['High'].max()
+            y_padding = (max_val - min_val) * 0.15 if (max_val - min_val) != 0 else min_val * 0.005
 
             chart_times = pd.to_datetime(df_chart.index)
-            # Sequential integer X-axis valla SPX, USD/INR mariyu holidays lo etuvanti empty space raadu
+            x_labels = chart_times.strftime('%I:%M %p') if timeframe == "Intraday (5m)" else chart_times.strftime('%d-%b')
             x_idx = list(range(len(df_chart)))
-            
+
             hover_data = (
-                "🕒 " + chart_times.strftime('%d-%b %I:%M %p') + 
-                "<br>🟢 O: ₹" + df_chart['Open'].round(2).astype(str) + 
-                "<br>📈 H: ₹" + df_chart['High'].round(2).astype(str) + 
-                "<br>📉 L: ₹" + df_chart['Low'].round(2).astype(str) + 
+                "🕒 " + chart_times.strftime('%d-%b %I:%M %p IST') +
+                "<br>🟢 O: ₹" + df_chart['Open'].round(2).astype(str) +
+                "<br>📈 H: ₹" + df_chart['High'].round(2).astype(str) +
+                "<br>📉 L: ₹" + df_chart['Low'].round(2).astype(str) +
                 "<br>🔴 C: ₹" + df_chart['Close'].round(2).astype(str)
             )
-            
-            hover_kwargs = {}
-            if show_crosshair:
-                hover_kwargs = {"hovertemplate": "%{text}<extra></extra>"}
-            
-            def apply_standard_candles(fig_obj, is_subplot):
-                rc = dict(row=1, col=1) if is_subplot else dict()
-                
-                if 'Volume' in df_chart.columns:
-                    vol_sma = df_chart.get('Vol_SMA_89', df_chart['Volume'].rolling(window=20, min_periods=1).mean())
-                    hv_mask = df_chart['Volume'] > (vol_sma * 1.618)
-                    
-                    vwap_val = df_chart.get('VWAP', pd.Series(0, index=df_chart.index))
-                    ema10_val = df_chart.get('EMA_10', pd.Series(0, index=df_chart.index))
-                    
-                    strong_up = (df_chart['Close'] > vwap_val) & (df_chart['Close'] > ema10_val)
-                    strong_down = (df_chart['Close'] < vwap_val) & (df_chart['Close'] < ema10_val)
-                    
-                    bull = df_chart['Close'] >= df_chart['Open']
-                    bear = df_chart['Close'] < df_chart['Open']
-                    
-                    mask_hv_bull = hv_mask & strong_up & bull
-                    mask_hv_bear = hv_mask & strong_down & bear
-                    mask_norm = ~(mask_hv_bull | mask_hv_bear)
-                else:
-                    mask_hv_bull = pd.Series(False, index=df_chart.index)
-                    mask_hv_bear = pd.Series(False, index=df_chart.index)
-                    mask_norm = pd.Series(True, index=df_chart.index)
 
-                def am(col, mask): return np.where(mask, df_chart[col], np.nan)
+            fig = go.Figure()
+            fig.add_trace(go.Candlestick(
+                x=x_idx, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'],
+                increasing_line_color='#2ea043', increasing_fillcolor='#2ea043', increasing_line_width=1,
+                decreasing_line_color='#da3633', decreasing_fillcolor='#da3633', decreasing_line_width=1,
+                showlegend=False, hoverinfo='skip'
+            ))
+            fig.add_trace(go.Scatter(
+                x=x_idx, y=df_chart['Close'], mode='lines', line=dict(color='rgba(0,0,0,0)'),
+                showlegend=False, hoverinfo='text' if show_crosshair else 'skip',
+                text=hover_data, hovertemplate="%{text}<extra></extra>" if show_crosshair else None
+            ))
 
-                fig_obj.add_trace(go.Candlestick(
-                    x=x_idx, open=am('Open', mask_norm), high=am('High', mask_norm), low=am('Low', mask_norm), close=am('Close', mask_norm), 
-                    increasing_line_color='#2ea043', increasing_fillcolor='#2ea043', increasing_line_width=1,
-                    decreasing_line_color='#da3633', decreasing_fillcolor='#da3633', decreasing_line_width=1,
-                    showlegend=False, hoverinfo='skip'
-                ), **rc)
-                
-                if mask_hv_bull.any():
-                    fig_obj.add_trace(go.Candlestick(
-                        x=x_idx, open=am('Open', mask_hv_bull), high=am('High', mask_hv_bull), low=am('Low', mask_hv_bull), close=am('Close', mask_hv_bull), 
-                        increasing_line_color='#00FF00', increasing_fillcolor='#00FF00', increasing_line_width=2,
-                        decreasing_line_color='#00FF00', decreasing_fillcolor='#00FF00', decreasing_line_width=2,
-                        showlegend=False, hoverinfo='skip'
-                    ), **rc)
-                    
-                if mask_hv_bear.any():
-                    fig_obj.add_trace(go.Candlestick(
-                        x=x_idx, open=am('Open', mask_hv_bear), high=am('High', mask_hv_bear), low=am('Low', mask_hv_bear), close=am('Close', mask_hv_bear), 
-                        increasing_line_color='#FF0000', increasing_fillcolor='#FF0000', increasing_line_width=2,
-                        decreasing_line_color='#FF0000', decreasing_fillcolor='#FF0000', decreasing_line_width=2,
-                        showlegend=False, hoverinfo='skip'
-                    ), **rc)
-
-            if show_vol:
-                fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.02, row_heights=[0.75, 0.25])
-                apply_standard_candles(fig, is_subplot=True)
-                fig.add_trace(go.Scatter(
-                    x=x_idx, y=df_chart['High'], mode='lines', 
-                    line=dict(color='rgba(0,0,0,0)'), showlegend=False, 
-                    hoverinfo='text' if show_crosshair else 'skip', 
-                    text=hover_data, name="", **hover_kwargs
-                ), row=1, col=1)
-                
-                if timeframe == "Daily Chart":
-                    if 'SMA_50' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_50'], mode='lines', line=dict(color='#FFD700', width=1.5), name='50 SMA', showlegend=False, hoverinfo='skip'), row=1, col=1)
-                    if 'SMA_150' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_150'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), name='150 SMA', showlegend=False, hoverinfo='skip'), row=1, col=1)
-                    if 'SMA_200' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_200'], mode='lines', line=dict(color='#FF4500', width=2), name='200 SMA', showlegend=False, hoverinfo='skip'), row=1, col=1)
-                elif timeframe == "Weekly Chart":
-                    if 'SMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), name='10 Wk SMA', showlegend=False, hoverinfo='skip'), row=1, col=1)
-                    if 'SMA_40' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_40'], mode='lines', line=dict(color='#FF4500', width=2), name='40 Wk SMA', showlegend=False, hoverinfo='skip'), row=1, col=1)
-                else:
-                    offset = -4 if len(df_chart) >= 4 else -1
-                    tag_idx = x_idx[offset]
-                    last_close = float(df_chart['Close'].iloc[-1])
-                    has_vwap = 'VWAP' in df_chart.columns
-                    has_ema = 'EMA_10' in df_chart.columns
-                    
-                    last_vwap = float(df_chart['VWAP'].iloc[-1]) if has_vwap else 0
-                    last_ema = float(df_chart['EMA_10'].iloc[-1]) if has_ema else 0
-                    tag_y_vwap = float(df_chart['VWAP'].iloc[offset]) if has_vwap else 0
-                    tag_y_ema = float(df_chart['EMA_10'].iloc[offset]) if has_ema else 0
-
-                    v_anchor = "bottom" if last_close <= last_vwap else "top"
-                    e_anchor = "bottom" if last_close <= last_ema else "top"
-                    v_shift = 6 if v_anchor == "bottom" else -6
-                    e_shift = 6 if e_anchor == "bottom" else -6
-
-                    if has_vwap and has_ema and abs(tag_y_vwap - tag_y_ema) / (tag_y_vwap + 0.001) < 0.005:
-                        if tag_y_vwap >= tag_y_ema:
-                            v_anchor, v_shift = "bottom", 6
-                            e_anchor, e_shift = "top", -6
-                        else:
-                            v_anchor, v_shift = "top", -6
-                            e_anchor, e_shift = "bottom", 6
-
-                    if has_vwap: 
-                        fig.add_trace(go.Scatter(x=x_idx, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='skip'), row=1, col=1)
-                        fig.add_annotation(x=tag_idx, y=tag_y_vwap, text=f"V:{last_vwap:.1f}", showarrow=False, xanchor="right", yanchor=v_anchor, xshift=-5, yshift=v_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#FFD700", borderpad=2, row=1, col=1)
-                        
-                    if has_ema: 
-                        fig.add_trace(go.Scatter(x=x_idx, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'), row=1, col=1)
-                        fig.add_annotation(x=tag_idx, y=tag_y_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="right", yanchor=e_anchor, xshift=-5, yshift=e_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=2, row=1, col=1)
-            
-                vol_colors = []
-                if 'Volume' in df_chart.columns:
-                    vol_sma = df_chart.get('Vol_SMA_89', df_chart['Volume'].rolling(window=20, min_periods=1).mean())
-                    for i in range(len(df_chart)):
-                        close_p = df_chart['Close'].iloc[i]
-                        open_px = df_chart['Open'].iloc[i]
-                        bull = close_p >= open_px
-                        hv = df_chart['Volume'].iloc[i] > (vol_sma.iloc[i] * 1.618)
-                        
-                        vwap_val = df_chart['VWAP'].iloc[i] if 'VWAP' in df_chart.columns else 0
-                        ema10_val = df_chart['EMA_10'].iloc[i] if 'EMA_10' in df_chart.columns else 0
-                        
-                        is_strong_up = (close_p > vwap_val) and (close_p > ema10_val)
-                        is_strong_down = (close_p < vwap_val) and (close_p < ema10_val)
-
-                        if hv:
-                            if is_strong_up and bull: vol_colors.append('#00FF00')
-                            elif is_strong_down and not bull: vol_colors.append('#8B0000')
-                            else: vol_colors.append('#FFD700' if bull else '#FF8C00')
-                        else:
-                            vol_colors.append('rgba(46, 160, 67, 0.4)' if bull else 'rgba(218, 54, 51, 0.4)')
-                else:
-                    vol_colors = ['rgba(46, 160, 67, 0.4)' if c >= o else 'rgba(218, 54, 51, 0.4)' 
-                                  for c, o in zip(df_chart['Close'], df_chart['Open'])]
-                
-                fig.add_trace(go.Bar(x=x_idx, y=df_chart['Volume'], marker_color=vol_colors, showlegend=False, hoverinfo='skip'), row=2, col=1)
-                
-                fig.update_layout(margin=dict(l=0, r=45 if show_crosshair else 5, t=0, b=0), height=275, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
-                fig.add_annotation(text=title_html, xref="paper", yref="paper", x=0, xanchor="left", xshift=35, y=0.98, yanchor="top", showarrow=False, font=dict(size=13, color="#ffffff"), bgcolor="rgba(0,0,0,0)", borderwidth=0)
-
-                if fetch_sym in st.session_state.custom_alerts:
-                    alert_data = st.session_state.custom_alerts[fetch_sym]
-                    if alert_data['enabled']:
-                        line_c = "#3fb950" if "Above" in alert_data['type'] else "#f85149"
-                        fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8, row=1, col=1)
-
-                if show_crosshair:
-                    fig.update_layout(hovermode='x', dragmode=False, hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d"))
-                    fig.update_xaxes(showspikes=True, spikemode='across', spikethickness=1, spikedash='dot', spikecolor="rgba(255, 255, 255, 0.4)", showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
-                    fig.update_yaxes(showspikes=True, spikemode='across', spikethickness=1, spikedash='dot', spikecolor="rgba(255, 255, 255, 0.4)", showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=10), showline=False, fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)], row=1, col=1)
-                    fig.update_yaxes(showspikes=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, row=2, col=1)
-                else:
-                    fig.update_layout(hovermode=False, dragmode=False)
-                    fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
-                    fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)], row=1, col=1)
-                    fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, row=2, col=1)
-
+            if timeframe == "Daily Chart":
+                if 'SMA_50' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_50'], mode='lines', line=dict(color='#FFD700', width=1.5), showlegend=False, hoverinfo='skip'))
+                if 'SMA_150' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_150'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'))
+                if 'SMA_200' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_200'], mode='lines', line=dict(color='#FF4500', width=2), showlegend=False, hoverinfo='skip'))
+            elif timeframe == "Weekly Chart":
+                if 'SMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), showlegend=False, hoverinfo='skip'))
+                if 'SMA_40' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_40'], mode='lines', line=dict(color='#FF4500', width=2), showlegend=False, hoverinfo='skip'))
             else:
-                fig = go.Figure()
-                apply_standard_candles(fig, is_subplot=False)
-                fig.add_trace(go.Scatter(
-                    x=x_idx, y=df_chart['High'], mode='lines', 
-                    line=dict(color='rgba(0,0,0,0)'), showlegend=False, 
-                    hoverinfo='text' if show_crosshair else 'skip', 
-                    text=hover_data, name="", **hover_kwargs
-                ))
-                
-                if timeframe == "Daily Chart":
-                    if 'SMA_50' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_50'], mode='lines', line=dict(color='#FFD700', width=1.5), name='50 SMA', showlegend=False, hoverinfo='skip'))
-                    if 'SMA_150' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_150'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), name='150 SMA', showlegend=False, hoverinfo='skip'))
-                    if 'SMA_200' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_200'], mode='lines', line=dict(color='#FF4500', width=2), name='200 SMA', showlegend=False, hoverinfo='skip'))
-                elif timeframe == "Weekly Chart":
-                    if 'SMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), name='10 Wk SMA', showlegend=False, hoverinfo='skip'))
-                    if 'SMA_40' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_40'], mode='lines', line=dict(color='#FF4500', width=2), name='40 Wk SMA', showlegend=False, hoverinfo='skip'))
-                else:
-                    offset = -4 if len(df_chart) >= 4 else -1
-                    tag_idx = x_idx[offset]
-                    last_close = float(df_chart['Close'].iloc[-1])
-                    has_vwap = 'VWAP' in df_chart.columns
-                    has_ema = 'EMA_10' in df_chart.columns
-                    
-                    last_vwap = float(df_chart['VWAP'].iloc[-1]) if has_vwap else 0
-                    last_ema = float(df_chart['EMA_10'].iloc[-1]) if has_ema else 0
-                    tag_y_vwap = float(df_chart['VWAP'].iloc[offset]) if has_vwap else 0
-                    tag_y_ema = float(df_chart['EMA_10'].iloc[offset]) if has_ema else 0
+                offset = -4 if len(df_chart) >= 4 else -1
+                tag_idx = x_idx[offset]
+                last_close = float(df_chart['Close'].iloc[-1])
+                has_vwap = 'VWAP' in df_chart.columns
+                has_ema = 'EMA_10' in df_chart.columns
+                last_vwap = float(df_chart['VWAP'].iloc[-1]) if has_vwap else 0
+                last_ema = float(df_chart['EMA_10'].iloc[-1]) if has_ema else 0
+                tag_y_vwap = float(df_chart['VWAP'].iloc[offset]) if has_vwap else 0
+                tag_y_ema = float(df_chart['EMA_10'].iloc[offset]) if has_ema else 0
 
-                    v_anchor = "bottom" if last_close <= last_vwap else "top"
-                    e_anchor = "bottom" if last_close <= last_ema else "top"
-                    v_shift = 6 if v_anchor == "bottom" else -6
-                    e_shift = 6 if e_anchor == "bottom" else -6
+                v_anchor = "bottom" if last_close <= last_vwap else "top"
+                e_anchor = "bottom" if last_close <= last_ema else "top"
+                v_shift = 7 if v_anchor == "bottom" else -7
+                e_shift = 7 if e_anchor == "bottom" else -7
 
-                    if has_vwap and has_ema and abs(tag_y_vwap - tag_y_ema) / (tag_y_vwap + 0.001) < 0.005:
-                        if tag_y_vwap >= tag_y_ema:
-                            v_anchor, v_shift = "bottom", 6
-                            e_anchor, e_shift = "top", -6
-                        else:
-                            v_anchor, v_shift = "top", -6
-                            e_anchor, e_shift = "bottom", 6
+                # OLD CODE ANTI-OVERLAP LOGIC: Keeps V: and E: boxes separate!
+                if has_vwap and has_ema and abs(tag_y_vwap - tag_y_ema) / (max_val - min_val + 0.001) < 0.18:
+                    if tag_y_vwap >= tag_y_ema:
+                        v_anchor, v_shift = "bottom", 9
+                        e_anchor, e_shift = "top", -9
+                    else:
+                        v_anchor, v_shift = "top", -9
+                        e_anchor, e_shift = "bottom", 9
 
-                    if has_vwap: 
-                        fig.add_trace(go.Scatter(x=x_idx, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='skip'))
-                        fig.add_annotation(x=tag_idx, y=tag_y_vwap, text=f"V:{last_vwap:.1f}", showarrow=False, xanchor="right", yanchor=v_anchor, xshift=-5, yshift=v_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#FFD700", borderpad=2)
-                        
-                    if has_ema: 
-                        fig.add_trace(go.Scatter(x=x_idx, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'))
-                        fig.add_annotation(x=tag_idx, y=tag_y_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="right", yanchor=e_anchor, xshift=-5, yshift=e_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=2)
-            
-                fig.update_layout(margin=dict(l=0, r=45 if show_crosshair else 5, t=0, b=0), height=235, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, xaxis_rangeslider_visible=False)
-                fig.add_annotation(text=title_html, xref="paper", yref="paper", x=0, xanchor="left", xshift=35, y=0.98, yanchor="top", showarrow=False, font=dict(size=13, color="#ffffff"), bgcolor="rgba(0,0,0,0)", borderwidth=0)
+                if has_vwap:
+                    fig.add_trace(go.Scatter(x=x_idx, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='skip'))
+                    fig.add_annotation(x=tag_idx, y=tag_y_vwap, text=f"V:{last_vwap:.1f}", showarrow=False, xanchor="right", yanchor=v_anchor, xshift=-5, yshift=v_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#FFD700", borderpad=2)
+                if has_ema:
+                    fig.add_trace(go.Scatter(x=x_idx, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'))
+                    fig.add_annotation(x=tag_idx, y=tag_y_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="right", yanchor=e_anchor, xshift=-5, yshift=e_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=2)
 
-                if fetch_sym in st.session_state.custom_alerts:
-                    alert_data = st.session_state.custom_alerts[fetch_sym]
-                    if alert_data['enabled']:
-                        line_c = "#3fb950" if "Above" in alert_data['type'] else "#f85149"
-                        fig.add_hline(y=alert_data['price'], line_dash="dash", line_color=line_c, line_width=1.5, opacity=0.8)
+            fig.update_layout(
+                margin=dict(l=0, r=46 if show_crosshair else 5, t=0, b=16 if show_crosshair else 0),
+                height=230, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                showlegend=False, xaxis_rangeslider_visible=False,
+                hovermode='closest' if show_crosshair else False, dragmode=False
+            )
+            fig.add_annotation(text=title_html, xref="paper", yref="paper", x=0, xanchor="left", xshift=35, y=0.98, yanchor="top", showarrow=False, font=dict(size=13, color="#ffffff"), bgcolor="rgba(0,0,0,0)", borderwidth=0)
 
-                if show_crosshair:
-                    fig.update_layout(hovermode='x', dragmode=False, hoverlabel=dict(bgcolor="#161b22", font_size=12, font_color="#ffffff", bordercolor="#30363d"))
-                    fig.update_yaxes(showspikes=True, spikemode='across', spikethickness=0.2, spikedash='solid', spikecolor="rgba(255,255,255,0.4)", showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=10), showline=False, fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)])
-                    fig.update_xaxes(showspikes=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
-                else:
-                    fig.update_layout(hovermode=False, dragmode=False)
-                    fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)])
-                    fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
+            if show_crosshair:
+                t_step = max(1, len(x_idx) // 4)
+                fig.update_xaxes(
+                    showspikes=True, spikemode='across+toaxis', spikesnap='cursor', spikethickness=1, spikedash='dash', spikecolor='#8b949e',
+                    tickvals=x_idx[::t_step], ticktext=list(x_labels[::t_step]), tickfont=dict(color='#8b949e', size=9),
+                    showgrid=False, zeroline=False, showticklabels=True, fixedrange=True
+                )
+                fig.update_yaxes(
+                    showspikes=True, spikemode='across+toaxis', spikesnap='cursor', spikethickness=1, spikedash='dash', spikecolor='#8b949e',
+                    showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=9.5),
+                    fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)]
+                )
+            else:
+                fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
+                fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)])
 
+            # Removed displayModeBar:False so Camera (Screenshot) & Expand icons appear!
             st.plotly_chart(fig, width="stretch", key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}")
-    except Exception as e: 
+    except Exception as e:
         st.markdown(f"<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart error: {e}</div>", unsafe_allow_html=True)
 
 def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Intraday (5m)", chart_dict=None, show_crosshair=False, show_vol=False, is_sector=False):
@@ -2879,6 +2722,8 @@ st.markdown("""
         width: 100% !important;
         display: flex !important;
         justify-content: flex-start !important;
+        text-align: left !important;
+        padding-left: 0px !important;
         align-items: center !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button:hover {
@@ -3615,10 +3460,14 @@ def render_live_ui():
             default_view_idx = 0 if watchlist_mode in ["My Portfolio 💼", "F&O + Top 200 Heatmap 🗺️"] else 1
             view_mode = st.radio("Display", ["Heat Map", "Chart 📈"], index=default_view_idx, horizontal=True, label_visibility="collapsed")
 
-            grid_opts = ["Off", "1", "2", "4", "6"]
-            curr_g_idx = grid_opts.index(st.session_state.grid_layout_mode) if st.session_state.grid_layout_mode in grid_opts else 0
-            sel_grid = st.radio("📐 Pro Grid:", grid_opts, index=curr_g_idx, horizontal=True)
-            st.session_state.grid_layout_mode = sel_grid
+            g_lbl_col, g_rad_col = st.columns([1.05, 2.95], gap="small")
+            with g_lbl_col:
+                st.markdown("<div style='font-size:12px; font-weight:bold; color:#58a6ff; padding-top:5px;'>📐 Grid:</div>", unsafe_allow_html=True)
+            with g_rad_col:
+                grid_opts = ["Off", "1", "2", "4", "6"]
+                curr_g_idx = grid_opts.index(st.session_state.grid_layout_mode) if st.session_state.grid_layout_mode in grid_opts else 0
+                sel_grid = st.radio("Pro Grid", grid_opts, index=curr_g_idx, horizontal=True, label_visibility="collapsed")
+                st.session_state.grid_layout_mode = sel_grid
 
             with st.expander("⚙️ Filters, Sort & Search", expanded=False):
                 st.session_state.pause_refresh = st.toggle("⏸️ Pause Refresh", value=st.session_state.pause_refresh)
@@ -3780,11 +3629,11 @@ def render_live_ui():
         df_stocks_display = df_filtered.copy()
 
     # ---------------------------------------------------------
-    # 👉 POPULATE RIGHT 20% WATCHLIST WITH CLICKABLE SORT HEADERS
+    # 👉 POPULATE RIGHT 20% WATCHLIST (EXACT COLUMN ALIGNMENT + NO GAP)
     # ---------------------------------------------------------
     with side_watchlist_slot:
         st.markdown("<div class='tv-sort-hdr-marker'></div>", unsafe_allow_html=True)
-        sh1, sh2, sh3, sh4 = st.columns([1.4, 0.95, 0.85, 0.95], gap="small")
+        sh1, sh2, sh3, sh4 = st.columns([1.35, 0.95, 0.85, 0.95], gap="small")
         arr = "▲" if st.session_state.wl_sort_asc else "▼"
         with sh1:
             st.button(f"Symbol{arr if st.session_state.wl_sort_col=='Symbol' else ''}", key="s_sym", width="stretch", on_click=_set_wl_sort, args=("Symbol",))
@@ -3795,7 +3644,8 @@ def render_live_ui():
         with sh4:
             st.button(f"Chg%{arr if st.session_state.wl_sort_col=='Chg%' else ''}", key="s_pct", width="stretch", on_click=_set_wl_sort, args=("Chg%",))
 
-        with st.container(height=310, border=False):
+        # Height 240px so Bottom NIFTY/Stock Inspector Table is 100% visible without getting cut!
+        with st.container(height=240, border=False):
             st.markdown("<div class='tv-wl-marker'></div>", unsafe_allow_html=True)
             wl_rows = []
             for idx_sym in ["NIFTY", "BANKNIFTY"]:
@@ -3815,12 +3665,14 @@ def render_live_ui():
                 ico = "☑" if is_sel else ("🟢" if s_chg_pct >= 0 else "🔴")
                 col_tag = "green" if s_chg_pct >= 0 else "red"
 
-                row_label = f"{ico}{s_name:<8}{s_ltp:>7.1f} :{col_tag}[{s_chg_pts:>+6.1f}] :{col_tag}[{s_chg_pct:>+5.1f}%]"
+                # Exact column spacing matching Symbol | Last | Chg | Chg%
+                row_label = f"{ico}{s_name:<8} {s_ltp:>7.1f} :{col_tag}[{s_chg_pts:>+6.1f}] :{col_tag}[{s_chg_pct:>+5.1f}%]"
                 st.button(
                     row_label, key=f"tv_wl_{s_ft}", width="stretch",
                     on_click=_toggle_wl_stock, args=(s_ft, r_item['T'])
                 )
 
+        # Bottom Stock Inspector Card (Compact so it is 100% visible)
         insp_sym = st.session_state.inspected_stock
         insp_df = df_live[df_live['T'] == insp_sym]
         insp_row = insp_df.iloc[0] if not insp_df.empty else (df_stocks_display.iloc[0] if not df_stocks_display.empty else None)
@@ -3832,23 +3684,23 @@ def render_live_ui():
             i_pts = (i_p - i_pc) if (i_pc > 0 and abs(i_p - i_pc) > 0.01) else (i_p * i_pct / 100.0)
             i_h, i_l = float(insp_row.get('H', i_p)), float(insp_row.get('L', i_p))
             i_vx = float(insp_row.get('VolX', 1.0))
-            i_sec = str(insp_row.get('Sector', 'NSE EQUITY'))
+            i_sec = str(insp_row.get('Sector', 'INDEX'))
             i_strat = str(insp_row.get('Strategy_Icon', 'Active'))
             pos_pct = min(100, max(5, int(((i_p - i_l) / (i_h - i_l + 0.001)) * 100)))
             c_hex = "#3fb950" if i_pct >= 0 else "#f85149"
 
             st.markdown(
-                f"<div style='background:#111622; border-top:1px solid #30363d; padding:6px 8px; margin-top:2px; border-radius:6px;'>"
+                f"<div style='background:#111622; border:1px solid #30363d; padding:6px 8px; margin-top:2px; border-radius:6px;'>"
                 f"<div style='display:flex; justify-content:space-between; align-items:center;'>"
-                f"<span style='font-weight:bold; font-size:12.5px; color:#fff;'>🔍 {insp_row['T']}</span>"
-                f"<span style='font-size:9.5px; background:#1e293b; color:#38bdf8; padding:1px 5px; border-radius:4px;'>{i_strat}</span></div>"
-                f"<div style='font-size:17px; font-weight:bold; color:#fff; font-family:monospace; margin-top:2px;'>₹{i_p:,.2f} "
+                f"<span style='font-weight:bold; font-size:13px; color:#fff;'>🔍 {insp_row['T']}</span>"
+                f"<span style='font-size:10px; background:#1e293b; color:#38bdf8; padding:1px 5px; border-radius:4px;'>{i_strat}</span></div>"
+                f"<div style='font-size:16.5px; font-weight:bold; color:#fff; font-family:monospace; margin-top:1px;'>₹{i_p:,.2f} "
                 f"<span style='font-size:11.5px; color:{c_hex};'>{i_pts:+.2f} ({i_pct:+.2f}%)</span></div>"
-                f"<div style='display:flex; justify-content:space-between; font-size:9.5px; color:#8b949e; margin-top:4px;'>"
-                f"<span>L: ₹{i_l:.1f}</span><span>Day Range ({i_sec})</span><span>H: ₹{i_h:.1f}</span></div>"
+                f"<div style='display:flex; justify-content:space-between; font-size:9.5px; color:#8b949e; margin-top:3px;'>"
+                f"<span>L: ₹{i_l:.1f}</span><span>Range ({i_sec})</span><span>H: ₹{i_h:.1f}</span></div>"
                 f"<div style='width:100%; background:#21262d; height:4px; border-radius:3px; margin-top:2px;'>"
                 f"<div style='width:{pos_pct}%; background:{c_hex}; height:4px; border-radius:3px;'></div></div>"
-                f"<div style='display:flex; justify-content:space-between; font-size:10px; color:#c9d1d9; margin-top:4px;'>"
+                f"<div style='display:flex; justify-content:space-between; font-size:10.5px; color:#c9d1d9; margin-top:4px;'>"
                 f"<span>RVOL: <b style='color:#00BFFF;'>{i_vx:.1f}x</b></span>"
                 f"<span>VWAP: <b style='color:#ffd700;'>₹{float(insp_row.get('VWAP', i_p)):.1f}</b></span></div>"
                 f"</div>",
