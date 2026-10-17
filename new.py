@@ -3684,7 +3684,7 @@ def _fast_5m_and_sniper_cache(tickers_tuple):
 
     sniper_res, _ = adaptive_live_engine(five_min_data, list(tickers_tuple), top_n=12, min_edge=60)
     return processed_charts, nifty_intra_html, sniper_res
-    _effective_refresh = 30
+_effective_refresh = 30
 
 @st.fragment(run_every=f"{_effective_refresh}s")
 def render_live_ui():
@@ -4142,176 +4142,6 @@ def render_live_ui():
                             pass
 
             chart_dict_to_use = weekly_charts if chart_timeframe == "Weekly Chart" else (daily_charts if chart_timeframe == "Daily Chart" else processed_charts)
-
-            # =========================================================
-            # 🔥 MODE A: PRO MULTI-CHART GRID (1, 2, 4, 6 STOCKS)
-            # =========================================================
-            if st.session_state.grid_layout_mode != "Off":
-                gbar1, gbar2, gbar3 = st.columns([1.2, 1.4, 1.0], gap="small")
-                with gbar1:
-                    st.markdown("<div class='pro-ActionBar'></div>", unsafe_allow_html=True)
-                    if st.button("🔙 Back to Mini-Charts", width="stretch"):
-                        st.session_state.grid_layout_mode = "Off"
-                        st.rerun(scope="fragment")
-                with gbar2:
-                    st.session_state.pro_grid_theme = st.selectbox(
-                        "Theme", ["Light (White)", "Dark (Terminal)"],
-                        index=0 if "Light" in st.session_state.pro_grid_theme else 1,
-                        label_visibility="collapsed"
-                    )
-                with gbar3:
-                    if st.button("🗑️ Clear All Charts", width="stretch"):
-                        st.session_state.pinned_stocks = []
-                        st.session_state.grid_layout_mode = "Off"
-                        st.rerun(scope="fragment")
-
-                max_charts = int(st.session_state.grid_layout_mode)
-                fallback_candidates = ["^NSEBANK", "^NSEI"] + df_stocks_display['Fetch_T'].tolist()
-                combined_syms = list(dict.fromkeys(st.session_state.pinned_stocks + fallback_candidates))
-                grid_syms = combined_syms[:max_charts]
-
-                n_cols = 1 if max_charts == 1 else (2 if max_charts <= 4 else 3)
-                c_height = 580 if max_charts <= 2 else 268
-                rows_chunks = [grid_syms[i:i + n_cols] for i in range(0, len(grid_syms), n_cols)]
-                for r_idx, chunk_syms in enumerate(rows_chunks):
-                    g_cols = st.columns(n_cols, gap="small")
-                    for c_idx, g_sym in enumerate(chunk_syms):
-                        with g_cols[c_idx]:
-                            r_info = df_lookup.get(g_sym, {'T': g_sym.replace('.NS', ''), 'Fetch_T': g_sym})
-                            df_c_sym = chart_dict_to_use.get(g_sym, pd.DataFrame())
-                            render_pro_grid_chart(
-                                g_sym, r_info, df_c_sym, chart_timeframe,
-                                st.session_state.pro_grid_theme, st.session_state.pro_grid_inds,
-                                chart_height=c_height, key_idx=(r_idx * 10 + c_idx),
-                                current_grid_syms=grid_syms
-                            )
-
-            # =========================================================
-            # 📊 MODE B: DEFAULT MINI-CHARTS / PORTFOLIO / HEATMAP
-            # =========================================================
-            else:
-                if watchlist_mode == "Fundamentals 🏢":
-                    st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-bottom:8px; color:#d29922;'>🏢 Core Fundamentals ({fund_filter})</div>", unsafe_allow_html=True)
-                    fund_tickers = df_stocks_display['Fetch_T'].tolist()[:50] if not df_stocks_display.empty else [f"{s}.NS" for s in NIFTY_50[:50]]
-                    df_fund = fetch_fundamentals_data(fund_tickers)
-                    if not df_fund.empty:
-                        if fund_filter == "🦅 Warren Buffett Value Stocks":
-                            df_fund = df_fund[(df_fund['ROE %'] > 15) & (df_fund['Debt/Equity'] < 0.5) & (df_fund['P/E Ratio'] > 0) & (df_fund['P/E Ratio'] < 25)]
-                        st.dataframe(df_fund, use_container_width=True, hide_index=True)
-
-                elif watchlist_mode == "Mutual Funds 📈":
-                    st.markdown("<div style='font-size:16px; font-weight:bold; margin-bottom:8px; color:#00BFFF;'>📈 Mutual Funds Screener (Live Morningstar Data)</div>", unsafe_allow_html=True)
-                    mc1, mc2 = st.columns(2)
-                    with mc1:
-                        selected_mf_cat = st.selectbox("Filter by Category", ["All Categories"] + list(MUTUAL_FUNDS.keys()))
-                    with mc2:
-                        sort_period = st.selectbox("Rank By Performance", ["1Y (%)", "3Y CAGR (%)", "5Y CAGR (%)"], index=2)
-                    df_mf_raw = fetch_mf_performance()
-                    if not df_mf_raw.empty:
-                        df_mf_raw['Sort_Key'] = pd.to_numeric(df_mf_raw[sort_period].replace('N/A', -999))
-                        df_mf_raw = df_mf_raw.sort_values(by='Sort_Key', ascending=False)
-                        df_mf_data = df_mf_raw[df_mf_raw['Category'] == selected_mf_cat] if selected_mf_cat != "All Categories" else df_mf_raw
-                        df_mf_data = df_mf_data.drop(columns=['Sort_Key'], errors='ignore')
-                        st.markdown(render_mf_table(df_mf_data), unsafe_allow_html=True)
-
-                elif watchlist_mode == "Month Effect Advantage 📅":
-                    st.markdown("<div style='font-size:16px; font-weight:bold; margin-bottom:8px; color:#00BFFF;'>📅 Month Effect Advantage (First 10 Days vs Rest)</div>", unsafe_allow_html=True)
-                    scan_list = st.radio("Select Universe to Scan:", ["Top 200 (Nifty + Midcap)", "NIFTY 50 Only", "Custom Stock"], horizontal=True)
-                    tkr_list = [f"{s}.NS" for s in (NIFTY_50 if scan_list == "NIFTY 50 Only" else (NIFTY_50 + MIDCAP_150))]
-                    if st.button("🚀 Run 5-Year Month Effect Analysis", width="stretch"):
-                        end_dt = datetime.now()
-                        start_dt = end_dt - pd.DateOffset(years=5)
-                        m_data = yf.download(tkr_list, start=start_dt, end=end_dt, progress=False, group_by='ticker', threads=10)
-                        me_res = []
-                        for tkr in tkr_list:
-                            try:
-                                df_t = m_data[tkr].dropna(subset=['Close']).copy()
-                                if df_t.empty: continue
-                                df_t['Year'], df_t['Month'], df_t['Day'] = df_t.index.year, df_t.index.month, df_t.index.day
-                                f10_rets, rest_rets, wins, tot_m = [], [], 0, 0
-                                for _, grp in df_t.groupby(['Year', 'Month']):
-                                    if len(grp) < 5: continue
-                                    f10, rst = grp[grp['Day'] <= 10], grp[grp['Day'] > 10]
-                                    if not f10.empty and not rst.empty:
-                                        r1 = (f10['Close'].iloc[-1] - f10['Open'].iloc[0]) / f10['Open'].iloc[0] * 100
-                                        r2 = (rst['Close'].iloc[-1] - rst['Open'].iloc[0]) / rst['Open'].iloc[0] * 100
-                                        f10_rets.append(r1); rest_rets.append(r2)
-                                        if r1 > 0: wins += 1
-                                        tot_m += 1
-                                if tot_m > 0:
-                                    me_res.append({"Stock": tkr.replace(".NS", ""), "Win Rate (1st 10d) %": round(wins / tot_m * 100, 1), "Avg 1st-10th Return %": round(sum(f10_rets) / len(f10_rets), 2), "Avg Rest Return %": round(sum(rest_rets) / len(rest_rets), 2), "Months": tot_m})
-                            except Exception:
-                                pass
-                        if me_res:
-                            st.dataframe(pd.DataFrame(me_res).sort_values(by="Win Rate (1st 10d) %", ascending=False), use_container_width=True, hide_index=True)
-
-                elif watchlist_mode == "Terminal Tables 🗃️":
-                    st.markdown(render_highscore_terminal_table(df_stocks_display), unsafe_allow_html=True)
-                    st.markdown(render_levels_table(df_stocks_display), unsafe_allow_html=True)
-
-                elif watchlist_mode == "My Portfolio 💼" and view_mode == "Heat Map":
-                    try:
-                        if not df_port_saved.empty:
-                            _lu = df_all_stocks.drop_duplicates(subset=['T']).set_index('T')[['P', 'Prev_C']].to_dict('index')
-                            _inv = _cur = _dpnl = 0.0
-                            for _, _r in df_port_saved.iterrows():
-                                _sym = str(_r['Symbol']).upper().strip()
-                                try:
-                                    _qty, _bp = float(_r['Quantity']), float(_r['Buy_Price'])
-                                except Exception:
-                                    continue
-                                _ltp = float(_lu.get(_sym, {}).get('P', _bp) or _bp)
-                                _pc = float(_lu.get(_sym, {}).get('Prev_C', _bp) or _bp)
-                                _inv += _bp * _qty
-                                _cur += _ltp * _qty
-                                _dpnl += (_ltp - _pc) * _qty
-                            _tpnl = _cur - _inv
-                            _tpct = (_tpnl / _inv * 100) if _inv > 0 else 0
-                            _df_cl = load_closed_trades()
-                            _realized_pnl = float(pd.to_numeric(_df_cl['PnL_Rs'], errors='coerce').sum()) if not _df_cl.empty else 0.0
-                            _actual_pnl = _tpnl + _realized_pnl
-                            _k1, _k2, _k3, _k4, _k5 = st.columns(5)
-                            _k1.metric("💰 Invested", f"₹{_inv:,.0f}")
-                            _k2.metric("📈 Current Value", f"₹{_cur:,.0f}")
-                            _k3.metric("📅 Day P&L", f"₹{_dpnl:,.0f}")
-                            _k4.metric("🏆 Total P&L", f"₹{_tpnl:,.0f}", delta=f"{_tpct:+.2f}%")
-                            _k5.metric("💎 Actual P&L", f"₹{_actual_pnl:,.0f}", delta=f"TradeBook: {_realized_pnl:+,.0f}")
-                    except Exception:
-                        pass
-
-                    with st.expander("📊 Portfolio Allocation (Sector • Market-cap • Stock weights)", expanded=False):
-                        render_portfolio_allocation(df_port_saved, df_all_stocks)
-
-                    _avail_dates = ["All Dates"] + sorted(list(set(df_port_saved['Date'].dropna().astype(str).tolist()))) if not df_port_saved.empty and 'Date' in df_port_saved.columns else ["All Dates"]
-                    sc1, sc2, sc3 = st.columns([0.4, 0.3, 0.3])
-                    with sc2:
-                        port_date_filter = st.selectbox("📅 Date Filter:", _avail_dates, label_visibility="collapsed")
-                    with sc3:
-                        port_sort = st.selectbox("↕️ Sort Portfolio:", ["Default", "Date (Newest) ⬇️", "Date (Oldest) ⬆️", "Days Held ⬆️", "Days Held ⬇️", "Day P&L ⬆️", "Day P&L ⬇️", "Total P&L ⬆️", "Total P&L ⬇️", "P&L % ⬆️", "P&L % ⬇️"], label_visibility="collapsed")
-
-                    df_port_view = df_port_saved[df_port_saved['Date'].astype(str) == port_date_filter].copy() if (port_date_filter != "All Dates" and not df_port_saved.empty) else df_port_saved.copy()
-                    st.markdown(render_portfolio_table(df_port_view, df_all_stocks, weekly_trends, port_sort), unsafe_allow_html=True)
-
-                    with st.expander("🤖 View Portfolio Swing Advisor (Action & Levels)", expanded=False):
-                        st.markdown(render_portfolio_swing_advice_table(df_port_saved, df_all_stocks, weekly_trends), unsafe_allow_html=True)
-
-                    with st.expander("➕ Search & Add Stock to Portfolio", expanded=False):
-                        with st.form("portfolio_add_form", clear_on_submit=True):
-                            c1, c2, c3, c4 = st.columns(4)
-                            with c1: new_sym = st.text_input("🔍 NSE Symbol", placeholder="e.g. ITC").upper().strip()
-                            with c2: new_qty = st.number_input("📦 Quantity", min_value=1, value=10)
-                            with c3: new_price = st.number_input("💰 Buy Price (₹)", min_value=0.0, value=100.0)
-                            with c4: new_date = st.date_input("📅 Purchase Date")
-                            c5, c6, c7, c8 = st.columns(4)
-                            with c5: new_sl = st.number_input("🛑 Fixed SL", min_value=0.0, value=0.0)
-                            with c6: new_t1 = st.number_input("🎯 Target 1", min_value=0.0, value=0.0)
-                            with c7: new_t2 = st.number_input("🎯 Target 2", min_value=0.0, value=0.0)
-                            with c8:
-                                st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-                                submit_btn = st.form_submit_button("➕ Verify & Add", width="stretch")
-
-                        if submit_btn and new_sym:
-                            chk_data = yf.download(f"{new_sym}.NS", period="1d
 # =========================================================
             # 🔥 MODE A: PRO MULTI-CHART GRID (1, 2, 4, 6 STOCKS)
             # =========================================================
@@ -4625,7 +4455,8 @@ def render_live_ui():
                                     st.success("✅ Trade Book అప్డేట్ అయ్యింది!")
                                     time.sleep(1)
                                     st.rerun()
-                            elif view_mode == "Heat Map":
+
+                elif view_mode == "Heat Map":
                     map_sort_key = "W_C" if chart_timeframe == "Weekly Chart" else "Day_C"
                     if not df_indices.empty and watchlist_mode != "Commodity 🛢️":
                         html_idx = '<div class="heatmap-grid">'
