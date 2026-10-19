@@ -3940,12 +3940,12 @@ def render_live_ui():
         df_stocks_display = df_filtered.copy()
 
     # ---------------------------------------------------------
-    # 👉 POPULATE RIGHT 20% WATCHLIST WITH CLICKABLE HEADERS & ROWS
+    # 👉 POPULATE RIGHT 20% WATCHLIST (EXCEL HTML TABLE) & INSPECTOR
     # ---------------------------------------------------------
     with side_watchlist_slot:
         with st.expander("📋 Watchlist Table (Click Headers to Sort)", expanded=True):
             st.markdown("<div class='tv-sort-hdr-marker'></div>", unsafe_allow_html=True)
-            sh1, sh2, sh3, sh4 = st.columns([0.34, 0.22, 0.20, 0.24], gap="small")
+            sh1, sh2, sh3, sh4 = st.columns([0.36, 0.22, 0.20, 0.22], gap="small")
             arr = "▲" if st.session_state.wl_sort_asc else "▼"
             with sh1:
                 st.button(f"Symbol{arr if st.session_state.wl_sort_col=='Symbol' else ''}", key="s_sym", width="stretch", on_click=_set_wl_sort, args=("Symbol",))
@@ -3957,7 +3957,6 @@ def render_live_ui():
                 st.button(f"Chg%{arr if st.session_state.wl_sort_col=='Chg%' else ''}", key="s_pct", width="stretch", on_click=_set_wl_sort, args=("Chg%",))
 
             with st.container(height=235, border=False):
-                st.markdown("<div class='tv-wl-marker'></div>", unsafe_allow_html=True)
                 wl_rows = []
                 for idx_sym in ["NIFTY", "BANKNIFTY"]:
                     ir = df_indices[df_indices['T'] == idx_sym]
@@ -3965,7 +3964,10 @@ def render_live_ui():
                 for _, sr in df_stocks_display.head(45).iterrows():
                     wl_rows.append(sr)
 
-                for r_item in wl_rows:
+                # 🔥 ఇక్కడ స్ట్రీమ్‌లిట్ బటన్స్ తీసేసి, పోర్ట్‌ఫోలియో లాంటి ప్యూర్ HTML టేబుల్ వాడాము
+                wl_html = '<table class="term-table" style="margin-top:0px; border-top:none;"><tbody>'
+                for i, r_item in enumerate(wl_rows):
+                    bg_class = "row-dark" if i % 2 == 0 else "row-light"
                     s_ft = r_item['Fetch_T']
                     s_name = str(r_item['T'])[:8]
                     s_ltp = float(r_item['P'])
@@ -3976,15 +3978,60 @@ def render_live_ui():
                     p_str = f"{s_ltp:.1f}" if s_ltp < 10000 else f"{s_ltp:.0f}"
                     c_str = f"{s_chg_pts:+.1f}" if abs(s_chg_pts) < 100 else f"{s_chg_pts:+.0f}"
                     pct_str = f"{s_chg_pct:+.2f}%"
-                    col_tag = "green" if s_chg_pct >= 0 else "red"
 
-                    # 🔥 బుల్లెట్ పాయింట్స్, ఎమోజీలు అన్నీ తీసేశాం. ప్యూర్ 4-ఎలిమెంట్ స్ట్రింగ్ (CSS కోసం)
-                    row_label = f"**{s_name}** :orange[{p_str}] :{col_tag}[{c_str}] :{col_tag}[{pct_str}]"
+                    c_col = "text-green" if s_chg_pct >= 0 else "text-red"
+                    tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(s_ft, 'NSE:' + s_name)}"
 
-                    st.button(
-                        row_label, key=f"tv_wl_{s_ft}", width="stretch",
-                        on_click=_toggle_wl_stock, args=(s_ft, r_item['T'])
-                    )
+                    # బుల్లెట్ పాయింట్ తీసేసి, స్టాక్ పేరు ఎడమవైపుకు (text-align:left) మార్చాం
+                    wl_html += f'<tr class="{bg_class}">'
+                    wl_html += f'<td class="t-symbol" style="width:36%; text-align:left; padding-left:10px;"><a href="{tv_link}" target="_blank" style="text-decoration:none;">{s_name}</a></td>'
+                    wl_html += f'<td style="width:22%; text-align:right; color:#ffd700; font-weight:bold; padding-right:8px; border-left:none;">{p_str}</td>'
+                    wl_html += f'<td class="{c_col}" style="width:20%; text-align:right; padding-right:8px; border-left:none;">{c_str}</td>'
+                    wl_html += f'<td class="{c_col}" style="width:22%; text-align:right; padding-right:8px; border-left:none;">{pct_str}</td>'
+                    wl_html += '</tr>'
+                wl_html += '</tbody></table>'
+                st.markdown(wl_html, unsafe_allow_html=True)
+
+        # HTML టేబుల్ వల్ల వరుసలను క్లిక్ చేయడం కుదరదు కాబట్టి, సార్టింగ్ ప్రకారం ఆటోమేటిక్‌గా టాప్ స్టాక్ కింద ఇన్‌స్పెక్టర్ లోకి వస్తుంది!
+        if search_stock != "-- None --":
+            insp_sym = search_stock
+        elif len(wl_rows) > 2:
+            insp_sym = wl_rows[2]['T']  # NIFTY, BANKNIFTY కాకుండా డైరెక్ట్ గా టాప్ స్టాక్ చూపిస్తుంది
+        else:
+            insp_sym = "NIFTY"
+            
+        insp_df = df_live[df_live['T'] == insp_sym]
+        insp_row = insp_df.iloc[0] if not insp_df.empty else None
+
+        if insp_row is not None:
+            i_p = float(insp_row['P'])
+            i_pct = float(insp_row['Day_C'])
+            i_open = float(insp_row.get('O', 0))
+            i_pts = (i_p - i_open) if i_open > 0 else (i_p * i_pct / 100.0)
+            i_h, i_l = float(insp_row.get('H', i_p)), float(insp_row.get('L', i_p))
+            i_vx = float(insp_row.get('VolX', 1.0))
+            i_sec = str(insp_row.get('Sector', 'NSE EQUITY'))
+            i_strat = str(insp_row.get('Strategy_Icon', 'Active'))
+            pos_pct = min(100, max(5, int(((i_p - i_l) / (i_h - i_l + 0.001)) * 100)))
+            c_hex = "#3fb950" if i_pct >= 0 else "#f85149"
+
+            st.markdown(
+                f"<div style='background:#111622; border:1px solid #30363d; padding:5px 8px; margin-top:2px; border-radius:6px;'>"
+                f"<div style='display:flex; justify-content:space-between; align-items:center;'>"
+                f"<span style='font-weight:bold; font-size:12px; color:#fff;'>🔍 {insp_row['T']}</span>"
+                f"<span style='font-size:9px; background:#1e293b; color:#38bdf8; padding:1px 5px; border-radius:4px;'>{i_strat}</span></div>"
+                f"<div style='font-size:15px; font-weight:bold; color:#fff; font-family:monospace; margin-top:1px;'>₹{i_p:,.2f} "
+                f"<span style='font-size:11px; color:{c_hex};'>{i_pts:+.2f} ({i_pct:+.2f}%)</span></div>"
+                f"<div style='display:flex; justify-content:space-between; font-size:9px; color:#8b949e; margin-top:2px;'>"
+                f"<span>L: ₹{i_l:.1f}</span><span>Day Range ({i_sec})</span><span>H: ₹{i_h:.1f}</span></div>"
+                f"<div style='width:100%; background:#21262d; height:4px; border-radius:3px; margin-top:2px;'>"
+                f"<div style='width:{pos_pct}%; background:{c_hex}; height:4px; border-radius:3px;'></div></div>"
+                f"<div style='display:flex; justify-content:space-between; font-size:9.5px; color:#c9d1d9; margin-top:2px;'>"
+                f"<span>RVOL: <b style='color:#00BFFF;'>{i_vx:.1f}x</b></span>"
+                f"<span>VWAP: <b style='color:#ffd700;'>₹{float(insp_row.get('VWAP', i_p)):.1f}</b></span></div>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
 
     # ---------------------------------------------------------
     # 👉 LEFT 80% COLUMN: MARKET STATUS BAR + SCROLLABLE CHARTS
