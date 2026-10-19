@@ -3099,24 +3099,41 @@ def _toggle_wl_stock(s_ft, s_disp):
         if len(st.session_state.pinned_stocks) >= 6:
             st.session_state.pinned_stocks.pop(0)
         st.session_state.pinned_stocks.append(s_ft)
+    
     if st.session_state.pinned_stocks:
         cnt = len(st.session_state.pinned_stocks)
-        st.session_state.grid_layout_mode = "1" if cnt == 1 else ("2" if cnt == 2 else ("4" if cnt <= 4 else "6"))
+        new_mode = "1" if cnt == 1 else ("2" if cnt == 2 else ("4" if cnt <= 4 else "6"))
+        st.session_state.grid_layout_mode = new_mode
+        st.session_state.pro_grid_radio_key = new_mode  # UI ని సింక్ చేయడానికి
     else:
         st.session_state.grid_layout_mode = "Off"
-
+        st.session_state.pro_grid_radio_key = "Off"
 
 def _close_pro_chart(s_ft, current_grid_syms):
-    active_list = list(st.session_state.pinned_stocks) if st.session_state.pinned_stocks else list(current_grid_syms)
+    # ప్రస్తుతం ఏ చార్ట్స్ ఉన్నాయో చూసి, అందులో క్లిక్ చేసిన దాన్ని మాత్రమే తీసేస్తాం
+    active_list = list(st.session_state.pinned_stocks)
+    if not active_list:
+        active_list = list(current_grid_syms)
+        
     if s_ft in active_list:
         active_list.remove(s_ft)
+        
     st.session_state.pinned_stocks = active_list
-    if not active_list:
-        st.session_state.grid_layout_mode = "Off"
+    
+    cnt = len(active_list)
+    if cnt == 0:
+        new_mode = "Off"
+    elif cnt == 1:
+        new_mode = "1"
+    elif cnt == 2:
+        new_mode = "2"
+    elif cnt <= 4:
+        new_mode = "4"
     else:
-        cnt = len(active_list)
-        st.session_state.grid_layout_mode = "1" if cnt == 1 else ("2" if cnt == 2 else ("4" if cnt <= 4 else "6"))
-
+        new_mode = "6"
+        
+    st.session_state.grid_layout_mode = new_mode
+    st.session_state.pro_grid_radio_key = new_mode
 
 def _on_pin_checkbox_change(fetch_sym, display_sym, cb_key):
     pin_val = st.session_state.get(cb_key, False)
@@ -3127,13 +3144,15 @@ def _on_pin_checkbox_change(fetch_sym, display_sym, cb_key):
             st.session_state.pinned_stocks.append(fetch_sym)
         st.session_state.inspected_stock = display_sym
         cnt = len(st.session_state.pinned_stocks)
-        st.session_state.grid_layout_mode = "1" if cnt == 1 else ("2" if cnt == 2 else ("4" if cnt <= 4 else "6"))
+        new_mode = "1" if cnt == 1 else ("2" if cnt == 2 else ("4" if cnt <= 4 else "6"))
+        st.session_state.grid_layout_mode = new_mode
+        st.session_state.pro_grid_radio_key = new_mode
     else:
         if fetch_sym in st.session_state.pinned_stocks:
             st.session_state.pinned_stocks.remove(fetch_sym)
         if not st.session_state.pinned_stocks:
             st.session_state.grid_layout_mode = "Off"
-
+            st.session_state.pro_grid_radio_key = "Off"
 
 def _set_wl_sort(col_name):
     if st.session_state.wl_sort_col == col_name:
@@ -3141,7 +3160,6 @@ def _set_wl_sort(col_name):
     else:
         st.session_state.wl_sort_col = col_name
         st.session_state.wl_sort_asc = True if col_name == "Symbol" else False
-
 
 def _on_filter_sort_change():
     st.session_state.wl_sort_col = None
@@ -3784,9 +3802,10 @@ def render_live_ui():
             default_view_idx = 0 if watchlist_mode in ["My Portfolio 💼", "F&O + Top 200 Heatmap 🗺️"] else 1
             view_mode = st.radio("Mode:", ["Heat Map", "Chart 📈"], index=default_view_idx, horizontal=True)
 
-            grid_opts = ["Off", "1", "2", "4", "6"]
-            curr_g_idx = grid_opts.index(st.session_state.grid_layout_mode) if st.session_state.grid_layout_mode in grid_opts else 0
-            sel_grid = st.radio("📐 Grid:", grid_opts, index=curr_g_idx, horizontal=True)
+            if 'pro_grid_radio_key' not in st.session_state:
+                st.session_state.pro_grid_radio_key = st.session_state.grid_layout_mode
+
+            sel_grid = st.radio("📐 Grid:", ["Off", "1", "2", "4", "6"], key="pro_grid_radio_key", horizontal=True)
             st.session_state.grid_layout_mode = sel_grid
 
             with st.expander("⚙️ Filters, Sort & Search", expanded=False):
@@ -3969,10 +3988,7 @@ def render_live_ui():
         df_stocks_display = df_filtered.copy()
 
     # ---------------------------------------------------------
-    # 👉 POPULATE RIGHT 20% EXCEL WATCHLIST WITH CLICKABLE SORT HEADERS
-    # ---------------------------------------------------------
-    # ---------------------------------------------------------
-    # 👉 POPULATE RIGHT 20% WATCHLIST (EXCEL HTML TABLE) & INSPECTOR
+    # 👉 POPULATE RIGHT 20% EXCEL WATCHLIST WITH CLICKABLE ROWS
     # ---------------------------------------------------------
     with side_watchlist_slot:
         with st.expander("📋 Watchlist Table (Click Headers to Sort)", expanded=True):
@@ -3989,6 +4005,7 @@ def render_live_ui():
                 st.button(f"Chg%{arr if st.session_state.wl_sort_col=='Chg%' else ''}", key="s_pct", width="stretch", on_click=_set_wl_sort, args=("Chg%",))
 
             with st.container(height=235, border=False):
+                st.markdown("<div class='tv-wl-marker'></div>", unsafe_allow_html=True)
                 wl_rows = []
                 for idx_sym in ["NIFTY", "BANKNIFTY"]:
                     ir = df_indices[df_indices['T'] == idx_sym]
@@ -3996,10 +4013,7 @@ def render_live_ui():
                 for _, sr in df_stocks_display.head(45).iterrows():
                     wl_rows.append(sr)
 
-                # 🔥 ఇక్కడ స్ట్రీమ్‌లిట్ బటన్స్ తీసేసి, పోర్ట్‌ఫోలియో లాంటి ప్యూర్ HTML టేబుల్ వాడాము
-                wl_html = '<table class="term-table" style="margin-top:0px; border-top:none;"><tbody>'
-                for i, r_item in enumerate(wl_rows):
-                    bg_class = "row-dark" if i % 2 == 0 else "row-light"
+                for r_item in wl_rows:
                     s_ft = r_item['Fetch_T']
                     s_name = str(r_item['T'])[:8]
                     s_ltp = float(r_item['P'])
@@ -4011,28 +4025,31 @@ def render_live_ui():
                     c_str = f"{s_chg_pts:+.1f}" if abs(s_chg_pts) < 100 else f"{s_chg_pts:+.0f}"
                     pct_str = f"{s_chg_pct:+.2f}%"
 
-                    c_col = "text-green" if s_chg_pct >= 0 else "text-red"
-                    tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(s_ft, 'NSE:' + s_name)}"
+                    # డాట్స్ (🔴/🟢) తీసేశాం, కేవలం స్టాక్ పేరు మాత్రమే ఇస్తున్నాం
+                    # My CSS rules will left-align any text inside `backticks` perfectly
+                    if s_chg_pct >= 0:
+                        row_label = f"`{s_name}` :orange[{p_str}] **{c_str}** **{pct_str}**"
+                    else:
+                        row_label = f"`{s_name}` :orange[{p_str}] *{c_str}* *{pct_str}*"
 
-                    # బుల్లెట్ పాయింట్ తీసేసి, స్టాక్ పేరు ఎడమవైపుకు (text-align:left) మార్చాం
-                    wl_html += f'<tr class="{bg_class}">'
-                    wl_html += f'<td class="t-symbol" style="width:36%; text-align:left; padding-left:10px;"><a href="{tv_link}" target="_blank" style="text-decoration:none;">{s_name}</a></td>'
-                    wl_html += f'<td style="width:22%; text-align:right; color:#ffd700; font-weight:bold; padding-right:8px; border-left:none;">{p_str}</td>'
-                    wl_html += f'<td class="{c_col}" style="width:20%; text-align:right; padding-right:8px; border-left:none;">{c_str}</td>'
-                    wl_html += f'<td class="{c_col}" style="width:22%; text-align:right; padding-right:8px; border-left:none;">{pct_str}</td>'
-                    wl_html += '</tr>'
-                wl_html += '</tbody></table>'
-                st.markdown(wl_html, unsafe_allow_html=True)
+                    # బటన్ క్లిక్ చేస్తే ట్రేడింగ్ వ్యూ రాదు, నేరుగా మన ప్రో గ్రిడ్ చార్ట్ లోకే యాడ్ అవుతుంది
+                    st.button(
+                        row_label, key=f"tv_wl_{s_ft}", width="stretch",
+                        on_click=_toggle_wl_stock, args=(s_ft, r_item['T'])
+                    )
 
-        # HTML టేబుల్ వల్ల వరుసలను క్లిక్ చేయడం కుదరదు కాబట్టి, సార్టింగ్ ప్రకారం ఆటోమేటిక్‌గా టాప్ స్టాక్ కింద ఇన్‌స్పెక్టర్ లోకి వస్తుంది!
+        # సెర్చ్ చేసిన స్టాక్ ని లేదా వాచ్ లిస్ట్ లో క్లిక్ చేసిన స్టాక్ ని కింద ఇన్‌స్పెక్టర్ లో చూపించడానికి
         if search_stock != "-- None --":
             insp_sym = search_stock
-        elif len(wl_rows) > 2:
-            insp_sym = wl_rows[2]['T']  # NIFTY, BANKNIFTY కాకుండా డైరెక్ట్ గా టాప్ స్టాక్ చూపిస్తుంది
         else:
-            insp_sym = "NIFTY"
+            insp_sym = st.session_state.inspected_stock
             
         insp_df = df_live[df_live['T'] == insp_sym]
+        
+        # ఒకవేళ ఫైండ్ అవ్వకపోతే డీఫాల్ట్ గా లిస్ట్ లో ఉన్న మొదటి స్టాక్ చూపిస్తుంది
+        if insp_df.empty and not df_stocks_display.empty:
+            insp_df = df_live[df_live['T'] == df_stocks_display.iloc[0]['T']]
+
         insp_row = insp_df.iloc[0] if not insp_df.empty else None
 
         if insp_row is not None:
