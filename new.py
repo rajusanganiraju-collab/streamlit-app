@@ -31,6 +31,25 @@ except Exception:
 
 # --- 1. PAGE CONFIGURATION ---
 st.set_page_config(page_title="Market Heatmap", page_icon="📊", layout="wide")
+if "grid_sym" in st.query_params:
+    g_sym = st.query_params["grid_sym"]
+    if 'pinned_stocks' not in st.session_state:
+        st.session_state.pinned_stocks = []
+    
+    if g_sym in st.session_state.pinned_stocks:
+        st.session_state.pinned_stocks.remove(g_sym)
+    else:
+        if len(st.session_state.pinned_stocks) >= 6:
+            st.session_state.pinned_stocks.pop(0)
+        st.session_state.pinned_stocks.append(g_sym)
+    
+    cnt = len(st.session_state.pinned_stocks)
+    new_mode = "1" if cnt == 1 else ("2" if cnt == 2 else ("4" if cnt <= 4 else ("6" if cnt > 0 else "Off")))
+    if cnt == 0: new_mode = "Off"
+    
+    st.session_state.grid_layout_mode = new_mode
+    st.session_state.pro_grid_radio_key = new_mode
+    st.query_params.clear()
 
 st.markdown("""
     <style>
@@ -3964,7 +3983,7 @@ def render_live_ui():
                 for _, sr in df_stocks_display.head(45).iterrows():
                     wl_rows.append(sr)
 
-                # 🔥 ఇక్కడ స్ట్రీమ్‌లిట్ బటన్స్ తీసేసి, పోర్ట్‌ఫోలియో లాంటి ప్యూర్ HTML టేబుల్ వాడాము
+                # 🔥 ఇక్కడ ప్యూర్ HTML టేబుల్ వాడుతున్నాం (మీ డిజైన్ పర్ఫెక్ట్ గా రావడం కోసం)
                 wl_html = '<table class="term-table" style="margin-top:0px; border-top:none;"><tbody>'
                 for i, r_item in enumerate(wl_rows):
                     bg_class = "row-dark" if i % 2 == 0 else "row-light"
@@ -3980,11 +3999,14 @@ def render_live_ui():
                     pct_str = f"{s_chg_pct:+.2f}%"
 
                     c_col = "text-green" if s_chg_pct >= 0 else "text-red"
-                    tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(s_ft, 'NSE:' + s_name)}"
+                    
+                    # 👇 TradingView బదులు మన గ్రిడ్ ఓపెన్ అవ్వడానికి URL ట్రిక్ వాడుతున్నాం 👇
+                    grid_link = f"?grid_sym={s_ft}"
 
-                    # బుల్లెట్ పాయింట్ తీసేసి, స్టాక్ పేరు ఎడమవైపుకు (text-align:left) మార్చాం
+                    # బుల్లెట్ పాయింట్ తీసేసి, స్టాక్ పేరు ఎడమవైపుకు (text-align:left) ఉంచాం
                     wl_html += f'<tr class="{bg_class}">'
-                    wl_html += f'<td class="t-symbol" style="width:36%; text-align:left; padding-left:10px;"><a href="{tv_link}" target="_blank" style="text-decoration:none;">{s_name}</a></td>'
+                    # 👇 ఇక్కడ target="_blank" తీసేసి, target="_self" వాడాము 👇
+                    wl_html += f'<td class="t-symbol" style="width:36%; text-align:left; padding-left:10px;"><a href="{grid_link}" target="_self" style="text-decoration:none;">{s_name}</a></td>'
                     wl_html += f'<td style="width:22%; text-align:right; color:#ffd700; font-weight:bold; padding-right:8px; border-left:none;">{p_str}</td>'
                     wl_html += f'<td class="{c_col}" style="width:20%; text-align:right; padding-right:8px; border-left:none;">{c_str}</td>'
                     wl_html += f'<td class="{c_col}" style="width:22%; text-align:right; padding-right:8px; border-left:none;">{pct_str}</td>'
