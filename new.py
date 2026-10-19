@@ -2899,25 +2899,22 @@ st.markdown("""
     /* 5. Excel-Style Sortable Table Header (Symbol | Last | Chg | Chg%) */
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stHorizontalBlock"] {
         gap: 0px !important;
-        border: 1px solid #3b4252 !important;
+        border-top: 1px solid #30363d !important;
+        border-bottom: 1px solid #30363d !important;
         background-color: #161b22 !important;
+        padding: 4px 0px !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stColumn"] {
         padding: 0px !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div.stButton > button {
-        background-color: #161b22 !important;
+        background-color: transparent !important;
         border: none !important;
-        border-right: 1px solid #3b4252 !important;
-        border-radius: 0px !important;
-        height: 25px !important;
-        min-height: 25px !important;
-        padding: 0px 4px !important;
+        height: 20px !important;
+        min-height: 20px !important;
+        padding: 0px !important;
         margin: 0px !important;
         width: 100% !important;
-    }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div.stButton > button:hover {
-        background-color: #21262d !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div.stButton > button p {
         font-family: 'Consolas', monospace !important;
@@ -2928,20 +2925,18 @@ st.markdown("""
     }
     div[data-testid="stElementContainer"]:has(.tv-sort-hdr-marker) { display: none !important; }
 
-    /* 6. Button-Based Watchlist Rows (Perfect Grid Alignment & No External Links) */
+    /* 6. Pure Table-Like Watchlist Rows (No Emojis, Perfect Grid) */
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) {
         gap: 0px !important;
-        border: 1px solid #2b313f !important;
-        background-color: #0e1117 !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton {
         width: 100% !important;
         margin: 0px !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button {
-        background-color: #0e1117 !important;
+        background-color: transparent !important;
         border: none !important;
-        border-bottom: 1px solid #2b313f !important;
+        border-bottom: 1px solid #21262d !important;
         border-radius: 0px !important;
         height: 28px !important;
         min-height: 28px !important;
@@ -2951,11 +2946,11 @@ st.markdown("""
         display: block !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button:hover {
-        background-color: #161f30 !important;
+        background-color: #1e2636 !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p {
         display: grid !important;
-        grid-template-columns: 36% 22% 20% 22% !important;
+        grid-template-columns: 34% 22% 20% 24% !important;
         align-items: center !important;
         width: 100% !important;
         font-family: 'Consolas', 'Courier New', monospace !important;
@@ -2963,24 +2958,30 @@ st.markdown("""
         margin: 0px !important;
         padding: 0px !important;
     }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > span:nth-child(1) {
+    /* Symbol Left Aligned */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > strong {
         text-align: left !important;
         color: #e6edf3 !important;
         font-weight: 700 !important;
         white-space: nowrap !important;
-        padding-left: 2px !important;
+        overflow: hidden !important;
+        text-overflow: clip !important;
     }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > span:nth-child(2) {
+    /* Last Right Aligned */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > span:nth-of-type(1) {
         text-align: right !important;
         color: #ffd700 !important;
-        font-weight: 700 !important;
-        white-space: nowrap !important;
+        font-weight: 600 !important;
     }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > span:nth-child(3),
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > span:nth-child(4) {
+    /* Chg Right Aligned */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > span:nth-of-type(2) {
         text-align: right !important;
-        font-weight: 700 !important;
-        white-space: nowrap !important;
+        font-weight: 600 !important;
+    }
+    /* Chg% Right Aligned */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > span:nth-of-type(3) {
+        text-align: right !important;
+        font-weight: 600 !important;
     }
     div[data-testid="stElementContainer"]:has(.tv-wl-marker) { display: none !important; }
 
@@ -3939,12 +3940,12 @@ def render_live_ui():
         df_stocks_display = df_filtered.copy()
 
     # ---------------------------------------------------------
-    # 👉 POPULATE RIGHT 20% WATCHLIST (STREAMLIT BUTTONS GRID)
+    # 👉 POPULATE RIGHT 20% WATCHLIST WITH CLICKABLE HEADERS & ROWS
     # ---------------------------------------------------------
     with side_watchlist_slot:
         with st.expander("📋 Watchlist Table (Click Headers to Sort)", expanded=True):
             st.markdown("<div class='tv-sort-hdr-marker'></div>", unsafe_allow_html=True)
-            sh1, sh2, sh3, sh4 = st.columns([0.36, 0.22, 0.20, 0.22], gap="small")
+            sh1, sh2, sh3, sh4 = st.columns([0.34, 0.22, 0.20, 0.24], gap="small")
             arr = "▲" if st.session_state.wl_sort_asc else "▼"
             with sh1:
                 st.button(f"Symbol{arr if st.session_state.wl_sort_col=='Symbol' else ''}", key="s_sym", width="stretch", on_click=_set_wl_sort, args=("Symbol",))
@@ -3977,54 +3978,13 @@ def render_live_ui():
                     pct_str = f"{s_chg_pct:+.2f}%"
                     col_tag = "green" if s_chg_pct >= 0 else "red"
 
-                    # 🔥 డాట్స్, ఎమోజీలు అన్నీ తీసేశాం. ప్యూర్ బటన్ లేబుల్ విత్ స్పాన్స్
-                    row_label = f":blue[{s_name}] :orange[{p_str}] :{col_tag}[{c_str}] :{col_tag}[{pct_str}]"
+                    # 🔥 బుల్లెట్ పాయింట్స్, ఎమోజీలు అన్నీ తీసేశాం. ప్యూర్ 4-ఎలిమెంట్ స్ట్రింగ్ (CSS కోసం)
+                    row_label = f"**{s_name}** :orange[{p_str}] :{col_tag}[{c_str}] :{col_tag}[{pct_str}]"
 
                     st.button(
                         row_label, key=f"tv_wl_{s_ft}", width="stretch",
                         on_click=_toggle_wl_stock, args=(s_ft, r_item['T'])
                     )
-
-        if search_stock != "-- None --":
-            insp_sym = search_stock
-        else:
-            insp_sym = st.session_state.inspected_stock
-            
-        insp_df = df_live[df_live['T'] == insp_sym]
-        if insp_df.empty and not df_stocks_display.empty:
-            insp_df = df_live[df_live['T'] == df_stocks_display.iloc[0]['T']]
-
-        insp_row = insp_df.iloc[0] if not insp_df.empty else None
-
-        if insp_row is not None:
-            i_p = float(insp_row['P'])
-            i_pct = float(insp_row['Day_C'])
-            i_open = float(insp_row.get('O', 0))
-            i_pts = (i_p - i_open) if i_open > 0 else (i_p * i_pct / 100.0)
-            i_h, i_l = float(insp_row.get('H', i_p)), float(insp_row.get('L', i_p))
-            i_vx = float(insp_row.get('VolX', 1.0))
-            i_sec = str(insp_row.get('Sector', 'NSE EQUITY'))
-            i_strat = str(insp_row.get('Strategy_Icon', 'Active'))
-            pos_pct = min(100, max(5, int(((i_p - i_l) / (i_h - i_l + 0.001)) * 100)))
-            c_hex = "#3fb950" if i_pct >= 0 else "#f85149"
-
-            st.markdown(
-                f"<div style='background:#111622; border:1px solid #30363d; padding:5px 8px; margin-top:2px; border-radius:6px;'>"
-                f"<div style='display:flex; justify-content:space-between; align-items:center;'>"
-                f"<span style='font-weight:bold; font-size:12px; color:#fff;'>🔍 {insp_row['T']}</span>"
-                f"<span style='font-size:9px; background:#1e293b; color:#38bdf8; padding:1px 5px; border-radius:4px;'>{i_strat}</span></div>"
-                f"<div style='font-size:15px; font-weight:bold; color:#fff; font-family:monospace; margin-top:1px;'>₹{i_p:,.2f} "
-                f"<span style='font-size:11px; color:{c_hex};'>{i_pts:+.2f} ({i_pct:+.2f}%)</span></div>"
-                f"<div style='display:flex; justify-content:space-between; font-size:9px; color:#8b949e; margin-top:2px;'>"
-                f"<span>L: ₹{i_l:.1f}</span><span>Day Range ({i_sec})</span><span>H: ₹{i_h:.1f}</span></div>"
-                f"<div style='width:100%; background:#21262d; height:4px; border-radius:3px; margin-top:2px;'>"
-                f"<div style='width:{pos_pct}%; background:{c_hex}; height:4px; border-radius:3px;'></div></div>"
-                f"<div style='display:flex; justify-content:space-between; font-size:9.5px; color:#c9d1d9; margin-top:2px;'>"
-                f"<span>RVOL: <b style='color:#00BFFF;'>{i_vx:.1f}x</b></span>"
-                f"<span>VWAP: <b style='color:#ffd700;'>₹{float(insp_row.get('VWAP', i_p)):.1f}</b></span></div>"
-                f"</div>",
-                unsafe_allow_html=True
-            )
 
     # ---------------------------------------------------------
     # 👉 LEFT 80% COLUMN: MARKET STATUS BAR + SCROLLABLE CHARTS
