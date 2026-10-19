@@ -2326,12 +2326,23 @@ def render_swing_terminal_table(df_subset):
     return html
 
 def render_highscore_terminal_table(df_subset):
-    if df_subset.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No High Score Stocks found right now.</div>"
-    is_ai = 'AI_Prob' in df_subset.columns
-    if is_ai: headers = '<th style="width:7%; color:#00BFFF;">🤖 AI</th><th style="width:5%;">SCORE</th>'
-    else: headers = '<th style="width:6%;">SCORE</th>'
-    df_sorted = df_subset.reset_index(drop=True)
-    html = f'<table class="term-table"><thead><tr><th colspan="12" class="term-head-high">🔥 HIGH SCORE RADAR (RANKED INTRADAY MOVERS)</th></tr><tr style="background-color: #21262d;"><th style="width:4%;">RANK</th><th style="text-align:left; width:12%;">STOCK</th><th style="width:9%; color:#ffd700;">SECTOR</th><th style="width:7%;">LTP</th><th style="width:7%;">DAY%</th><th style="width:6%;">VOL</th><th style="width:16%;">STATUS</th><th style="width:10%; color:#f85149;">🛑 SL</th><th style="width:10%; color:#3fb950;">🎯 T1</th><th style="width:10%; color:#3fb950;">🎯 T2</th>{headers}</tr></thead><tbody>'
+    if df_subset is None or df_subset.empty:
+        return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No High Score Stocks (Score >= 10) found right now.</div>"
+    
+    # 🔥 STRICT FILTER: Kevalam Score >= 10 unna stocks matrame, Score-wise sorting tho
+    df_sorted = df_subset[df_subset['S'] >= 10].copy()
+    if df_sorted.empty:
+        return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>Prastutam Score >= 10 unna stocks levu.</div>"
+    
+    is_ai = 'AI_Prob' in df_sorted.columns
+    if is_ai:
+        df_sorted = df_sorted.sort_values(by=['S', 'AI_Prob', 'VolX'], ascending=[False, False, False]).reset_index(drop=True)
+        headers = '<th style="width:7%; color:#00BFFF;">🤖 AI</th><th style="width:5%;">SCORE</th>'
+    else:
+        df_sorted = df_sorted.sort_values(by=['S', 'VolX', 'Day_C'], ascending=[False, False, False]).reset_index(drop=True)
+        headers = '<th style="width:6%;">SCORE</th>'
+
+    html = f'<table class="term-table"><thead><tr><th colspan="12" class="term-head-high">🔥 HIGH SCORE RADAR (SCORE >= 10 RANKED MOVERS)</th></tr><tr style="background-color: #21262d;"><th style="width:4%;">RANK</th><th style="text-align:left; width:12%;">STOCK</th><th style="width:9%; color:#ffd700;">SECTOR</th><th style="width:7%;">LTP</th><th style="width:7%;">DAY%</th><th style="width:6%;">VOL</th><th style="width:16%;">STATUS</th><th style="width:10%; color:#f85149;">🛑 SL</th><th style="width:10%; color:#3fb950;">🎯 T1</th><th style="width:10%; color:#3fb950;">🎯 T2</th>{headers}</tr></thead><tbody>'
     for i, row in df_sorted.iterrows():
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
         day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
@@ -2362,8 +2373,15 @@ def render_highscore_terminal_table(df_subset):
     return html
 
 def render_levels_table(df_subset):
-    if df_subset.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No Stocks found right now.</div>"
-    df_sorted = df_subset.reset_index(drop=True)
+    if df_subset is None or df_subset.empty:
+        return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No Stocks found right now.</div>"
+    
+    # 🔥 STRICT FILTER: Kevalam Score >= 10 unna stocks matrame, Score-wise sorting tho
+    df_sorted = df_subset[df_subset['S'] >= 10].copy()
+    if df_sorted.empty:
+        return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>Prastutam Score >= 10 unna stocks levu.</div>"
+    df_sorted = df_sorted.sort_values(by=['S', 'VolX', 'Day_C'], ascending=[False, False, False]).reset_index(drop=True)
+
     html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-levels">🎯 INTRADAY TRADING LEVELS (SUPPORT & RESISTANCE)</th></tr><tr style="background-color: #21262d;"><th style="width:4%;">RANK</th><th style="text-align:left; width:13%;">STOCK</th><th style="width:9%;">LTP</th><th style="width:9%;">DAY%</th><th style="width:8%;">VOL</th><th style="width:17%;">STATUS</th><th style="width:11%; color:#f85149;">🛑 STOP LOSS</th><th style="width:11%; color:#3fb950;">🎯 TARGET 1</th><th style="width:11%; color:#3fb950;">🎯 TARGET 2</th><th style="width:7%;">SCORE</th></tr></thead><tbody>'
     for i, row in df_sorted.iterrows():
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
