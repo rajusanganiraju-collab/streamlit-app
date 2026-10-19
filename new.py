@@ -3525,10 +3525,12 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
 
         const volSeries = chart.addHistogramSeries({{
             priceFormat: {{ type: 'volume' }},
-            priceScaleId: '',
+            priceScaleId: 'vol_scale',
             lastValueVisible: false,
-            priceLineVisible: false,
-            scaleMargins: {{ top: 0.80, bottom: 0 }}
+            priceLineVisible: false
+        }});
+        chart.priceScale('vol_scale').applyOptions({{
+            scaleMargins: {{ top: 0.82, bottom: 0.0 }}
         }});
         volSeries.setData(vData);
         chart.timeScale().fitContent();
