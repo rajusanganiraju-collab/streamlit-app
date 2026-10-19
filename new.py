@@ -2329,7 +2329,6 @@ def render_highscore_terminal_table(df_subset):
     if df_subset is None or df_subset.empty:
         return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No High Score Stocks (Score >= 10) found right now.</div>"
     
-    # 🔥 STRICT FILTER: Kevalam Score >= 10 unna stocks matrame, Score-wise sorting tho
     df_sorted = df_subset[df_subset['S'] >= 10].copy()
     if df_sorted.empty:
         return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>Prastutam Score >= 10 unna stocks levu.</div>"
@@ -2376,7 +2375,6 @@ def render_levels_table(df_subset):
     if df_subset is None or df_subset.empty:
         return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No Stocks found right now.</div>"
     
-    # 🔥 STRICT FILTER: Kevalam Score >= 10 unna stocks matrame, Score-wise sorting tho
     df_sorted = df_subset[df_subset['S'] >= 10].copy()
     if df_sorted.empty:
         return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>Prastutam Score >= 10 unna stocks levu.</div>"
@@ -3934,8 +3932,8 @@ def render_live_ui():
     elif watchlist_mode == "Day Trading Stocks 🚀":
         df_filtered = df_stocks[df_stocks['C'].abs() >= 1.0].copy()
         df_filtered['Strategy_Icon'] = np.where(df_filtered['Day_C'] >= 0, "🚀 BUY", "🩸 SELL")
-    elif watchlist_mode == "High Score Stocks 🔥":
-        df_filtered = df_stocks[(df_stocks['S'] >= 11) & (df_stocks['VolX'] >= 1.5)].copy()
+    elif watchlist_mode in ["High Score Stocks 🔥", "Terminal Tables 🗃️"]:
+        df_filtered = df_stocks[df_stocks['S'] >= 10].copy()
     elif "AI Predictions" in watchlist_mode:
         base_buy = (df_filtered['P'] > df_filtered['W_EMA10']) & (df_filtered['P'] > df_filtered['VWAP'])
         base_sell = (df_filtered['P'] < df_filtered['W_EMA10']) & (df_filtered['P'] < df_filtered['VWAP'])
