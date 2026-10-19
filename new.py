@@ -3971,6 +3971,9 @@ def render_live_ui():
     # ---------------------------------------------------------
     # 👉 POPULATE RIGHT 20% EXCEL WATCHLIST WITH CLICKABLE SORT HEADERS
     # ---------------------------------------------------------
+    # ---------------------------------------------------------
+    # 👉 POPULATE RIGHT 20% WATCHLIST (EXCEL HTML TABLE) & INSPECTOR
+    # ---------------------------------------------------------
     with side_watchlist_slot:
         with st.expander("📋 Watchlist Table (Click Headers to Sort)", expanded=True):
             st.markdown("<div class='tv-sort-hdr-marker'></div>", unsafe_allow_html=True)
@@ -3986,7 +3989,6 @@ def render_live_ui():
                 st.button(f"Chg%{arr if st.session_state.wl_sort_col=='Chg%' else ''}", key="s_pct", width="stretch", on_click=_set_wl_sort, args=("Chg%",))
 
             with st.container(height=235, border=False):
-                st.markdown("<div class='tv-wl-marker'></div>", unsafe_allow_html=True)
                 wl_rows = []
                 for idx_sym in ["NIFTY", "BANKNIFTY"]:
                     ir = df_indices[df_indices['T'] == idx_sym]
@@ -3994,33 +3996,44 @@ def render_live_ui():
                 for _, sr in df_stocks_display.head(45).iterrows():
                     wl_rows.append(sr)
 
-                for r_item in wl_rows:
+                # 🔥 ఇక్కడ స్ట్రీమ్‌లిట్ బటన్స్ తీసేసి, పోర్ట్‌ఫోలియో లాంటి ప్యూర్ HTML టేబుల్ వాడాము
+                wl_html = '<table class="term-table" style="margin-top:0px; border-top:none;"><tbody>'
+                for i, r_item in enumerate(wl_rows):
+                    bg_class = "row-dark" if i % 2 == 0 else "row-light"
                     s_ft = r_item['Fetch_T']
                     s_name = str(r_item['T'])[:8]
                     s_ltp = float(r_item['P'])
                     s_chg_pct = float(r_item['Day_C'])
                     s_open = float(r_item.get('O', 0))
                     s_chg_pts = (s_ltp - s_open) if s_open > 0 else (s_ltp * s_chg_pct / 100.0)
-                    is_sel = s_ft in st.session_state.pinned_stocks
-                    ico = "✓ " if is_sel else ("🟢" if s_chg_pct >= 0 else "🔴")
 
                     p_str = f"{s_ltp:.1f}" if s_ltp < 10000 else f"{s_ltp:.0f}"
                     c_str = f"{s_chg_pts:+.1f}" if abs(s_chg_pts) < 100 else f"{s_chg_pts:+.0f}"
                     pct_str = f"{s_chg_pct:+.2f}%"
 
-                    if s_chg_pct >= 0:
-                        row_label = f"`{ico}{s_name}` :orange[{p_str}] **{c_str}** **{pct_str}**"
-                    else:
-                        row_label = f"`{ico}{s_name}` :orange[{p_str}] *{c_str}* *{pct_str}*"
+                    c_col = "text-green" if s_chg_pct >= 0 else "text-red"
+                    tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(s_ft, 'NSE:' + s_name)}"
 
-                    st.button(
-                        row_label, key=f"tv_wl_{s_ft}", width="stretch",
-                        on_click=_toggle_wl_stock, args=(s_ft, r_item['T'])
-                    )
+                    # బుల్లెట్ పాయింట్ తీసేసి, స్టాక్ పేరు ఎడమవైపుకు (text-align:left) మార్చాం
+                    wl_html += f'<tr class="{bg_class}">'
+                    wl_html += f'<td class="t-symbol" style="width:36%; text-align:left; padding-left:10px;"><a href="{tv_link}" target="_blank" style="text-decoration:none;">{s_name}</a></td>'
+                    wl_html += f'<td style="width:22%; text-align:right; color:#ffd700; font-weight:bold; padding-right:8px; border-left:none;">{p_str}</td>'
+                    wl_html += f'<td class="{c_col}" style="width:20%; text-align:right; padding-right:8px; border-left:none;">{c_str}</td>'
+                    wl_html += f'<td class="{c_col}" style="width:22%; text-align:right; padding-right:8px; border-left:none;">{pct_str}</td>'
+                    wl_html += '</tr>'
+                wl_html += '</tbody></table>'
+                st.markdown(wl_html, unsafe_allow_html=True)
 
-        insp_sym = st.session_state.inspected_stock
+        # HTML టేబుల్ వల్ల వరుసలను క్లిక్ చేయడం కుదరదు కాబట్టి, సార్టింగ్ ప్రకారం ఆటోమేటిక్‌గా టాప్ స్టాక్ కింద ఇన్‌స్పెక్టర్ లోకి వస్తుంది!
+        if search_stock != "-- None --":
+            insp_sym = search_stock
+        elif len(wl_rows) > 2:
+            insp_sym = wl_rows[2]['T']  # NIFTY, BANKNIFTY కాకుండా డైరెక్ట్ గా టాప్ స్టాక్ చూపిస్తుంది
+        else:
+            insp_sym = "NIFTY"
+            
         insp_df = df_live[df_live['T'] == insp_sym]
-        insp_row = insp_df.iloc[0] if not insp_df.empty else (df_stocks_display.iloc[0] if not df_stocks_display.empty else None)
+        insp_row = insp_df.iloc[0] if not insp_df.empty else None
 
         if insp_row is not None:
             i_p = float(insp_row['P'])
@@ -4142,7 +4155,7 @@ def render_live_ui():
                             pass
 
             chart_dict_to_use = weekly_charts if chart_timeframe == "Weekly Chart" else (daily_charts if chart_timeframe == "Daily Chart" else processed_charts)
-# =========================================================
+            # =========================================================
             # 🔥 MODE A: PRO MULTI-CHART GRID (1, 2, 4, 6 STOCKS)
             # =========================================================
             if st.session_state.grid_layout_mode != "Off":
@@ -4170,7 +4183,7 @@ def render_live_ui():
                 grid_syms = combined_syms[:max_charts]
 
                 n_cols = 1 if max_charts == 1 else (2 if max_charts <= 4 else 3)
-                c_height = 580 if max_charts <= 2 else 268
+                c_height = 580 if max_charts <= 2 else 260
                 rows_chunks = [grid_syms[i:i + n_cols] for i in range(0, len(grid_syms), n_cols)]
                 for r_idx, chunk_syms in enumerate(rows_chunks):
                     g_cols = st.columns(n_cols, gap="small")
