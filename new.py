@@ -31,26 +31,6 @@ except Exception:
 
 # --- 1. PAGE CONFIGURATION ---
 st.set_page_config(page_title="Market Heatmap", page_icon="📊", layout="wide")
-if "grid_sym" in st.query_params:
-    g_sym = st.query_params["grid_sym"]
-    if 'pinned_stocks' not in st.session_state:
-        st.session_state.pinned_stocks = []
-    
-    if g_sym in st.session_state.pinned_stocks:
-        st.session_state.pinned_stocks.remove(g_sym)
-    else:
-        if len(st.session_state.pinned_stocks) >= 6:
-            st.session_state.pinned_stocks.pop(0)
-        st.session_state.pinned_stocks.append(g_sym)
-    
-    cnt = len(st.session_state.pinned_stocks)
-    new_mode = "1" if cnt == 1 else ("2" if cnt == 2 else ("4" if cnt <= 4 else ("6" if cnt > 0 else "Off")))
-    if cnt == 0: new_mode = "Off"
-    
-    st.session_state.grid_layout_mode = new_mode
-    st.session_state.pro_grid_radio_key = new_mode
-    st.query_params.clear()
-
 st.markdown("""
     <style>
     div[data-testid="stNotification"] { display: none !important; }
@@ -3062,49 +3042,81 @@ def _fix_ist_df(df_in):
 
 
 # --- CALLBACK HELPERS ---
+if 'ui' not in _SS:
+    _SS['ui'] = {
+        'pinned_stocks': [],
+        'grid_layout_mode': 'Off',
+        'pro_grid_theme': 'Light (White)',
+        'inspected_stock': 'NIFTY',
+        'wl_sort_col': None,
+        'wl_sort_asc': False,
+        'watchlist_mode': '🤖 AI Predictions (F&O)',
+        'sort_mode': 'Score Wise Up ⭐',
+        'chart_timeframe': 'Intraday (5m)',
+        'view_mode': 'Chart 📈',
+        'selected_ai_strats': [ADAPTIVE_STRAT, "All Day Trading Moves 🚀", NEWS_STRAT],
+        'selected_sw_strats': ["📈 Minervini Trend Template (VCP)"]
+    }
+
+_UI = _SS['ui']
+
+for _k, _v in _UI.items():
+    if _k not in st.session_state:
+        st.session_state[_k] = list(_v) if isinstance(_v, list) else _v
+
+def _calc_grid_mode(cnt):
+    if cnt <= 0: return "Off"
+    if cnt == 1: return "1"
+    if cnt == 2: return "2"
+    if cnt <= 4: return "4"
+    return "6"
+
+if "grid_sym" in st.query_params:
+    _g_sym = st.query_params["grid_sym"]
+    st.query_params.clear()
+    _p_list = list(_UI.get('pinned_stocks', []))
+    if _g_sym in _p_list:
+        _p_list.remove(_g_sym)
+    else:
+        if len(_p_list) >= 6:
+            _p_list.pop(0)
+        _p_list.append(_g_sym)
+    _UI['pinned_stocks'] = _p_list
+    st.session_state.pinned_stocks = list(_p_list)
+    _UI['inspected_stock'] = _g_sym.replace(".NS", "")
+    st.session_state.inspected_stock = _UI['inspected_stock']
+    _new_m = _calc_grid_mode(len(_p_list))
+    _UI['grid_layout_mode'] = _new_m
+    st.session_state.grid_layout_mode = _new_m
+    st.session_state.pro_grid_radio_key = _new_m
+
 def _toggle_wl_stock(s_ft, s_disp):
     st.session_state.inspected_stock = s_disp
+    _UI['inspected_stock'] = s_disp
     if s_ft in st.session_state.pinned_stocks:
         st.session_state.pinned_stocks.remove(s_ft)
     else:
         if len(st.session_state.pinned_stocks) >= 6:
             st.session_state.pinned_stocks.pop(0)
         st.session_state.pinned_stocks.append(s_ft)
-    
-    if st.session_state.pinned_stocks:
-        cnt = len(st.session_state.pinned_stocks)
-        new_mode = "1" if cnt == 1 else ("2" if cnt == 2 else ("4" if cnt <= 4 else "6"))
-        st.session_state.grid_layout_mode = new_mode
-        st.session_state.pro_grid_radio_key = new_mode  # UI ని సింక్ చేయడానికి
-    else:
-        st.session_state.grid_layout_mode = "Off"
-        st.session_state.pro_grid_radio_key = "Off"
+    _UI['pinned_stocks'] = list(st.session_state.pinned_stocks)
+    new_mode = _calc_grid_mode(len(st.session_state.pinned_stocks))
+    st.session_state.grid_layout_mode = new_mode
+    st.session_state.pro_grid_radio_key = new_mode
+    _UI['grid_layout_mode'] = new_mode
 
 def _close_pro_chart(s_ft, current_grid_syms):
-    # ప్రస్తుతం ఏ చార్ట్స్ ఉన్నాయో చూసి, అందులో క్లిక్ చేసిన దాన్ని మాత్రమే తీసేస్తాం
     active_list = list(st.session_state.pinned_stocks)
     if not active_list:
         active_list = list(current_grid_syms)
-        
     if s_ft in active_list:
         active_list.remove(s_ft)
-        
     st.session_state.pinned_stocks = active_list
-    
-    cnt = len(active_list)
-    if cnt == 0:
-        new_mode = "Off"
-    elif cnt == 1:
-        new_mode = "1"
-    elif cnt == 2:
-        new_mode = "2"
-    elif cnt <= 4:
-        new_mode = "4"
-    else:
-        new_mode = "6"
-        
+    _UI['pinned_stocks'] = list(active_list)
+    new_mode = _calc_grid_mode(len(active_list))
     st.session_state.grid_layout_mode = new_mode
     st.session_state.pro_grid_radio_key = new_mode
+    _UI['grid_layout_mode'] = new_mode
 
 def _on_pin_checkbox_change(fetch_sym, display_sym, cb_key):
     pin_val = st.session_state.get(cb_key, False)
@@ -3114,16 +3126,15 @@ def _on_pin_checkbox_change(fetch_sym, display_sym, cb_key):
                 st.session_state.pinned_stocks.pop(0)
             st.session_state.pinned_stocks.append(fetch_sym)
         st.session_state.inspected_stock = display_sym
-        cnt = len(st.session_state.pinned_stocks)
-        new_mode = "1" if cnt == 1 else ("2" if cnt == 2 else ("4" if cnt <= 4 else "6"))
-        st.session_state.grid_layout_mode = new_mode
-        st.session_state.pro_grid_radio_key = new_mode
+        _UI['inspected_stock'] = display_sym
     else:
         if fetch_sym in st.session_state.pinned_stocks:
             st.session_state.pinned_stocks.remove(fetch_sym)
-        if not st.session_state.pinned_stocks:
-            st.session_state.grid_layout_mode = "Off"
-            st.session_state.pro_grid_radio_key = "Off"
+    _UI['pinned_stocks'] = list(st.session_state.pinned_stocks)
+    new_mode = _calc_grid_mode(len(st.session_state.pinned_stocks))
+    st.session_state.grid_layout_mode = new_mode
+    st.session_state.pro_grid_radio_key = new_mode
+    _UI['grid_layout_mode'] = new_mode
 
 def _set_wl_sort(col_name):
     if st.session_state.wl_sort_col == col_name:
@@ -3131,9 +3142,18 @@ def _set_wl_sort(col_name):
     else:
         st.session_state.wl_sort_col = col_name
         st.session_state.wl_sort_asc = True if col_name == "Symbol" else False
+    _UI['wl_sort_col'] = st.session_state.wl_sort_col
+    _UI['wl_sort_asc'] = st.session_state.wl_sort_asc
 
 def _on_filter_sort_change():
     st.session_state.wl_sort_col = None
+    _UI['wl_sort_col'] = None
+    _UI['sort_mode'] = st.session_state.get('main_sort_sel', 'Score Wise Up ⭐')
+
+def _on_grid_radio_change():
+    sel_g = st.session_state.get('pro_grid_radio_key', 'Off')
+    st.session_state.grid_layout_mode = sel_g
+    _UI['grid_layout_mode'] = sel_g
 
 
 # --- MINI-CHART GRID & SINGLE CHART (WITH TICK ON ALL INDICES & 12-HOUR IST TIME) ---
@@ -3686,7 +3706,7 @@ def render_live_ui():
         right_panel_box = st.container(height=720, border=True)
         with right_panel_box:
             st.markdown("<div class='right-panel-marker'></div>", unsafe_allow_html=True)
-            watchlist_mode = st.selectbox("Watchlist / Strategy", [
+            _wl_modes = [
                 "🤖 AI Predictions (F&O)",
                 "🤖 AI Predictions (Mid Cap)",
                 "🤖 AI Predictions (Small Cap)",
@@ -3701,7 +3721,11 @@ def render_live_ui():
                 "Fundamentals 🏢",
                 "Mutual Funds 📈",
                 "Month Effect Advantage 📅"
-            ], index=0, label_visibility="collapsed")
+            ]
+            _saved_wl = _UI.get('watchlist_mode', _wl_modes[0])
+            _wl_idx = _wl_modes.index(_saved_wl) if _saved_wl in _wl_modes else 0
+            watchlist_mode = st.selectbox("Watchlist / Strategy", _wl_modes, index=_wl_idx, label_visibility="collapsed")
+            _UI['watchlist_mode'] = watchlist_mode
 
             move_type_filter = ["All Day Trading Moves 🚀"]
             fund_filter = "Top Ranked Stocks ⭐"
@@ -3728,6 +3752,7 @@ def render_live_ui():
                             new_sel_ai.append(s_opt)
                     if new_sel_ai != st.session_state.selected_ai_strats:
                         st.session_state.selected_ai_strats = new_sel_ai if new_sel_ai else ["All Moves"]
+                        _UI['selected_ai_strats'] = list(st.session_state.selected_ai_strats)
                         st.rerun(scope="fragment")
                 move_type_filter = st.session_state.selected_ai_strats
 
@@ -3747,6 +3772,7 @@ def render_live_ui():
                             new_sel_sw.append(s_opt)
                     if new_sel_sw != st.session_state.selected_sw_strats:
                         st.session_state.selected_sw_strats = new_sel_sw if new_sel_sw else ["All Swing Stocks"]
+                        _UI['selected_sw_strats'] = list(st.session_state.selected_sw_strats)
                         st.rerun(scope="fragment")
                 move_type_filter = st.session_state.selected_sw_strats
 
@@ -3772,31 +3798,42 @@ def render_live_ui():
 
             default_view_idx = 0 if watchlist_mode in ["My Portfolio 💼", "F&O + Top 200 Heatmap 🗺️"] else 1
             view_mode = st.radio("Mode:", ["Heat Map", "Chart 📈"], index=default_view_idx, horizontal=True)
+            _UI['view_mode'] = view_mode
 
-            if 'pro_grid_radio_key' not in st.session_state:
-                st.session_state.pro_grid_radio_key = st.session_state.grid_layout_mode
+            _grid_opts = ["Off", "1", "2", "4", "6"]
+            _cur_g = _UI.get('grid_layout_mode', 'Off')
+            if 'pro_grid_radio_key' not in st.session_state or st.session_state.pro_grid_radio_key != _cur_g:
+                st.session_state.pro_grid_radio_key = _cur_g if _cur_g in _grid_opts else "Off"
 
-            sel_grid = st.radio("📐 Grid:", ["Off", "1", "2", "4", "6"], key="pro_grid_radio_key", horizontal=True)
+            sel_grid = st.radio("📐 Grid:", _grid_opts, key="pro_grid_radio_key", horizontal=True, on_change=_on_grid_radio_change)
             st.session_state.grid_layout_mode = sel_grid
+            _UI['grid_layout_mode'] = sel_grid
 
             with st.expander("⚙️ Filters, Sort & Search", expanded=False):
                 st.session_state.pause_refresh = st.toggle("⏸️ Pause Refresh", value=st.session_state.pause_refresh)
+                _sort_opts = [
+                    "Score Wise Up ⭐",
+                    "Intraday Pullback Max 📉 (DH / DL)",
+                    "52W Pullback Max 📉 (Deep Discount)",
+                    "% Change Up 🟢",
+                    "% Change Down 🔴",
+                    "Score Wise Down ⬇️"
+                ]
+                _saved_sort = _UI.get('sort_mode', _sort_opts[0])
+                _sort_idx = _sort_opts.index(_saved_sort) if _saved_sort in _sort_opts else 0
                 sort_mode = st.selectbox(
                     "Sort By",
-                    [
-                        "Score Wise Up ⭐",
-                        "Intraday Pullback Max 📉 (DH / DL)",
-                        "52W Pullback Max 📉 (Deep Discount)",
-                        "% Change Up 🟢",
-                        "% Change Down 🔴",
-                        "Score Wise Down ⬇️"
-                    ],
-                    index=0,
+                    _sort_opts,
+                    index=_sort_idx,
                     key="main_sort_sel",
                     on_change=_on_filter_sort_change
                 )
+                _UI['sort_mode'] = sort_mode
                 search_stock = st.selectbox("Search Stock", ["-- None --"] + all_names)
-                chart_timeframe = st.radio("Timeframe", ["Intraday (5m)", "Daily Chart", "Weekly Chart"], index=1 if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"] else 0)
+                _tf_opts = ["Intraday (5m)", "Daily Chart", "Weekly Chart"]
+                _default_tf = 1 if watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"] else 0
+                chart_timeframe = st.radio("Timeframe", _tf_opts, index=_default_tf)
+                _UI['chart_timeframe'] = chart_timeframe
                 show_crosshair = st.toggle("⌖ Mini-Chart Crosshair (Price/Time)", value=False)
                 show_vol = st.toggle("📊 Mini-Chart Vol Bars", value=False)
 
@@ -3918,6 +3955,7 @@ def render_live_ui():
         df_filtered = df_filtered[vcp_c].copy()
         df_filtered['Strategy_Icon'] = "🟢 M-VCP"
 
+    # 🔥 UNIFIED SORTING: Watchlist Table & Charts 100% Same Order
     if not df_filtered.empty:
         df_filtered = df_filtered.copy()
         df_filtered['Chg_Pts'] = np.where(
@@ -3931,30 +3969,42 @@ def render_live_ui():
         scol = st.session_state.wl_sort_col
         sasc = st.session_state.wl_sort_asc
         if scol == "Symbol":
-            df_stocks_display = df_filtered.sort_values(by='T', ascending=sasc)
+            df_sorted_base = df_filtered.sort_values(by='T', ascending=sasc)
         elif scol == "Last":
-            df_stocks_display = df_filtered.sort_values(by='P', ascending=sasc)
+            df_sorted_base = df_filtered.sort_values(by='P', ascending=sasc)
         elif scol == "Chg":
-            df_stocks_display = df_filtered.sort_values(by='Chg_Pts', ascending=sasc)
+            df_sorted_base = df_filtered.sort_values(by='Chg_Pts', ascending=sasc)
         elif scol == "Chg%":
-            df_stocks_display = df_filtered.sort_values(by=sort_key, ascending=sasc)
+            df_sorted_base = df_filtered.sort_values(by=sort_key, ascending=sasc)
         else:
             if sort_mode == "Intraday Pullback Max 📉 (DH / DL)":
                 is_sell_m = df_filtered['Day_C'] < 0
-                df_stocks_display = pd.concat([
+                df_sorted_base = pd.concat([
                     df_filtered[~is_sell_m].sort_values(by=['Intra_DH_PB', 'S'], ascending=[False, False]),
                     df_filtered[is_sell_m].sort_values(by=['Intra_DL_Bounce', 'S'], ascending=[False, False])
                 ])
             elif sort_mode == "52W Pullback Max 📉 (Deep Discount)":
-                df_stocks_display = df_filtered.sort_values(by=['Pullback_52W', 'S'], ascending=[False, False])
+                df_sorted_base = df_filtered.sort_values(by=['Pullback_52W', 'S'], ascending=[False, False])
             elif sort_mode == "% Change Up 🟢":
-                df_stocks_display = df_filtered.sort_values(by=sort_key, ascending=False)
+                df_sorted_base = df_filtered.sort_values(by=sort_key, ascending=False)
             elif sort_mode == "% Change Down 🔴":
-                df_stocks_display = df_filtered.sort_values(by=sort_key, ascending=True)
+                df_sorted_base = df_filtered.sort_values(by=sort_key, ascending=True)
             elif sort_mode == "Score Wise Down ⬇️":
-                df_stocks_display = df_filtered.sort_values(by=['S', 'VolX', sort_key], ascending=[True, False, True])
+                df_sorted_base = df_filtered.sort_values(by=['S', 'VolX', sort_key], ascending=[True, False, True])
             else:
-                df_stocks_display = df_filtered.sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, False])
+                df_sorted_base = df_filtered.sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, False])
+
+        if "AI Predictions" in watchlist_mode or watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆", "Day Trading Stocks 🚀"]:
+            _sell_mask = df_sorted_base['Strategy_Icon'].astype(str).str.contains('🔴|SELL|DOWN|Stage 4|🩸|52WL', na=False)
+        else:
+            _sell_mask = df_sorted_base[sort_key] < 0
+
+        df_stocks_display = pd.concat([df_sorted_base[~_sell_mask], df_sorted_base[_sell_mask]], ignore_index=True)
+
+        if search_stock != "-- None --" and search_stock in df_stocks_display['T'].values:
+            _srch_row = df_stocks_display[df_stocks_display['T'] == search_stock]
+            _rest_rows = df_stocks_display[df_stocks_display['T'] != search_stock]
+            df_stocks_display = pd.concat([_srch_row, _rest_rows], ignore_index=True)
     else:
         df_stocks_display = df_filtered.copy()
 
@@ -3976,14 +4026,8 @@ def render_live_ui():
                 st.button(f"Chg%{arr if st.session_state.wl_sort_col=='Chg%' else ''}", key="s_pct", width="stretch", on_click=_set_wl_sort, args=("Chg%",))
 
             with st.container(height=235, border=False):
-                wl_rows = []
-                for idx_sym in ["NIFTY", "BANKNIFTY"]:
-                    ir = df_indices[df_indices['T'] == idx_sym]
-                    if not ir.empty: wl_rows.append(ir.iloc[0])
-                for _, sr in df_stocks_display.head(45).iterrows():
-                    wl_rows.append(sr)
+                wl_rows = [sr for _, sr in df_stocks_display.head(48).iterrows()]
 
-                # 🔥 ఇక్కడ ప్యూర్ HTML టేబుల్ వాడుతున్నాం (మీ డిజైన్ పర్ఫెక్ట్ గా రావడం కోసం)
                 wl_html = '<table class="term-table" style="margin-top:0px; border-top:none;"><tbody>'
                 for i, r_item in enumerate(wl_rows):
                     bg_class = "row-dark" if i % 2 == 0 else "row-light"
@@ -3999,14 +4043,13 @@ def render_live_ui():
                     pct_str = f"{s_chg_pct:+.2f}%"
 
                     c_col = "text-green" if s_chg_pct >= 0 else "text-red"
-                    
-                    # 👇 TradingView బదులు మన గ్రిడ్ ఓపెన్ అవ్వడానికి URL ట్రిక్ వాడుతున్నాం 👇
                     grid_link = f"?grid_sym={s_ft}"
+                    is_in_grid = s_ft in st.session_state.pinned_stocks
+                    pin_dot = "📌" if is_in_grid else ""
+                    name_style = "color:#00BFFF; font-weight:bold;" if is_in_grid else "text-decoration:none;"
 
-                    # బుల్లెట్ పాయింట్ తీసేసి, స్టాక్ పేరు ఎడమవైపుకు (text-align:left) ఉంచాం
                     wl_html += f'<tr class="{bg_class}">'
-                    # 👇 ఇక్కడ target="_blank" తీసేసి, target="_self" వాడాము 👇
-                    wl_html += f'<td class="t-symbol" style="width:36%; text-align:left; padding-left:10px;"><a href="{grid_link}" target="_self" style="text-decoration:none;">{s_name}</a></td>'
+                    wl_html += f'<td class="t-symbol" style="width:36%; text-align:left; padding-left:8px;"><a href="{grid_link}" target="_self" style="{name_style}">{pin_dot}{s_name}</a></td>'
                     wl_html += f'<td style="width:22%; text-align:right; color:#ffd700; font-weight:bold; padding-right:8px; border-left:none;">{p_str}</td>'
                     wl_html += f'<td class="{c_col}" style="width:20%; text-align:right; padding-right:8px; border-left:none;">{c_str}</td>'
                     wl_html += f'<td class="{c_col}" style="width:22%; text-align:right; padding-right:8px; border-left:none;">{pct_str}</td>'
@@ -4014,14 +4057,15 @@ def render_live_ui():
                 wl_html += '</tbody></table>'
                 st.markdown(wl_html, unsafe_allow_html=True)
 
-        # HTML టేబుల్ వల్ల వరుసలను క్లిక్ చేయడం కుదరదు కాబట్టి, సార్టింగ్ ప్రకారం ఆటోమేటిక్‌గా టాప్ స్టాక్ కింద ఇన్‌స్పెక్టర్ లోకి వస్తుంది!
         if search_stock != "-- None --":
             insp_sym = search_stock
-        elif len(wl_rows) > 2:
-            insp_sym = wl_rows[2]['T']  # NIFTY, BANKNIFTY కాకుండా డైరెక్ట్ గా టాప్ స్టాక్ చూపిస్తుంది
+        elif st.session_state.get('inspected_stock') and st.session_state.inspected_stock in df_live['T'].values:
+            insp_sym = st.session_state.inspected_stock
+        elif len(wl_rows) > 0:
+            insp_sym = wl_rows[0]['T']
         else:
             insp_sym = "NIFTY"
-            
+
         insp_df = df_live[df_live['T'] == insp_sym]
         insp_row = insp_df.iloc[0] if not insp_df.empty else None
 
@@ -4154,6 +4198,8 @@ def render_live_ui():
                     st.markdown("<div class='pro-ActionBar'></div>", unsafe_allow_html=True)
                     if st.button("🔙 Back to Mini-Charts", width="stretch"):
                         st.session_state.grid_layout_mode = "Off"
+                        st.session_state.pro_grid_radio_key = "Off"
+                        _UI['grid_layout_mode'] = "Off"
                         st.rerun(scope="fragment")
                 with gbar2:
                     st.session_state.pro_grid_theme = st.selectbox(
@@ -4161,19 +4207,26 @@ def render_live_ui():
                         index=0 if "Light" in st.session_state.pro_grid_theme else 1,
                         label_visibility="collapsed"
                     )
+                    _UI['pro_grid_theme'] = st.session_state.pro_grid_theme
                 with gbar3:
                     if st.button("🗑️ Clear All Charts", width="stretch"):
                         st.session_state.pinned_stocks = []
+                        _UI['pinned_stocks'] = []
                         st.session_state.grid_layout_mode = "Off"
+                        st.session_state.pro_grid_radio_key = "Off"
+                        _UI['grid_layout_mode'] = "Off"
                         st.rerun(scope="fragment")
 
                 max_charts = int(st.session_state.grid_layout_mode)
-                fallback_candidates = ["^NSEBANK", "^NSEI"] + df_stocks_display['Fetch_T'].tolist()
-                combined_syms = list(dict.fromkeys(st.session_state.pinned_stocks + fallback_candidates))
-                grid_syms = combined_syms[:max_charts]
+                if st.session_state.pinned_stocks:
+                    grid_syms = list(st.session_state.pinned_stocks)[:max_charts]
+                else:
+                    grid_syms = df_stocks_display['Fetch_T'].head(max_charts).tolist()
+                    st.session_state.pinned_stocks = list(grid_syms)
+                    _UI['pinned_stocks'] = list(grid_syms)
 
-                n_cols = 1 if max_charts == 1 else (2 if max_charts <= 4 else 3)
-                c_height = 580 if max_charts <= 2 else 260
+                n_cols = 1 if len(grid_syms) == 1 else (2 if max_charts <= 4 else 3)
+                c_height = 580 if len(grid_syms) <= 2 else 260
                 rows_chunks = [grid_syms[i:i + n_cols] for i in range(0, len(grid_syms), n_cols)]
                 for r_idx, chunk_syms in enumerate(rows_chunks):
                     g_cols = st.columns(n_cols, gap="small")
