@@ -2928,10 +2928,11 @@ st.markdown("""
     }
     div[data-testid="stElementContainer"]:has(.tv-sort-hdr-marker) { display: none !important; }
 
-    /* 6. Excel Sheet 4-Column Watchlist Rows (Symbol Strictly Left-Aligned) */
+    /* 6. Button-Based Watchlist Rows (Perfect Grid Alignment & No External Links) */
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) {
         gap: 0px !important;
         border: 1px solid #2b313f !important;
+        background-color: #0e1117 !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton {
         width: 100% !important;
@@ -2942,94 +2943,44 @@ st.markdown("""
         border: none !important;
         border-bottom: 1px solid #2b313f !important;
         border-radius: 0px !important;
-        height: 26px !important;
-        min-height: 26px !important;
-        padding: 0px !important;
+        height: 28px !important;
+        min-height: 28px !important;
+        padding: 0px 4px !important;
         margin: 0px !important;
         width: 100% !important;
-        display: flex !important;
-        justify-content: stretch !important;
-        align-items: stretch !important;
+        display: block !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button:hover {
         background-color: #161f30 !important;
-    }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button > div,
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button div[data-testid="stMarkdownContainer"] {
-        flex: 1 1 100% !important;
-        width: 100% !important;
-        max-width: 100% !important;
-        height: 26px !important;
-        display: block !important;
-        margin: 0px !important;
-        padding: 0px !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p {
         display: grid !important;
         grid-template-columns: 36% 22% 20% 22% !important;
         align-items: center !important;
         width: 100% !important;
-        min-width: 100% !important;
-        height: 26px !important;
         font-family: 'Consolas', 'Courier New', monospace !important;
-        font-size: 10.5px !important;
+        font-size: 11px !important;
         margin: 0px !important;
         padding: 0px !important;
-        white-space: nowrap !important;
     }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > code {
-        background: transparent !important;
-        color: #ffffff !important;
-        font-weight: 700 !important;
-        font-size: 10.5px !important;
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > span:nth-child(1) {
         text-align: left !important;
-        padding: 0px 0px 0px 5px !important;
-        margin: 0px !important;
-        height: 26px !important;
-        line-height: 26px !important;
-        border-right: 1px solid #2b313f !important;
-        border-radius: 0px !important;
+        color: #e6edf3 !important;
+        font-weight: 700 !important;
         white-space: nowrap !important;
-        overflow: hidden !important;
-        display: block !important;
+        padding-left: 2px !important;
     }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > span {
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > span:nth-child(2) {
+        text-align: right !important;
         color: #ffd700 !important;
-        font-size: 10.5px !important;
-        font-weight: 600 !important;
-        text-align: right !important;
-        padding: 0px 4px 0px 0px !important;
-        height: 26px !important;
-        line-height: 26px !important;
-        border-right: 1px solid #2b313f !important;
+        font-weight: 700 !important;
         white-space: nowrap !important;
-        display: block !important;
     }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > strong {
-        color: #2ea043 !important;
-        font-size: 10.5px !important;
-        font-weight: 600 !important;
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > span:nth-child(3),
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > span:nth-child(4) {
         text-align: right !important;
-        padding: 0px 4px 0px 0px !important;
-        height: 26px !important;
-        line-height: 26px !important;
+        font-weight: 700 !important;
         white-space: nowrap !important;
-        display: block !important;
-    }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > em {
-        color: #f85149 !important;
-        font-size: 10.5px !important;
-        font-style: normal !important;
-        font-weight: 600 !important;
-        text-align: right !important;
-        padding: 0px 4px 0px 0px !important;
-        height: 26px !important;
-        line-height: 26px !important;
-        white-space: nowrap !important;
-        display: block !important;
-    }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > *:nth-child(3) {
-        border-right: 1px solid #2b313f !important;
     }
     div[data-testid="stElementContainer"]:has(.tv-wl-marker) { display: none !important; }
 
@@ -3988,7 +3939,7 @@ def render_live_ui():
         df_stocks_display = df_filtered.copy()
 
     # ---------------------------------------------------------
-    # 👉 POPULATE RIGHT 20% EXCEL WATCHLIST WITH CLICKABLE ROWS
+    # 👉 POPULATE RIGHT 20% WATCHLIST (STREAMLIT BUTTONS GRID)
     # ---------------------------------------------------------
     with side_watchlist_slot:
         with st.expander("📋 Watchlist Table (Click Headers to Sort)", expanded=True):
@@ -4024,29 +3975,22 @@ def render_live_ui():
                     p_str = f"{s_ltp:.1f}" if s_ltp < 10000 else f"{s_ltp:.0f}"
                     c_str = f"{s_chg_pts:+.1f}" if abs(s_chg_pts) < 100 else f"{s_chg_pts:+.0f}"
                     pct_str = f"{s_chg_pct:+.2f}%"
+                    col_tag = "green" if s_chg_pct >= 0 else "red"
 
-                    # డాట్స్ (🔴/🟢) తీసేశాం, కేవలం స్టాక్ పేరు మాత్రమే ఇస్తున్నాం
-                    # My CSS rules will left-align any text inside `backticks` perfectly
-                    if s_chg_pct >= 0:
-                        row_label = f"`{s_name}` :orange[{p_str}] **{c_str}** **{pct_str}**"
-                    else:
-                        row_label = f"`{s_name}` :orange[{p_str}] *{c_str}* *{pct_str}*"
+                    # 🔥 డాట్స్, ఎమోజీలు అన్నీ తీసేశాం. ప్యూర్ బటన్ లేబుల్ విత్ స్పాన్స్
+                    row_label = f":blue[{s_name}] :orange[{p_str}] :{col_tag}[{c_str}] :{col_tag}[{pct_str}]"
 
-                    # బటన్ క్లిక్ చేస్తే ట్రేడింగ్ వ్యూ రాదు, నేరుగా మన ప్రో గ్రిడ్ చార్ట్ లోకే యాడ్ అవుతుంది
                     st.button(
                         row_label, key=f"tv_wl_{s_ft}", width="stretch",
                         on_click=_toggle_wl_stock, args=(s_ft, r_item['T'])
                     )
 
-        # సెర్చ్ చేసిన స్టాక్ ని లేదా వాచ్ లిస్ట్ లో క్లిక్ చేసిన స్టాక్ ని కింద ఇన్‌స్పెక్టర్ లో చూపించడానికి
         if search_stock != "-- None --":
             insp_sym = search_stock
         else:
             insp_sym = st.session_state.inspected_stock
             
         insp_df = df_live[df_live['T'] == insp_sym]
-        
-        # ఒకవేళ ఫైండ్ అవ్వకపోతే డీఫాల్ట్ గా లిస్ట్ లో ఉన్న మొదటి స్టాక్ చూపిస్తుంది
         if insp_df.empty and not df_stocks_display.empty:
             insp_df = df_live[df_live['T'] == df_stocks_display.iloc[0]['T']]
 
