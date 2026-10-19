@@ -3895,7 +3895,7 @@ def render_live_ui():
     df_stocks = df_all_stocks[df_all_stocks['T'].isin(strict_allowed)].copy()
     df_filtered = df_stocks.copy()
 
-    core_tkrs = tuple(sorted(list(set(df_indices['Fetch_T'].tolist() + df_sectors['Fetch_T'].tolist() + df_stocks['Fetch_T'].tolist() + st.session_state.pinned_stocks))))
+    core_tkrs = tuple(sorted(list(set(df_indices['Fetch_T'].tolist() + df_sectors['Fetch_T'].tolist() + df_commodities['Fetch_T'].tolist() + df_stocks['Fetch_T'].tolist() + st.session_state.pinned_stocks))))
     processed_charts, nifty_intra_html, sniper_cached_res = _fast_5m_and_sniper_cache(core_tkrs)
 
     df_lookup = df_live.drop_duplicates(subset=['Fetch_T'], keep='first').set_index('Fetch_T').to_dict('index')
