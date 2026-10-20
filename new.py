@@ -3945,6 +3945,78 @@ def render_live_ui():
         w_ema10, w_ema50, last_p = float(sym_row.get('W_EMA10', 0)), float(sym_row.get('W_EMA50', 0)), float(sym_row.get('P', 0))
         weekly_trends[sym] = 'Bullish' if (last_p > w_ema10 and w_ema10 >= w_ema50) else ('Bearish' if (last_p < w_ema10 and w_ema10 <= w_ema50) else 'Neutral')
 
+    # 🔥 1. TODAY PERFORMING SECTOR POINTS (Buy & Sell Sectors ki Extra Points)
+    df_nifty = df_all_stocks[df_all_stocks['T'].isin(NIFTY_50)].copy()
+    sector_perf = df_nifty.groupby('Sector')['C'].mean().sort_values(ascending=False)
+    sector_perf = sector_perf[sector_perf.index != "OTHER"]
+
+    # Bullish sectors (C > 0) ki Top rank prakaram 10, 8, 6, 4, 2 Pts
+    sector_bull_perf = sector_perf[sector_perf > 0].sort_values(ascending=False)
+    bull_bonus_map = {sec: max(10 - (rank * 2), 0) for rank, sec in enumerate(sector_bull_perf.index)}
+
+    # Bearish sectors (C < 0) ki Top falling rank prakaram 10, 8, 6, 4, 2 Pts (Sell stocks kosam)
+    sector_bear_perf = sector_perf[sector_perf < 0].sort_values(ascending=True)
+    bear_bonus_map = {sec: max(10 - (rank * 2), 0) for rank, sec in enumerate(sector_bear_perf.index)}
+
+    # 🔥 2. OLD CODE 5-MIN TREND SCORE & ALPHA TAGS
+    alpha_tags, trend_scores = {}, {}
+    nifty_dist_5m = 0.25
+    if "^NSEI" in processed_charts and not processed_charts["^NSEI"].empty:
+        _nd = processed_charts["^NSEI"]
+        _nltp, _nvwap = float(_nd['Close'].iloc[-1]), float(_nd['VWAP'].iloc[-1])
+        if _nvwap > 0:
+            nifty_dist_5m = max(abs(_nltp - _nvwap) / _nvwap * 100.0, 0.25)
+
+    for sym, df_day in processed_charts.items():
+        if df_day is None or df_day.empty:
+            continue
+        last_price = float(df_day['Close'].iloc[-1])
+        last_vwap = float(df_day['VWAP'].iloc[-1])
+        sym_info = df_lookup.get(sym, {})
+        net_chg = float(sym_info.get('C', 0))
+
+        alpha_tag = ""
+        if len(df_day) >= 50 and last_vwap > 0:
+            stock_dist_5m = abs(last_price - last_vwap) / last_vwap * 100.0
+            if stock_dist_5m > (nifty_dist_5m * 3): alpha_tag = "🚀Alpha-Mover"
+            elif stock_dist_5m > (nifty_dist_5m * 2): alpha_tag = "💪Nifty-Beater"
+
+        one_sided_tag, trend_bonus = "", 0
+        if len(df_day) >= 12 and last_vwap > 0:
+            trend_candles = (df_day['Low'] >= df_day['VWAP']).sum() if net_chg > 0 else (df_day['High'] <= df_day['VWAP']).sum()
+            if (trend_candles / len(df_day)) >= 0.85:
+                current_gap_pct = abs(last_price - last_vwap) / last_vwap * 100.0
+                if current_gap_pct >= 1.50: one_sided_tag, trend_bonus = "🌊Mega-1.5%", 7
+                elif current_gap_pct >= 1.00: one_sided_tag, trend_bonus = "🌊Super-1.0%", 5
+                elif current_gap_pct >= 0.50: one_sided_tag, trend_bonus = "🌊Trend-0.5%", 3
+                else: one_sided_tag, trend_bonus = "🌊Trend", 1
+
+        trap_tag, trap_bonus = "", 0
+        if len(df_day) >= 6 and last_vwap > 0:
+            curr_open = float(df_day['Open'].iloc[-1])
+            day_open, day_high, day_low = float(sym_info.get('O', 0)), float(sym_info.get('H', 0)), float(sym_info.get('L', 0))
+            morning_spike = (day_high - day_open) / day_open * 100.0 if day_open > 0 else 0
+            morning_drop = (day_open - day_low) / day_open * 100.0 if day_open > 0 else 0
+            if morning_spike >= 1.0 and last_price < last_vwap and last_price < curr_open:
+                trap_tag, trap_bonus = "🎯 Reversal Sell 🩸", 6
+            elif morning_drop >= 1.0 and last_price > last_vwap and last_price > curr_open:
+                trap_tag, trap_bonus = "🎯 Reversal Buy 🚀", 6
+
+        alpha_tags[sym] = f"{alpha_tag} {one_sided_tag} {trap_tag}".strip()
+        trend_scores[sym] = trend_bonus + trap_bonus
+
+    # 🔥 3. ADD SECTOR BONUS & TREND SCORE DIRECTLY TO STOCK SCORE ('S')
+    for _tdf in (df_all_stocks, df_stocks):
+        _tdf['AlphaTag'] = _tdf['Fetch_T'].map(alpha_tags).fillna("")
+        _tdf['Trend_Score'] = pd.to_numeric(_tdf['Fetch_T'].map(trend_scores), errors='coerce').fillna(0).astype(int)
+        _tdf['Sector_Bonus'] = np.where(
+            _tdf['Day_C'] >= 0,
+            _tdf['Sector'].map(bull_bonus_map).fillna(0),
+            _tdf['Sector'].map(bear_bonus_map).fillna(0)
+        ).astype(int)
+        _tdf['S'] = _tdf['S'] + _tdf['Trend_Score'] + _tdf['Sector_Bonus']
+
+    df_filtered = df_stocks.copy()
     sort_key = "W_C" if chart_timeframe == "Weekly Chart" else "Day_C"
 
     if watchlist_mode == "My Portfolio 💼":
