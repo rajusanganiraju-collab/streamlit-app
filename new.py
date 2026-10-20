@@ -4066,9 +4066,140 @@ def render_live_ui():
 
     elif watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆"]:
         has_history = (df_filtered['SMA200'] > 0) & (df_filtered['SMA150'] > 0)
-        vcp_c = has_history & (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['P'] > df_filtered['SMA50']) & (df_filtered['SMA50'] > df_filtered['SMA150'])
-        df_filtered = df_filtered[vcp_c].copy()
-        df_filtered['Strategy_Icon'] = "🟢 M-VCP"
+        min_c1 = (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['P'] > df_filtered['SMA200'])
+        min_c2 = (df_filtered['SMA50'] > df_filtered['SMA150']) & (df_filtered['SMA150'] > df_filtered['SMA200'])
+        min_c3 = df_filtered['SMA200'] > df_filtered['SMA200_20D']
+        min_c4 = df_filtered['P'] > df_filtered['SMA50']
+        min_c5 = (df_filtered['P'] >= df_filtered['Low52W'] * 1.30) & (df_filtered['P'] >= df_filtered['High52W'] * 0.75)
+        vcp_base_cond = has_history & min_c1 & min_c2 & min_c3 & min_c4 & min_c5
+
+        strats_to_run = move_type_filter if isinstance(move_type_filter, list) else [move_type_filter]
+        if "All Swing Trading Moves 📈" in strats_to_run or "All Swing Stocks" in strats_to_run:
+            strats_to_run = [
+                "📈 Minervini Trend Template (VCP)", "📉 Strict VCP (Price & Vol Contraction)",
+                "🧲 The 20-EMA Holy Grail Pullback", "📉 RSI(2) Mean Reversion (Larry Connors)",
+                "📦 Nicolas Darvas (Box Breakout)", "📦 Nicolas Darvas Modified",
+                "📈 Stan Weinstein (Stage 2 Uptrend)", "💥 Dan Zanger (Volume Explosion)",
+                "👑 King Strategy (SMA Bounce)"
+            ]
+
+        dfs_to_concat = []
+        for strat in strats_to_run:
+            if strat in ["📈 Minervini Trend Template (VCP)", "🔥 Minervini MidCap 150", "🚀 Minervini SmallCap 250"]:
+                sub_df = df_filtered[vcp_base_cond].copy()
+                if not sub_df.empty:
+                    # 🏆 Minervini Author Score: Nearness to 52W High + Tightness + Volume
+                    near_52h_pts = np.clip((25.0 - sub_df['Pullback_52W']) * 0.6, 2, 12)
+                    vcp_bonus = np.where(sub_df['VCP_Contract'], 5, 0) + np.where(sub_df['VCP_Vol_Dry'], 4, 0)
+                    sub_df['S'] = (10 + near_52h_pts + vcp_bonus).astype(int)
+                    sub_df['Strategy_Icon'] = "🟢 M-VCP"
+                    dfs_to_concat.append(sub_df)
+
+            elif strat == "📉 Strict VCP (Price & Vol Contraction)":
+                strict_c = vcp_base_cond & (df_filtered['VCP_Contract'] == True) & (df_filtered['VCP_Vol_Dry'] == True)
+                sub_df = df_filtered[strict_c].copy()
+                if not sub_df.empty:
+                    # 🏆 Strict VCP Author Score: Rewards tighter contraction & proximity to pivot
+                    box_tight_pts = np.clip((15.0 - ((sub_df['Box_Top20'] - sub_df['Box_Bot20']) / (sub_df['Box_Bot20'] + 0.01) * 100)) * 1.2, 2, 12)
+                    sub_df['S'] = (15 + box_tight_pts).astype(int)
+                    sub_df['Strategy_Icon'] = "🟢 Strict VCP"
+                    dfs_to_concat.append(sub_df)
+
+            elif strat == "🧲 The 20-EMA Holy Grail Pullback":
+                hg_c = has_history & (df_filtered['P'] > df_filtered['SMA50']) & (df_filtered['SMA50'] > df_filtered['SMA150']) & (df_filtered['L'] <= df_filtered['EMA20'] * 1.015) & (df_filtered['P'] >= df_filtered['EMA20'] * 0.995) & (df_filtered['Day_C'] > 0)
+                sub_df = df_filtered[hg_c].copy()
+                if not sub_df.empty:
+                    # 🏆 Holy Grail Author Score: Closer to 20-EMA + stronger bounce
+                    ema_prox_pts = np.clip(10 - ((sub_df['P'] - sub_df['EMA20']).abs() / sub_df['EMA20'] * 300), 2, 10)
+                    sub_df['S'] = (12 + ema_prox_pts + np.clip(sub_df['VolX'] * 2, 0, 6)).astype(int)
+                    sub_df['Strategy_Icon'] = "🟢 Holy Grail"
+                    dfs_to_concat.append(sub_df)
+
+            elif strat == "📉 RSI(2) Mean Reversion (Larry Connors)":
+                lc_c = has_history & (df_filtered['P'] > df_filtered['SMA200']) & (df_filtered['P'] < df_filtered['SMA20']) & ((df_filtered['RSI2'] <= 10.0) | ((df_filtered['RSI2'] <= 25.0) & (df_filtered['P'] > df_filtered['O'])))
+                sub_df = df_filtered[lc_c].copy()
+                if not sub_df.empty:
+                    # 🏆 Larry Connors Author Score: Lower RSI(2) = Higher Mean-Reversion Edge!
+                    rsi_edge_pts = np.clip((30.0 - sub_df['RSI2']) * 0.6, 2, 16)
+                    sub_df['S'] = (10 + rsi_edge_pts).astype(int)
+                    sub_df['Strategy_Icon'] = "🟢 RSI(2) Reversal"
+                    dfs_to_concat.append(sub_df)
+
+            elif strat in ["📦 Nicolas Darvas (Box Breakout)", "📦 Nicolas Darvas Modified"]:
+                box_w = ((df_filtered['Box_Top20'] - df_filtered['Box_Bot20']) / (df_filtered['Box_Bot20'] + 0.001)) <= 0.22
+                d_trend = has_history & min_c1 & min_c2 & min_c3 & (df_filtered['P'] >= df_filtered['High52W'] * 0.85) & box_w
+                if "Modified" in strat:
+                    d_bo = (df_filtered['P'] >= df_filtered['Box_Top20'] * 0.975) & (df_filtered['P'] <= df_filtered['Box_Top20'] * 1.01)
+                    icon_lbl = "🟢 Darvas Anticipation"
+                else:
+                    d_bo = (df_filtered['P'] >= df_filtered['Box_Top20'] * 0.998) & (df_filtered['VolX'] >= 1.2)
+                    icon_lbl = "🟢 Darvas Breakout"
+                sub_df = df_filtered[d_trend & d_bo].copy()
+                if not sub_df.empty:
+                    # 🏆 Darvas Author Score: Box tightness + Volume power
+                    sub_df['S'] = (14 + np.clip(sub_df['VolX'] * 3, 1, 12)).astype(int)
+                    sub_df['Strategy_Icon'] = icon_lbl
+                    dfs_to_concat.append(sub_df)
+
+            elif strat == "📈 Stan Weinstein (Stage 2 Uptrend)":
+                w_c = has_history & (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['SMA50'] > df_filtered['SMA150']) & (df_filtered['SMA150'] > df_filtered['SMA150_20D']) & (df_filtered['P'] <= df_filtered['SMA150'] * 1.20) & (df_filtered['P'] >= df_filtered['High52W'] * 0.75)
+                sub_df = df_filtered[w_c].copy()
+                if not sub_df.empty:
+                    # 🏆 Weinstein Stage 2 Score: Freshness of breakout above rising 30-wk (150d) MA
+                    slope_pts = np.clip(((sub_df['SMA150'] - sub_df['SMA150_20D']) / (sub_df['SMA150_20D'] + 0.01)) * 200, 2, 10)
+                    sub_df['S'] = (12 + slope_pts + np.clip(sub_df['VolX'] * 2, 0, 6)).astype(int)
+                    sub_df['Strategy_Icon'] = "🟢 Stage 2"
+                    dfs_to_concat.append(sub_df)
+
+            elif strat == "💥 Dan Zanger (Volume Explosion)":
+                bar_r = df_filtered['H'] - df_filtered['L']
+                close_pos = (df_filtered['P'] - df_filtered['L']) / (bar_r + 0.001)
+                z_c = has_history & (df_filtered['VolX'] >= 1.8) & min_c1 & min_c2 & (df_filtered['P'] >= df_filtered['High52W'] * 0.80) & (close_pos >= 0.70) & (df_filtered['P'] >= df_filtered['Box_Top20'] * 0.99)
+                sub_df = df_filtered[z_c].copy()
+                if not sub_df.empty:
+                    # 🏆 Dan Zanger Author Score: RVOL Explosion weight
+                    sub_df['S'] = (15 + np.clip(sub_df['VolX'] * 4, 4, 15)).astype(int)
+                    sub_df['Strategy_Icon'] = "🟢 Zanger Explosion"
+                    dfs_to_concat.append(sub_df)
+
+            elif strat == "👑 King Strategy (SMA Bounce)":
+                k_trend = has_history & min_c2
+                t_50 = (df_filtered['L'] <= df_filtered['SMA50'] * 1.02) & (df_filtered['P'] >= df_filtered['SMA50'] * 0.99)
+                t_150 = (df_filtered['L'] <= df_filtered['SMA150'] * 1.02) & (df_filtered['P'] >= df_filtered['SMA150'] * 0.99)
+                sub_df = df_filtered[k_trend & (t_50 | t_150) & (df_filtered['Day_C'] > 0)].copy()
+                if not sub_df.empty:
+                    sub_df['S'] = (14 + np.clip(sub_df['Day_C'] * 2 + sub_df['VolX'] * 2, 2, 12)).astype(int)
+                    sub_df['Strategy_Icon'] = "🟢 King SMA Bounce"
+                    dfs_to_concat.append(sub_df)
+
+            elif strat == "🎯 52WH Pullback & 52WL Breakdown (Top 32)":
+                b_52 = df_filtered[has_history & (df_filtered['P'] > df_filtered['SMA200']) & (df_filtered['Pullback_52W'] <= 15.0)].copy()
+                if not b_52.empty:
+                    b_52['Strategy_Icon'] = "🟢 52WH Pullback"
+                    b_52['S'] = (15 + np.clip(15.0 - b_52['Pullback_52W'], 1, 15)).astype(int)
+                    dfs_to_concat.append(b_52.sort_values(by='S', ascending=False).head(32))
+                dist_52l = ((df_filtered['P'] - df_filtered['Low52W']) / (df_filtered['Low52W'] + 0.01)) * 100
+                s_52 = df_filtered[has_history & (df_filtered['P'] < df_filtered['SMA200']) & (dist_52l <= 15.0)].copy()
+                if not s_52.empty:
+                    s_52['Strategy_Icon'] = "🔴 52WL Breakdown"
+                    s_52['S'] = (15 + np.clip(15.0 - dist_52l, 1, 15)).astype(int)
+                    dfs_to_concat.append(s_52.sort_values(by='S', ascending=False).head(32))
+
+            elif strat == "⏳ Anticipation SMA Base (20/50/150/200)":
+                b_cond = has_history & (df_filtered['SMA150'] > df_filtered['SMA200'])
+                for sma_col, lbl in [('SMA20', '🟢 20-SMA Base'), ('SMA50', '🟢 50-SMA Base'), ('SMA150', '🟢 150-SMA Base'), ('SMA200', '🟢 200-SMA Base')]:
+                    near_m = (df_filtered[sma_col] > 0) & (df_filtered['P'] >= df_filtered[sma_col] * 0.975) & (df_filtered['P'] <= df_filtered[sma_col] * 1.025)
+                    sub_df = df_filtered[b_cond & near_m].copy()
+                    if not sub_df.empty:
+                        prox_pts = np.clip(10 - ((sub_df['P'] - sub_df[sma_col]).abs() / sub_df[sma_col] * 400), 1, 10)
+                        sub_df['S'] = (12 + prox_pts).astype(int)
+                        sub_df['Strategy_Icon'] = lbl
+                        dfs_to_concat.append(sub_df.sort_values(by='S', ascending=False).head(8))
+
+        if dfs_to_concat:
+            df_filtered = pd.concat(dfs_to_concat).drop_duplicates(subset=['Fetch_T'], keep='first')
+        else:
+            df_filtered = pd.DataFrame(columns=df_filtered.columns)
 
     # 🔥 UNIFIED SORTING: Watchlist Table & Charts 100% Same Order
     if not df_filtered.empty:
