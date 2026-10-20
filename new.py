@@ -903,7 +903,7 @@ def fetch_cached_5m_data(tkrs_list):
 
     n_yf = 0
     if missing_tkrs:
-        yf_data = yf.download(missing_tkrs, period="2d", interval="5m", progress=False, group_by='ticker', threads=25, timeout=5)
+        yf_data = yf.download(missing_tkrs, period="5d", interval="5m", progress=False, group_by='ticker', threads=10, timeout=10)
         if not yf_data.empty:
             if len(missing_tkrs) == 1:
                 df_clean = _sanitize_5m_df(yf_data, missing_tkrs[0])
@@ -2329,11 +2329,11 @@ def render_highscore_terminal_table(df_subset):
     if df_subset is None or df_subset.empty:
         return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No High Score Stocks (Score >= 10) found right now.</div>"
     
-    df_sorted = df_subset[df_subset['S'] >= 10].reset_index(drop=True)
-    if df_sorted.empty:
+    df_valid = df_subset[df_subset['S'] >= 10].copy()
+    if df_valid.empty:
         return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>Prastutam Score >= 10 unna stocks levu.</div>"
     
-    is_ai = 'AI_Prob' in df_sorted.columns
+    is_ai = 'AI_Prob' in df_valid.columns
     if is_ai:
         col_span = 12
         headers = '<th style="width:6%; color:#00BFFF;">🤖 AI</th><th style="width:6%;">SCORE</th>'
@@ -2341,67 +2341,93 @@ def render_highscore_terminal_table(df_subset):
         col_span = 11
         headers = '<th style="width:7%;">SCORE</th>'
 
-    html = f'<table class="term-table"><thead><tr><th colspan="{col_span}" class="term-head-high">🔥 HIGH SCORE RADAR (SCORE >= 10 RANKED MOVERS)</th></tr><tr style="background-color: #21262d;"><th style="width:4%;">RANK</th><th style="text-align:left; width:12%;">STOCK</th><th style="width:9%; color:#ffd700;">SECTOR</th><th style="width:8%;">LTP</th><th style="width:7%;">DAY%</th><th style="width:6%;">VOL</th><th style="width:17%;">STATUS</th><th style="width:10%; color:#f85149;">🛑 SL</th><th style="width:10%; color:#3fb950;">🎯 T1</th><th style="width:10%; color:#3fb950;">🎯 T2</th>{headers}</tr></thead><tbody>'
-    for i, row in df_sorted.iterrows():
-        bg_class = "row-dark" if i % 2 == 0 else "row-light"
-        day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
-        strat_icon = str(row.get('Strategy_Icon', ''))
-        base_status = generate_status(row)
-        custom_status = f"{strat_icon} | {base_status}".strip() if strat_icon else base_status
-        is_down = row['C'] < 0
-        atr_val = row.get("ATR", row["P"] * 0.02)
-        default_sl = (row["P"] + (1.5 * atr_val)) if is_down else (row["P"] - (1.5 * atr_val))
-        default_t1 = (row["P"] - (1.5 * atr_val)) if is_down else (row["P"] + (1.5 * atr_val))
-        default_t2 = (row["P"] - (3.0 * atr_val)) if is_down else (row["P"] + (3.0 * atr_val))
-        sl_val = row.get('SL', default_sl)
-        t1_val = row.get('T1', default_t1)
-        t2_val = row.get('T2', default_t2)
-        rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
-        row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td>'
-        sec_name = row.get("Sector", "OTHER")
-        sec_pts = int(row.get("Sector_Bonus", 0))
-        if sec_pts > 0: sec_display = f"{sec_name}<br><span style='color:#00BFFF;'>({sec_pts} Pts)</span>"
-        else: sec_display = f"{sec_name}"
-        row_str += f'<td style="font-size:10px; color:#c9d1d9; font-weight:bold;">{sec_display}</td>'
-        row_str += f'<td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px; cursor:help;" title="{custom_status}">{custom_status}</td>'
-        row_str += f'<td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td>'
-        if is_ai: row_str += f'<td style="color:#00BFFF; font-weight:bold; font-size:13px;">{int(row["AI_Prob"])}%</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
-        else: row_str += f'<td style="color:#ffd700;">{int(row["S"])}</td></tr>'
-        html += row_str
-    html += "</tbody></table>"
-    return html
+    if 'Strategy_Icon' in df_valid.columns and df_valid['Strategy_Icon'].astype(str).str.contains('🔴|SELL|DOWN|Stage 4|🩸|52WL', na=False).any():
+        sell_mask = df_valid['Strategy_Icon'].astype(str).str.contains('🔴|SELL|DOWN|Stage 4|🩸|52WL', na=False)
+    else:
+        sell_mask = df_valid['Day_C'] < 0
+
+    df_buy = df_valid[~sell_mask].reset_index(drop=True)
+    df_sell = df_valid[sell_mask].reset_index(drop=True)
+
+    def _build_hs_subtable(df_part, title_text, head_bg):
+        if df_part.empty:
+            return ""
+        sub_html = f'<table class="term-table"><thead><tr><th colspan="{col_span}" class="term-head-high" style="background-color:{head_bg};">{title_text}</th></tr><tr style="background-color: #21262d;"><th style="width:4%;">RANK</th><th style="text-align:left; width:12%;">STOCK</th><th style="width:9%; color:#ffd700;">SECTOR</th><th style="width:8%;">LTP</th><th style="width:7%;">DAY%</th><th style="width:6%;">VOL</th><th style="width:17%;">STATUS</th><th style="width:10%; color:#f85149;">🛑 SL</th><th style="width:10%; color:#3fb950;">🎯 T1</th><th style="width:10%; color:#3fb950;">🎯 T2</th>{headers}</tr></thead><tbody>'
+        for i, row in df_part.iterrows():
+            bg_class = "row-dark" if i % 2 == 0 else "row-light"
+            day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
+            strat_icon = str(row.get('Strategy_Icon', ''))
+            base_status = generate_status(row)
+            custom_status = f"{strat_icon} | {base_status}".strip() if strat_icon else base_status
+            is_down = row['Day_C'] < 0
+            atr_val = row.get("ATR", row["P"] * 0.02)
+            default_sl = (row["P"] + (1.5 * atr_val)) if is_down else (row["P"] - (1.5 * atr_val))
+            default_t1 = (row["P"] - (1.5 * atr_val)) if is_down else (row["P"] + (1.5 * atr_val))
+            default_t2 = (row["P"] - (3.0 * atr_val)) if is_down else (row["P"] + (3.0 * atr_val))
+            sl_val = row.get('SL', default_sl)
+            t1_val = row.get('T1', default_t1)
+            t2_val = row.get('T2', default_t2)
+            rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
+            row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td>'
+            sec_name = row.get("Sector", "OTHER")
+            sec_pts = int(row.get("Sector_Bonus", 0))
+            if sec_pts > 0: sec_display = f"{sec_name}<br><span style='color:#00BFFF;'>({sec_pts} Pts)</span>"
+            else: sec_display = f"{sec_name}"
+            row_str += f'<td style="font-size:10px; color:#c9d1d9; font-weight:bold;">{sec_display}</td>'
+            row_str += f'<td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px; cursor:help;" title="{custom_status}">{custom_status}</td>'
+            row_str += f'<td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td>'
+            if is_ai: row_str += f'<td style="color:#00BFFF; font-weight:bold; font-size:13px;">{int(row["AI_Prob"])}%</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
+            else: row_str += f'<td style="color:#ffd700;">{int(row["S"])}</td></tr>'
+            sub_html += row_str
+        sub_html += "</tbody></table>"
+        return sub_html
+
+    html_out = _build_hs_subtable(df_buy, "🟢 POSITIVE / BUY — HIGH SCORE RADAR (SCORE >= 10)", "#1e5f29")
+    html_out += _build_hs_subtable(df_sell, "🔴 NEGATIVE / SELL — HIGH SCORE RADAR (SCORE >= 10)", "#b52524")
+    return html_out
 
 def render_levels_table(df_subset):
     if df_subset is None or df_subset.empty:
         return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No Stocks found right now.</div>"
     
-    df_sorted = df_subset[df_subset['S'] >= 10].reset_index(drop=True)
-    if df_sorted.empty:
+    df_valid = df_subset[df_subset['S'] >= 10].copy()
+    if df_valid.empty:
         return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>Prastutam Score >= 10 unna stocks levu.</div>"
 
-    html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-levels">🎯 INTRADAY TRADING LEVELS (SUPPORT & RESISTANCE)</th></tr><tr style="background-color: #21262d;"><th style="width:4%;">RANK</th><th style="text-align:left; width:13%;">STOCK</th><th style="width:9%;">LTP</th><th style="width:9%;">DAY%</th><th style="width:8%;">VOL</th><th style="width:17%;">STATUS</th><th style="width:11%; color:#f85149;">🛑 STOP LOSS</th><th style="width:11%; color:#3fb950;">🎯 TARGET 1</th><th style="width:11%; color:#3fb950;">🎯 TARGET 2</th><th style="width:7%;">SCORE</th></tr></thead><tbody>'
-    for i, row in df_sorted.iterrows():
-        bg_class = "row-dark" if i % 2 == 0 else "row-light"
-        day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
-        strat_icon = str(row.get('Strategy_Icon', ''))
-        base_status = generate_status(row)
-        custom_status = f"{strat_icon} | {base_status}".strip() if strat_icon else base_status
-        is_down = row['C'] < 0
-        atr_val = row.get("ATR", row["P"] * 0.02)
-        default_sl = (row["P"] + (1.5 * atr_val)) if is_down else (row["P"] - (1.5 * atr_val))
-        default_t1 = (row["P"] - (1.5 * atr_val)) if is_down else (row["P"] + (1.5 * atr_val))
-        default_t2 = (row["P"] - (3.0 * atr_val)) if is_down else (row["P"] + (3.0 * atr_val))
-        sl_val = row.get('SL', default_sl)
-        t1_val = row.get('T1', default_t1)
-        t2_val = row.get('T2', default_t2)
-        rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
-        row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td>'
-        row_str += f'<td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px; cursor:help;" title="{custom_status}">{custom_status}</td>'
-        row_str += f'<td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td>'
-        row_str += f'<td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
-        html += row_str
-    html += "</tbody></table>"
-    return html
+    sell_mask = df_valid['Day_C'] < 0
+    df_buy = df_valid[~sell_mask].reset_index(drop=True)
+    df_sell = df_valid[sell_mask].reset_index(drop=True)
+
+    def _build_lvl_subtable(df_part, title_text, head_bg):
+        if df_part.empty:
+            return ""
+        sub_html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-levels" style="background-color:{head_bg};">{title_text}</th></tr><tr style="background-color: #21262d;"><th style="width:4%;">RANK</th><th style="text-align:left; width:13%;">STOCK</th><th style="width:9%;">LTP</th><th style="width:9%;">DAY%</th><th style="width:8%;">VOL</th><th style="width:17%;">STATUS</th><th style="width:11%; color:#f85149;">🛑 STOP LOSS</th><th style="width:11%; color:#3fb950;">🎯 TARGET 1</th><th style="width:11%; color:#3fb950;">🎯 TARGET 2</th><th style="width:7%;">SCORE</th></tr></thead><tbody>'
+        for i, row in df_part.iterrows():
+            bg_class = "row-dark" if i % 2 == 0 else "row-light"
+            day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
+            strat_icon = str(row.get('Strategy_Icon', ''))
+            base_status = generate_status(row)
+            custom_status = f"{strat_icon} | {base_status}".strip() if strat_icon else base_status
+            is_down = row['Day_C'] < 0
+            atr_val = row.get("ATR", row["P"] * 0.02)
+            default_sl = (row["P"] + (1.5 * atr_val)) if is_down else (row["P"] - (1.5 * atr_val))
+            default_t1 = (row["P"] - (1.5 * atr_val)) if is_down else (row["P"] + (1.5 * atr_val))
+            default_t2 = (row["P"] - (3.0 * atr_val)) if is_down else (row["P"] + (3.0 * atr_val))
+            sl_val = row.get('SL', default_sl)
+            t1_val = row.get('T1', default_t1)
+            t2_val = row.get('T2', default_t2)
+            rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
+            row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td>'
+            row_str += f'<td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px; cursor:help;" title="{custom_status}">{custom_status}</td>'
+            row_str += f'<td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td>'
+            row_str += f'<td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
+            sub_html += row_str
+        sub_html += "</tbody></table>"
+        return sub_html
+
+    html_out = _build_lvl_subtable(df_buy, "🟢 POSITIVE / BUY — INTRADAY TRADING LEVELS", "#004d40")
+    html_out += _build_lvl_subtable(df_sell, "🔴 NEGATIVE / SELL — INTRADAY TRADING LEVELS", "#7f1d1d")
+    return html_out
 
 def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intraday (5m)", show_crosshair=False, show_vol=False):
     display_sym = row['T']
@@ -4011,7 +4037,7 @@ def render_live_ui():
             else:
                 df_sorted_base = df_filtered.sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, False])
 
-        if scol is not None or watchlist_mode in ["Terminal Tables 🗃️", "High Score Stocks 🔥"]:
+        if scol is not None:
             df_stocks_display = df_sorted_base.reset_index(drop=True)
         else:
             if "AI Predictions" in watchlist_mode or watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆", "Day Trading Stocks 🚀"]:
@@ -4363,7 +4389,7 @@ def render_live_ui():
                             st.markdown("### 📊 Full Data Analysis")
                             st.dataframe(me_df, use_container_width=True, hide_index=True)
 
-                elif watchlist_mode == "Terminal Tables 🗃️":
+                elif watchlist_mode == "Terminal Tables 🗃️" and view_mode == "Heat Map":
                     st.markdown(render_highscore_terminal_table(df_stocks_display), unsafe_allow_html=True)
                     st.markdown(render_levels_table(df_stocks_display), unsafe_allow_html=True)
 
