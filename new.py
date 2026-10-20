@@ -2329,7 +2329,7 @@ def render_highscore_terminal_table(df_subset):
     if df_subset is None or df_subset.empty:
         return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No High Score Stocks (Score >= 10) found right now.</div>"
     
-    df_valid = df_subset[df_subset['S'] >= 10].copy()
+    df_valid = df_subset.copy()
     if df_valid.empty:
         return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>Prastutam Score >= 10 unna stocks levu.</div>"
     
@@ -2390,7 +2390,7 @@ def render_levels_table(df_subset):
     if df_subset is None or df_subset.empty:
         return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No Stocks found right now.</div>"
     
-    df_valid = df_subset[df_subset['S'] >= 10].copy()
+    df_valid = df_subset.copy()
     if df_valid.empty:
         return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>Prastutam Score >= 10 unna stocks levu.</div>"
 
