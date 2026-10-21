@@ -4742,7 +4742,6 @@ def render_live_ui():
                                 chart_height=c_height, key_idx=(r_idx * 10 + c_idx),
                                 current_grid_syms=grid_syms
                             )
-
             # =========================================================
             # 📊 MODE B: DEFAULT MINI-CHARTS / PORTFOLIO / HEATMAP
             # =========================================================
