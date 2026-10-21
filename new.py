@@ -4005,16 +4005,20 @@ def render_live_ui():
         alpha_tags[sym] = f"{alpha_tag} {one_sided_tag} {trap_tag}".strip()
         trend_scores[sym] = trend_bonus + trap_bonus
 
-    # 🔥 3. ADD SECTOR BONUS & TREND SCORE DIRECTLY TO STOCK SCORE ('S')
+    # 🔥 3. ADD SECTOR BONUS & TREND SCORE ONLY FOR TERMINAL TABLES, HIGH SCORE & DAY TRADING
     for _tdf in (df_all_stocks, df_stocks):
         _tdf['AlphaTag'] = _tdf['Fetch_T'].map(alpha_tags).fillna("")
-        _tdf['Trend_Score'] = pd.to_numeric(_tdf['Fetch_T'].map(trend_scores), errors='coerce').fillna(0).astype(int)
-        _tdf['Sector_Bonus'] = np.where(
-            _tdf['Day_C'] >= 0,
-            _tdf['Sector'].map(bull_bonus_map).fillna(0),
-            _tdf['Sector'].map(bear_bonus_map).fillna(0)
-        ).astype(int)
-        _tdf['S'] = _tdf['S'] + _tdf['Trend_Score'] + _tdf['Sector_Bonus']
+        if watchlist_mode in ["Terminal Tables 🗃️", "High Score Stocks 🔥", "Day Trading Stocks 🚀"]:
+            _tdf['Trend_Score'] = pd.to_numeric(_tdf['Fetch_T'].map(trend_scores), errors='coerce').fillna(0).astype(int)
+            _tdf['Sector_Bonus'] = np.where(
+                _tdf['Day_C'] >= 0,
+                _tdf['Sector'].map(bull_bonus_map).fillna(0),
+                _tdf['Sector'].map(bear_bonus_map).fillna(0)
+            ).astype(int)
+            _tdf['S'] = _tdf['S'] + _tdf['Trend_Score'] + _tdf['Sector_Bonus']
+        else:
+            _tdf['Trend_Score'] = 0
+            _tdf['Sector_Bonus'] = 0
 
     df_filtered = df_stocks.copy()
     sort_key = "W_C" if chart_timeframe == "Weekly Chart" else "Day_C"
@@ -4053,7 +4057,7 @@ def render_live_ui():
             if strat == "All Day Trading Moves 🚀":
                 continue
 
-            # 1. 🧠 ORDER-FLOW SNIPER (5-Pillar Quant Score)
+            # 1. 🧠 ORDER-FLOW SNIPER (Pure 5-Pillar Quant Score)
             if strat == ADAPTIVE_STRAT:
                 for _side, _label in (('buy', 'BUY'), ('sell', 'SELL')):
                     _rows = sniper_cached_res.get(_side, [])
@@ -4064,81 +4068,70 @@ def render_live_ui():
                     if _sub.empty:
                         continue
                     _sub['AI_Prob'] = _sub['Fetch_T'].map(lambda s: int(_m[s]['score']))
+                    _sub = _sub.sort_values('AI_Prob', ascending=False)
                     _sub['Strategy_Icon'] = f"🎯 Sniper {_label}"
-                    _sub['AlphaTag'] = (
-                        _sub['Fetch_T'].map(lambda s: f"🎯{_m[s]['tag']}") + " " + _sub.get('AlphaTag', '')
-                    ).str.strip()
-                    _sec_b = _sub.get('Sector_Bonus', 0)
-                    _trd_b = _sub.get('Trend_Score', 0)
-                    _sub['S'] = ((_sub['AI_Prob'] // 3) + _sec_b + _trd_b).astype(int)
-                    all_dfs.append(_sub.sort_values('AI_Prob', ascending=False))
+                    _sub['AlphaTag'] = _sub['Fetch_T'].map(lambda s: f"🎯{_m[s]['tag']} ({_m[s]['score']}%)")
+                    _sub['S'] = [35 - 2 * _k for _k in range(len(_sub))]
+                    all_dfs.append(_sub)
 
-            # 2. 📰 NEWS + VOL + PRICE CATALYST
+            # 2. 📰 NEWS + VOL + PRICE CATALYST (Pure News Score)
             elif strat == NEWS_STRAT:
                 _df_news, _ = run_news_vol_price_strategy(df_filtered, processed_charts, min_volx=1.2, min_move_pct=0.75)
                 if not _df_news.empty:
-                    _df_news['S'] = (_df_news['S'] + _df_news.get('Sector_Bonus', 0)).astype(int)
                     all_dfs.append(_df_news)
 
-            # 3. 🔥 FIRST HOUR VOL BREAKOUT (ORB + VWAP + OPEN DRIVE)
+            # 3. 🔥 FIRST HOUR VOL BREAKOUT (ORB + VWAP)
             elif strat == "🔥 First Hour Vol Breakout (ORB+VWAP)":
                 orb_vol = df_filtered['VolX'] >= 1.5
                 c_buy = base_buy & (df_filtered['Day_C'] > 1.0) & orb_vol & (df_filtered['P'] > df_filtered['O']) & ((df_filtered['O'] - df_filtered['L']) <= (df_filtered['P'] * 0.005))
                 c_sell = base_sell & (df_filtered['Day_C'] < -1.0) & orb_vol & (df_filtered['P'] < df_filtered['O']) & ((df_filtered['H'] - df_filtered['O']) <= (df_filtered['P'] * 0.005))
-                for _mask, _lbl in [(c_buy, "🚀 1-Hr BO BUY"), (c_sell, "🩸 1-Hr BO SELL")]:
-                    _sub = df_filtered[_mask].copy()
+                for _mask, _lbl, _asc in [(c_buy, "🚀 1-Hr BO BUY", False), (c_sell, "🩸 1-Hr BO SELL", True)]:
+                    _sub = df_filtered[_mask].sort_values(by=['VolX', 'Day_C'], ascending=[False, _asc]).head(5).copy()
                     if not _sub.empty:
-                        # 🏆 ORB Score: Volume surge + Intraday momentum + Sector/Trend bonus
-                        _orb_pts = 14 + np.clip(_sub['VolX'] * 3.0, 2, 10) + np.clip(_sub['Day_C'].abs() * 1.5, 1, 6)
-                        _sub['S'] = (_orb_pts + _sub.get('Sector_Bonus', 0) + _sub.get('Trend_Score', 0)).astype(int)
+                        _sub['S'] = (14 + np.clip(_sub['VolX'] * 3.0, 2, 10) + np.clip(_sub['Day_C'].abs() * 1.5, 1, 6)).astype(int)
                         _sub['AI_Prob'] = np.clip(65 + _sub['S'], 72, 97).astype(int)
                         _sub['Strategy_Icon'] = _lbl
-                        all_dfs.append(_sub.sort_values('S', ascending=False).head(8))
+                        all_dfs.append(_sub)
 
             # 4. 💥 INSIDE BAR VOL BREAKOUT (NR7)
             elif strat == "💥 Inside Bar Vol Breakout (NR7)":
                 ib_vol = df_filtered['VolX'] >= 1.2
-                ib_range_pct = ((df_filtered['H'] - df_filtered['L']) / (df_filtered['L'] + 0.001)) * 100.0
-                ib_narrow = ib_range_pct <= 2.2
+                ib_narrow = ((df_filtered['H'] - df_filtered['L']) / (df_filtered['L'] + 0.001)) <= 0.02
                 c_buy = base_buy & (df_filtered['P'] > df_filtered['SMA50']) & ib_vol & ib_narrow & (df_filtered['P'] > df_filtered['O'])
                 c_sell = base_sell & (df_filtered['P'] < df_filtered['SMA50']) & ib_vol & ib_narrow & (df_filtered['P'] < df_filtered['O'])
-                for _mask, _lbl in [(c_buy, "💥 NR7 BO BUY"), (c_sell, "🩸 NR7 BO SELL")]:
-                    _sub = df_filtered[_mask].copy()
+                for _mask, _lbl, _asc in [(c_buy, "💥 NR7 BO BUY", False), (c_sell, "🩸 NR7 BO SELL", True)]:
+                    _sub = df_filtered[_mask].sort_values(by=['VolX', 'Day_C'], ascending=[False, _asc]).head(5).copy()
                     if not _sub.empty:
-                        # 🏆 NR7 Score: Tighter range compression + Volume expansion
                         _tight_pts = np.clip((2.5 - ((_sub['H'] - _sub['L']) / (_sub['L'] + 0.001) * 100.0)) * 4.0, 2, 10)
-                        _nr7_pts = 12 + _tight_pts + np.clip(_sub['VolX'] * 2.5, 2, 8)
-                        _sub['S'] = (_nr7_pts + _sub.get('Sector_Bonus', 0) + _sub.get('Trend_Score', 0)).astype(int)
+                        _sub['S'] = (12 + _tight_pts + np.clip(_sub['VolX'] * 2.5, 2, 8)).astype(int)
                         _sub['AI_Prob'] = np.clip(65 + _sub['S'], 72, 96).astype(int)
                         _sub['Strategy_Icon'] = _lbl
-                        all_dfs.append(_sub.sort_values('S', ascending=False).head(8))
+                        all_dfs.append(_sub)
 
-            # 5. 🧲 INTRADAY DIP & SUPPORT BOUNCE (LOW-RISK ENTRY)
+            # 5. 🧲 INTRADAY DIP & SUPPORT BOUNCE
             elif strat == "🧲 Intraday Dip & Support Bounce":
                 day_pb = ((df_filtered['H'] - df_filtered['P']) / (df_filtered['H'] + 0.001)) * 100.0
                 dip_ok = (day_pb >= 0.8) & (day_pb <= 3.0)
-                near_vwap_b = (df_filtered['P'] >= df_filtered['VWAP'] * 0.998) & (df_filtered['L'] <= df_filtered['VWAP'] * 1.003)
-                near_ema_b = (df_filtered['P'] >= df_filtered['W_EMA10'] * 0.998) & (df_filtered['L'] <= df_filtered['W_EMA10'] * 1.003)
-                c_buy = base_buy & dip_ok & (near_vwap_b | near_ema_b) & (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] > 0) & (df_filtered['VolX'] >= 1.2)
+                near_vwap_b = (df_filtered['P'] >= df_filtered['VWAP'] * 0.998) & (df_filtered['L'] <= df_filtered['VWAP'] * 1.002)
+                near_ema_b = (df_filtered['P'] >= df_filtered['W_EMA10'] * 0.998) & (df_filtered['L'] <= df_filtered['W_EMA10'] * 1.002)
+                c_buy = base_buy & dip_ok & (near_vwap_b | near_ema_b) & (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] > 0) & (df_filtered['VolX'] >= 1.3)
 
                 day_rl = ((df_filtered['P'] - df_filtered['L']) / (df_filtered['L'] + 0.001)) * 100.0
                 rally_ok = (day_rl >= 0.8) & (day_rl <= 3.0)
-                near_vwap_s = (df_filtered['P'] <= df_filtered['VWAP'] * 1.002) & (df_filtered['H'] >= df_filtered['VWAP'] * 0.997)
-                near_ema_s = (df_filtered['P'] <= df_filtered['W_EMA10'] * 1.002) & (df_filtered['H'] >= df_filtered['W_EMA10'] * 0.997)
-                c_sell = base_sell & rally_ok & (near_vwap_s | near_ema_s) & (df_filtered['P'] < df_filtered['O']) & (df_filtered['Day_C'] < 0) & (df_filtered['VolX'] >= 1.2)
+                near_vwap_s = (df_filtered['P'] <= df_filtered['VWAP'] * 1.002) & (df_filtered['H'] >= df_filtered['VWAP'] * 0.998)
+                near_ema_s = (df_filtered['P'] <= df_filtered['W_EMA10'] * 1.002) & (df_filtered['H'] >= df_filtered['W_EMA10'] * 0.998)
+                c_sell = base_sell & rally_ok & (near_vwap_s | near_ema_s) & (df_filtered['P'] < df_filtered['O']) & (df_filtered['Day_C'] < 0) & (df_filtered['VolX'] >= 1.3)
 
-                for _mask, _lbl in [(c_buy, "🧲 Dip Bounce BUY"), (c_sell, "🩸 Dip Reject SELL")]:
-                    _sub = df_filtered[_mask].copy()
+                for _mask, _lbl, _asc in [(c_buy, "🧲 Dip Bounce BUY", False), (c_sell, "🩸 Dip Reject SELL", True)]:
+                    _sub = df_filtered[_mask].sort_values(by=['VolX', 'Day_C'], ascending=[False, _asc]).head(5).copy()
                     if not _sub.empty:
-                        # 🏆 Dip Bounce Score: Proximity to VWAP support (low SL risk) + Volume
                         _prox_pts = np.clip(10.0 - ((_sub['P'] - _sub['VWAP']).abs() / (_sub['VWAP'] + 0.01) * 1500.0), 2, 10)
-                        _dip_pts = 14 + _prox_pts + np.clip(_sub['VolX'] * 2.0, 1, 6)
-                        _sub['S'] = (_dip_pts + _sub.get('Sector_Bonus', 0) + _sub.get('Trend_Score', 0)).astype(int)
+                        _sub['S'] = (14 + _prox_pts + np.clip(_sub['VolX'] * 2.0, 1, 6)).astype(int)
                         _sub['AI_Prob'] = np.clip(66 + _sub['S'], 74, 96).astype(int)
                         _sub['Strategy_Icon'] = _lbl
-                        all_dfs.append(_sub.sort_values('S', ascending=False).head(8))
+                        all_dfs.append(_sub)
 
-            # 6. ⚡ SUDDEN VWAP CROSS (ANY TIME - 5M CANDLE CROSSOVER)
+            # 6. ⚡ SUDDEN VWAP CROSS (ANY TIME)
             elif strat == "⚡ Sudden VWAP Cross (Any Time)":
                 buy_mask = pd.Series(False, index=df_filtered.index)
                 sell_mask = pd.Series(False, index=df_filtered.index)
@@ -4150,48 +4143,42 @@ def render_live_ui():
                             buy_mask.loc[idx] = True
                         if ((c2['Close'] >= c2['VWAP']) and (c1['Close'] < c1['VWAP'])) or ((c1['Open'] >= c1['VWAP']) and (c1['Close'] < c1['VWAP'])):
                             sell_mask.loc[idx] = True
-                for _mask, _lbl in [(base_buy & buy_mask, "⚡ VWAP Cross BUY"), (base_sell & sell_mask, "🩸 VWAP Cross SELL")]:
-                    _sub = df_filtered[_mask].copy()
+                for _mask, _lbl, _asc in [(base_buy & buy_mask, "⚡ VWAP Cross BUY", False), (base_sell & sell_mask, "🩸 VWAP Cross SELL", True)]:
+                    _sub = df_filtered[_mask].sort_values(by=['VolX', 'Day_C'], ascending=[False, _asc]).head(5).copy()
                     if not _sub.empty:
-                        # 🏆 VWAP Cross Score: Fresh 5m Crossover + Volume burst
-                        _vc_pts = 15 + np.clip(_sub['VolX'] * 3.5, 3, 12)
-                        _sub['S'] = (_vc_pts + _sub.get('Sector_Bonus', 0) + _sub.get('Trend_Score', 0)).astype(int)
+                        _sub['S'] = (15 + np.clip(_sub['VolX'] * 3.5, 3, 12)).astype(int)
                         _sub['AI_Prob'] = np.clip(66 + _sub['S'], 75, 97).astype(int)
                         _sub['Strategy_Icon'] = _lbl
-                        all_dfs.append(_sub.sort_values('S', ascending=False).head(8))
+                        all_dfs.append(_sub)
 
             # 7. 🚀 GAP & GO (OPEN = LOW / OPEN = HIGH)
             elif strat == "🚀 Gap & Go (Open = Low)":
                 high_vol = df_filtered['VolX'] >= 1.5
                 c_buy = base_buy & ((df_filtered['O'] - df_filtered['L']) <= (df_filtered['P'] * 0.002)) & (df_filtered['O'] > df_filtered['Prev_C']) & high_vol & (df_filtered['Day_C'] > 0.5)
                 c_sell = base_sell & ((df_filtered['H'] - df_filtered['O']) <= (df_filtered['P'] * 0.002)) & (df_filtered['O'] < df_filtered['Prev_C']) & high_vol & (df_filtered['Day_C'] < -0.5)
-                for _mask, _lbl in [(c_buy, "🚀 Gap&Go BUY"), (c_sell, "🩸 Gap&Go SELL")]:
-                    _sub = df_filtered[_mask].copy()
+                for _mask, _lbl, _asc in [(c_buy, "🚀 Gap&Go BUY", False), (c_sell, "🩸 Gap&Go SELL", True)]:
+                    _sub = df_filtered[_mask].sort_values(by=['VolX', 'Day_C'], ascending=[False, _asc]).head(5).copy()
                     if not _sub.empty:
-                        # 🏆 Gap & Go Score: O=L / O=H precision + Bull/Bear Power + Volume
                         _pwr_b = np.where((_sub.get('Bull_P', 0) >= 80) | (_sub.get('Bear_P', 0) >= 80), 5, 2)
-                        _gg_pts = 16 + np.clip(_sub['VolX'] * 3.0, 3, 10) + _pwr_b
-                        _sub['S'] = (_gg_pts + _sub.get('Sector_Bonus', 0) + _sub.get('Trend_Score', 0)).astype(int)
+                        _sub['S'] = (16 + np.clip(_sub['VolX'] * 3.0, 3, 10) + _pwr_b).astype(int)
                         _sub['AI_Prob'] = np.clip(67 + _sub['S'], 76, 98).astype(int)
                         _sub['Strategy_Icon'] = _lbl
-                        all_dfs.append(_sub.sort_values('S', ascending=False).head(8))
+                        all_dfs.append(_sub)
 
-            # 8. 💥 PREVIOUS DAY HIGH / LOW (PDH / PDL) BREAKOUT
+            # 8. 💥 PDH / PDL BREAKOUT
             elif strat == "💥 PDH / PDL Breakout":
-                vol_confirm = df_filtered['VolX'] >= 1.8
+                vol_confirm = df_filtered['VolX'] >= 2.0
                 c_buy = base_buy & (df_filtered['P'] > df_filtered['Prev_H']) & vol_confirm
                 c_sell = base_sell & (df_filtered['P'] < df_filtered['Prev_L']) & vol_confirm
-                for _mask, _lbl in [(c_buy, "💥 PDH Break BUY"), (c_sell, "🩸 PDL Break SELL")]:
-                    _sub = df_filtered[_mask].copy()
+                for _mask, _lbl, _asc in [(c_buy, "💥 PD Break BUY", False), (c_sell, "🩸 PD Break SELL", True)]:
+                    _sub = df_filtered[_mask].sort_values(by=['VolX', 'Day_C'], ascending=[False, _asc]).head(5).copy()
                     if not _sub.empty:
-                        # 🏆 PDH/PDL Score: Volume explosion + Breakout strength
-                        _pd_pts = 15 + np.clip(_sub['VolX'] * 3.5, 3, 12) + np.clip(_sub['Day_C'].abs() * 1.2, 1, 5)
-                        _sub['S'] = (_pd_pts + _sub.get('Sector_Bonus', 0) + _sub.get('Trend_Score', 0)).astype(int)
+                        _sub['S'] = (15 + np.clip(_sub['VolX'] * 3.5, 3, 12) + np.clip(_sub['Day_C'].abs() * 1.2, 1, 5)).astype(int)
                         _sub['AI_Prob'] = np.clip(66 + _sub['S'], 75, 98).astype(int)
                         _sub['Strategy_Icon'] = _lbl
-                        all_dfs.append(_sub.sort_values('S', ascending=False).head(8))
+                        all_dfs.append(_sub)
 
-            # 9. 🤖 ALL MOVES (CORE AI PROBABILITY >= 70% SCANNER)
+            # 9. 🤖 ALL MOVES (Pure AI Probability >= 70%)
             elif strat == "All Moves":
                 up_prob = (
                     np.where(df_filtered['P'] > df_filtered['VWAP'], 25, 0) +
@@ -4205,17 +4192,15 @@ def render_live_ui():
                     np.where(df_filtered.get('Bear_P', 0) >= 80, 30, 0) +
                     np.where((df_filtered['O'] - df_filtered['H']).abs() < (df_filtered['P'] * 0.002), 25, 0)
                 )
-                _sub_b = df_filtered[up_prob >= 70].copy()
+                _sub_b = df_filtered[(up_prob >= 70) & (df_filtered['S'] >= 11)].copy()
                 if not _sub_b.empty:
-                    _sub_b['AI_Prob'] = up_prob[up_prob >= 70]
+                    _sub_b['AI_Prob'] = up_prob[(up_prob >= 70) & (df_filtered['S'] >= 11)]
                     _sub_b['Strategy_Icon'] = "🚀 AI PREDICTS: UP"
-                    _sub_b['S'] = ((_sub_b['AI_Prob'] // 4) + _sub_b.get('Sector_Bonus', 0) + _sub_b.get('Trend_Score', 0)).astype(int)
                     all_dfs.append(_sub_b)
-                _sub_s = df_filtered[dn_prob >= 70].copy()
+                _sub_s = df_filtered[(dn_prob >= 70) & (df_filtered['S'] >= 11)].copy()
                 if not _sub_s.empty:
-                    _sub_s['AI_Prob'] = dn_prob[dn_prob >= 70]
+                    _sub_s['AI_Prob'] = dn_prob[(dn_prob >= 70) & (df_filtered['S'] >= 11)]
                     _sub_s['Strategy_Icon'] = "🩸 AI PREDICTS: DOWN"
-                    _sub_s['S'] = ((_sub_s['AI_Prob'] // 4) + _sub_s.get('Sector_Bonus', 0) + _sub_s.get('Trend_Score', 0)).astype(int)
                     all_dfs.append(_sub_s)
 
         if all_dfs:
