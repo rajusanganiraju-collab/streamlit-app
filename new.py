@@ -3197,7 +3197,7 @@ def _on_grid_radio_change():
     _UI['grid_layout_mode'] = sel_g
 
 
-# --- MINI-CHART GRID & SINGLE CHART (WITH TICK ON ALL INDICES & 12-HOUR IST TIME) ---
+# --- MINI-CHART GRID & SINGLE CHART (WITH TICK ON ALL INDICES, VOL BARS & 12-HOUR IST TIME) ---
 def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Intraday (5m)", chart_dict=None, show_crosshair=False, show_vol=False, is_sector=False):
     if df_grid is None or df_grid.empty:
         return
@@ -3271,26 +3271,64 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 " | C: ₹" + df_chart['Close'].round(2).astype(str)
             )
 
-            fig = go.Figure()
+            rc = dict(row=1, col=1) if show_vol else dict()
+            fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.02, row_heights=[0.75, 0.25]) if show_vol else go.Figure()
+
+            # High-Volume Neon Candle Highlight
+            if 'Volume' in df_chart.columns:
+                vol_sma = df_chart['Volume'].rolling(window=20, min_periods=1).mean()
+                hv_mask = df_chart['Volume'] > (vol_sma * 1.618)
+                vwap_s = df_chart.get('VWAP', pd.Series(0, index=df_chart.index))
+                ema10_s = df_chart.get('EMA_10', pd.Series(0, index=df_chart.index))
+                bull = df_chart['Close'] >= df_chart['Open']
+                bear = df_chart['Close'] < df_chart['Open']
+                mask_hv_bull = hv_mask & (df_chart['Close'] > vwap_s) & (df_chart['Close'] > ema10_s) & bull
+                mask_hv_bear = hv_mask & (df_chart['Close'] < vwap_s) & (df_chart['Close'] < ema10_s) & bear
+                mask_norm = ~(mask_hv_bull | mask_hv_bear)
+            else:
+                mask_hv_bull = pd.Series(False, index=df_chart.index)
+                mask_hv_bear = pd.Series(False, index=df_chart.index)
+                mask_norm = pd.Series(True, index=df_chart.index)
+
+            def _am(col, m):
+                return np.where(m, df_chart[col], np.nan)
+
             fig.add_trace(go.Candlestick(
-                x=x_idx, open=df_chart['Open'], high=df_chart['High'], low=df_chart['Low'], close=df_chart['Close'],
+                x=x_idx, open=_am('Open', mask_norm), high=_am('High', mask_norm), low=_am('Low', mask_norm), close=_am('Close', mask_norm),
                 increasing_line_color='#2ea043', increasing_fillcolor='#2ea043', increasing_line_width=1,
                 decreasing_line_color='#da3633', decreasing_fillcolor='#da3633', decreasing_line_width=1,
                 showlegend=False, hoverinfo='skip'
-            ))
+            ), **rc)
+
+            if mask_hv_bull.any():
+                fig.add_trace(go.Candlestick(
+                    x=x_idx, open=_am('Open', mask_hv_bull), high=_am('High', mask_hv_bull), low=_am('Low', mask_hv_bull), close=_am('Close', mask_hv_bull),
+                    increasing_line_color='#00FF00', increasing_fillcolor='#00FF00', increasing_line_width=2,
+                    decreasing_line_color='#00FF00', decreasing_fillcolor='#00FF00', decreasing_line_width=2,
+                    showlegend=False, hoverinfo='skip'
+                ), **rc)
+
+            if mask_hv_bear.any():
+                fig.add_trace(go.Candlestick(
+                    x=x_idx, open=_am('Open', mask_hv_bear), high=_am('High', mask_hv_bear), low=_am('Low', mask_hv_bear), close=_am('Close', mask_hv_bear),
+                    increasing_line_color='#FF0000', increasing_fillcolor='#FF0000', increasing_line_width=2,
+                    decreasing_line_color='#FF0000', decreasing_fillcolor='#FF0000', decreasing_line_width=2,
+                    showlegend=False, hoverinfo='skip'
+                ), **rc)
+
             fig.add_trace(go.Scatter(
                 x=x_idx, y=df_chart['Close'], mode='lines', line=dict(color='rgba(0,0,0,0)'),
                 showlegend=False, hoverinfo='text' if show_crosshair else 'skip',
                 text=hover_data, hovertemplate="%{text}<extra></extra>" if show_crosshair else None
-            ))
+            ), **rc)
 
             if timeframe == "Daily Chart":
-                if 'SMA_50' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_50'], mode='lines', line=dict(color='#FFD700', width=1.5), showlegend=False, hoverinfo='skip'))
-                if 'SMA_150' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_150'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'))
-                if 'SMA_200' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_200'], mode='lines', line=dict(color='#FF4500', width=2), showlegend=False, hoverinfo='skip'))
+                if 'SMA_50' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_50'], mode='lines', line=dict(color='#FFD700', width=1.5), showlegend=False, hoverinfo='skip'), **rc)
+                if 'SMA_150' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_150'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'), **rc)
+                if 'SMA_200' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_200'], mode='lines', line=dict(color='#FF4500', width=2), showlegend=False, hoverinfo='skip'), **rc)
             elif timeframe == "Weekly Chart":
-                if 'SMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), showlegend=False, hoverinfo='skip'))
-                if 'SMA_40' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_40'], mode='lines', line=dict(color='#FF4500', width=2), showlegend=False, hoverinfo='skip'))
+                if 'SMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), showlegend=False, hoverinfo='skip'), **rc)
+                if 'SMA_40' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_40'], mode='lines', line=dict(color='#FF4500', width=2), showlegend=False, hoverinfo='skip'), **rc)
             else:
                 offset = -4 if len(df_chart) >= 4 else -1
                 tag_idx = x_idx[offset]
@@ -3316,15 +3354,23 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                         e_anchor, e_shift = "bottom", 6
 
                 if has_vwap:
-                    fig.add_trace(go.Scatter(x=x_idx, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='skip'))
-                    fig.add_annotation(x=tag_idx, y=tag_y_vwap, text=f"V:{last_vwap:.1f}", showarrow=False, xanchor="right", yanchor=v_anchor, xshift=-5, yshift=v_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#FFD700", borderpad=2)
+                    fig.add_trace(go.Scatter(x=x_idx, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='skip'), **rc)
+                    fig.add_annotation(x=tag_idx, y=tag_y_vwap, text=f"V:{last_vwap:.1f}", showarrow=False, xanchor="right", yanchor=v_anchor, xshift=-5, yshift=v_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#FFD700", borderpad=2, **rc)
                 if has_ema:
-                    fig.add_trace(go.Scatter(x=x_idx, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'))
-                    fig.add_annotation(x=tag_idx, y=tag_y_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="right", yanchor=e_anchor, xshift=-5, yshift=e_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=2)
+                    fig.add_trace(go.Scatter(x=x_idx, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'), **rc)
+                    fig.add_annotation(x=tag_idx, y=tag_y_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="right", yanchor=e_anchor, xshift=-5, yshift=e_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=2, **rc)
+
+            if show_vol and 'Volume' in df_chart.columns:
+                vol_colors = [
+                    '#00FF00' if mask_hv_bull.iloc[i] else ('#FF0000' if mask_hv_bear.iloc[i] else ('rgba(46, 160, 67, 0.45)' if df_chart['Close'].iloc[i] >= df_chart['Open'].iloc[i] else 'rgba(218, 54, 51, 0.45)'))
+                    for i in range(len(df_chart))
+                ]
+                fig.add_trace(go.Bar(x=x_idx, y=df_chart['Volume'], marker_color=vol_colors, showlegend=False, hoverinfo='skip'), row=2, col=1)
+                fig.update_yaxes(showspikes=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, row=2, col=1)
 
             fig.update_layout(
                 margin=dict(l=0, r=46 if show_crosshair else 5, t=0, b=16 if show_crosshair else 0),
-                height=225, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                height=265 if show_vol else 225, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
                 showlegend=False, xaxis_rangeslider_visible=False,
                 hovermode='closest' if show_crosshair else False, dragmode=False
             )
@@ -3340,11 +3386,11 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 fig.update_yaxes(
                     showspikes=True, spikemode='across+toaxis', spikesnap='cursor', spikethickness=1, spikedash='dash', spikecolor='#8b949e',
                     showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=9.5),
-                    fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)]
+                    fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)], **rc
                 )
             else:
                 fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
-                fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)])
+                fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)], **rc)
 
             st.plotly_chart(fig, width="stretch", key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}", config={'displayModeBar': False})
     except Exception as e:
@@ -3678,16 +3724,17 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
 def fetch_fast_live_quotes(tkrs_tuple, market_open):
     try:
         if market_open:
-            _core_set = set(list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + list(COMMODITY_MAP.keys()) + [f"{s}.NS" for s in (set(NIFTY_50 + FNO_STOCKS) - _SKIP_BAD_SYMS)])
+            _core_set = set(list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + list(COMMODITY_MAP.keys()) + [f"{s}.NS" for s in (set(NIFTY_50 + FNO_STOCKS + MIDCAP_150) - _SKIP_BAD_SYMS)])
             target_list = [t for t in tkrs_tuple if t in _core_set]
         else:
             target_list = list(INDICES_MAP.keys()) + list(COMMODITY_MAP.keys())
-        q_data = yf.download(target_list, period="2d", interval="1d", progress=False, group_by='ticker', threads=10, timeout=5)
+        q_data = yf.download(target_list, period="7d", interval="1d", progress=False, group_by='ticker', threads=10, timeout=5)
         if q_data.empty:
             return {}
         if isinstance(q_data.columns, pd.MultiIndex) and ('Close' in q_data.columns.levels[0] or 'Open' in q_data.columns.levels[0]):
             q_data = q_data.swaplevel(axis=1)
         out = {}
+        minutes = get_minutes_passed()
         syms = q_data.columns.levels[0] if isinstance(q_data.columns, pd.MultiIndex) else []
         for s in syms:
             sdf = q_data[s].dropna(subset=['Close'])
@@ -3697,7 +3744,13 @@ def fetch_fast_live_quotes(tkrs_tuple, market_open):
                 hi = float(sdf['High'].iloc[-1])
                 lo = float(sdf['Low'].iloc[-1])
                 pc = float(sdf['Close'].iloc[-2]) if len(sdf) >= 2 else op
-                out[s] = (ltp, op, hi, lo, pc)
+                vx = None
+                if 'Volume' in sdf.columns and len(sdf) >= 6:
+                    avg_v5 = float(sdf['Volume'].iloc[-6:-1].mean())
+                    cur_v = float(sdf['Volume'].iloc[-1])
+                    if avg_v5 > 0 and cur_v > 0:
+                        vx = round(cur_v / ((avg_v5 / 375.0) * minutes), 1)
+                out[s] = (ltp, op, hi, lo, pc, vx)
         return out
     except Exception:
         return {}
@@ -3883,7 +3936,7 @@ def render_live_ui():
             side_watchlist_slot = st.container()
 
     # ---------------------------------------------------------
-    # 👉 FAST DATA ENGINE
+    # 👉 FAST DATA ENGINE (FIXED: LIVE VOLX, TRUE 5M VWAP/EMA10, NR7 & BULL/BEAR POWER)
     # ---------------------------------------------------------
     if st.session_state.pause_refresh:
         with col_main_80:
@@ -3900,18 +3953,33 @@ def render_live_ui():
         for _i, _r in df_live.iterrows():
             _ft = str(_r['Fetch_T'])
             _csym = _ft.replace(".NS", "")
+            if _ft in _fast_quotes:
+                _ltp, _op, _hi, _lo, _pc, _vx = _fast_quotes[_ft]
+                df_live.at[_i, 'P'], df_live.at[_i, 'O'], df_live.at[_i, 'H'], df_live.at[_i, 'L'] = _ltp, _op, _hi, _lo
+                df_live.at[_i, 'Prev_C'] = _pc
+                if _vx is not None and _vx > 0:
+                    df_live.at[_i, 'VolX'] = _vx
             if _csym in _live_snap:
                 _nltp = _live_snap[_csym]
                 df_live.at[_i, 'P'] = _nltp
-                if df_live.at[_i, 'O'] > 0: df_live.at[_i, 'Day_C'] = ((_nltp - df_live.at[_i, 'O']) / df_live.at[_i, 'O']) * 100.0
-                if df_live.at[_i, 'Prev_C'] > 0: df_live.at[_i, 'C'] = ((_nltp - df_live.at[_i, 'Prev_C']) / df_live.at[_i, 'Prev_C']) * 100.0
-            elif _ft in _fast_quotes:
-                _ltp, _op, _hi, _lo, _pc = _fast_quotes[_ft]
-                df_live.at[_i, 'P'], df_live.at[_i, 'O'], df_live.at[_i, 'H'], df_live.at[_i, 'L'] = _ltp, _op, _hi, _lo
-                df_live.at[_i, 'Prev_C'] = _pc
-                df_live.at[_i, 'VWAP'] = (_hi + _lo + _ltp) / 3.0
-                if _op > 0: df_live.at[_i, 'Day_C'] = ((_ltp - _op) / _op) * 100.0
-                if _pc > 0: df_live.at[_i, 'C'] = ((_ltp - _pc) / _pc) * 100.0
+                if _nltp > df_live.at[_i, 'H']: df_live.at[_i, 'H'] = _nltp
+                if _nltp < df_live.at[_i, 'L'] or df_live.at[_i, 'L'] == 0: df_live.at[_i, 'L'] = _nltp
+
+            # Live Recalculation of Day_C, Net_C, Bull_P, Bear_P & 52W Pullback
+            _p_now = float(df_live.at[_i, 'P'])
+            _o_now = float(df_live.at[_i, 'O'])
+            _h_now = float(df_live.at[_i, 'H'])
+            _l_now = float(df_live.at[_i, 'L'])
+            _pc_now = float(df_live.at[_i, 'Prev_C'])
+            _h52_now = float(df_live.at[_i, 'High52W'])
+
+            if _o_now > 0: df_live.at[_i, 'Day_C'] = ((_p_now - _o_now) / _o_now) * 100.0
+            if _pc_now > 0: df_live.at[_i, 'C'] = ((_p_now - _pc_now) / _pc_now) * 100.0
+            if _h52_now > 0: df_live.at[_i, 'Pullback_52W'] = ((_h52_now - _p_now) / _h52_now) * 100.0
+            _rng_now = _h_now - _l_now
+            if _rng_now > 0:
+                df_live.at[_i, 'Bull_P'] = ((_p_now - _l_now) / _rng_now) * 100.0
+                df_live.at[_i, 'Bear_P'] = ((_h_now - _p_now) / _rng_now) * 100.0
 
     if df_live.empty:
         return
@@ -3934,10 +4002,22 @@ def render_live_ui():
     else: strict_allowed = set(NIFTY_50 + FNO_STOCKS)
 
     df_stocks = df_all_stocks[df_all_stocks['T'].isin(strict_allowed)].copy()
-    df_filtered = df_stocks.copy()
-
     core_tkrs = tuple(sorted(list(set(df_indices['Fetch_T'].tolist() + df_sectors['Fetch_T'].tolist() + df_commodities['Fetch_T'].tolist() + df_stocks['Fetch_T'].tolist() + st.session_state.pinned_stocks))))
     processed_charts, nifty_intra_html, sniper_cached_res = _fast_5m_and_sniper_cache(core_tkrs)
+
+    # 🔥 TRUE 5-MIN VWAP & 5-MIN EMA_10 SYNC INTO DATAFRAMES
+    _true_vwap_map = {}
+    _intra_ema10_map = {}
+    for _sym_k, _df_5m in processed_charts.items():
+        if _df_5m is not None and not _df_5m.empty:
+            if 'VWAP' in _df_5m.columns and pd.notna(_df_5m['VWAP'].iloc[-1]) and float(_df_5m['VWAP'].iloc[-1]) > 0:
+                _true_vwap_map[_sym_k] = float(_df_5m['VWAP'].iloc[-1])
+            if 'EMA_10' in _df_5m.columns and pd.notna(_df_5m['EMA_10'].iloc[-1]) and float(_df_5m['EMA_10'].iloc[-1]) > 0:
+                _intra_ema10_map[_sym_k] = float(_df_5m['EMA_10'].iloc[-1])
+
+    for _target_df in (df_live, df_all_stocks, df_stocks):
+        _target_df['VWAP'] = _target_df['Fetch_T'].map(_true_vwap_map).fillna(_target_df['VWAP'])
+        _target_df['Intra_EMA10'] = _target_df['Fetch_T'].map(_intra_ema10_map).fillna(_target_df['VWAP'])
 
     df_lookup = df_live.drop_duplicates(subset=['Fetch_T'], keep='first').set_index('Fetch_T').to_dict('index')
     weekly_trends = {}
@@ -3950,15 +4030,13 @@ def render_live_ui():
     sector_perf = df_nifty.groupby('Sector')['C'].mean().sort_values(ascending=False)
     sector_perf = sector_perf[sector_perf.index != "OTHER"]
 
-    # Bullish sectors (C > 0) ki Top rank prakaram 10, 8, 6, 4, 2 Pts
     sector_bull_perf = sector_perf[sector_perf > 0].sort_values(ascending=False)
     bull_bonus_map = {sec: max(10 - (rank * 2), 0) for rank, sec in enumerate(sector_bull_perf.index)}
 
-    # Bearish sectors (C < 0) ki Top falling rank prakaram 10, 8, 6, 4, 2 Pts (Sell stocks kosam)
     sector_bear_perf = sector_perf[sector_perf < 0].sort_values(ascending=True)
     bear_bonus_map = {sec: max(10 - (rank * 2), 0) for rank, sec in enumerate(sector_bear_perf.index)}
 
-    # 🔥 2. OLD CODE 5-MIN TREND SCORE & ALPHA TAGS
+    # 🔥 2. 5-MIN TREND SCORE & ALPHA TAGS
     alpha_tags, trend_scores = {}, {}
     nifty_dist_5m = 0.25
     if "^NSEI" in processed_charts and not processed_charts["^NSEI"].empty:
@@ -4036,8 +4114,10 @@ def render_live_ui():
     elif watchlist_mode in ["High Score Stocks 🔥", "Terminal Tables 🗃️"]:
         df_filtered = df_stocks[df_stocks['S'] >= 10].copy()
     elif "AI Predictions" in watchlist_mode:
-        base_buy = (df_filtered['P'] > df_filtered['W_EMA10']) & (df_filtered['P'] > df_filtered['VWAP'])
-        base_sell = (df_filtered['P'] < df_filtered['W_EMA10']) & (df_filtered['P'] < df_filtered['VWAP'])
+        # ✅ BUG #1 FIXED: Uses 5-min Intra_EMA10 & True 5-min VWAP instead of Weekly W_EMA10
+        intra_ema = df_filtered['Intra_EMA10'].where(df_filtered['Intra_EMA10'] > 0, df_filtered['VWAP'])
+        base_buy = (df_filtered['P'] > intra_ema) & (df_filtered['P'] > df_filtered['VWAP'])
+        base_sell = (df_filtered['P'] < intra_ema) & (df_filtered['P'] < df_filtered['VWAP'])
 
         ai_strats_to_run = list(move_type_filter) if isinstance(move_type_filter, list) else [move_type_filter]
         if "All Day Trading Moves 🚀" in ai_strats_to_run:
@@ -4093,34 +4173,36 @@ def render_live_ui():
                         _sub['Strategy_Icon'] = _lbl
                         all_dfs.append(_sub)
 
-            # 4. 💥 INSIDE BAR VOL BREAKOUT (NR7)
+            # 4. 💥 INSIDE BAR VOL BREAKOUT (NR7) — ✅ BUG #4 FIXED
             elif strat == "💥 Inside Bar Vol Breakout (NR7)":
                 ib_vol = df_filtered['VolX'] >= 1.2
-                ib_narrow = ((df_filtered['H'] - df_filtered['L']) / (df_filtered['L'] + 0.001)) <= 0.02
-                c_buy = base_buy & (df_filtered['P'] > df_filtered['SMA50']) & ib_vol & ib_narrow & (df_filtered['P'] > df_filtered['O'])
-                c_sell = base_sell & (df_filtered['P'] < df_filtered['SMA50']) & ib_vol & ib_narrow & (df_filtered['P'] < df_filtered['O'])
+                prev_range_pct = (df_filtered['Prev_H'] - df_filtered['Prev_L']) / (df_filtered['Prev_L'] + 0.001)
+                ib_narrow_prev = (prev_range_pct <= 0.022) | (df_filtered['Narrow_CPR'] == True)
+                c_buy = base_buy & ib_vol & ib_narrow_prev & (df_filtered['P'] > df_filtered['O']) & ((df_filtered['P'] > df_filtered['Prev_H']) | (df_filtered['Day_C'] >= 0.75))
+                c_sell = base_sell & ib_vol & ib_narrow_prev & (df_filtered['P'] < df_filtered['O']) & ((df_filtered['P'] < df_filtered['Prev_L']) | (df_filtered['Day_C'] <= -0.75))
                 for _mask, _lbl, _asc in [(c_buy, "💥 NR7 BO BUY", False), (c_sell, "🩸 NR7 BO SELL", True)]:
                     _sub = df_filtered[_mask].sort_values(by=['VolX', 'Day_C'], ascending=[False, _asc]).head(5).copy()
                     if not _sub.empty:
-                        _tight_pts = np.clip((2.5 - ((_sub['H'] - _sub['L']) / (_sub['L'] + 0.001) * 100.0)) * 4.0, 2, 10)
-                        _sub['S'] = (12 + _tight_pts + np.clip(_sub['VolX'] * 2.5, 2, 8)).astype(int)
+                        _prev_r = (_sub['Prev_H'] - _sub['Prev_L']) / (_sub['Prev_L'] + 0.001) * 100.0
+                        _tight_pts = np.clip((3.0 - _prev_r) * 3.5, 2, 10)
+                        _sub['S'] = (13 + _tight_pts + np.clip(_sub['VolX'] * 2.5, 2, 8)).astype(int)
                         _sub['AI_Prob'] = np.clip(65 + _sub['S'], 72, 96).astype(int)
                         _sub['Strategy_Icon'] = _lbl
                         all_dfs.append(_sub)
 
-            # 5. 🧲 INTRADAY DIP & SUPPORT BOUNCE
+            # 5. 🧲 INTRADAY DIP & SUPPORT BOUNCE — ✅ BUG #1 FIXED (Uses 5m Intra_EMA10)
             elif strat == "🧲 Intraday Dip & Support Bounce":
                 day_pb = ((df_filtered['H'] - df_filtered['P']) / (df_filtered['H'] + 0.001)) * 100.0
                 dip_ok = (day_pb >= 0.8) & (day_pb <= 3.0)
-                near_vwap_b = (df_filtered['P'] >= df_filtered['VWAP'] * 0.998) & (df_filtered['L'] <= df_filtered['VWAP'] * 1.002)
-                near_ema_b = (df_filtered['P'] >= df_filtered['W_EMA10'] * 0.998) & (df_filtered['L'] <= df_filtered['W_EMA10'] * 1.002)
-                c_buy = base_buy & dip_ok & (near_vwap_b | near_ema_b) & (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] > 0) & (df_filtered['VolX'] >= 1.3)
+                near_vwap_b = (df_filtered['P'] >= df_filtered['VWAP'] * 0.998) & (df_filtered['L'] <= df_filtered['VWAP'] * 1.003)
+                near_ema_b = (df_filtered['P'] >= intra_ema * 0.998) & (df_filtered['L'] <= intra_ema * 1.003)
+                c_buy = base_buy & dip_ok & (near_vwap_b | near_ema_b) & (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] > 0) & (df_filtered['VolX'] >= 1.2)
 
                 day_rl = ((df_filtered['P'] - df_filtered['L']) / (df_filtered['L'] + 0.001)) * 100.0
                 rally_ok = (day_rl >= 0.8) & (day_rl <= 3.0)
-                near_vwap_s = (df_filtered['P'] <= df_filtered['VWAP'] * 1.002) & (df_filtered['H'] >= df_filtered['VWAP'] * 0.998)
-                near_ema_s = (df_filtered['P'] <= df_filtered['W_EMA10'] * 1.002) & (df_filtered['H'] >= df_filtered['W_EMA10'] * 0.998)
-                c_sell = base_sell & rally_ok & (near_vwap_s | near_ema_s) & (df_filtered['P'] < df_filtered['O']) & (df_filtered['Day_C'] < 0) & (df_filtered['VolX'] >= 1.3)
+                near_vwap_s = (df_filtered['P'] <= df_filtered['VWAP'] * 1.002) & (df_filtered['H'] >= df_filtered['VWAP'] * 0.997)
+                near_ema_s = (df_filtered['P'] <= intra_ema * 1.002) & (df_filtered['H'] >= intra_ema * 0.997)
+                c_sell = base_sell & rally_ok & (near_vwap_s | near_ema_s) & (df_filtered['P'] < df_filtered['O']) & (df_filtered['Day_C'] < 0) & (df_filtered['VolX'] >= 1.2)
 
                 for _mask, _lbl, _asc in [(c_buy, "🧲 Dip Bounce BUY", False), (c_sell, "🩸 Dip Reject SELL", True)]:
                     _sub = df_filtered[_mask].sort_values(by=['VolX', 'Day_C'], ascending=[False, _asc]).head(5).copy()
@@ -4167,7 +4249,7 @@ def render_live_ui():
 
             # 8. 💥 PDH / PDL BREAKOUT
             elif strat == "💥 PDH / PDL Breakout":
-                vol_confirm = df_filtered['VolX'] >= 2.0
+                vol_confirm = df_filtered['VolX'] >= 1.8
                 c_buy = base_buy & (df_filtered['P'] > df_filtered['Prev_H']) & vol_confirm
                 c_sell = base_sell & (df_filtered['P'] < df_filtered['Prev_L']) & vol_confirm
                 for _mask, _lbl, _asc in [(c_buy, "💥 PD Break BUY", False), (c_sell, "🩸 PD Break SELL", True)]:
