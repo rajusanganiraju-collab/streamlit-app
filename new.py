@@ -3429,34 +3429,13 @@ def _calc_supertrend(df_c, period=7, mult=3.0):
         return pd.Series(dtype=float)
 
 
-# --- PRO GRID CHART ENGINE WITH 12-HOUR IST TIMINGS + COMPACT CLOSE [X] ---
-def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, active_inds, chart_height=370, key_idx=0, current_grid_syms=None):
+# --- PRO GRID CHART ENGINE (NO EXTRA HEADER BAR, STOCK & PRICE IN RSI PLACE + BUILT-IN [X] BUTTON) ---
+def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, active_inds, chart_height=325, key_idx=0, current_grid_syms=None):
     disp_sym = row_data.get('T', fetch_sym.replace('.NS', ''))
     tf_short = "5m" if timeframe == "Intraday (5m)" else ("1D" if timeframe == "Daily Chart" else "1W")
-    if current_grid_syms is None:
-        current_grid_syms = []
-
-    hc1, hc2 = st.columns([11.2, 0.8], gap="small")
-    with hc1:
-        ltp_v = float(row_data.get('P', 0))
-        chg_v = float(row_data.get('Day_C', 0))
-        c_col = "#3fb950" if chg_v >= 0 else "#f85149"
-        st.markdown(
-            f"<div style='background:#111622; border:1px solid #2b313f; border-radius:4px; padding:2px 8px; height:24px; "
-            f"display:flex; justify-content:space-between; align-items:center;'>"
-            f"<span style='font-weight:bold; font-size:12px; color:#fff; font-family:monospace;'>"
-            f"{disp_sym} <span style='background:#1e293b; color:#38bdf8; padding:1px 5px; border-radius:3px; font-size:10px;'>{tf_short}</span></span>"
-            f"<span style='font-family:monospace; font-size:12px; color:#fff;'>₹{ltp_v:,.2f} "
-            f"<b style='color:{c_col};'>({chg_v:+.2f}%)</b></span></div>",
-            unsafe_allow_html=True
-        )
-    with hc2:
-        st.markdown("<div class='close-x-marker'></div>", unsafe_allow_html=True)
-        st.button(
-            "✖", key=f"close_x_{fetch_sym}_{key_idx}",
-            help=f"Close {disp_sym} Chart", width="stretch",
-            on_click=_close_pro_chart, args=(fetch_sym, current_grid_syms)
-        )
+    ltp_v = float(row_data.get('P', 0))
+    chg_v = float(row_data.get('Day_C', 0))
+    c_col = "#4ade80" if chg_v >= 0 else "#f87171"
 
     if df_c is None or df_c.empty:
         st.info(f"⏳ Loading chart data for {disp_sym}...")
@@ -3481,7 +3460,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     df_p['BB_DN'] = sma20 - 2.0 * std20
 
     ph = float(row_data.get('Prev_H', df_p['High'].max()))
-    pl = float(row_data.get('Prev_L', df_p['Low'].min()))
+    pl = float(row_data.get('Low', df_p['Low'].min())) if 'Prev_L' not in row_data else float(row_data.get('Prev_L', df_p['Low'].min()))
     pc = float(row_data.get('Prev_C', df_p['Close'].iloc[0]))
     piv = round((ph + pl + pc) / 3.0, 2)
     r1 = round(2 * piv - pl, 2)
@@ -3512,9 +3491,8 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     bg_hex = "#ffffff" if is_light else "#0e1117"
     txt_hex = "#111827" if is_light else "#d1d5db"
     grid_hex = "#f1f5f9" if is_light else "#1e293b"
-    rsi_val = round(float(row_data.get('RSI14', 50.0)), 1)
     chart_dom_id = f"tv_lw_{key_idx}"
-    bar_sp = 5 if len(current_grid_syms) >= 2 else 7
+    bar_sp = 5 if (current_grid_syms and len(current_grid_syms) >= 2) else 7
 
     html_code = f"""
     <!DOCTYPE html>
@@ -3524,13 +3502,14 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     <style>
         body {{ margin: 0; padding: 0; background: {bg_hex}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace; overflow: hidden; border: 1px solid #2b313f; border-radius: 6px; }}
         .hdr-bar {{
-            background: #111622; color: #fff; padding: 3px 8px; display: flex; justify-content: space-between; align-items: center;
-            border-bottom: 1px solid #2b313f; font-size: 10.5px; user-select: none;
+            background: #111622; color: #fff; padding: 3px 6px; display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid #2b313f; font-size: 11px; user-select: none; height: 22px; box-sizing: border-box;
         }}
-        .ind-bar {{ display: flex; gap: 3px; flex-wrap: wrap; align-items: center; }}
+        .stk-info {{ display: flex; align-items: center; gap: 5px; white-space: nowrap; overflow: hidden; }}
+        .ind-bar {{ display: flex; gap: 3px; flex-wrap: nowrap; align-items: center; }}
         .ibtn {{
-            padding: 1px 5px; border-radius: 3px; font-size: 9.5px; font-weight: bold; cursor: pointer;
-            background: #1f2937; color: #9ca3af; border: 1px solid #374151; transition: 0.12s;
+            padding: 1px 4px; border-radius: 3px; font-size: 9px; font-weight: bold; cursor: pointer;
+            background: #1f2937; color: #9ca3af; border: 1px solid #374151; transition: 0.12s; white-space: nowrap;
         }}
         .ibtn.active-vwap {{ background: #2563eb; color: #fff; border-color: #2563eb; }}
         .ibtn.active-sr {{ background: #16a34a; color: #fff; border-color: #16a34a; }}
@@ -3538,8 +3517,14 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         .ibtn.active-ema {{ background: #7c3aed; color: #fff; border-color: #7c3aed; }}
         .ibtn.active-kal {{ background: #0d9488; color: #fff; border-color: #0d9488; }}
         .ibtn.active-st {{ background: #15803d; color: #fff; border-color: #15803d; }}
+        .close-btn {{
+            background: #dc2626; color: #ffffff; border: 1px solid #ef4444; border-radius: 3px;
+            padding: 0px 5px; font-size: 10px; font-weight: bold; cursor: pointer; text-decoration: none;
+            margin-left: 2px; line-height: 15px; display: inline-block;
+        }}
+        .close-btn:hover {{ background: #b91c1c; }}
         .ohlc-overlay {{
-            position: absolute; top: 26px; left: 6px; z-index: 20; font-size: 10.5px;
+            position: absolute; top: 24px; left: 6px; z-index: 20; font-size: 10px;
             color: {txt_hex}; background: {'rgba(255,255,255,0.85)' if is_light else 'rgba(14,17,23,0.85)'};
             padding: 1px 5px; border-radius: 4px; pointer-events: none; font-family: monospace;
         }}
@@ -3547,19 +3532,25 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     </head>
     <body>
         <div class="hdr-bar">
-            <span style="color:#a855f7; font-weight:bold;">RSI(14): {rsi_val} | IST</span>
+            <div class="stk-info">
+                <span style="font-weight:800; font-size:11.5px; color:#ffffff;">{disp_sym}</span>
+                <span style="background:#1e293b; color:#38bdf8; padding:0px 4px; border-radius:3px; font-size:9px; font-weight:bold;">{tf_short}</span>
+                <span style="font-weight:700; font-size:11.5px; color:#ffd700;">₹{ltp_v:,.2f}</span>
+                <span style="font-weight:700; font-size:10.5px; color:{c_col};">({chg_v:+.2f}%)</span>
+            </div>
             <div class="ind-bar">
                 <span id="btn_ema" class="ibtn {'active-ema' if 'EMAs' in active_inds else ''}" onclick="toggleInd('ema')">EMAs</span>
                 <span id="btn_sr" class="ibtn {'active-sr' if 'S&R' in active_inds else ''}" onclick="toggleInd('sr')">S&R</span>
-                <span id="btn_piv" class="ibtn {'active-piv' if 'Pivots(R1,S1)' in active_inds else ''}" onclick="toggleInd('piv')">Pivots(R1,S1)</span>
+                <span id="btn_piv" class="ibtn {'active-piv' if 'Pivots(R1,S1)' in active_inds else ''}" onclick="toggleInd('piv')">Pivots</span>
                 <span id="btn_vwap" class="ibtn {'active-vwap' if 'VWAP' in active_inds else ''}" onclick="toggleInd('vwap')">VWAP</span>
                 <span id="btn_bb" class="ibtn {'active-vwap' if 'BB' in active_inds else ''}" onclick="toggleInd('bb')">BB</span>
                 <span id="btn_kal" class="ibtn {'active-kal' if 'Kalman' in active_inds else ''}" onclick="toggleInd('kal')">Kalman</span>
                 <span id="btn_st" class="ibtn {'active-st' if 'ST(7,3)' in active_inds else ''}" onclick="toggleInd('st')">ST(7,3)</span>
+                <a href="?grid_sym={fetch_sym}" target="_parent" class="close-btn" title="Close {disp_sym}">✖</a>
             </div>
         </div>
         <div id="ohlc_{chart_dom_id}" class="ohlc-overlay">Move cursor to inspect OHLCV</div>
-        <div id="{chart_dom_id}" style="width: 100%; height: {chart_height - 26}px;"></div>
+        <div id="{chart_dom_id}" style="width: 100%; height: {chart_height - 24}px;"></div>
 
         <script>
         const cData = {json.dumps(candles_js)};
@@ -4728,7 +4719,7 @@ def render_live_ui():
 
                 n_cols = 1 if len(grid_syms) == 1 else (2 if max_charts <= 4 else 3)
                 # 🔥 EXTRA HEIGHT FOR CHARTS (Since 2nd bar is removed)
-                c_height = 635 if len(grid_syms) <= 2 else 305
+                c_height = 650 if len(grid_syms) <= 2 else 330
                 rows_chunks = [grid_syms[i:i + n_cols] for i in range(0, len(grid_syms), n_cols)]
                 for r_idx, chunk_syms in enumerate(rows_chunks):
                     g_cols = st.columns(n_cols, gap="small")
