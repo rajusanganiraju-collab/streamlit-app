@@ -3025,18 +3025,19 @@ st.markdown("""
     }
     div[data-testid="stElementContainer"]:has(.tv-wl-marker) { display: none !important; }
 
-    /* 7. Compact Close [X] Button & Single-Line Unified Top Toolbar */
-    div[data-testid="stColumn"]:has(.close-x-marker) div.stButton > button {
-        background-color: #dc2626 !important;
-        border: 1px solid #ef4444 !important;
-        color: #ffffff !important;
-        height: 24px !important;
-        min-height: 24px !important;
-        padding: 0px !important;
+    /* 7. Hidden Close Trigger & Single-Line Unified Top Toolbar */
+    div[data-testid="stElementContainer"]:has(.hidden-close-trigger),
+    div[data-testid="stElementContainer"]:has(.hidden-close-trigger) + div[data-testid="stElementContainer"] {
+        height: 0px !important;
+        min-height: 0px !important;
+        max-height: 0px !important;
         margin: 0px !important;
-        border-radius: 4px !important;
+        padding: 0px !important;
+        overflow: hidden !important;
+        opacity: 0 !important;
+        position: absolute !important;
+        pointer-events: none !important;
     }
-    div[data-testid="stElementContainer"]:has(.close-x-marker) { display: none !important; }
 
     /* Single-Line Top Toolbar Buttons & Selectbox */
     div[data-testid="stColumn"]:has(.pro-ActionBar) div.stButton > button {
@@ -3154,10 +3155,25 @@ def _toggle_wl_stock(s_ft, s_disp):
     st.session_state.grid_layout_mode = new_mode
     st.session_state.pro_grid_radio_key = new_mode
     _UI['grid_layout_mode'] = new_mode
+def _back_to_mini_charts():
+    st.session_state.grid_layout_mode = "Off"
+    st.session_state.pro_grid_radio_key = "Off"
+    _UI['grid_layout_mode'] = "Off"
+
+def _clear_all_pro_charts():
+    st.session_state.pinned_stocks = []
+    _UI['pinned_stocks'] = []
+    st.session_state.grid_layout_mode = "Off"
+    st.session_state.pro_grid_radio_key = "Off"
+    _UI['grid_layout_mode'] = "Off"
+
+def _on_pro_theme_change():
+    _UI['pro_grid_theme'] = st.session_state.get('pro_theme_sel_key', 'Light (White)')
+    st.session_state.pro_grid_theme = _UI['pro_grid_theme']
 
 def _close_pro_chart(s_ft, current_grid_syms):
     active_list = list(st.session_state.pinned_stocks)
-    if not active_list:
+    if not active_list and current_grid_syms:
         active_list = list(current_grid_syms)
     if s_ft in active_list:
         active_list.remove(s_ft)
@@ -3429,13 +3445,25 @@ def _calc_supertrend(df_c, period=7, mult=3.0):
         return pd.Series(dtype=float)
 
 
-# --- PRO GRID CHART ENGINE (NO EXTRA HEADER BAR, STOCK & PRICE IN RSI PLACE + BUILT-IN [X] BUTTON) ---
-def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, active_inds, chart_height=325, key_idx=0, current_grid_syms=None):
+# --- PRO GRID CHART ENGINE (STOCK & PRICE IN HEADER + WORKING JS-TO-STREAMLIT [X] BUTTON) ---
+def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, active_inds, chart_height=330, key_idx=0, current_grid_syms=None):
     disp_sym = row_data.get('T', fetch_sym.replace('.NS', ''))
     tf_short = "5m" if timeframe == "Intraday (5m)" else ("1D" if timeframe == "Daily Chart" else "1W")
     ltp_v = float(row_data.get('P', 0))
     chg_v = float(row_data.get('Day_C', 0))
     c_col = "#4ade80" if chg_v >= 0 else "#f87171"
+    if current_grid_syms is None:
+        current_grid_syms = []
+
+    # Hidden Streamlit callback button triggered by the HTML '✖' button inside the chart
+    close_token = f"CLOSE_{fetch_sym}_{key_idx}"
+    st.markdown("<div class='hidden-close-trigger'></div>", unsafe_allow_html=True)
+    st.button(
+        close_token,
+        key=f"close_x_{fetch_sym}_{key_idx}",
+        on_click=_close_pro_chart,
+        args=(fetch_sym, current_grid_syms)
+    )
 
     if df_c is None or df_c.empty:
         st.info(f"⏳ Loading chart data for {disp_sym}...")
@@ -3460,7 +3488,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     df_p['BB_DN'] = sma20 - 2.0 * std20
 
     ph = float(row_data.get('Prev_H', df_p['High'].max()))
-    pl = float(row_data.get('Low', df_p['Low'].min())) if 'Prev_L' not in row_data else float(row_data.get('Prev_L', df_p['Low'].min()))
+    pl = float(row_data.get('Prev_L', df_p['Low'].min()))
     pc = float(row_data.get('Prev_C', df_p['Close'].iloc[0]))
     piv = round((ph + pl + pc) / 3.0, 2)
     r1 = round(2 * piv - pl, 2)
@@ -3492,7 +3520,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     txt_hex = "#111827" if is_light else "#d1d5db"
     grid_hex = "#f1f5f9" if is_light else "#1e293b"
     chart_dom_id = f"tv_lw_{key_idx}"
-    bar_sp = 5 if (current_grid_syms and len(current_grid_syms) >= 2) else 7
+    bar_sp = 5 if len(current_grid_syms) >= 2 else 7
 
     html_code = f"""
     <!DOCTYPE html>
@@ -3519,7 +3547,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         .ibtn.active-st {{ background: #15803d; color: #fff; border-color: #15803d; }}
         .close-btn {{
             background: #dc2626; color: #ffffff; border: 1px solid #ef4444; border-radius: 3px;
-            padding: 0px 5px; font-size: 10px; font-weight: bold; cursor: pointer; text-decoration: none;
+            padding: 0px 5px; font-size: 10px; font-weight: bold; cursor: pointer;
             margin-left: 2px; line-height: 15px; display: inline-block;
         }}
         .close-btn:hover {{ background: #b91c1c; }}
@@ -3546,13 +3574,23 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 <span id="btn_bb" class="ibtn {'active-vwap' if 'BB' in active_inds else ''}" onclick="toggleInd('bb')">BB</span>
                 <span id="btn_kal" class="ibtn {'active-kal' if 'Kalman' in active_inds else ''}" onclick="toggleInd('kal')">Kalman</span>
                 <span id="btn_st" class="ibtn {'active-st' if 'ST(7,3)' in active_inds else ''}" onclick="toggleInd('st')">ST(7,3)</span>
-                <a href="?grid_sym={fetch_sym}" target="_parent" class="close-btn" title="Close {disp_sym}">✖</a>
+                <span class="close-btn" onclick="closeThisChart()" title="Close {disp_sym}">✖</span>
             </div>
         </div>
         <div id="ohlc_{chart_dom_id}" class="ohlc-overlay">Move cursor to inspect OHLCV</div>
         <div id="{chart_dom_id}" style="width: 100%; height: {chart_height - 24}px;"></div>
 
         <script>
+        window.closeThisChart = function() {{
+            const btns = window.parent.document.querySelectorAll('button');
+            for (const b of btns) {{
+                if (b.textContent && b.textContent.trim() === '{close_token}') {{
+                    b.click();
+                    return;
+                }}
+            }}
+        }};
+
         const cData = {json.dumps(candles_js)};
         const vData = {json.dumps(vol_js)};
         const vwapData = {json.dumps(vwap_js)};
