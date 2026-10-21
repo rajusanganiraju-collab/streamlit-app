@@ -3025,12 +3025,8 @@ st.markdown("""
     }
     div[data-testid="stElementContainer"]:has(.tv-wl-marker) { display: none !important; }
 
-    /* 7. Compact Close [X] Button & Top Action Bar in Multi-Chart Grid */
-    div[data-testid="stHorizontalBlock"]:has(.close-x-marker) {
-        align-items: center !important;
-        margin-bottom: -6px !important;
-    }
-    div[data-testid="stHorizontalBlock"]:has(.close-x-marker) div.stButton > button {
+    /* 7. Compact Close [X] Button & Single-Line Unified Top Toolbar */
+    div[data-testid="stColumn"]:has(.close-x-marker) div.stButton > button {
         background-color: #dc2626 !important;
         border: 1px solid #ef4444 !important;
         color: #ffffff !important;
@@ -3041,22 +3037,35 @@ st.markdown("""
         border-radius: 4px !important;
     }
     div[data-testid="stElementContainer"]:has(.close-x-marker) { display: none !important; }
-    div[data-testid="stHorizontalBlock"]:has(.pro-ActionBar) {
-        align-items: center !important;
-        margin-bottom: -4px !important;
-    }
-    div[data-testid="stHorizontalBlock"]:has(.pro-ActionBar) div.stButton > button {
+
+    /* Single-Line Top Toolbar Buttons & Selectbox */
+    div[data-testid="stColumn"]:has(.pro-ActionBar) div.stButton > button {
+        background-color: #21262d !important;
+        border: 1px solid #30363d !important;
+        color: #e6edf3 !important;
         height: 28px !important;
         min-height: 28px !important;
-        padding: 0px 8px !important;
-        font-size: 12px !important;
+        padding: 0px 6px !important;
+        margin: 0px !important;
+        border-radius: 5px !important;
+        font-size: 11.5px !important;
     }
-    div[data-testid="stHorizontalBlock"]:has(.pro-ActionBar) div[data-testid="stSelectbox"] > div > div {
+    div[data-testid="stColumn"]:has(.pro-ActionBar) div.stButton > button:hover {
+        background-color: #30363d !important;
+        border-color: #58a6ff !important;
+    }
+    div[data-testid="stColumn"]:has(.pro-ActionBar) div[data-testid="stSelectbox"] {
+        margin: 0px !important;
+    }
+    div[data-testid="stColumn"]:has(.pro-ActionBar) div[data-testid="stSelectbox"] > div > div {
         min-height: 28px !important;
         height: 28px !important;
-        font-size: 12px !important;
+        font-size: 11.5px !important;
         padding-top: 0px !important;
         padding-bottom: 0px !important;
+        background-color: #161b22 !important;
+        border: 1px solid #30363d !important;
+        border-radius: 5px !important;
     }
     div[data-testid="stElementContainer"]:has(.pro-ActionBar) { display: none !important; }
 
@@ -4584,7 +4593,7 @@ def render_live_ui():
             )
 
     # ---------------------------------------------------------
-    # 👉 LEFT 80% COLUMN: MARKET STATUS BAR + SCROLLABLE CHARTS
+    # 👉 LEFT 80% COLUMN: 1-LINE UNIFIED TOP BAR + MAX-SPACE CHARTS
     # ---------------------------------------------------------
     with col_main_80:
         _now_str_top = now_ist().strftime('%d-%b %I:%M:%S %p')
@@ -4600,27 +4609,58 @@ def render_live_ui():
             _buy_pct = (_above_vwap / _tot_stocks) * 100.0
             _sell_pct = (_below_vwap / _tot_stocks) * 100.0
             if 49.0 <= _buy_pct <= 51.0 or _above_vwap == _below_vwap:
-                _mkt_dir_text, _mkt_dir_bg, _mkt_dir_border = f"NEUTRAL ⚖️ {_above_vwap}/{_tot_stocks} ({_buy_pct:.0f}%)", "#484f58", "#8b949e"
+                _mkt_dir_text, _mkt_dir_bg, _mkt_dir_border = f"NEUTRAL {_above_vwap}/{_tot_stocks} ({_buy_pct:.0f}%)", "#484f58", "#8b949e"
             elif _above_vwap > _below_vwap:
                 _mkt_dir_text, _mkt_dir_bg, _mkt_dir_border = f"BUY 📈 {_above_vwap}/{_tot_stocks} ({_buy_pct:.0f}%)", "#1e5f29", "#2ea043"
             else:
                 _mkt_dir_text, _mkt_dir_bg, _mkt_dir_border = f"SELL 📉 {_below_vwap}/{_tot_stocks} ({_sell_pct:.0f}%)", "#b52524", "#f85149"
 
-        _dir_box_html = f"<span style='background:{_mkt_dir_bg};border:1px solid {_mkt_dir_border};color:#ffffff;padding:2px 10px;border-radius:4px;font-weight:bold;font-size:13px;'>MARKET: {_mkt_dir_text}</span>"
+        _dir_box_html = f"<span style='background:{_mkt_dir_bg};border:1px solid {_mkt_dir_border};color:#ffffff;padding:1px 7px;border-radius:4px;font-weight:bold;font-size:11.5px;white-space:nowrap;'>{_mkt_dir_text}</span>"
         _status_border = "#238636" if _m_open_top else "#f85149"
-        _status_title = "🟢 <b>MARKET LIVE</b> (NSE)" if _m_open_top else "🔴 <b>MARKET CLOSED</b> (Showing Last Data)"
+        _status_title = "🟢 <b>LIVE</b>" if _m_open_top else "🔴 <b>CLOSED</b>"
 
-        st.markdown(
-            f"<div style='display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;"
-            f"background:#161b22;border:1px solid {_status_border};border-radius:6px;padding:5px 12px;"
-            f"margin-bottom:6px;font-size:13.5px;'>"
+        _status_bar_html = (
+            f"<div style='display:flex;justify-content:space-between;align-items:center;flex-wrap:nowrap;gap:6px;"
+            f"background:#161b22;border:1px solid {_status_border};border-radius:5px;padding:0px 10px;"
+            f"height:28px;margin-bottom:2px;font-size:11.5px;overflow:hidden;white-space:nowrap;'>"
             f"<span>{_status_title}</span>"
-            f"<div style='display:flex;align-items:center;gap:8px;flex-wrap:wrap;'>{_dir_box_html}{nifty_intra_html}</div>"
-            f"<span style='color:#c9d1d9;font-size:12.5px;'>🕒 {_now_str_top} IST &nbsp;|&nbsp; "
+            f"<div style='display:flex;align-items:center;gap:6px;'>{_dir_box_html}{nifty_intra_html}</div>"
+            f"<span style='color:#c9d1d9;font-size:11px;'>🕒 {_now_str_top} &nbsp;"
             f"<span id='live-cd-badge' data-ts='{_run_ts}' style='background:#21262d;border:1px solid #30363d;color:#00BFFF;"
-            f"padding:2px 7px;border-radius:4px;font-weight:bold;font-family:monospace;'>⏳ {_effective_refresh}s</span></span></div>",
-            unsafe_allow_html=True
+            f"padding:1px 5px;border-radius:3px;font-weight:bold;font-family:monospace;'>⏳ {_effective_refresh}s</span></span></div>"
         )
+
+        # 🔥 ONE-LINE UNIFIED HEADER: Grid On lo unte Status + Controls anni oke line lo vastayi!
+        if st.session_state.grid_layout_mode != "Off":
+            tb_status, tb_back, tb_theme, tb_clear = st.columns([5.7, 1.05, 1.15, 0.95], gap="small")
+            with tb_status:
+                st.markdown(_status_bar_html, unsafe_allow_html=True)
+            with tb_back:
+                st.markdown("<div class='pro-ActionBar'></div>", unsafe_allow_html=True)
+                if st.button("🔙 Mini-Charts", width="stretch"):
+                    st.session_state.grid_layout_mode = "Off"
+                    st.session_state.pro_grid_radio_key = "Off"
+                    _UI['grid_layout_mode'] = "Off"
+                    st.rerun(scope="fragment")
+            with tb_theme:
+                st.markdown("<div class='pro-ActionBar'></div>", unsafe_allow_html=True)
+                st.session_state.pro_grid_theme = st.selectbox(
+                    "Theme", ["Light (White)", "Dark (Terminal)"],
+                    index=0 if "Light" in st.session_state.pro_grid_theme else 1,
+                    label_visibility="collapsed"
+                )
+                _UI['pro_grid_theme'] = st.session_state.pro_grid_theme
+            with tb_clear:
+                st.markdown("<div class='pro-ActionBar'></div>", unsafe_allow_html=True)
+                if st.button("🗑️ Clear All", width="stretch"):
+                    st.session_state.pinned_stocks = []
+                    _UI['pinned_stocks'] = []
+                    st.session_state.grid_layout_mode = "Off"
+                    st.session_state.pro_grid_radio_key = "Off"
+                    _UI['grid_layout_mode'] = "Off"
+                    st.rerun(scope="fragment")
+        else:
+            st.markdown(_status_bar_html, unsafe_allow_html=True)
 
         components.html(
             f"""<!-- refresh_{_run_ts} -->
@@ -4648,7 +4688,7 @@ def render_live_ui():
             height=0,
         )
 
-        left_main_box = st.container(height=670, border=False)
+        left_main_box = st.container(height=695, border=False)
         with left_main_box:
             weekly_charts, daily_charts = {}, {}
             if chart_timeframe in ["Weekly Chart", "Daily Chart"]:
@@ -4673,34 +4713,11 @@ def render_live_ui():
                             pass
 
             chart_dict_to_use = weekly_charts if chart_timeframe == "Weekly Chart" else (daily_charts if chart_timeframe == "Daily Chart" else processed_charts)
+
             # =========================================================
             # 🔥 MODE A: PRO MULTI-CHART GRID (1, 2, 4, 6 STOCKS)
             # =========================================================
             if st.session_state.grid_layout_mode != "Off":
-                gbar1, gbar2, gbar3 = st.columns([1.2, 1.4, 1.0], gap="small")
-                with gbar1:
-                    st.markdown("<div class='pro-ActionBar'></div>", unsafe_allow_html=True)
-                    if st.button("🔙 Back to Mini-Charts", width="stretch"):
-                        st.session_state.grid_layout_mode = "Off"
-                        st.session_state.pro_grid_radio_key = "Off"
-                        _UI['grid_layout_mode'] = "Off"
-                        st.rerun(scope="fragment")
-                with gbar2:
-                    st.session_state.pro_grid_theme = st.selectbox(
-                        "Theme", ["Light (White)", "Dark (Terminal)"],
-                        index=0 if "Light" in st.session_state.pro_grid_theme else 1,
-                        label_visibility="collapsed"
-                    )
-                    _UI['pro_grid_theme'] = st.session_state.pro_grid_theme
-                with gbar3:
-                    if st.button("🗑️ Clear All Charts", width="stretch"):
-                        st.session_state.pinned_stocks = []
-                        _UI['pinned_stocks'] = []
-                        st.session_state.grid_layout_mode = "Off"
-                        st.session_state.pro_grid_radio_key = "Off"
-                        _UI['grid_layout_mode'] = "Off"
-                        st.rerun(scope="fragment")
-
                 max_charts = int(st.session_state.grid_layout_mode)
                 if st.session_state.pinned_stocks:
                     grid_syms = list(st.session_state.pinned_stocks)[:max_charts]
@@ -4710,7 +4727,8 @@ def render_live_ui():
                     _UI['pinned_stocks'] = list(grid_syms)
 
                 n_cols = 1 if len(grid_syms) == 1 else (2 if max_charts <= 4 else 3)
-                c_height = 580 if len(grid_syms) <= 2 else 260
+                # 🔥 EXTRA HEIGHT FOR CHARTS (Since 2nd bar is removed)
+                c_height = 635 if len(grid_syms) <= 2 else 305
                 rows_chunks = [grid_syms[i:i + n_cols] for i in range(0, len(grid_syms), n_cols)]
                 for r_idx, chunk_syms in enumerate(rows_chunks):
                     g_cols = st.columns(n_cols, gap="small")
