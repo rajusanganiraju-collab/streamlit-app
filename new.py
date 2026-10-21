@@ -2864,14 +2864,21 @@ st.markdown("""
         display: block !important;
     }
 
-    /* 3. Safe Mini-Chart Grid using .pro-mini-board (With Card Borders & Inside Checkbox) */
+    /* 3. Deep Black Mini-Chart Grid (Auto-Scales: 5 Cols on 15" Laptop, 6 Cols on 22" Desktop) */
+    .stApp { background-color: #0b0e14 !important; }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) {
         display: grid !important;
         gap: 8px !important;
         align-items: start !important;
     }
     div[data-testid="stElementContainer"]:has(.pro-mini-board) { display: none !important; }
-    @media screen and (min-width: 1200px) {
+
+    /* 22-inch & 24-inch Desktop Monitors (6 Charts per row like Old Code) */
+    @media screen and (min-width: 1600px) {
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(6, 1fr) !important; }
+    }
+    /* 15-inch Laptops (5 Charts per row) */
+    @media screen and (min-width: 1200px) and (max-width: 1599px) {
         div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(5, 1fr) !important; }
     }
     @media screen and (min-width: 900px) and (max-width: 1199px) {
@@ -2880,11 +2887,13 @@ st.markdown("""
     @media screen and (max-width: 899px) {
         div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(2, 1fr) !important; gap: 6px !important; }
     }
+
+    /* Deep Black Card Background like First Screenshot */
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) > div {
-        background-color: #161b22 !important;
-        border: 1px solid #30363d !important;
-        border-radius: 8px !important;
-        padding: 4px !important;
+        background-color: #0b0e14 !important;
+        border: 1px solid #1c2128 !important;
+        border-radius: 6px !important;
+        padding: 3px !important;
         position: relative !important;
         width: 100% !important;
     }
@@ -2896,11 +2905,40 @@ st.markdown("""
         z-index: 100 !important;
     }
 
+    /* Auto-Fit Height (100vh) for Both 15-inch Laptop & 22-inch Desktop */
+    div[data-testid="stVerticalBlockBorderWrapper"]:has(.right-panel-marker) {
+        height: calc(100vh - 14px) !important;
+        max-height: calc(100vh - 14px) !important;
+    }
+    div[data-testid="stVerticalBlockBorderWrapper"]:has(.left-main-scroll-marker) {
+        height: calc(100vh - 46px) !important;
+        max-height: calc(100vh - 46px) !important;
+    }
+    div[data-testid="stExpanderDetails"]:has(.tv-sort-hdr-marker) div[data-testid="stVerticalBlockBorderWrapper"] {
+        height: calc(100vh - 360px) !important;
+        max-height: calc(100vh - 360px) !important;
+        min-height: 220px !important;
+    }
+
+    /* Pro Grid Charts Auto-Scale Height on 22-inch & 15-inch Monitors */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-grid-1row) iframe {
+        height: calc(92vh - 42px) !important;
+        min-height: 550px !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-grid-2row) iframe {
+        height: calc(46vh - 24px) !important;
+        min-height: 310px !important;
+    }
+
     /* 4. Right 20% Panel Compact Spacing & Single-Line Pro Grid */
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .right-panel-marker) {
         gap: 4px !important;
     }
-    div[data-testid="stElementContainer"]:has(.right-panel-marker) { display: none !important; }
+    div[data-testid="stElementContainer"]:has(.right-panel-marker),
+    div[data-testid="stElementContainer"]:has(.left-main-scroll-marker),
+    div[data-testid="stElementContainer"]:has(.pro-grid-1row),
+    div[data-testid="stElementContainer"]:has(.pro-grid-2row) { display: none !important; }
+
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .right-panel-marker) div[data-testid="stRadio"] {
         display: flex !important;
         flex-direction: row !important;
@@ -2930,10 +2968,6 @@ st.markdown("""
     }
     div[data-testid="stExpanderDetails"]:has(.tv-sort-hdr-marker) {
         padding: 2px 2px 4px 2px !important;
-    }
-    div[data-testid="stVerticalBlockBorderWrapper"]:has(.tv-wl-marker),
-    div[data-testid="stVerticalBlockBorderWrapper"]:has(.tv-wl-marker) > div {
-        padding: 0px !important;
     }
 
     /* 5. Excel-Style Sortable Table Header (Symbol | Last | Chg | Chg%) */
@@ -2965,66 +2999,6 @@ st.markdown("""
     }
     div[data-testid="stElementContainer"]:has(.tv-sort-hdr-marker) { display: none !important; }
 
-    /* 6. Pure Table-Like Watchlist Rows (No Emojis, Perfect Grid) */
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) {
-        gap: 0px !important;
-    }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton {
-        width: 100% !important;
-        margin: 0px !important;
-    }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button {
-        background-color: transparent !important;
-        border: none !important;
-        border-bottom: 1px solid #21262d !important;
-        border-radius: 0px !important;
-        height: 28px !important;
-        min-height: 28px !important;
-        padding: 0px 4px !important;
-        margin: 0px !important;
-        width: 100% !important;
-        display: block !important;
-    }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button:hover {
-        background-color: #1e2636 !important;
-    }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p {
-        display: grid !important;
-        grid-template-columns: 34% 22% 20% 24% !important;
-        align-items: center !important;
-        width: 100% !important;
-        font-family: 'Consolas', 'Courier New', monospace !important;
-        font-size: 11px !important;
-        margin: 0px !important;
-        padding: 0px !important;
-    }
-    /* Symbol Left Aligned */
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > strong {
-        text-align: left !important;
-        color: #e6edf3 !important;
-        font-weight: 700 !important;
-        white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: clip !important;
-    }
-    /* Last Right Aligned */
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > span:nth-of-type(1) {
-        text-align: right !important;
-        color: #ffd700 !important;
-        font-weight: 600 !important;
-    }
-    /* Chg Right Aligned */
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > span:nth-of-type(2) {
-        text-align: right !important;
-        font-weight: 600 !important;
-    }
-    /* Chg% Right Aligned */
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-wl-marker) div.stButton > button p > span:nth-of-type(3) {
-        text-align: right !important;
-        font-weight: 600 !important;
-    }
-    div[data-testid="stElementContainer"]:has(.tv-wl-marker) { display: none !important; }
-
     /* 7. Hidden Close Trigger & Single-Line Unified Top Toolbar */
     div[data-testid="stElementContainer"]:has(.hidden-close-trigger),
     div[data-testid="stElementContainer"]:has(.hidden-close-trigger) + div[data-testid="stElementContainer"] {
@@ -3038,8 +3012,6 @@ st.markdown("""
         position: absolute !important;
         pointer-events: none !important;
     }
-
-    /* Single-Line Top Toolbar Buttons & Selectbox */
     div[data-testid="stColumn"]:has(.pro-ActionBar) div.stButton > button {
         background-color: #21262d !important;
         border: 1px solid #30363d !important;
@@ -3417,7 +3389,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
                 fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)], **rc)
 
-            st.plotly_chart(fig, width="stretch", key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}", config={'displayModeBar': False})
+            st.plotly_chart(fig, width="stretch", key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}")
     except Exception as e:
         st.markdown(f"<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart error: {e}</div>", unsafe_allow_html=True)
 
@@ -3445,7 +3417,7 @@ def _calc_supertrend(df_c, period=7, mult=3.0):
         return pd.Series(dtype=float)
 
 
-# --- PRO GRID CHART ENGINE (STOCK & PRICE IN HEADER + WORKING JS-TO-STREAMLIT [X] BUTTON) ---
+# --- PRO GRID CHART ENGINE (DEEP BLACK + 22" AUTO HEIGHT + WORKING [X] BUTTON) ---
 def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, active_inds, chart_height=330, key_idx=0, current_grid_syms=None):
     disp_sym = row_data.get('T', fetch_sym.replace('.NS', ''))
     tf_short = "5m" if timeframe == "Intraday (5m)" else ("1D" if timeframe == "Daily Chart" else "1W")
@@ -3516,9 +3488,9 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         if pd.notna(r.get('BB_DN')): bb_d_js.append({'time': ts, 'value': round(float(r['BB_DN']), 2)})
 
     is_light = "Light" in theme_mode
-    bg_hex = "#ffffff" if is_light else "#0e1117"
+    bg_hex = "#ffffff" if is_light else "#0b0e14"
     txt_hex = "#111827" if is_light else "#d1d5db"
-    grid_hex = "#f1f5f9" if is_light else "#1e293b"
+    grid_hex = "#f1f5f9" if is_light else "#161b22"
     chart_dom_id = f"tv_lw_{key_idx}"
     bar_sp = 5 if len(current_grid_syms) >= 2 else 7
 
@@ -3553,7 +3525,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         .close-btn:hover {{ background: #b91c1c; }}
         .ohlc-overlay {{
             position: absolute; top: 24px; left: 6px; z-index: 20; font-size: 10px;
-            color: {txt_hex}; background: {'rgba(255,255,255,0.85)' if is_light else 'rgba(14,17,23,0.85)'};
+            color: {txt_hex}; background: {'rgba(255,255,255,0.85)' if is_light else 'rgba(11,14,20,0.85)'};
             padding: 1px 5px; border-radius: 4px; pointer-events: none; font-family: monospace;
         }}
     </style>
@@ -3578,7 +3550,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             </div>
         </div>
         <div id="ohlc_{chart_dom_id}" class="ohlc-overlay">Move cursor to inspect OHLCV</div>
-        <div id="{chart_dom_id}" style="width: 100%; height: {chart_height - 24}px;"></div>
+        <div id="{chart_dom_id}" style="width: 100%; height: calc(100vh - 24px);"></div>
 
         <script>
         window.closeThisChart = function() {{
@@ -4719,6 +4691,7 @@ def render_live_ui():
 
         left_main_box = st.container(height=695, border=False)
         with left_main_box:
+            st.markdown("<div class='left-main-scroll-marker'></div>", unsafe_allow_html=True)
             weekly_charts, daily_charts = {}, {}
             if chart_timeframe in ["Weekly Chart", "Daily Chart"]:
                 display_tkrs = list(set(df_indices['Fetch_T'].tolist() + st.session_state.pinned_stocks + df_stocks_display['Fetch_T'].head(40).tolist()))
@@ -4756,8 +4729,10 @@ def render_live_ui():
                     _UI['pinned_stocks'] = list(grid_syms)
 
                 n_cols = 1 if len(grid_syms) == 1 else (2 if max_charts <= 4 else 3)
-                # 🔥 EXTRA HEIGHT FOR CHARTS (Since 2nd bar is removed)
+                row_cls = "pro-grid-1row" if len(grid_syms) <= 2 else "pro-grid-2row"
+                st.markdown(f"<div class='{row_cls}'></div>", unsafe_allow_html=True)
                 c_height = 650 if len(grid_syms) <= 2 else 330
+
                 rows_chunks = [grid_syms[i:i + n_cols] for i in range(0, len(grid_syms), n_cols)]
                 for r_idx, chunk_syms in enumerate(rows_chunks):
                     g_cols = st.columns(n_cols, gap="small")
