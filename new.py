@@ -2889,11 +2889,12 @@ st.markdown("""
     }
 
     /* Deep Black Card Background like First Screenshot */
+    .stApp { background-color: #0b0e14 !important; }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) > div {
         background-color: #0b0e14 !important;
-        border: 1px solid #1c2128 !important;
+        border: 1px solid #161b22 !important;
         border-radius: 6px !important;
-        padding: 3px !important;
+        padding: 2px !important;
         position: relative !important;
         width: 100% !important;
     }
@@ -3367,7 +3368,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
 
             fig.update_layout(
                 margin=dict(l=0, r=46 if show_crosshair else 5, t=0, b=16 if show_crosshair else 0),
-                height=265 if show_vol else 225, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                height=225, paper_bgcolor='#0b0e14', plot_bgcolor='#0b0e14',
                 showlegend=False, xaxis_rangeslider_visible=False,
                 hovermode='closest' if show_crosshair else False, dragmode=False
             )
@@ -3383,11 +3384,11 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 fig.update_yaxes(
                     showspikes=True, spikemode='across+toaxis', spikesnap='cursor', spikethickness=1, spikedash='dash', spikecolor='#8b949e',
                     showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=9.5),
-                    fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)], **rc
+                    fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)]
                 )
             else:
                 fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
-                fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)], **rc)
+                fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)])
 
             st.plotly_chart(fig, width="stretch", key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}")
     except Exception as e:
@@ -3490,7 +3491,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     is_light = "Light" in theme_mode
     bg_hex = "#ffffff" if is_light else "#0b0e14"
     txt_hex = "#111827" if is_light else "#d1d5db"
-    grid_hex = "#f1f5f9" if is_light else "#161b22"
+    grid_hex = "#f1f5f9" if is_light else "#141923"
     chart_dom_id = f"tv_lw_{key_idx}"
     bar_sp = 5 if len(current_grid_syms) >= 2 else 7
 
