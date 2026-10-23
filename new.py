@@ -3128,6 +3128,79 @@ def _toggle_wl_stock(s_ft, s_disp):
     st.session_state.grid_layout_mode = new_mode
     st.session_state.pro_grid_radio_key = new_mode
     _UI['grid_layout_mode'] = new_mode
+# --- CHART TRADING ENGINE (DHAN FREE API + TRADINGVIEW POSITION LINES) ---
+if 'chart_trades' not in _SS:
+    _SS['chart_trades'] = {}
+if 'trade_qty' not in _UI:
+    _UI['trade_qty'] = 10
+if 'trade_mode' not in _UI:
+    _UI['trade_mode'] = "🧪 Test (Chart Lines)"
+
+def _place_dhan_free_order(clean_sym, side, qty):
+    """Dhan Free Tier Orders API (/v2/orders) dwara live order vestundi"""
+    cid, tok = _dhan_creds()
+    if not cid or not tok:
+        return False, "secrets.toml lo [dhan] client_id / access_token ledu (Test Line matrame veyabadindi)"
+    s_map = get_dhan_security_map()
+    sec_id = s_map.get(clean_sym)
+    if not sec_id:
+        return False, f"{clean_sym} securityId dorkaledu"
+    payload = {
+        "dhanClientId": str(cid),
+        "correlationId": f"tv_{int(time.time())}",
+        "transactionType": side,
+        "exchangeSegment": "NSE_EQ",
+        "productType": "INTRADAY",
+        "orderType": "MARKET",
+        "validity": "DAY",
+        "securityId": str(sec_id),
+        "quantity": int(qty),
+        "price": 0
+    }
+    try:
+        r = requests.post(f"{DHAN_REST}/orders", json=payload, headers=_dhan_headers(cid, tok), timeout=8)
+        j = r.json() if r.content else {}
+        if r.status_code in (200, 201) and j.get("orderId"):
+            return True, f"✅ Dhan Order Placed! ID: {j.get('orderId')}"
+        err_msg = j.get("errorMessage") or j.get("internalErrorMessage") or r.text[:100]
+        return False, f"⚠️ Dhan API: {err_msg}"
+    except Exception as e:
+        return False, f"⚠️ Network error: {e}"
+
+def _exec_chart_trade(fetch_sym, side, ltp_p, sl_p, tg_p):
+    clean_sym = str(fetch_sym).replace(".NS", "")
+    qty = max(1, int(_UI.get('trade_qty', 10)))
+    mode = _UI.get('trade_mode', "🧪 Test (Chart Lines)")
+
+    if side == "EXIT":
+        old_tr = _SS['chart_trades'].pop(fetch_sym, None)
+        if old_tr and "Dhan" in mode:
+            opp_side = "SELL" if old_tr['side'] == "BUY" else "BUY"
+            ok, msg = _place_dhan_free_order(clean_sym, opp_side, old_tr['qty'])
+            st.toast(f"EXIT {clean_sym}: {msg}", icon="🔴" if not ok else "✅")
+        else:
+            st.toast(f"🏳️ Position Closed on Chart: {clean_sym}", icon="ℹ️")
+        return
+
+    _SS['chart_trades'][fetch_sym] = {
+        'side': side,
+        'qty': qty,
+        'entry': round(float(ltp_p), 2),
+        'sl': round(float(sl_p), 2),
+        'target': round(float(tg_p), 2),
+        'time': now_ist().strftime('%I:%M:%S %p')
+    }
+
+    if "Dhan" in mode:
+        ok, msg = _place_dhan_free_order(clean_sym, side, qty)
+        st.toast(f"{side} {clean_sym} ({qty} Qty): {msg}", icon="🟢" if ok else "⚠️")
+    else:
+        st.toast(f"🎯 {side} {clean_sym} ({qty} Qty @ ₹{ltp_p:.2f}) | SL: ₹{sl_p:.2f} | TGT: ₹{tg_p:.2f}", icon="🚀")
+
+def _on_trade_cfg_change():
+    _UI['trade_qty'] = int(st.session_state.get('tr_qty_key', 10))
+    _UI['trade_mode'] = st.session_state.get('tr_mode_key', "🧪 Test (Chart Lines)")
+
 def _back_to_mini_charts():
     st.session_state.grid_layout_mode = "Off"
     st.session_state.pro_grid_radio_key = "Off"
@@ -3272,7 +3345,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
             rc = dict(row=1, col=1) if show_vol else dict()
             fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.02, row_heights=[0.75, 0.25]) if show_vol else go.Figure()
 
-            # High-Volume Neon Candle Highlight
             if 'Volume' in df_chart.columns:
                 vol_sma = df_chart['Volume'].rolling(window=20, min_periods=1).mean()
                 hv_mask = df_chart['Volume'] > (vol_sma * 1.618)
@@ -3368,7 +3440,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
 
             fig.update_layout(
                 margin=dict(l=0, r=46 if show_crosshair else 5, t=0, b=16 if show_crosshair else 0),
-                height=225, paper_bgcolor='#0b0e14', plot_bgcolor='#0b0e14',
+                height=265 if show_vol else 225, paper_bgcolor='#0b0e14', plot_bgcolor='#0b0e14',
                 showlegend=False, xaxis_rangeslider_visible=False,
                 hovermode='closest' if show_crosshair else False, dragmode=False
             )
@@ -3384,11 +3456,11 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 fig.update_yaxes(
                     showspikes=True, spikemode='across+toaxis', spikesnap='cursor', spikethickness=1, spikedash='dash', spikecolor='#8b949e',
                     showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=9.5),
-                    fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)]
+                    fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)], **rc
                 )
             else:
                 fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
-                fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)])
+                fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)], **rc)
 
             st.plotly_chart(fig, width="stretch", key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}")
     except Exception as e:
@@ -3418,7 +3490,7 @@ def _calc_supertrend(df_c, period=7, mult=3.0):
         return pd.Series(dtype=float)
 
 
-# --- PRO GRID CHART ENGINE (DEEP BLACK + 22" AUTO HEIGHT + WORKING [X] BUTTON) ---
+# --- PRO GRID CHART ENGINE (WITH BUY/SELL BUTTONS & TRADINGVIEW PNL/SL/TARGET LINES) ---
 def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, active_inds, chart_height=330, key_idx=0, current_grid_syms=None):
     disp_sym = row_data.get('T', fetch_sym.replace('.NS', ''))
     tf_short = "5m" if timeframe == "Intraday (5m)" else ("1D" if timeframe == "Daily Chart" else "1W")
@@ -3428,15 +3500,31 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     if current_grid_syms is None:
         current_grid_syms = []
 
-    # Hidden Streamlit callback button triggered by the HTML '✖' button inside the chart
+    atr_v = float(row_data.get('ATR', 0))
+    if atr_v <= 0:
+        atr_v = max(ltp_v * 0.01, 1.0)
+    risk_pts = round(max(atr_v * 1.2, ltp_v * 0.005), 2)
+    rew_pts = round(risk_pts * 2.0, 2)
+
+    buy_sl, buy_tg = round(ltp_v - risk_pts, 2), round(ltp_v + rew_pts, 2)
+    sell_sl, sell_tg = round(ltp_v + risk_pts, 2), round(ltp_v - rew_pts, 2)
+
     close_token = f"CLOSE_{fetch_sym}_{key_idx}"
+    buy_token = f"BUY_{fetch_sym}_{key_idx}"
+    sell_token = f"SELL_{fetch_sym}_{key_idx}"
+    exit_token = f"EXIT_{fetch_sym}_{key_idx}"
+
     st.markdown("<div class='hidden-close-trigger'></div>", unsafe_allow_html=True)
-    st.button(
-        close_token,
-        key=f"close_x_{fetch_sym}_{key_idx}",
-        on_click=_close_pro_chart,
-        args=(fetch_sym, current_grid_syms)
-    )
+    st.button(close_token, key=f"close_x_{fetch_sym}_{key_idx}", on_click=_close_pro_chart, args=(fetch_sym, current_grid_syms))
+
+    st.markdown("<div class='hidden-close-trigger'></div>", unsafe_allow_html=True)
+    st.button(buy_token, key=f"buy_btn_{fetch_sym}_{key_idx}", on_click=_exec_chart_trade, args=(fetch_sym, "BUY", ltp_v, buy_sl, buy_tg))
+
+    st.markdown("<div class='hidden-close-trigger'></div>", unsafe_allow_html=True)
+    st.button(sell_token, key=f"sell_btn_{fetch_sym}_{key_idx}", on_click=_exec_chart_trade, args=(fetch_sym, "SELL", ltp_v, sell_sl, sell_tg))
+
+    st.markdown("<div class='hidden-close-trigger'></div>", unsafe_allow_html=True)
+    st.button(exit_token, key=f"exit_btn_{fetch_sym}_{key_idx}", on_click=_exec_chart_trade, args=(fetch_sym, "EXIT", ltp_v, 0, 0))
 
     if df_c is None or df_c.empty:
         st.info(f"⏳ Loading chart data for {disp_sym}...")
@@ -3468,6 +3556,38 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     s1 = round(2 * piv - ph, 2)
     sr_high = round(float(df_p['High'].max()), 2)
     sr_low = round(float(df_p['Low'].min()), 2)
+
+    active_tr = _SS['chart_trades'].get(fetch_sym)
+    pos_js = "null"
+    exit_btn_html = ""
+    if active_tr:
+        t_side = active_tr['side']
+        t_qty = int(active_tr['qty'])
+        t_ent = float(active_tr['entry'])
+        t_sl = float(active_tr['sl'])
+        t_tg = float(active_tr['target'])
+        pnl_val = (ltp_v - t_ent) * t_qty if t_side == "BUY" else (t_ent - ltp_v) * t_qty
+        sl_loss = -abs(t_ent - t_sl) * t_qty
+        tg_prof = abs(t_tg - t_ent) * t_qty
+        pnl_sign = "+" if pnl_val >= 0 else ""
+        pnl_col = "#22c55e" if pnl_val >= 0 else "#ef4444"
+        pos_obj = {
+            "side": t_side,
+            "qty": t_qty,
+            "entry": t_ent,
+            "sl": t_sl,
+            "target": t_tg,
+            "entryTitle": f"{'🟢 BUY' if t_side=='BUY' else '🔴 SELL'} {t_qty} @ ₹{t_ent} | PnL: {pnl_sign}₹{pnl_val:,.2f}",
+            "slTitle": f"🛑 SL ₹{t_sl} (-₹{abs(sl_loss):,.0f})",
+            "tgTitle": f"🎯 TGT ₹{t_tg} (+₹{tg_prof:,.0f})",
+            "entryColor": "#22c55e" if pnl_val >= 0 else "#f97316"
+        }
+        pos_js = json.dumps(pos_obj)
+        exit_btn_html = (
+            f"<span style='background:{pnl_col};color:#fff;padding:0px 5px;border-radius:3px;font-size:9.5px;font-weight:bold;'>"
+            f"{pnl_sign}₹{pnl_val:,.1f}</span>"
+            f"<span class='tr-btn exit-b' onclick=\"triggerStBtn('{exit_token}')\" title='Exit / Square-Off Position'>EXIT</span>"
+        )
 
     candles_js, vol_js, vwap_js, ema10_js, ema20_js, kal_js, st_js, bb_u_js, bb_d_js = [], [], [], [], [], [], [], [], []
     seen_ts = set()
@@ -3503,13 +3623,23 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     <style>
         body {{ margin: 0; padding: 0; background: {bg_hex}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace; overflow: hidden; border: 1px solid #2b313f; border-radius: 6px; }}
         .hdr-bar {{
-            background: #111622; color: #fff; padding: 3px 6px; display: flex; justify-content: space-between; align-items: center;
-            border-bottom: 1px solid #2b313f; font-size: 11px; user-select: none; height: 22px; box-sizing: border-box;
+            background: #111622; color: #fff; padding: 2px 5px; display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid #2b313f; font-size: 11px; user-select: none; height: 24px; box-sizing: border-box;
         }}
-        .stk-info {{ display: flex; align-items: center; gap: 5px; white-space: nowrap; overflow: hidden; }}
-        .ind-bar {{ display: flex; gap: 3px; flex-wrap: nowrap; align-items: center; }}
+        .stk-info {{ display: flex; align-items: center; gap: 4px; white-space: nowrap; overflow: hidden; }}
+        .ind-bar {{ display: flex; gap: 2.5px; flex-wrap: nowrap; align-items: center; }}
+        .tr-btn {{
+            padding: 1px 6px; border-radius: 3px; font-size: 9.5px; font-weight: 800; cursor: pointer;
+            color: #ffffff; transition: 0.12s; white-space: nowrap; letter-spacing: 0.3px;
+        }}
+        .buy-b {{ background: #16a34a; border: 1px solid #22c55e; margin-left: 3px; }}
+        .buy-b:hover {{ background: #15803d; transform: scale(1.04); }}
+        .sell-b {{ background: #dc2626; border: 1px solid #ef4444; }}
+        .sell-b:hover {{ background: #b91c1c; transform: scale(1.04); }}
+        .exit-b {{ background: #eab308; color: #111827; border: 1px solid #facc15; }}
+        .exit-b:hover {{ background: #ca8a04; color: #fff; }}
         .ibtn {{
-            padding: 1px 4px; border-radius: 3px; font-size: 9px; font-weight: bold; cursor: pointer;
+            padding: 1px 4px; border-radius: 3px; font-size: 8.5px; font-weight: bold; cursor: pointer;
             background: #1f2937; color: #9ca3af; border: 1px solid #374151; transition: 0.12s; white-space: nowrap;
         }}
         .ibtn.active-vwap {{ background: #2563eb; color: #fff; border-color: #2563eb; }}
@@ -3525,7 +3655,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         }}
         .close-btn:hover {{ background: #b91c1c; }}
         .ohlc-overlay {{
-            position: absolute; top: 24px; left: 6px; z-index: 20; font-size: 10px;
+            position: absolute; top: 26px; left: 6px; z-index: 20; font-size: 10px;
             color: {txt_hex}; background: {'rgba(255,255,255,0.85)' if is_light else 'rgba(11,14,20,0.85)'};
             padding: 1px 5px; border-radius: 4px; pointer-events: none; font-family: monospace;
         }}
@@ -3537,7 +3667,10 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 <span style="font-weight:800; font-size:11.5px; color:#ffffff;">{disp_sym}</span>
                 <span style="background:#1e293b; color:#38bdf8; padding:0px 4px; border-radius:3px; font-size:9px; font-weight:bold;">{tf_short}</span>
                 <span style="font-weight:700; font-size:11.5px; color:#ffd700;">₹{ltp_v:,.2f}</span>
-                <span style="font-weight:700; font-size:10.5px; color:{c_col};">({chg_v:+.2f}%)</span>
+                <span style="font-weight:700; font-size:10px; color:{c_col};">({chg_v:+.2f}%)</span>
+                <span class="tr-btn buy-b" onclick="triggerStBtn('{buy_token}')" title="Buy {disp_sym} @ ₹{ltp_v:.2f} | SL: ₹{buy_sl} | TGT: ₹{buy_tg}">BUY</span>
+                <span class="tr-btn sell-b" onclick="triggerStBtn('{sell_token}')" title="Sell {disp_sym} @ ₹{ltp_v:.2f} | SL: ₹{sell_sl} | TGT: ₹{sell_tg}">SELL</span>
+                {exit_btn_html}
             </div>
             <div class="ind-bar">
                 <span id="btn_ema" class="ibtn {'active-ema' if 'EMAs' in active_inds else ''}" onclick="toggleInd('ema')">EMAs</span>
@@ -3547,17 +3680,17 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 <span id="btn_bb" class="ibtn {'active-vwap' if 'BB' in active_inds else ''}" onclick="toggleInd('bb')">BB</span>
                 <span id="btn_kal" class="ibtn {'active-kal' if 'Kalman' in active_inds else ''}" onclick="toggleInd('kal')">Kalman</span>
                 <span id="btn_st" class="ibtn {'active-st' if 'ST(7,3)' in active_inds else ''}" onclick="toggleInd('st')">ST(7,3)</span>
-                <span class="close-btn" onclick="closeThisChart()" title="Close {disp_sym}">✖</span>
+                <span class="close-btn" onclick="triggerStBtn('{close_token}')" title="Close {disp_sym}">✖</span>
             </div>
         </div>
         <div id="ohlc_{chart_dom_id}" class="ohlc-overlay">Move cursor to inspect OHLCV</div>
         <div id="{chart_dom_id}" style="width: 100%; height: calc(100vh - 24px);"></div>
 
         <script>
-        window.closeThisChart = function() {{
+        window.triggerStBtn = function(tokenStr) {{
             const btns = window.parent.document.querySelectorAll('button');
             for (const b of btns) {{
-                if (b.textContent && b.textContent.trim() === '{close_token}') {{
+                if (b.textContent && b.textContent.trim() === tokenStr) {{
                     b.click();
                     return;
                 }}
@@ -3573,6 +3706,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         const stData = {json.dumps(st_js)};
         const bbUpData = {json.dumps(bb_u_js)};
         const bbDnData = {json.dumps(bb_d_js)};
+        const activePos = {pos_js};
 
         const container = document.getElementById('{chart_dom_id}');
         const ohlcBox = document.getElementById('ohlc_{chart_dom_id}');
@@ -3632,6 +3766,33 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         }});
         volSeries.setData(vData);
         chart.timeScale().fitContent();
+
+        if (activePos) {{
+            candleSeries.createPriceLine({{
+                price: activePos.entry,
+                color: activePos.entryColor,
+                lineWidth: 2,
+                lineStyle: LightweightCharts.LineStyle.Solid,
+                axisLabelVisible: true,
+                title: activePos.entryTitle
+            }});
+            candleSeries.createPriceLine({{
+                price: activePos.target,
+                color: '#16a34a',
+                lineWidth: 2,
+                lineStyle: LightweightCharts.LineStyle.Dashed,
+                axisLabelVisible: true,
+                title: activePos.tgTitle
+            }});
+            candleSeries.createPriceLine({{
+                price: activePos.sl,
+                color: '#dc2626',
+                lineWidth: 2,
+                lineStyle: LightweightCharts.LineStyle.Dashed,
+                axisLabelVisible: true,
+                title: activePos.slTitle
+            }});
+        }}
 
         const vwapSeries = chart.addLineSeries({{ color: '#eab308', lineWidth: 2, title: 'VWAP', visible: {'true' if 'VWAP' in active_inds else 'false'} }});
         vwapSeries.setData(vwapData);
@@ -4632,35 +4793,44 @@ def render_live_ui():
             f"padding:1px 5px;border-radius:3px;font-weight:bold;font-family:monospace;'>⏳ {_effective_refresh}s</span></span></div>"
         )
 
-        # 🔥 ONE-LINE UNIFIED HEADER: Grid On lo unte Status + Controls anni oke line lo vastayi!
+        # 🔥 ONE-LINE UNIFIED HEADER (WITH QTY, DHAN MODE & CLEAN ON_CLICK CALLBACKS)
         if st.session_state.grid_layout_mode != "Off":
-            tb_status, tb_back, tb_theme, tb_clear = st.columns([5.7, 1.05, 1.15, 0.95], gap="small")
+            tb_status, tb_mode, tb_qty, tb_back, tb_theme, tb_clear = st.columns([4.2, 1.25, 0.75, 0.95, 1.05, 0.85], gap="small")
             with tb_status:
                 st.markdown(_status_bar_html, unsafe_allow_html=True)
+            with tb_mode:
+                st.markdown("<div class='pro-ActionBar'></div>", unsafe_allow_html=True)
+                st.selectbox(
+                    "Trade Mode", ["🧪 Test (Chart Lines)", "⚡ Dhan Free API"],
+                    index=0 if "Test" in _UI.get('trade_mode', '🧪 Test') else 1,
+                    key="tr_mode_key",
+                    label_visibility="collapsed",
+                    on_change=_on_trade_cfg_change
+                )
+            with tb_qty:
+                st.markdown("<div class='pro-ActionBar'></div>", unsafe_allow_html=True)
+                st.selectbox(
+                    "Qty", [1, 5, 10, 25, 50, 100, 250, 500],
+                    index=[1, 5, 10, 25, 50, 100, 250, 500].index(_UI.get('trade_qty', 10)) if _UI.get('trade_qty', 10) in [1, 5, 10, 25, 50, 100, 250, 500] else 2,
+                    key="tr_qty_key",
+                    label_visibility="collapsed",
+                    on_change=_on_trade_cfg_change
+                )
             with tb_back:
                 st.markdown("<div class='pro-ActionBar'></div>", unsafe_allow_html=True)
-                if st.button("🔙 Mini-Charts", width="stretch"):
-                    st.session_state.grid_layout_mode = "Off"
-                    st.session_state.pro_grid_radio_key = "Off"
-                    _UI['grid_layout_mode'] = "Off"
-                    st.rerun(scope="fragment")
+                st.button("🔙 Mini", key="btn_back_mini", width="stretch", on_click=_back_to_mini_charts)
             with tb_theme:
                 st.markdown("<div class='pro-ActionBar'></div>", unsafe_allow_html=True)
-                st.session_state.pro_grid_theme = st.selectbox(
+                st.selectbox(
                     "Theme", ["Light (White)", "Dark (Terminal)"],
                     index=0 if "Light" in st.session_state.pro_grid_theme else 1,
-                    label_visibility="collapsed"
+                    key="pro_theme_sel_key",
+                    label_visibility="collapsed",
+                    on_change=_on_pro_theme_change
                 )
-                _UI['pro_grid_theme'] = st.session_state.pro_grid_theme
             with tb_clear:
                 st.markdown("<div class='pro-ActionBar'></div>", unsafe_allow_html=True)
-                if st.button("🗑️ Clear All", width="stretch"):
-                    st.session_state.pinned_stocks = []
-                    _UI['pinned_stocks'] = []
-                    st.session_state.grid_layout_mode = "Off"
-                    st.session_state.pro_grid_radio_key = "Off"
-                    _UI['grid_layout_mode'] = "Off"
-                    st.rerun(scope="fragment")
+                st.button("🗑️ Clear", key="btn_clear_all", width="stretch", on_click=_clear_all_pro_charts)
         else:
             st.markdown(_status_bar_html, unsafe_allow_html=True)
 
