@@ -3490,7 +3490,7 @@ def _calc_supertrend(df_c, period=7, mult=3.0):
         return pd.Series(dtype=float)
 
 
-# --- PRO GRID CHART ENGINE (WITH BUY/SELL BUTTONS & TRADINGVIEW PNL/SL/TARGET LINES) ---
+# --- PRO GRID CHART ENGINE (WITH DRAGGABLE & EDITABLE SL / TARGET LINES ON CHART) ---
 def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, active_inds, chart_height=330, key_idx=0, current_grid_syms=None):
     disp_sym = row_data.get('T', fetch_sym.replace('.NS', ''))
     tf_short = "5m" if timeframe == "Intraday (5m)" else ("1D" if timeframe == "Daily Chart" else "1W")
@@ -3567,26 +3567,24 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         t_sl = float(active_tr['sl'])
         t_tg = float(active_tr['target'])
         pnl_val = (ltp_v - t_ent) * t_qty if t_side == "BUY" else (t_ent - ltp_v) * t_qty
-        sl_loss = -abs(t_ent - t_sl) * t_qty
-        tg_prof = abs(t_tg - t_ent) * t_qty
         pnl_sign = "+" if pnl_val >= 0 else ""
         pnl_col = "#22c55e" if pnl_val >= 0 else "#ef4444"
         pos_obj = {
+            "sym": fetch_sym,
             "side": t_side,
             "qty": t_qty,
             "entry": t_ent,
             "sl": t_sl,
             "target": t_tg,
+            "ltp": ltp_v,
             "entryTitle": f"{'🟢 BUY' if t_side=='BUY' else '🔴 SELL'} {t_qty} @ ₹{t_ent} | PnL: {pnl_sign}₹{pnl_val:,.2f}",
-            "slTitle": f"🛑 SL ₹{t_sl} (-₹{abs(sl_loss):,.0f})",
-            "tgTitle": f"🎯 TGT ₹{t_tg} (+₹{tg_prof:,.0f})",
             "entryColor": "#22c55e" if pnl_val >= 0 else "#f97316"
         }
         pos_js = json.dumps(pos_obj)
         exit_btn_html = (
             f"<span style='background:{pnl_col};color:#fff;padding:0px 5px;border-radius:3px;font-size:9.5px;font-weight:bold;'>"
             f"{pnl_sign}₹{pnl_val:,.1f}</span>"
-            f"<span class='tr-btn exit-b' onclick=\"triggerStBtn('{exit_token}')\" title='Exit / Square-Off Position'>EXIT</span>"
+            f"<span class='tr-btn exit-b' onclick=\"exitChartTrade('{fetch_sym}', '{exit_token}')\" title='Exit / Square-Off Position'>EXIT</span>"
         )
 
     candles_js, vol_js, vwap_js, ema10_js, ema20_js, kal_js, st_js, bb_u_js, bb_d_js = [], [], [], [], [], [], [], [], []
@@ -3659,6 +3657,16 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             color: {txt_hex}; background: {'rgba(255,255,255,0.85)' if is_light else 'rgba(11,14,20,0.85)'};
             padding: 1px 5px; border-radius: 4px; pointer-events: none; font-family: monospace;
         }}
+        .sltg-box {{
+            position: absolute; top: 44px; left: 6px; z-index: 30; display: none; align-items: center; gap: 6px;
+            background: rgba(17, 22, 34, 0.92); border: 1px solid #374151; border-radius: 5px;
+            padding: 2px 7px; font-size: 10px; color: #fff; font-family: monospace; box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+        }}
+        .sltg-inp {{
+            width: 58px; background: #0b0e14; color: #fff; border: 1px solid #4b5563; border-radius: 3px;
+            font-size: 10px; font-family: monospace; font-weight: bold; padding: 1px 3px; text-align: right;
+        }}
+        .sltg-inp:focus {{ outline: none; border-color: #38bdf8; }}
     </style>
     </head>
     <body>
@@ -3668,8 +3676,8 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 <span style="background:#1e293b; color:#38bdf8; padding:0px 4px; border-radius:3px; font-size:9px; font-weight:bold;">{tf_short}</span>
                 <span style="font-weight:700; font-size:11.5px; color:#ffd700;">₹{ltp_v:,.2f}</span>
                 <span style="font-weight:700; font-size:10px; color:{c_col};">({chg_v:+.2f}%)</span>
-                <span class="tr-btn buy-b" onclick="triggerStBtn('{buy_token}')" title="Buy {disp_sym} @ ₹{ltp_v:.2f} | SL: ₹{buy_sl} | TGT: ₹{buy_tg}">BUY</span>
-                <span class="tr-btn sell-b" onclick="triggerStBtn('{sell_token}')" title="Sell {disp_sym} @ ₹{ltp_v:.2f} | SL: ₹{sell_sl} | TGT: ₹{sell_tg}">SELL</span>
+                <span class="tr-btn buy-b" onclick="startNewTrade('{fetch_sym}', '{buy_token}')" title="Buy {disp_sym} @ ₹{ltp_v:.2f}">BUY</span>
+                <span class="tr-btn sell-b" onclick="startNewTrade('{fetch_sym}', '{sell_token}')" title="Sell {disp_sym} @ ₹{ltp_v:.2f}">SELL</span>
                 {exit_btn_html}
             </div>
             <div class="ind-bar">
@@ -3683,10 +3691,23 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 <span class="close-btn" onclick="triggerStBtn('{close_token}')" title="Close {disp_sym}">✖</span>
             </div>
         </div>
+
         <div id="ohlc_{chart_dom_id}" class="ohlc-overlay">Move cursor to inspect OHLCV</div>
+
+        <!-- Floating SL & TGT Editor Box (Visible when trade is active) -->
+        <div id="sltg_bar_{chart_dom_id}" class="sltg-box">
+            <span style="color:#f87171;font-weight:bold;">🛑 SL:</span>
+            <input id="inp_sl_{chart_dom_id}" class="sltg-inp" type="number" step="0.5" onchange="onManualSLTG()" oninput="onManualSLTG()">
+            <span style="color:#4ade80;font-weight:bold;margin-left:4px;">🎯 TGT:</span>
+            <input id="inp_tg_{chart_dom_id}" class="sltg-inp" type="number" step="0.5" onchange="onManualSLTG()" oninput="onManualSLTG()">
+            <span style="color:#9ca3af;font-size:9px;">(↕️ Drag lines on chart)</span>
+        </div>
+
         <div id="{chart_dom_id}" style="width: 100%; height: calc(100vh - 24px);"></div>
 
         <script>
+        window.parent._customSLTG = window.parent._customSLTG || {{}};
+
         window.triggerStBtn = function(tokenStr) {{
             const btns = window.parent.document.querySelectorAll('button');
             for (const b of btns) {{
@@ -3695,6 +3716,16 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                     return;
                 }}
             }}
+        }};
+
+        window.startNewTrade = function(sym, tokenStr) {{
+            delete window.parent._customSLTG[sym];
+            window.triggerStBtn(tokenStr);
+        }};
+
+        window.exitChartTrade = function(sym, tokenStr) {{
+            delete window.parent._customSLTG[sym];
+            window.triggerStBtn(tokenStr);
         }};
 
         const cData = {json.dumps(candles_js)};
@@ -3710,6 +3741,9 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
 
         const container = document.getElementById('{chart_dom_id}');
         const ohlcBox = document.getElementById('ohlc_{chart_dom_id}');
+        const sltgBar = document.getElementById('sltg_bar_{chart_dom_id}');
+        const inpSL = document.getElementById('inp_sl_{chart_dom_id}');
+        const inpTG = document.getElementById('inp_tg_{chart_dom_id}');
 
         const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
         function fmtIST(ts) {{
@@ -3767,8 +3801,34 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         volSeries.setData(vData);
         chart.timeScale().fitContent();
 
+        // 🔥 INTERACTIVE DRAGGABLE & EDITABLE SL / TARGET LINES
+        let entryLineObj = null, slLineObj = null, tgLineObj = null;
+        let curSL = 0, curTG = 0, draggingMode = null;
+
+        function fmtSLTitle(slPrice) {{
+            const diff = activePos.side === 'BUY' ? (slPrice - activePos.entry) : (activePos.entry - slPrice);
+            const rs = diff * activePos.qty;
+            const sign = rs >= 0 ? '+' : '-';
+            return `🛑 SL ₹${{slPrice.toFixed(2)}} (${{sign}}₹${{Math.abs(rs).toFixed(0)}}) ↕`;
+        }}
+
+        function fmtTGTitle(tgPrice) {{
+            const diff = activePos.side === 'BUY' ? (tgPrice - activePos.entry) : (activePos.entry - tgPrice);
+            const rs = diff * activePos.qty;
+            const sign = rs >= 0 ? '+' : '-';
+            return `🎯 TGT ₹${{tgPrice.toFixed(2)}} (${{sign}}₹${{Math.abs(rs).toFixed(0)}}) ↕`;
+        }}
+
         if (activePos) {{
-            candleSeries.createPriceLine({{
+            const saved = window.parent._customSLTG[activePos.sym];
+            curSL = (saved && saved.entry === activePos.entry) ? saved.sl : activePos.sl;
+            curTG = (saved && saved.entry === activePos.entry) ? saved.tg : activePos.target;
+
+            sltgBar.style.display = 'flex';
+            inpSL.value = curSL.toFixed(2);
+            inpTG.value = curTG.toFixed(2);
+
+            entryLineObj = candleSeries.createPriceLine({{
                 price: activePos.entry,
                 color: activePos.entryColor,
                 lineWidth: 2,
@@ -3776,21 +3836,92 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 axisLabelVisible: true,
                 title: activePos.entryTitle
             }});
-            candleSeries.createPriceLine({{
-                price: activePos.target,
+            tgLineObj = candleSeries.createPriceLine({{
+                price: curTG,
                 color: '#16a34a',
                 lineWidth: 2,
                 lineStyle: LightweightCharts.LineStyle.Dashed,
                 axisLabelVisible: true,
-                title: activePos.tgTitle
+                title: fmtTGTitle(curTG)
             }});
-            candleSeries.createPriceLine({{
-                price: activePos.sl,
+            slLineObj = candleSeries.createPriceLine({{
+                price: curSL,
                 color: '#dc2626',
                 lineWidth: 2,
                 lineStyle: LightweightCharts.LineStyle.Dashed,
                 axisLabelVisible: true,
-                title: activePos.slTitle
+                title: fmtSLTitle(curSL)
+            }});
+
+            window.onManualSLTG = function() {{
+                const vSL = parseFloat(inpSL.value);
+                const vTG = parseFloat(inpTG.value);
+                if (!isNaN(vSL) && vSL > 0) {{
+                    curSL = vSL;
+                    slLineObj.applyOptions({{ price: curSL, title: fmtSLTitle(curSL) }});
+                }}
+                if (!isNaN(vTG) && vTG > 0) {{
+                    curTG = vTG;
+                    tgLineObj.applyOptions({{ price: curTG, title: fmtTGTitle(curTG) }});
+                }}
+                window.parent._customSLTG[activePos.sym] = {{ entry: activePos.entry, sl: curSL, tg: curTG }};
+            }};
+
+            // Mouse Drag-and-Drop on Chart Canvas for SL & TGT Lines
+            container.addEventListener('mousedown', (e) => {{
+                const rect = container.getBoundingClientRect();
+                const mouseY = e.clientY - rect.top;
+                const slY = candleSeries.priceToCoordinate(curSL);
+                const tgY = candleSeries.priceToCoordinate(curTG);
+
+                if (slY !== null && Math.abs(mouseY - slY) <= 10) {{
+                    draggingMode = 'SL';
+                    chart.applyOptions({{ handleScroll: false, handleScale: false }});
+                    e.preventDefault();
+                }} else if (tgY !== null && Math.abs(mouseY - tgY) <= 10) {{
+                    draggingMode = 'TG';
+                    chart.applyOptions({{ handleScroll: false, handleScale: false }});
+                    e.preventDefault();
+                }}
+            }});
+
+            window.addEventListener('mousemove', (e) => {{
+                const rect = container.getBoundingClientRect();
+                const mouseY = e.clientY - rect.top;
+
+                if (!draggingMode) {{
+                    const slY = candleSeries.priceToCoordinate(curSL);
+                    const tgY = candleSeries.priceToCoordinate(curTG);
+                    if ((slY !== null && Math.abs(mouseY - slY) <= 10) || (tgY !== null && Math.abs(mouseY - tgY) <= 10)) {{
+                        container.style.cursor = 'ns-resize';
+                    }} else {{
+                        container.style.cursor = 'default';
+                    }}
+                    return;
+                }}
+
+                const rawPrice = candleSeries.coordinateToPrice(mouseY);
+                if (rawPrice === null || rawPrice <= 0) return;
+                const newP = Math.round(rawPrice * 20) / 20;
+
+                if (draggingMode === 'SL') {{
+                    curSL = newP;
+                    inpSL.value = curSL.toFixed(2);
+                    slLineObj.applyOptions({{ price: curSL, title: fmtSLTitle(curSL) }});
+                }} else if (draggingMode === 'TG') {{
+                    curTG = newP;
+                    inpTG.value = curTG.toFixed(2);
+                    tgLineObj.applyOptions({{ price: curTG, title: fmtTGTitle(curTG) }});
+                }}
+                window.parent._customSLTG[activePos.sym] = {{ entry: activePos.entry, sl: curSL, tg: curTG }};
+            }});
+
+            window.addEventListener('mouseup', () => {{
+                if (draggingMode) {{
+                    draggingMode = null;
+                    container.style.cursor = 'default';
+                    chart.applyOptions({{ handleScroll: true, handleScale: true }});
+                }}
             }});
         }}
 
