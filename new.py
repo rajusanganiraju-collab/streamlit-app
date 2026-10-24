@@ -3086,6 +3086,18 @@ st.markdown("""
         div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stColumn"]:nth-child(4) {
             width: 22% !important; flex: 0 0 22% !important;
         }
+        /* Mobile Top Action Bar (Paper Trading, Qty, Mini, Theme, Clear) Compact Grid */
+        div[data-testid="stHorizontalBlock"]:has(.pro-ActionBar) {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: wrap !important;
+            gap: 4px !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(.pro-ActionBar) > div[data-testid="stColumn"] {
+            flex: 1 1 30% !important;
+            min-width: 95px !important;
+            width: auto !important;
+        }
     }
     </style>
 """, unsafe_allow_html=True)
@@ -4282,10 +4294,18 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     <style>
         body {{ margin: 0; padding: 0; background: {bg_hex}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace; overflow: hidden; border: 1px solid #2b313f; border-radius: 6px; }}
         .hdr-bar {{
-            background: #111622; color: #fff; padding: 2px 6px; display: flex; justify-content: space-between; align-items: center;
-            border-bottom: 1px solid #2b313f; font-size: 11px; user-select: none; height: 25px; box-sizing: border-box;
+            background: #111622; color: #fff; padding: 3px 6px; display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid #2b313f; font-size: 11px; user-select: none; min-height: 25px; height: auto;
+            flex-wrap: wrap; gap: 4px; box-sizing: border-box;
         }}
-        .stk-info {{ display: flex; align-items: center; gap: 4px; white-space: nowrap; overflow: hidden; }}
+        .stk-info {{ display: flex; align-items: center; gap: 4px; flex-wrap: wrap; overflow: visible; }}
+        @media (max-width: 640px) {{
+            .ohlc-overlay {{ top: 52px !important; font-size: 9px !important; }}
+            .sltg-box {{ top: 70px !important; flex-wrap: wrap !important; gap: 3px !important; max-width: 96vw !important; }}
+            .sltg-inp {{ width: 48px !important; }}
+            .draw-menu {{ top: 50px !important; left: 8px !important; right: auto !important; }}
+            .ind-menu {{ top: 50px !important; right: 8px !important; }}
+        }}
         .ind-bar {{ display: flex; gap: 4px; flex-wrap: nowrap; align-items: center; position: relative; }}
         .tr-btn {{
             padding: 1px 6px; border-radius: 3px; font-size: 9.5px; font-weight: 800; cursor: pointer;
