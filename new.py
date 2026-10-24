@@ -1226,13 +1226,14 @@ def fetch_all_data():
 def process_5m_data(df_raw):
     try:
         df_s = df_raw.dropna(subset=['Open', 'High', 'Low', 'Close']).copy()
-        if df_s.empty: return pd.DataFrame()
+        if df_s.empty:
+            return pd.DataFrame()
         df_s.index = pd.to_datetime(df_s.index)
         if df_s.index.tz is not None:
             df_s.index = df_s.index.tz_convert('Asia/Kolkata').tz_localize(None)
         df_s = df_s[~df_s.index.duplicated(keep='last')].sort_index()
 
-        # USD/INR lanti 24h charts lo off-market dead flat candles ni remove cheyadam
+        # Off-market dead flat candles remove cheyadam
         is_flat_dup = (df_s['High'] == df_s['Low']) & (df_s['Close'] == df_s['Close'].shift(1))
         if (~is_flat_dup).sum() >= 20:
             df_s = df_s[~is_flat_dup].copy()
@@ -1240,6 +1241,8 @@ def process_5m_data(df_raw):
         df_s['EMA_10'] = df_s['Close'].ewm(span=10, adjust=False).mean()
         df_s['EMA_20'] = df_s['Close'].ewm(span=20, adjust=False).mean()
         df_s['EMA_50'] = df_s['Close'].ewm(span=50, adjust=False).mean()
+        df_s['EMA_100'] = df_s['Close'].ewm(span=100, adjust=False).mean()
+        df_s['EMA_200'] = df_s['Close'].ewm(span=200, adjust=False).mean()
 
         if 'Volume' in df_s.columns:
             df_s['Vol_SMA_75'] = df_s['Volume'].rolling(window=75, min_periods=1).mean()
@@ -1253,30 +1256,24 @@ def process_5m_data(df_raw):
         ], axis=1).max(axis=1)
         df_s['ATR_13'] = df_s['TR'].ewm(span=13, adjust=False).mean()
 
-        # Midnight date cut kakunda Session gap (> 3 hours) batti latest trading session teesukovadam
-        time_diff = df_s.index.to_series().diff()
-        session_ids = (time_diff > pd.Timedelta(hours=3)).cumsum()
-        df_day = df_s[session_ids == session_ids.iloc[-1]].copy()
-
-        first_t = df_day.index[0].time() if not df_day.empty else dt_time(0, 0)
-        is_nse_session = (dt_time(9, 0) <= first_t <= dt_time(9, 30))
-        if not is_nse_session and len(df_day) < 35:
-            df_day = df_s.tail(75).copy()
-        elif len(df_day) > 75:
-            df_day = df_day.tail(75).copy()
-
-        if not df_day.empty:
-            df_day['Typical_Price'] = (df_day['High'] + df_day['Low'] + df_day['Close']) / 3
-            if 'Volume' in df_day.columns and df_day['Volume'].sum() > 0:
-                vol_cumsum = df_day['Volume'].cumsum()
-                df_day['VWAP'] = (df_day['Typical_Price'] * df_day['Volume']).cumsum() / vol_cumsum.replace(0, np.nan)
-                df_day['VWAP'] = df_day['VWAP'].fillna(df_day['Typical_Price'].expanding().mean())
+        # Keep full 5 Trading Days (~375 candles) & calculate VWAP per daily session
+        df_5d = df_s.tail(375).copy()
+        if not df_5d.empty:
+            df_5d['Typical_Price'] = (df_5d['High'] + df_5d['Low'] + df_5d['Close']) / 3.0
+            df_5d['_sess_date'] = df_5d.index.date
+            if 'Volume' in df_5d.columns and df_5d['Volume'].sum() > 0:
+                df_5d['_tp_vol'] = df_5d['Typical_Price'] * df_5d['Volume']
+                vol_cum = df_5d.groupby('_sess_date')['Volume'].cumsum().replace(0, np.nan)
+                tpv_cum = df_5d.groupby('_sess_date')['_tp_vol'].cumsum()
+                df_5d['VWAP'] = (tpv_cum / vol_cum).fillna(df_5d['Typical_Price'])
+                df_5d.drop(columns=['_tp_vol', '_sess_date'], inplace=True, errors='ignore')
             else:
-                df_day['VWAP'] = df_day['Typical_Price'].expanding().mean()
-            df_day = df_day.bfill().ffill()
-            return df_day
+                df_5d['VWAP'] = df_5d.groupby('_sess_date')['Typical_Price'].transform(lambda x: x.expanding().mean())
+                df_5d.drop(columns=['_sess_date'], inplace=True, errors='ignore')
+            df_5d = df_5d.bfill().ffill()
+            return df_5d
         return pd.DataFrame()
-    except:
+    except Exception:
         return pd.DataFrame()
 
 # =========================================================
@@ -3128,16 +3125,18 @@ def _toggle_wl_stock(s_ft, s_disp):
     st.session_state.grid_layout_mode = new_mode
     st.session_state.pro_grid_radio_key = new_mode
     _UI['grid_layout_mode'] = new_mode
-# --- CHART TRADING ENGINE (DHAN FREE API + TRADINGVIEW POSITION LINES) ---
+# --- CHART TRADING ENGINE (INTRADAY/LONGTERM + DHAN FREE API + TRADINGVIEW LINES) ---
 if 'chart_trades' not in _SS:
     _SS['chart_trades'] = {}
 if 'trade_qty' not in _UI:
     _UI['trade_qty'] = 10
 if 'trade_mode' not in _UI:
     _UI['trade_mode'] = "🧪 Test (Chart Lines)"
+if 'trade_prod' not in _UI:
+    _UI['trade_prod'] = "INTRADAY"
 
-def _place_dhan_free_order(clean_sym, side, qty):
-    """Dhan Free Tier Orders API (/v2/orders) dwara live order vestundi"""
+def _place_dhan_free_order(clean_sym, side, qty, prod_type="INTRADAY"):
+    """Dhan Free Tier Orders API (/v2/orders) dwara INTRADAY leda CNC (Longterm) order vestundi"""
     cid, tok = _dhan_creds()
     if not cid or not tok:
         return False, "secrets.toml lo [dhan] client_id / access_token ledu (Test Line matrame veyabadindi)"
@@ -3145,12 +3144,13 @@ def _place_dhan_free_order(clean_sym, side, qty):
     sec_id = s_map.get(clean_sym)
     if not sec_id:
         return False, f"{clean_sym} securityId dorkaledu"
+    dhan_prod = "INTRADAY" if prod_type == "INTRADAY" else "CNC"
     payload = {
         "dhanClientId": str(cid),
         "correlationId": f"tv_{int(time.time())}",
         "transactionType": side,
         "exchangeSegment": "NSE_EQ",
-        "productType": "INTRADAY",
+        "productType": dhan_prod,
         "orderType": "MARKET",
         "validity": "DAY",
         "securityId": str(sec_id),
@@ -3161,22 +3161,28 @@ def _place_dhan_free_order(clean_sym, side, qty):
         r = requests.post(f"{DHAN_REST}/orders", json=payload, headers=_dhan_headers(cid, tok), timeout=8)
         j = r.json() if r.content else {}
         if r.status_code in (200, 201) and j.get("orderId"):
-            return True, f"✅ Dhan Order Placed! ID: {j.get('orderId')}"
+            return True, f"✅ Dhan {dhan_prod} Order Placed! ID: {j.get('orderId')}"
         err_msg = j.get("errorMessage") or j.get("internalErrorMessage") or r.text[:100]
         return False, f"⚠️ Dhan API: {err_msg}"
     except Exception as e:
         return False, f"⚠️ Network error: {e}"
 
+def _toggle_trade_prod():
+    cur = _UI.get('trade_prod', 'INTRADAY')
+    _UI['trade_prod'] = 'CNC' if cur == 'INTRADAY' else 'INTRADAY'
+
 def _exec_chart_trade(fetch_sym, side, ltp_p, sl_p, tg_p):
     clean_sym = str(fetch_sym).replace(".NS", "")
     qty = max(1, int(_UI.get('trade_qty', 10)))
     mode = _UI.get('trade_mode', "🧪 Test (Chart Lines)")
+    prod_type = _UI.get('trade_prod', "INTRADAY")
+    prod_label = "INTRADAY" if prod_type == "INTRADAY" else "LONGTERM (CNC)"
 
     if side == "EXIT":
         old_tr = _SS['chart_trades'].pop(fetch_sym, None)
         if old_tr and "Dhan" in mode:
             opp_side = "SELL" if old_tr['side'] == "BUY" else "BUY"
-            ok, msg = _place_dhan_free_order(clean_sym, opp_side, old_tr['qty'])
+            ok, msg = _place_dhan_free_order(clean_sym, opp_side, old_tr['qty'], old_tr.get('prod', 'INTRADAY'))
             st.toast(f"EXIT {clean_sym}: {msg}", icon="🔴" if not ok else "✅")
         else:
             st.toast(f"🏳️ Position Closed on Chart: {clean_sym}", icon="ℹ️")
@@ -3185,6 +3191,7 @@ def _exec_chart_trade(fetch_sym, side, ltp_p, sl_p, tg_p):
     _SS['chart_trades'][fetch_sym] = {
         'side': side,
         'qty': qty,
+        'prod': prod_type,
         'entry': round(float(ltp_p), 2),
         'sl': round(float(sl_p), 2),
         'target': round(float(tg_p), 2),
@@ -3192,10 +3199,10 @@ def _exec_chart_trade(fetch_sym, side, ltp_p, sl_p, tg_p):
     }
 
     if "Dhan" in mode:
-        ok, msg = _place_dhan_free_order(clean_sym, side, qty)
-        st.toast(f"{side} {clean_sym} ({qty} Qty): {msg}", icon="🟢" if ok else "⚠️")
+        ok, msg = _place_dhan_free_order(clean_sym, side, qty, prod_type)
+        st.toast(f"{side} [{prod_label}] {clean_sym} ({qty} Qty): {msg}", icon="🟢" if ok else "⚠️")
     else:
-        st.toast(f"🎯 {side} {clean_sym} ({qty} Qty @ ₹{ltp_p:.2f}) | SL: ₹{sl_p:.2f} | TGT: ₹{tg_p:.2f}", icon="🚀")
+        st.toast(f"🎯 {side} [{prod_label}] {clean_sym} ({qty} Qty @ ₹{ltp_p:.2f}) | SL: ₹{sl_p:.2f} | TGT: ₹{tg_p:.2f}", icon="🚀")
 
 def _on_trade_cfg_change():
     _UI['trade_qty'] = int(st.session_state.get('tr_qty_key', 10))
@@ -3467,7 +3474,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
         st.markdown(f"<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart error: {e}</div>", unsafe_allow_html=True)
 
 
-# --- SUPERTREND HELPER ---
+# --- SUPERTREND & PINE SCRIPT V6 HELPERS ---
 def _calc_supertrend(df_c, period=7, mult=3.0):
     try:
         hl2 = (df_c['High'] + df_c['Low']) / 2.0
@@ -3489,16 +3496,146 @@ def _calc_supertrend(df_c, period=7, mult=3.0):
     except Exception:
         return pd.Series(dtype=float)
 
+def _wma_series(s, length):
+    length = max(2, int(length))
+    weights = np.arange(1, length + 1, dtype=float)
+    return s.rolling(length, min_periods=1).apply(lambda x: np.dot(x, weights[-len(x):]) / weights[-len(x):].sum(), raw=True)
 
-# --- PRO GRID CHART ENGINE (WITH DRAGGABLE & EDITABLE SL / TARGET LINES ON CHART) ---
+def _compute_pinescript_suite(df_p):
+    """Computes attached Pine Script v6: Swing Ribbon + Breakout + Big Trader + MTF + Avoid Zone + Trend Speed Analyzer"""
+    c = df_p['Close'].astype(float)
+    o = df_p['Open'].astype(float)
+    h = df_p['High'].astype(float)
+    l = df_p['Low'].astype(float)
+    v = df_p['Volume'].fillna(0.0).astype(float) if 'Volume' in df_p.columns else pd.Series(0.0, index=df_p.index)
+
+    # 1. Fast & Slow WMA Swing Ribbon (Tolerance = 2)
+    fast_ma = _wma_series(c, 25)
+    slow_ma = _wma_series(c, 35)
+    fast_d = np.sign(fast_ma.diff(2).fillna(0.0))
+    slow_d = np.sign(slow_ma.diff(2).fillna(0.0))
+    close_p = c - fast_ma
+
+    rib_colors = []
+    for fd, sd, cp in zip(fast_d, slow_d, close_p):
+        if fd > 0:
+            col = ("#22c55e" if cp > 0 else "#b1c154") if sd > 0 else "#eab308"
+        elif fd < 0:
+            col = ("#ef4444" if cp < 0 else "#f97316") if sd < 0 else "#eab308"
+        else:
+            col = "#eab308"
+        rib_colors.append(col)
+
+    # 2. Volatility Compression + Breakout Bands (len=20, mult=0.5)
+    prev_c = c.shift(1)
+    tr = pd.concat([h - l, (h - prev_c).abs(), (l - prev_c).abs()], axis=1).max(axis=1)
+    atr20 = tr.ewm(alpha=1/20, adjust=False).mean()
+    atr20_sma = atr20.rolling(20, min_periods=5).mean()
+    is_comp = atr20 < atr20_sma
+
+    ltf_basis = c.rolling(20, min_periods=5).mean()
+    ltf_dev = 0.5 * c.rolling(20, min_periods=5).std().fillna(0.0)
+    ltf_upper = ltf_basis + ltf_dev
+    ltf_lower = ltf_basis - ltf_dev
+
+    # 3. Higher Timeframe (60m) Trend Filter & MTF EMAs (20, 100, 200)
+    htf_ema21 = c.ewm(span=21 * 6, adjust=False).mean()
+    htf_up = c > htf_ema21
+    htf_dn = c < htf_ema21
+    mtf_ema20 = c.ewm(span=20, adjust=False).mean()
+    mtf_ema100 = c.ewm(span=100, adjust=False).mean()
+    mtf_ema200 = c.ewm(span=200, adjust=False).mean()
+
+    # 4. Avoid Zone (09:15-09:30 & 15:00-15:30) + Big Trader Turn Point Detector Arrows
+    t_mins = df_p.index.hour * 60 + df_p.index.minute
+    in_avoid = ((t_mins >= 555) & (t_mins < 570)) | ((t_mins >= 900) & (t_mins < 930))
+    vol_spike = v > (v.rolling(20, min_periods=5).mean() * 2.0)
+    near_high = c >= (h.rolling(20, min_periods=5).max() * 0.98)
+    near_low = c <= (l.rolling(20, min_periods=5).min() * 1.02)
+
+    turn_buy = vol_spike & near_low & htf_up & (~in_avoid)
+    turn_sell = vol_spike & near_high & htf_dn & (~in_avoid)
+
+    # 5. Trend Speed Analyzer (Dynamic EMA + Wave Ratio & Dominance Table)
+    max_len = 50.0
+    accel_mult = 5.0
+    max_abs_c = c.abs().rolling(200, min_periods=1).max().replace(0, 1.0)
+    c_norm = (c + max_abs_c) / (2.0 * max_abs_c)
+    dyn_len = 5.0 + c_norm * (max_len - 5.0)
+
+    delta_c = c.diff().abs().fillna(0.0)
+    max_delta_c = delta_c.rolling(200, min_periods=1).max().replace(0, 1.0)
+    accel_fac = delta_c / max_delta_c
+    alpha_s = ((2.0 / (dyn_len + 1.0)) * (1.0 + accel_fac * accel_mult)).clip(upper=1.0)
+
+    dyn_ema = np.zeros(len(c))
+    c_vals = c.values
+    a_vals = alpha_s.values
+    for i in range(len(c_vals)):
+        dyn_ema[i] = c_vals[i] if i == 0 else (a_vals[i] * c_vals[i] + (1.0 - a_vals[i]) * dyn_ema[i - 1])
+    dyn_ema_s = pd.Series(dyn_ema, index=df_p.index)
+    wma2 = _wma_series(c, 2)
+    dyn_col = np.where(wma2 > dyn_ema_s, "#00ff00", "#ff0000")
+
+    c_rma = c.ewm(alpha=1/10, adjust=False).mean().values
+    o_rma = o.ewm(alpha=1/10, adjust=False).mean().values
+    speed_arr = np.zeros(len(c_vals))
+    bull_waves, bear_waves = [], []
+    cur_spd = 0.0
+    for i in range(len(c_vals)):
+        if i > 0:
+            if c_vals[i] > dyn_ema[i] and c_vals[i - 1] <= dyn_ema[i - 1]:
+                if cur_spd < 0: bear_waves.append(abs(cur_spd))
+                cur_spd = c_rma[i] - o_rma[i]
+            elif c_vals[i] < dyn_ema[i] and c_vals[i - 1] >= dyn_ema[i - 1]:
+                if cur_spd > 0: bull_waves.append(abs(cur_spd))
+                cur_spd = c_rma[i] - o_rma[i]
+        cur_spd += (c_rma[i] - o_rma[i])
+        speed_arr[i] = cur_spd
+
+    spd_s = pd.Series(speed_arr, index=df_p.index)
+    min_spd = spd_s.rolling(100, min_periods=5).min()
+    max_spd = spd_s.rolling(100, min_periods=5).max()
+    norm_spd = ((spd_s - min_spd) / (max_spd - min_spd).replace(0, 1.0)).fillna(0.5)
+    spd_colors = [
+        ("#00ff00" if ns > 0.75 else "#82ffc3") if sp >= 0 else ("#ff0000" if ns < 0.25 else "#f78c8c")
+        for sp, ns in zip(speed_arr, norm_spd)
+    ]
+
+    bull_avg = float(np.mean(bull_waves[-100:])) if bull_waves else 1.0
+    bear_avg = float(np.mean(bear_waves[-100:])) if bear_waves else 1.0
+    bull_max = float(np.max(bull_waves[-100:])) if bull_waves else 1.0
+    bear_max = float(np.max(bear_waves[-100:])) if bear_waves else 1.0
+    cur_w = float(speed_arr[-1]) if len(speed_arr) > 0 else 0.0
+    cur_rat_avg = round(cur_w / (bull_avg if cur_w >= 0 else bear_avg), 2)
+    cur_rat_max = round(cur_w / (bull_max if cur_w >= 0 else bear_max), 2)
+    dom_avg_ratio = round(bull_avg / max(bear_avg, 0.001), 2) if bull_avg >= bear_avg else round(bear_avg / max(bull_avg, 0.001), 2)
+    dom_avg_txt = f"Bullish +{dom_avg_ratio}x" if bull_avg >= bear_avg else f"Bearish -{dom_avg_ratio}x"
+    dom_col = "#00ff00" if bull_avg >= bear_avg else "#ff4d4d"
+
+    return {
+        'fast_ma': fast_ma, 'slow_ma': slow_ma, 'rib_col': rib_colors,
+        'ltf_up': ltf_upper, 'ltf_lo': ltf_lower, 'ltf_mid': ltf_basis,
+        'mtf20': mtf_ema20, 'mtf100': mtf_ema100, 'mtf200': mtf_ema200,
+        'turn_buy': turn_buy, 'turn_sell': turn_sell,
+        'dyn_ema': dyn_ema_s, 'dyn_col': dyn_col, 'spd_col': spd_colors,
+        'wave_tbl': {'rat_avg': f"{cur_rat_avg}x", 'rat_max': f"{cur_rat_max}x", 'dom': dom_avg_txt, 'col': dom_col}
+    }
+
+
+# --- PRO GRID CHART ENGINE (5-DAY 5M DATA + INTRADAY/CNC + HOVER %/₹ + SELECT INDICATOR MENU + PINE V6) ---
 def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, active_inds, chart_height=330, key_idx=0, current_grid_syms=None):
     disp_sym = row_data.get('T', fetch_sym.replace('.NS', ''))
-    tf_short = "5m" if timeframe == "Intraday (5m)" else ("1D" if timeframe == "Daily Chart" else "1W")
+    tf_short = "5m (5D)" if timeframe == "Intraday (5m)" else ("1D" if timeframe == "Daily Chart" else "1W")
     ltp_v = float(row_data.get('P', 0))
     chg_v = float(row_data.get('Day_C', 0))
     c_col = "#4ade80" if chg_v >= 0 else "#f87171"
     if current_grid_syms is None:
         current_grid_syms = []
+
+    prod_mode = _UI.get('trade_prod', 'INTRADAY')
+    prod_badge_txt = "⚡ INTRADAY" if prod_mode == "INTRADAY" else "📦 LONGTERM"
+    prod_badge_col = "#0284c7" if prod_mode == "INTRADAY" else "#7c3aed"
 
     atr_v = float(row_data.get('ATR', 0))
     if atr_v <= 0:
@@ -3513,6 +3650,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     buy_token = f"BUY_{fetch_sym}_{key_idx}"
     sell_token = f"SELL_{fetch_sym}_{key_idx}"
     exit_token = f"EXIT_{fetch_sym}_{key_idx}"
+    prod_token = f"PROD_{fetch_sym}_{key_idx}"
 
     st.markdown("<div class='hidden-close-trigger'></div>", unsafe_allow_html=True)
     st.button(close_token, key=f"close_x_{fetch_sym}_{key_idx}", on_click=_close_pro_chart, args=(fetch_sym, current_grid_syms))
@@ -3526,12 +3664,16 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     st.markdown("<div class='hidden-close-trigger'></div>", unsafe_allow_html=True)
     st.button(exit_token, key=f"exit_btn_{fetch_sym}_{key_idx}", on_click=_exec_chart_trade, args=(fetch_sym, "EXIT", ltp_v, 0, 0))
 
+    st.markdown("<div class='hidden-close-trigger'></div>", unsafe_allow_html=True)
+    st.button(prod_token, key=f"prod_btn_{fetch_sym}_{key_idx}", on_click=_toggle_trade_prod)
+
     if df_c is None or df_c.empty:
         st.info(f"⏳ Loading chart data for {disp_sym}...")
         return
 
+    # Keep all 5 trading days (~375 candles) for 5-min chart!
     df_p = _fix_ist_df(df_c) if timeframe == "Intraday (5m)" else df_c.dropna(subset=['Open', 'High', 'Low', 'Close']).copy()
-    df_p = df_p.tail(110).copy()
+    df_p = df_p.tail(375 if timeframe == "Intraday (5m)" else 150).copy()
     if df_p.empty:
         st.info(f"No valid candles for {disp_sym}")
         return
@@ -3548,6 +3690,8 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     df_p['BB_UP'] = sma20 + 2.0 * std20
     df_p['BB_DN'] = sma20 - 2.0 * std20
 
+    pine_res = _compute_pinescript_suite(df_p)
+
     ph = float(row_data.get('Prev_H', df_p['High'].max()))
     pl = float(row_data.get('Prev_L', df_p['Low'].min()))
     pc = float(row_data.get('Prev_C', df_p['Close'].iloc[0]))
@@ -3563,33 +3707,40 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     if active_tr:
         t_side = active_tr['side']
         t_qty = int(active_tr['qty'])
+        t_prod = active_tr.get('prod', 'INTRADAY')
         t_ent = float(active_tr['entry'])
         t_sl = float(active_tr['sl'])
         t_tg = float(active_tr['target'])
         pnl_val = (ltp_v - t_ent) * t_qty if t_side == "BUY" else (t_ent - ltp_v) * t_qty
+        pnl_pct = ((ltp_v - t_ent) / t_ent * 100.0) if t_side == "BUY" else ((t_ent - ltp_v) / t_ent * 100.0)
         pnl_sign = "+" if pnl_val >= 0 else ""
         pnl_col = "#22c55e" if pnl_val >= 0 else "#ef4444"
         pos_obj = {
             "sym": fetch_sym,
             "side": t_side,
+            "prod": "INTRADAY" if t_prod == "INTRADAY" else "LONGTERM",
             "qty": t_qty,
             "entry": t_ent,
             "sl": t_sl,
             "target": t_tg,
             "ltp": ltp_v,
-            "entryTitle": f"{'🟢 BUY' if t_side=='BUY' else '🔴 SELL'} {t_qty} @ ₹{t_ent} | PnL: {pnl_sign}₹{pnl_val:,.2f}",
+            "pnlVal": round(pnl_val, 2),
+            "pnlPct": round(pnl_pct, 2),
+            "entryTitle": f"{'🟢 BUY' if t_side=='BUY' else '🔴 SELL'} [{t_prod}] {t_qty} @ ₹{t_ent} | {pnl_sign}{pnl_pct:.2f}% ({pnl_sign}₹{pnl_val:,.2f})",
             "entryColor": "#22c55e" if pnl_val >= 0 else "#f97316"
         }
         pos_js = json.dumps(pos_obj)
         exit_btn_html = (
             f"<span style='background:{pnl_col};color:#fff;padding:0px 5px;border-radius:3px;font-size:9.5px;font-weight:bold;'>"
-            f"{pnl_sign}₹{pnl_val:,.1f}</span>"
+            f"{pnl_sign}₹{pnl_val:,.1f} ({pnl_sign}{pnl_pct:.1f}%)</span>"
             f"<span class='tr-btn exit-b' onclick=\"exitChartTrade('{fetch_sym}', '{exit_token}')\" title='Exit / Square-Off Position'>EXIT</span>"
         )
 
-    candles_js, vol_js, vwap_js, ema10_js, ema20_js, kal_js, st_js, bb_u_js, bb_d_js = [], [], [], [], [], [], [], [], []
+    candles_js, spd_candles_js, vol_js, vwap_js, ema10_js, ema20_js, kal_js, st_js, bb_u_js, bb_d_js = [], [], [], [], [], [], [], [], [], []
+    p_fast_js, p_slow_js, p_up_js, p_lo_js, p_mid_js, mtf20_js, mtf100_js, mtf200_js, dyn_ema_js, markers_js = [], [], [], [], [], [], [], [], [], []
     seen_ts = set()
-    for dt_idx, r in df_p.iterrows():
+
+    for idx_i, (dt_idx, r) in enumerate(df_p.iterrows()):
         ts = int(calendar.timegm(pd.Timestamp(dt_idx).timetuple()))
         if ts in seen_ts:
             continue
@@ -3597,7 +3748,10 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         o, h, l, c = round(float(r['Open']), 2), round(float(r['High']), 2), round(float(r['Low']), 2), round(float(r['Close']), 2)
         v = float(r.get('Volume', 0)) if pd.notna(r.get('Volume', 0)) else 0.0
         candles_js.append({'time': ts, 'open': o, 'high': h, 'low': l, 'close': c})
+        sc = pine_res['spd_col'][idx_i]
+        spd_candles_js.append({'time': ts, 'open': o, 'high': h, 'low': l, 'close': c, 'color': sc, 'wickColor': sc, 'borderColor': sc})
         vol_js.append({'time': ts, 'value': v, 'color': 'rgba(20, 184, 166, 0.45)' if c >= o else 'rgba(239, 68, 68, 0.45)'})
+
         if pd.notna(r.get('VWAP')): vwap_js.append({'time': ts, 'value': round(float(r['VWAP']), 2)})
         if pd.notna(r.get('EMA10')): ema10_js.append({'time': ts, 'value': round(float(r['EMA10']), 2)})
         if pd.notna(r.get('EMA20')): ema20_js.append({'time': ts, 'value': round(float(r['EMA20']), 2)})
@@ -3606,12 +3760,34 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         if pd.notna(r.get('BB_UP')): bb_u_js.append({'time': ts, 'value': round(float(r['BB_UP']), 2)})
         if pd.notna(r.get('BB_DN')): bb_d_js.append({'time': ts, 'value': round(float(r['BB_DN']), 2)})
 
+        # Pine Script v6 Series
+        if pd.notna(pine_res['fast_ma'].iloc[idx_i]):
+            p_fast_js.append({'time': ts, 'value': round(float(pine_res['fast_ma'].iloc[idx_i]), 2), 'color': pine_res['rib_col'][idx_i]})
+        if pd.notna(pine_res['slow_ma'].iloc[idx_i]):
+            p_slow_js.append({'time': ts, 'value': round(float(pine_res['slow_ma'].iloc[idx_i]), 2)})
+        if pd.notna(pine_res['ltf_up'].iloc[idx_i]):
+            p_up_js.append({'time': ts, 'value': round(float(pine_res['ltf_up'].iloc[idx_i]), 2)})
+            p_lo_js.append({'time': ts, 'value': round(float(pine_res['ltf_lo'].iloc[idx_i]), 2)})
+            p_mid_js.append({'time': ts, 'value': round(float(pine_res['ltf_mid'].iloc[idx_i]), 2), 'color': pine_res['rib_col'][idx_i]})
+        if pd.notna(pine_res['mtf20'].iloc[idx_i]):
+            mtf20_js.append({'time': ts, 'value': round(float(pine_res['mtf20'].iloc[idx_i]), 2)})
+            mtf100_js.append({'time': ts, 'value': round(float(pine_res['mtf100'].iloc[idx_i]), 2)})
+            mtf200_js.append({'time': ts, 'value': round(float(pine_res['mtf200'].iloc[idx_i]), 2)})
+        if pd.notna(pine_res['dyn_ema'].iloc[idx_i]):
+            dyn_ema_js.append({'time': ts, 'value': round(float(pine_res['dyn_ema'].iloc[idx_i]), 2), 'color': str(pine_res['dyn_col'][idx_i])})
+
+        if bool(pine_res['turn_buy'].iloc[idx_i]):
+            markers_js.append({'time': ts, 'position': 'belowBar', 'color': '#22c55e', 'shape': 'arrowUp', 'text': 'BIG BULL'})
+        elif bool(pine_res['turn_sell'].iloc[idx_i]):
+            markers_js.append({'time': ts, 'position': 'aboveBar', 'color': '#ef4444', 'shape': 'arrowDown', 'text': 'BIG BEAR'})
+
     is_light = "Light" in theme_mode
     bg_hex = "#ffffff" if is_light else "#0b0e14"
     txt_hex = "#111827" if is_light else "#d1d5db"
     grid_hex = "#f1f5f9" if is_light else "#141923"
     chart_dom_id = f"tv_lw_{key_idx}"
-    bar_sp = 5 if len(current_grid_syms) >= 2 else 7
+    bar_sp = 4.5 if len(current_grid_syms) >= 2 else 6.5
+    wtbl = pine_res['wave_tbl']
 
     html_code = f"""
     <!DOCTYPE html>
@@ -3621,44 +3797,55 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     <style>
         body {{ margin: 0; padding: 0; background: {bg_hex}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace; overflow: hidden; border: 1px solid #2b313f; border-radius: 6px; }}
         .hdr-bar {{
-            background: #111622; color: #fff; padding: 2px 5px; display: flex; justify-content: space-between; align-items: center;
-            border-bottom: 1px solid #2b313f; font-size: 11px; user-select: none; height: 24px; box-sizing: border-box;
+            background: #111622; color: #fff; padding: 2px 6px; display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid #2b313f; font-size: 11px; user-select: none; height: 25px; box-sizing: border-box;
         }}
         .stk-info {{ display: flex; align-items: center; gap: 4px; white-space: nowrap; overflow: hidden; }}
-        .ind-bar {{ display: flex; gap: 2.5px; flex-wrap: nowrap; align-items: center; }}
+        .ind-bar {{ display: flex; gap: 4px; flex-wrap: nowrap; align-items: center; position: relative; }}
         .tr-btn {{
             padding: 1px 6px; border-radius: 3px; font-size: 9.5px; font-weight: 800; cursor: pointer;
             color: #ffffff; transition: 0.12s; white-space: nowrap; letter-spacing: 0.3px;
         }}
-        .buy-b {{ background: #16a34a; border: 1px solid #22c55e; margin-left: 3px; }}
+        .prod-b {{ background: {prod_badge_col}; border: 1px solid rgba(255,255,255,0.25); font-size: 9px; padding: 1px 5px; }}
+        .prod-b:hover {{ opacity: 0.9; }}
+        .buy-b {{ background: #16a34a; border: 1px solid #22c55e; }}
         .buy-b:hover {{ background: #15803d; transform: scale(1.04); }}
         .sell-b {{ background: #dc2626; border: 1px solid #ef4444; }}
         .sell-b:hover {{ background: #b91c1c; transform: scale(1.04); }}
         .exit-b {{ background: #eab308; color: #111827; border: 1px solid #facc15; }}
         .exit-b:hover {{ background: #ca8a04; color: #fff; }}
-        .ibtn {{
-            padding: 1px 4px; border-radius: 3px; font-size: 8.5px; font-weight: bold; cursor: pointer;
-            background: #1f2937; color: #9ca3af; border: 1px solid #374151; transition: 0.12s; white-space: nowrap;
+
+        /* Select Indicator Dropdown Menu */
+        .ind-drop-btn {{
+            background: #1e293b; color: #38bdf8; border: 1px solid #334155; border-radius: 4px;
+            padding: 1px 7px; font-size: 10px; font-weight: bold; cursor: pointer; white-space: nowrap;
         }}
-        .ibtn.active-vwap {{ background: #2563eb; color: #fff; border-color: #2563eb; }}
-        .ibtn.active-sr {{ background: #16a34a; color: #fff; border-color: #16a34a; }}
-        .ibtn.active-piv {{ background: #d97706; color: #fff; border-color: #d97706; }}
-        .ibtn.active-ema {{ background: #7c3aed; color: #fff; border-color: #7c3aed; }}
-        .ibtn.active-kal {{ background: #0d9488; color: #fff; border-color: #0d9488; }}
-        .ibtn.active-st {{ background: #15803d; color: #fff; border-color: #15803d; }}
+        .ind-drop-btn:hover {{ background: #334155; color: #fff; }}
+        .ind-menu {{
+            display: none; position: fixed; top: 26px; right: 28px; z-index: 9999;
+            background: #111622; border: 1px solid #374151; border-radius: 6px; padding: 6px 8px;
+            width: 235px; box-shadow: 0 8px 20px rgba(0,0,0,0.75); color: #e5e7eb; font-size: 10.5px;
+        }}
+        .ind-menu.open {{ display: block; }}
+        .ind-row {{
+            display: flex; align-items: center; gap: 6px; padding: 3px 4px; cursor: pointer; border-radius: 4px;
+        }}
+        .ind-row:hover {{ background: #1f2937; }}
+        .ind-sec-lbl {{ font-size: 9px; color: #9ca3af; font-weight: bold; margin: 4px 0 2px 2px; text-transform: uppercase; letter-spacing: 0.5px; }}
+
         .close-btn {{
             background: #dc2626; color: #ffffff; border: 1px solid #ef4444; border-radius: 3px;
             padding: 0px 5px; font-size: 10px; font-weight: bold; cursor: pointer;
-            margin-left: 2px; line-height: 15px; display: inline-block;
+            margin-left: 2px; line-height: 16px; display: inline-block;
         }}
         .close-btn:hover {{ background: #b91c1c; }}
         .ohlc-overlay {{
-            position: absolute; top: 26px; left: 6px; z-index: 20; font-size: 10px;
+            position: absolute; top: 27px; left: 6px; z-index: 20; font-size: 10px;
             color: {txt_hex}; background: {'rgba(255,255,255,0.85)' if is_light else 'rgba(11,14,20,0.85)'};
             padding: 1px 5px; border-radius: 4px; pointer-events: none; font-family: monospace;
         }}
         .sltg-box {{
-            position: absolute; top: 44px; left: 6px; z-index: 30; display: none; align-items: center; gap: 6px;
+            position: absolute; top: 45px; left: 6px; z-index: 30; display: none; align-items: center; gap: 6px;
             background: rgba(17, 22, 34, 0.92); border: 1px solid #374151; border-radius: 5px;
             padding: 2px 7px; font-size: 10px; color: #fff; font-family: monospace; box-shadow: 0 2px 6px rgba(0,0,0,0.4);
         }}
@@ -3666,7 +3853,19 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             width: 58px; background: #0b0e14; color: #fff; border: 1px solid #4b5563; border-radius: 3px;
             font-size: 10px; font-family: monospace; font-weight: bold; padding: 1px 3px; text-align: right;
         }}
-        .sltg-inp:focus {{ outline: none; border-color: #38bdf8; }}
+        /* Hover Tooltip for Entry, SL & TGT Lines */
+        .line-hover-tip {{
+            position: absolute; display: none; z-index: 80; pointer-events: none;
+            background: rgba(15, 23, 42, 0.96); border: 1px solid #38bdf8; color: #ffffff;
+            padding: 4px 8px; border-radius: 5px; font-size: 10.5px; font-family: monospace;
+            white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+        }}
+        /* Pine Script Wave Dominance Table */
+        .wave-tbl {{
+            position: absolute; top: 28px; right: 62px; z-index: 25; display: none;
+            background: rgba(17, 22, 34, 0.90); border: 1px solid #374151; border-radius: 5px;
+            padding: 3px 7px; font-size: 9.5px; color: #e5e7eb; font-family: monospace;
+        }}
     </style>
     </head>
     <body>
@@ -3676,37 +3875,67 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 <span style="background:#1e293b; color:#38bdf8; padding:0px 4px; border-radius:3px; font-size:9px; font-weight:bold;">{tf_short}</span>
                 <span style="font-weight:700; font-size:11.5px; color:#ffd700;">₹{ltp_v:,.2f}</span>
                 <span style="font-weight:700; font-size:10px; color:{c_col};">({chg_v:+.2f}%)</span>
-                <span class="tr-btn buy-b" onclick="startNewTrade('{fetch_sym}', '{buy_token}')" title="Buy {disp_sym} @ ₹{ltp_v:.2f}">BUY</span>
-                <span class="tr-btn sell-b" onclick="startNewTrade('{fetch_sym}', '{sell_token}')" title="Sell {disp_sym} @ ₹{ltp_v:.2f}">SELL</span>
+                <span class="tr-btn prod-b" onclick="triggerStBtn('{prod_token}')" title="Click to switch between Intraday (MIS) and Longterm (CNC)">{prod_badge_txt}</span>
+                <span class="tr-btn buy-b" onclick="startNewTrade('{fetch_sym}', '{buy_token}')" title="Buy {disp_sym} ({prod_mode}) @ ₹{ltp_v:.2f}">BUY</span>
+                <span class="tr-btn sell-b" onclick="startNewTrade('{fetch_sym}', '{sell_token}')" title="Sell {disp_sym} ({prod_mode}) @ ₹{ltp_v:.2f}">SELL</span>
                 {exit_btn_html}
             </div>
             <div class="ind-bar">
-                <span id="btn_ema" class="ibtn {'active-ema' if 'EMAs' in active_inds else ''}" onclick="toggleInd('ema')">EMAs</span>
-                <span id="btn_sr" class="ibtn {'active-sr' if 'S&R' in active_inds else ''}" onclick="toggleInd('sr')">S&R</span>
-                <span id="btn_piv" class="ibtn {'active-piv' if 'Pivots(R1,S1)' in active_inds else ''}" onclick="toggleInd('piv')">Pivots</span>
-                <span id="btn_vwap" class="ibtn {'active-vwap' if 'VWAP' in active_inds else ''}" onclick="toggleInd('vwap')">VWAP</span>
-                <span id="btn_bb" class="ibtn {'active-vwap' if 'BB' in active_inds else ''}" onclick="toggleInd('bb')">BB</span>
-                <span id="btn_kal" class="ibtn {'active-kal' if 'Kalman' in active_inds else ''}" onclick="toggleInd('kal')">Kalman</span>
-                <span id="btn_st" class="ibtn {'active-st' if 'ST(7,3)' in active_inds else ''}" onclick="toggleInd('st')">ST(7,3)</span>
+                <span class="ind-drop-btn" onclick="toggleIndMenu(event)">📊 Select Indicator ▾</span>
+                <div id="ind_menu_{chart_dom_id}" class="ind-menu" onclick="event.stopPropagation()">
+                    <div class="ind-sec-lbl">Default Indicators (Active)</div>
+                    <label class="ind-row"><input type="checkbox" id="chk_ema" {'checked' if 'EMAs' in active_inds else ''} onchange="toggleInd('ema')"> <span>EMAs (10, 20)</span></label>
+                    <label class="ind-row"><input type="checkbox" id="chk_sr" {'checked' if 'S&R' in active_inds else ''} onchange="toggleInd('sr')"> <span>Support & Resistance (S&R)</span></label>
+                    <label class="ind-row"><input type="checkbox" id="chk_piv" {'checked' if 'Pivots(R1,S1)' in active_inds else ''} onchange="toggleInd('piv')"> <span>Pivots (P, R1, S1)</span></label>
+                    <label class="ind-row"><input type="checkbox" id="chk_vwap" {'checked' if 'VWAP' in active_inds else ''} onchange="toggleInd('vwap')"> <span>VWAP Line</span></label>
+                    <label class="ind-row"><input type="checkbox" id="chk_bb" {'checked' if 'BB' in active_inds else ''} onchange="toggleInd('bb')"> <span>Bollinger Bands (BB)</span></label>
+                    <label class="ind-row"><input type="checkbox" id="chk_kal" {'checked' if 'Kalman' in active_inds else ''} onchange="toggleInd('kal')"> <span>Kalman Filter</span></label>
+                    <label class="ind-row"><input type="checkbox" id="chk_st" {'checked' if 'ST(7,3)' in active_inds else ''} onchange="toggleInd('st')"> <span>Supertrend ST(7,3)</span></label>
+                    <hr style="border:0; border-top:1px solid #374151; margin:4px 0;">
+                    <div class="ind-sec-lbl" style="color:#4ade80;">🌲 Pine Script v6 Suite</div>
+                    <label class="ind-row"><input type="checkbox" id="chk_pine_all" onchange="togglePineAll(this.checked)"> <b style="color:#38bdf8;">⚡ Enable Full Pine Script</b></label>
+                    <label class="ind-row"><input type="checkbox" id="chk_pine_rib" onchange="toggleInd('pine_rib')"> <span>Swing Ribbon + Breakout</span></label>
+                    <label class="ind-row"><input type="checkbox" id="chk_pine_big" onchange="toggleInd('pine_big')"> <span>Big Trader Arrows + MTF EMA</span></label>
+                    <label class="ind-row"><input type="checkbox" id="chk_pine_tsa" onchange="toggleInd('pine_tsa')"> <span>Trend Speed + Wave Table</span></label>
+                </div>
                 <span class="close-btn" onclick="triggerStBtn('{close_token}')" title="Close {disp_sym}">✖</span>
             </div>
         </div>
 
         <div id="ohlc_{chart_dom_id}" class="ohlc-overlay">Move cursor to inspect OHLCV</div>
 
-        <!-- Floating SL & TGT Editor Box (Visible when trade is active) -->
+        <!-- Pine Script v6 Wave Dominance Table -->
+        <div id="wtbl_{chart_dom_id}" class="wave-tbl">
+            <div>Wave Avg: <b style="color:{wtbl['col']};">{wtbl['rat_avg']}</b> | Max: <b>{wtbl['rat_max']}</b></div>
+            <div>Dominance: <b style="color:{wtbl['col']};">{wtbl['dom']}</b></div>
+        </div>
+
+        <!-- Floating SL & TGT Editor Box -->
         <div id="sltg_bar_{chart_dom_id}" class="sltg-box">
             <span style="color:#f87171;font-weight:bold;">🛑 SL:</span>
             <input id="inp_sl_{chart_dom_id}" class="sltg-inp" type="number" step="0.5" onchange="onManualSLTG()" oninput="onManualSLTG()">
             <span style="color:#4ade80;font-weight:bold;margin-left:4px;">🎯 TGT:</span>
             <input id="inp_tg_{chart_dom_id}" class="sltg-inp" type="number" step="0.5" onchange="onManualSLTG()" oninput="onManualSLTG()">
-            <span style="color:#9ca3af;font-size:9px;">(↕️ Drag lines on chart)</span>
+            <span style="color:#9ca3af;font-size:9px;">(↕️ Hover/Drag lines)</span>
         </div>
 
-        <div id="{chart_dom_id}" style="width: 100%; height: calc(100vh - 24px);"></div>
+        <!-- Hover Tooltip for Entry / SL / Target Percentage & Amount -->
+        <div id="line_tip_{chart_dom_id}" class="line-hover-tip"></div>
+
+        <div id="{chart_dom_id}" style="width: 100%; height: calc(100vh - 25px);"></div>
 
         <script>
         window.parent._customSLTG = window.parent._customSLTG || {{}};
+        window.parent._savedIndState = window.parent._savedIndState || null;
+
+        window.toggleIndMenu = function(e) {{
+            e.stopPropagation();
+            document.getElementById('ind_menu_{chart_dom_id}').classList.toggle('open');
+        }};
+        document.addEventListener('click', () => {{
+            const m = document.getElementById('ind_menu_{chart_dom_id}');
+            if (m) m.classList.remove('open');
+        }});
 
         window.triggerStBtn = function(tokenStr) {{
             const btns = window.parent.document.querySelectorAll('button');
@@ -3729,6 +3958,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         }};
 
         const cData = {json.dumps(candles_js)};
+        const spdCandles = {json.dumps(spd_candles_js)};
         const vData = {json.dumps(vol_js)};
         const vwapData = {json.dumps(vwap_js)};
         const ema10Data = {json.dumps(ema10_js)};
@@ -3737,6 +3967,17 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         const stData = {json.dumps(st_js)};
         const bbUpData = {json.dumps(bb_u_js)};
         const bbDnData = {json.dumps(bb_d_js)};
+
+        const pFastData = {json.dumps(p_fast_js)};
+        const pSlowData = {json.dumps(p_slow_js)};
+        const pUpData = {json.dumps(p_up_js)};
+        const pLoData = {json.dumps(p_lo_js)};
+        const pMidData = {json.dumps(p_mid_js)};
+        const mtf20Data = {json.dumps(mtf20_js)};
+        const mtf100Data = {json.dumps(mtf100_js)};
+        const mtf200Data = {json.dumps(mtf200_js)};
+        const dynEmaData = {json.dumps(dyn_ema_js)};
+        const bigMarkers = {json.dumps(markers_js)};
         const activePos = {pos_js};
 
         const container = document.getElementById('{chart_dom_id}');
@@ -3744,6 +3985,8 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         const sltgBar = document.getElementById('sltg_bar_{chart_dom_id}');
         const inpSL = document.getElementById('inp_sl_{chart_dom_id}');
         const inpTG = document.getElementById('inp_tg_{chart_dom_id}');
+        const lineTip = document.getElementById('line_tip_{chart_dom_id}');
+        const wTbl = document.getElementById('wtbl_{chart_dom_id}');
 
         const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
         function fmtIST(ts) {{
@@ -3773,8 +4016,11 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 rightOffset: 3, barSpacing: {bar_sp},
                 tickMarkFormatter: (time, tickMarkType, locale) => {{
                     const d = new Date(time * 1000);
+                    const dd = String(d.getUTCDate()).padStart(2, '0');
+                    const mm = months[d.getUTCMonth()];
                     let H = d.getUTCHours();
                     const mn = String(d.getUTCMinutes()).padStart(2, '0');
+                    if (H === 9 && mn === '15') return `${{dd}} ${{mm}}`;
                     const ampm = H >= 12 ? 'PM' : 'AM';
                     H = H % 12 || 12;
                     return `${{H}}:${{mn}} ${{ampm}}`;
@@ -3801,22 +4047,26 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         volSeries.setData(vData);
         chart.timeScale().fitContent();
 
-        // 🔥 INTERACTIVE DRAGGABLE & EDITABLE SL / TARGET LINES
+        // 🔥 INTERACTIVE ENTRY, SL & TGT LINES WITH % AND ₹ AMOUNT ON HOVER & DRAG
         let entryLineObj = null, slLineObj = null, tgLineObj = null;
         let curSL = 0, curTG = 0, draggingMode = null;
 
-        function fmtSLTitle(slPrice) {{
-            const diff = activePos.side === 'BUY' ? (slPrice - activePos.entry) : (activePos.entry - slPrice);
+        function calcMetrics(priceVal) {{
+            const diff = activePos.side === 'BUY' ? (priceVal - activePos.entry) : (activePos.entry - priceVal);
+            const pct = (diff / activePos.entry) * 100.0;
             const rs = diff * activePos.qty;
             const sign = rs >= 0 ? '+' : '-';
-            return `🛑 SL ₹${{slPrice.toFixed(2)}} (${{sign}}₹${{Math.abs(rs).toFixed(0)}}) ↕`;
+            return {{ diff, pct, rs, sign }};
+        }}
+
+        function fmtSLTitle(slPrice) {{
+            const m = calcMetrics(slPrice);
+            return `🛑 SL ₹${{slPrice.toFixed(2)}} | ${{m.sign}}${{Math.abs(m.pct).toFixed(2)}}% (${{m.sign}}₹${{Math.abs(m.rs).toFixed(0)}}) ↕`;
         }}
 
         function fmtTGTitle(tgPrice) {{
-            const diff = activePos.side === 'BUY' ? (tgPrice - activePos.entry) : (activePos.entry - tgPrice);
-            const rs = diff * activePos.qty;
-            const sign = rs >= 0 ? '+' : '-';
-            return `🎯 TGT ₹${{tgPrice.toFixed(2)}} (${{sign}}₹${{Math.abs(rs).toFixed(0)}}) ↕`;
+            const m = calcMetrics(tgPrice);
+            return `🎯 TGT ₹${{tgPrice.toFixed(2)}} | ${{m.sign}}${{Math.abs(m.pct).toFixed(2)}}% (${{m.sign}}₹${{Math.abs(m.rs).toFixed(0)}}) ↕`;
         }}
 
         if (activePos) {{
@@ -3867,7 +4117,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 window.parent._customSLTG[activePos.sym] = {{ entry: activePos.entry, sl: curSL, tg: curTG }};
             }};
 
-            // Mouse Drag-and-Drop on Chart Canvas for SL & TGT Lines
             container.addEventListener('mousedown', (e) => {{
                 const rect = container.getBoundingClientRect();
                 const mouseY = e.clientY - rect.top;
@@ -3887,15 +4136,44 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
 
             window.addEventListener('mousemove', (e) => {{
                 const rect = container.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
                 const mouseY = e.clientY - rect.top;
 
                 if (!draggingMode) {{
+                    const entY = candleSeries.priceToCoordinate(activePos.entry);
                     const slY = candleSeries.priceToCoordinate(curSL);
                     const tgY = candleSeries.priceToCoordinate(curTG);
-                    if ((slY !== null && Math.abs(mouseY - slY) <= 10) || (tgY !== null && Math.abs(mouseY - tgY) <= 10)) {{
+
+                    if (slY !== null && Math.abs(mouseY - slY) <= 12) {{
                         container.style.cursor = 'ns-resize';
+                        const m = calcMetrics(curSL);
+                        lineTip.style.display = 'block';
+                        lineTip.style.borderColor = '#ef4444';
+                        lineTip.style.left = Math.min(mouseX + 14, rect.width - 260) + 'px';
+                        lineTip.style.top = Math.max(28, slY - 28) + 'px';
+                        lineTip.innerHTML = `🛑 <b>STOP LOSS: ₹${{curSL.toFixed(2)}}</b> | Move: <b style="color:#f87171;">${{m.sign}}${{Math.abs(m.pct).toFixed(2)}}%</b> | Amt: <b style="color:#f87171;">${{m.sign}}₹${{Math.abs(m.rs).toFixed(2)}}</b>`;
+                    }} else if (tgY !== null && Math.abs(mouseY - tgY) <= 12) {{
+                        container.style.cursor = 'ns-resize';
+                        const m = calcMetrics(curTG);
+                        lineTip.style.display = 'block';
+                        lineTip.style.borderColor = '#22c55e';
+                        lineTip.style.left = Math.min(mouseX + 14, rect.width - 260) + 'px';
+                        lineTip.style.top = Math.max(28, tgY - 28) + 'px';
+                        lineTip.innerHTML = `🎯 <b>TARGET: ₹${{curTG.toFixed(2)}}</b> | Move: <b style="color:#4ade80;">${{m.sign}}${{Math.abs(m.pct).toFixed(2)}}%</b> | Profit: <b style="color:#4ade80;">${{m.sign}}₹${{Math.abs(m.rs).toFixed(2)}}</b>`;
+                    }} else if (entY !== null && Math.abs(mouseY - entY) <= 12) {{
+                        container.style.cursor = 'pointer';
+                        const mSL = calcMetrics(curSL);
+                        const mTG = calcMetrics(curTG);
+                        const pSign = activePos.pnlVal >= 0 ? '+' : '-';
+                        const pCol = activePos.pnlVal >= 0 ? '#4ade80' : '#f87171';
+                        lineTip.style.display = 'block';
+                        lineTip.style.borderColor = '#38bdf8';
+                        lineTip.style.left = Math.min(mouseX + 14, rect.width - 320) + 'px';
+                        lineTip.style.top = Math.max(28, entY - 32) + 'px';
+                        lineTip.innerHTML = `<b>${{activePos.side}} [${{activePos.prod}}] ${{activePos.qty}} Qty @ ₹${{activePos.entry}}</b> | Live: <b style="color:${{pCol}};">${{pSign}}${{Math.abs(activePos.pnlPct).toFixed(2)}}% (${{pSign}}₹${{Math.abs(activePos.pnlVal).toFixed(2)}})</b><br><span style="color:#f87171;">🛑 SL: ${{mSL.sign}}${{Math.abs(mSL.pct).toFixed(2)}}% (${{mSL.sign}}₹${{Math.abs(mSL.rs).toFixed(0)}})</span> &nbsp;|&nbsp; <span style="color:#4ade80;">🎯 TGT: ${{mTG.sign}}${{Math.abs(mTG.pct).toFixed(2)}}% (${{mTG.sign}}₹${{Math.abs(mTG.rs).toFixed(0)}})</span>`;
                     }} else {{
                         container.style.cursor = 'default';
+                        lineTip.style.display = 'none';
                     }}
                     return;
                 }}
@@ -3908,10 +4186,16 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                     curSL = newP;
                     inpSL.value = curSL.toFixed(2);
                     slLineObj.applyOptions({{ price: curSL, title: fmtSLTitle(curSL) }});
+                    const m = calcMetrics(curSL);
+                    lineTip.style.display = 'block';
+                    lineTip.innerHTML = `🛑 <b>SL: ₹${{curSL.toFixed(2)}}</b> | <b style="color:#f87171;">${{m.sign}}${{Math.abs(m.pct).toFixed(2)}}% (${{m.sign}}₹${{Math.abs(m.rs).toFixed(2)}})</b>`;
                 }} else if (draggingMode === 'TG') {{
                     curTG = newP;
                     inpTG.value = curTG.toFixed(2);
                     tgLineObj.applyOptions({{ price: curTG, title: fmtTGTitle(curTG) }});
+                    const m = calcMetrics(curTG);
+                    lineTip.style.display = 'block';
+                    lineTip.innerHTML = `🎯 <b>TGT: ₹${{curTG.toFixed(2)}}</b> | <b style="color:#4ade80;">${{m.sign}}${{Math.abs(m.pct).toFixed(2)}}% (${{m.sign}}₹${{Math.abs(m.rs).toFixed(2)}})</b>`;
                 }}
                 window.parent._customSLTG[activePos.sym] = {{ entry: activePos.entry, sl: curSL, tg: curTG }};
             }});
@@ -3925,6 +4209,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             }});
         }}
 
+        // Default Indicators
         const vwapSeries = chart.addLineSeries({{ color: '#eab308', lineWidth: 2, title: 'VWAP', visible: {'true' if 'VWAP' in active_inds else 'false'} }});
         vwapSeries.setData(vwapData);
 
@@ -3943,6 +4228,28 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         bbUpSeries.setData(bbUpData);
         const bbDnSeries = chart.addLineSeries({{ color: 'rgba(37,99,235,0.4)', lineWidth: 1, priceLineVisible: false, visible: {'true' if 'BB' in active_inds else 'false'} }});
         bbDnSeries.setData(bbDnData);
+
+        // 🌲 Pine Script v6 Indicator Series
+        const pineFastSeries = chart.addLineSeries({{ lineWidth: 2, priceLineVisible: false, visible: false, title: 'FastWMA' }});
+        pineFastSeries.setData(pFastData);
+        const pineSlowSeries = chart.addLineSeries({{ color: '#64748b', lineWidth: 1, priceLineVisible: false, visible: false }});
+        pineSlowSeries.setData(pSlowData);
+        const pineUpBand = chart.addLineSeries({{ color: '#f97316', lineWidth: 1, lineStyle: 2, priceLineVisible: false, visible: false }});
+        pineUpBand.setData(pUpData);
+        const pineLoBand = chart.addLineSeries({{ color: '#f97316', lineWidth: 1, lineStyle: 2, priceLineVisible: false, visible: false }});
+        pineLoBand.setData(pLoData);
+        const pineMidBand = chart.addLineSeries({{ lineWidth: 3, priceLineVisible: false, visible: false }});
+        pineMidBand.setData(pMidData);
+
+        const pineMtf20 = chart.addLineSeries({{ color: '#f97316', lineWidth: 2, priceLineVisible: false, visible: false, title: 'EMA20' }});
+        pineMtf20.setData(mtf20Data);
+        const pineMtf100 = chart.addLineSeries({{ color: '#3b82f6', lineWidth: 2, priceLineVisible: false, visible: false, title: 'EMA100' }});
+        pineMtf100.setData(mtf100Data);
+        const pineMtf200 = chart.addLineSeries({{ color: '#a855f7', lineWidth: 2, priceLineVisible: false, visible: false, title: 'EMA200' }});
+        pineMtf200.setData(mtf200Data);
+
+        const pineDynSeries = chart.addLineSeries({{ lineWidth: 2, priceLineVisible: false, visible: false, title: 'DynTrend' }});
+        pineDynSeries.setData(dynEmaData);
 
         let srLines = [];
         let pivLines = [];
@@ -3963,28 +4270,70 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 pivLines.push(candleSeries.createPriceLine({{ price: {s1}, color: '#dc2626', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'S1' }}));
             }}
         }}
-        drawSR({'true' if 'S&R' in active_inds else 'false'});
-        drawPiv({'true' if 'Pivots(R1,S1)' in active_inds else 'false'});
 
-        const state = {{
+        const defaultState = {{
             ema: {'true' if 'EMAs' in active_inds else 'false'},
             sr: {'true' if 'S&R' in active_inds else 'false'},
             piv: {'true' if 'Pivots(R1,S1)' in active_inds else 'false'},
             vwap: {'true' if 'VWAP' in active_inds else 'false'},
             bb: {'true' if 'BB' in active_inds else 'false'},
             kal: {'true' if 'Kalman' in active_inds else 'false'},
-            st: {'true' if 'ST(7,3)' in active_inds else 'false'}
+            st: {'true' if 'ST(7,3)' in active_inds else 'false'},
+            pine_rib: false,
+            pine_big: false,
+            pine_tsa: false
         }};
+        const state = Object.assign({{}}, defaultState, window.parent._savedIndState || {{}});
+
+        function applyAllIndStates() {{
+            vwapSeries.applyOptions({{ visible: state.vwap }});
+            ema10Series.applyOptions({{ visible: state.ema }});
+            ema20Series.applyOptions({{ visible: state.ema }});
+            kalSeries.applyOptions({{ visible: state.kal }});
+            stSeries.applyOptions({{ visible: state.st }});
+            bbUpSeries.applyOptions({{ visible: state.bb }});
+            bbDnSeries.applyOptions({{ visible: state.bb }});
+            drawSR(state.sr);
+            drawPiv(state.piv);
+
+            pineFastSeries.applyOptions({{ visible: state.pine_rib }});
+            pineSlowSeries.applyOptions({{ visible: state.pine_rib }});
+            pineUpBand.applyOptions({{ visible: state.pine_rib }});
+            pineLoBand.applyOptions({{ visible: state.pine_rib }});
+            pineMidBand.applyOptions({{ visible: state.pine_rib }});
+
+            pineMtf20.applyOptions({{ visible: state.pine_big }});
+            pineMtf100.applyOptions({{ visible: state.pine_big }});
+            pineMtf200.applyOptions({{ visible: state.pine_big }});
+            candleSeries.setMarkers(state.pine_big ? bigMarkers : []);
+
+            pineDynSeries.applyOptions({{ visible: state.pine_tsa }});
+            candleSeries.setData(state.pine_tsa ? spdCandles : cData);
+            wTbl.style.display = state.pine_tsa ? 'block' : 'none';
+
+            // Sync checkboxes
+            ['ema','sr','piv','vwap','bb','kal','st','pine_rib','pine_big','pine_tsa'].forEach(k => {{
+                const el = document.getElementById('chk_' + k);
+                if (el) el.checked = !!state[k];
+            }});
+            const allEl = document.getElementById('chk_pine_all');
+            if (allEl) allEl.checked = (state.pine_rib && state.pine_big && state.pine_tsa);
+        }}
+
+        applyAllIndStates();
 
         window.toggleInd = function(k) {{
             state[k] = !state[k];
-            if (k === 'vwap') {{ vwapSeries.applyOptions({{ visible: state.vwap }}); document.getElementById('btn_vwap').className = 'ibtn ' + (state.vwap ? 'active-vwap' : ''); }}
-            if (k === 'ema') {{ ema10Series.applyOptions({{ visible: state.ema }}); ema20Series.applyOptions({{ visible: state.ema }}); document.getElementById('btn_ema').className = 'ibtn ' + (state.ema ? 'active-ema' : ''); }}
-            if (k === 'kal') {{ kalSeries.applyOptions({{ visible: state.kal }}); document.getElementById('btn_kal').className = 'ibtn ' + (state.kal ? 'active-kal' : ''); }}
-            if (k === 'st') {{ stSeries.applyOptions({{ visible: state.st }}); document.getElementById('btn_st').className = 'ibtn ' + (state.st ? 'active-st' : ''); }}
-            if (k === 'bb') {{ bbUpSeries.applyOptions({{ visible: state.bb }}); bbDnSeries.applyOptions({{ visible: state.bb }}); document.getElementById('btn_bb').className = 'ibtn ' + (state.bb ? 'active-vwap' : ''); }}
-            if (k === 'sr') {{ drawSR(state.sr); document.getElementById('btn_sr').className = 'ibtn ' + (state.sr ? 'active-sr' : ''); }}
-            if (k === 'piv') {{ drawPiv(state.piv); document.getElementById('btn_piv').className = 'ibtn ' + (state.piv ? 'active-piv' : ''); }}
+            window.parent._savedIndState = Object.assign({{}}, state);
+            applyAllIndStates();
+        }};
+
+        window.togglePineAll = function(on) {{
+            state.pine_rib = on;
+            state.pine_big = on;
+            state.pine_tsa = on;
+            window.parent._savedIndState = Object.assign({{}}, state);
+            applyAllIndStates();
         }};
 
         const volLookup = Object.fromEntries(vData.map(x => [x.time, x.value]));
