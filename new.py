@@ -3168,29 +3168,174 @@ def _toggle_wl_stock(s_ft, s_disp):
     st.session_state.grid_layout_mode = new_mode
     st.session_state.pro_grid_radio_key = new_mode
     _UI['grid_layout_mode'] = new_mode
-# --- CHART TRADING ENGINE (INTRADAY/LONGTERM + DHAN FREE API + TRADINGVIEW LINES) ---
+# --- CHART TRADING ENGINE (PAPER TRADING GOOGLE SHEETS + DHAN LIVE/SUPER ORDER API + TRADINGVIEW LINES) ---
 if 'chart_trades' not in _SS:
     _SS['chart_trades'] = {}
+if 'paper_loaded' not in _SS:
+    _SS['paper_loaded'] = False
 if 'trade_qty' not in _UI:
     _UI['trade_qty'] = 10
 if 'trade_mode' not in _UI:
-    _UI['trade_mode'] = "🧪 Test (Chart Lines)"
+    _UI['trade_mode'] = "📝 Paper Trading"
 if 'trade_prod' not in _UI:
     _UI['trade_prod'] = "INTRADAY"
 
-def _place_dhan_free_order(clean_sym, side, qty, prod_type="INTRADAY"):
-    """Dhan Free Tier Orders API (/v2/orders) dwara INTRADAY leda CNC (Longterm) order vestundi"""
+@st.cache_resource(show_spinner=False)
+def init_paper_sheets():
+    """Trading_DB Google Sheet lo Paper_Portfolio mariyu Paper_TradeBook tabs auto-create/connect chestundi"""
+    try:
+        sh = port_ws.spreadsheet
+        try:
+            pp_ws = sh.worksheet("Paper_Portfolio")
+        except Exception:
+            pp_ws = sh.add_worksheet(title="Paper_Portfolio", rows=200, cols=12)
+            pp_ws.update([["Symbol", "Side", "Prod", "Quantity", "Entry_Price", "SL", "Target", "Date_Time", "Mode"]])
+        try:
+            pt_ws = sh.worksheet("Paper_TradeBook")
+        except Exception:
+            pt_ws = sh.add_worksheet(title="Paper_TradeBook", rows=500, cols=12)
+            pt_ws.update([["Entry_Time", "Exit_Time", "Symbol", "Side", "Prod", "Quantity", "Entry_Price", "Exit_Price", "PnL_Rs", "PnL_Pct", "Mode"]])
+        return pp_ws, pt_ws
+    except Exception:
+        return None, None
+
+@st.cache_data(ttl=60, show_spinner=False)
+def load_paper_portfolio():
+    cols = ["Symbol", "Side", "Prod", "Quantity", "Entry_Price", "SL", "Target", "Date_Time", "Mode"]
+    try:
+        pp_ws, _ = init_paper_sheets()
+        if pp_ws is None:
+            return pd.DataFrame(columns=cols)
+        recs = pp_ws.get_all_records()
+        df_p = pd.DataFrame(recs) if recs else pd.DataFrame(columns=cols)
+        for c in cols:
+            if c not in df_p.columns:
+                df_p[c] = ""
+        return df_p[cols]
+    except Exception:
+        return pd.DataFrame(columns=cols)
+
+@st.cache_data(ttl=60, show_spinner=False)
+def load_paper_tradebook():
+    cols = ["Entry_Time", "Exit_Time", "Symbol", "Side", "Prod", "Quantity", "Entry_Price", "Exit_Price", "PnL_Rs", "PnL_Pct", "Mode"]
+    try:
+        _, pt_ws = init_paper_sheets()
+        if pt_ws is None:
+            return pd.DataFrame(columns=cols)
+        recs = pt_ws.get_all_records()
+        df_t = pd.DataFrame(recs) if recs else pd.DataFrame(columns=cols)
+        for c in cols:
+            if c not in df_t.columns:
+                df_t[c] = ""
+        return df_t[cols]
+    except Exception:
+        return pd.DataFrame(columns=cols)
+
+def save_paper_portfolio_df(df_p):
+    try:
+        pp_ws, _ = init_paper_sheets()
+        if pp_ws is not None:
+            pp_ws.clear()
+            df_clean = df_p.fillna("")
+            pp_ws.update([df_clean.columns.values.tolist()] + df_clean.values.tolist())
+            load_paper_portfolio.clear()
+    except Exception:
+        pass
+
+def save_paper_tradebook_df(df_t):
+    try:
+        _, pt_ws = init_paper_sheets()
+        if pt_ws is not None:
+            df_clean = df_t.dropna(how='all').reset_index(drop=True).fillna("")
+            pt_ws.clear()
+            pt_ws.update([df_clean.columns.values.tolist()] + df_clean.values.tolist())
+            load_paper_tradebook.clear()
+    except Exception:
+        pass
+
+def _sync_chart_trades_to_sheet():
+    """_SS['chart_trades'] lo unna active trades annitini Google Sheet Paper_Portfolio lo save chestundi"""
+    rows = []
+    for f_sym, tr in _SS['chart_trades'].items():
+        rows.append({
+            "Symbol": str(f_sym).replace(".NS", ""),
+            "Side": tr.get("side", "BUY"),
+            "Prod": tr.get("prod", "INTRADAY"),
+            "Quantity": int(tr.get("qty", 1)),
+            "Entry_Price": round(float(tr.get("entry", 0)), 2),
+            "SL": round(float(tr.get("sl", 0)), 2),
+            "Target": round(float(tr.get("target", 0)), 2),
+            "Date_Time": str(tr.get("time", "")),
+            "Mode": str(tr.get("mode", "📝 Paper Trading"))
+        })
+    cols = ["Symbol", "Side", "Prod", "Quantity", "Entry_Price", "SL", "Target", "Date_Time", "Mode"]
+    save_paper_portfolio_df(pd.DataFrame(rows, columns=cols) if rows else pd.DataFrame(columns=cols))
+
+# Startup lo Google Sheet nundi active paper trades chart meedaki load cheyadam
+if not _SS['paper_loaded']:
+    try:
+        _df_init_pp = load_paper_portfolio()
+        if not _df_init_pp.empty:
+            for _, _r in _df_init_pp.iterrows():
+                _s_clean = str(_r.get("Symbol", "")).strip().upper()
+                if not _s_clean:
+                    continue
+                _f_sym = _s_clean if (_s_clean.startswith("^") or "=" in _s_clean or _s_clean.endswith(".NS")) else f"{_s_clean}.NS"
+                _SS['chart_trades'][_f_sym] = {
+                    'side': str(_r.get("Side", "BUY")).upper(),
+                    'prod': str(_r.get("Prod", "INTRADAY")).upper(),
+                    'qty': int(float(_r.get("Quantity", 10) or 10)),
+                    'entry': round(float(_r.get("Entry_Price", 0) or 0), 2),
+                    'sl': round(float(_r.get("SL", 0) or 0), 2),
+                    'target': round(float(_r.get("Target", 0) or 0), 2),
+                    'time': str(_r.get("Date_Time", "-")),
+                    'mode': str(_r.get("Mode", "📝 Paper Trading"))
+                }
+    except Exception:
+        pass
+    _SS['paper_loaded'] = True
+
+def _place_dhan_free_order(clean_sym, side, qty, prod_type="INTRADAY", sl_p=0.0, tg_p=0.0, use_super=False):
+    """Dhan Orders API (/v2/orders) leda Super Order API (/v2/super/orders) dwara Dhan App/Web lo real order vestundi"""
     cid, tok = _dhan_creds()
     if not cid or not tok:
-        return False, "secrets.toml lo [dhan] client_id / access_token ledu (Test Line matrame veyabadindi)"
+        return False, "secrets.toml lo [dhan] client_id / access_token ledu! (Paper Trade matrame save ayyindi)"
     s_map = get_dhan_security_map()
     sec_id = s_map.get(clean_sym)
     if not sec_id:
-        return False, f"{clean_sym} securityId dorkaledu"
+        return False, f"Dhan Scrip Master lo '{clean_sym}' securityId dorkaledu"
+
     dhan_prod = "INTRADAY" if prod_type == "INTRADAY" else "CNC"
+    corr_id = f"st_{int(time.time())}"
+
+    # 1. Try Dhan Super Order API (Entry + Target + SL together) if selected
+    if use_super and sl_p > 0 and tg_p > 0:
+        super_payload = {
+            "dhanClientId": str(cid),
+            "correlationId": corr_id,
+            "transactionType": side,
+            "exchangeSegment": "NSE_EQ",
+            "productType": dhan_prod,
+            "orderType": "MARKET",
+            "securityId": str(sec_id),
+            "quantity": int(qty),
+            "price": 0,
+            "targetPrice": round(float(tg_p), 2),
+            "stopLossPrice": round(float(sl_p), 2),
+            "trailingJump": 0
+        }
+        try:
+            rs = requests.post(f"{DHAN_REST}/super/orders", json=super_payload, headers=_dhan_headers(cid, tok), timeout=8)
+            js = rs.json() if rs.content else {}
+            if rs.status_code in (200, 201) and js.get("orderId"):
+                return True, f"✅ Dhan Super Order (Entry+SL+TGT) Placed! Order ID: {js.get('orderId')}"
+        except Exception:
+            pass
+
+    # 2. Standard Dhan v2 Market Order (/v2/orders) — Works on Free Tier Trading APIs
     payload = {
         "dhanClientId": str(cid),
-        "correlationId": f"tv_{int(time.time())}",
+        "correlationId": corr_id,
         "transactionType": side,
         "exchangeSegment": "NSE_EQ",
         "productType": dhan_prod,
@@ -3198,15 +3343,21 @@ def _place_dhan_free_order(clean_sym, side, qty, prod_type="INTRADAY"):
         "validity": "DAY",
         "securityId": str(sec_id),
         "quantity": int(qty),
-        "price": 0
+        "disclosedQuantity": 0,
+        "price": 0,
+        "triggerPrice": 0,
+        "afterMarketOrder": False,
+        "amoTime": "OPEN",
+        "boProfitValue": 0,
+        "boStopLossValue": 0
     }
     try:
         r = requests.post(f"{DHAN_REST}/orders", json=payload, headers=_dhan_headers(cid, tok), timeout=8)
         j = r.json() if r.content else {}
         if r.status_code in (200, 201) and j.get("orderId"):
-            return True, f"✅ Dhan {dhan_prod} Order Placed! ID: {j.get('orderId')}"
-        err_msg = j.get("errorMessage") or j.get("internalErrorMessage") or r.text[:100]
-        return False, f"⚠️ Dhan API: {err_msg}"
+            return True, f"✅ Dhan App/Web Order Placed! ID: {j.get('orderId')} ({j.get('orderStatus', 'TRANSIT')})"
+        err_msg = j.get("errorMessage") or j.get("internalErrorMessage") or _dhan_classify(r.status_code, r.text, j)
+        return False, f"⚠️ Dhan Rejected: {err_msg}"
     except Exception as e:
         return False, f"⚠️ Network error: {e}"
 
@@ -3214,23 +3365,60 @@ def _toggle_trade_prod():
     cur = _UI.get('trade_prod', 'INTRADAY')
     _UI['trade_prod'] = 'CNC' if cur == 'INTRADAY' else 'INTRADAY'
 
+def _update_chart_sl_tg(fetch_sym, new_sl, new_tg):
+    if fetch_sym in _SS['chart_trades']:
+        if new_sl > 0:
+            _SS['chart_trades'][fetch_sym]['sl'] = round(float(new_sl), 2)
+        if new_tg > 0:
+            _SS['chart_trades'][fetch_sym]['target'] = round(float(new_tg), 2)
+        _sync_chart_trades_to_sheet()
+        st.toast(f"💾 Updated SL (₹{new_sl:.2f}) & TGT (₹{new_tg:.2f}) saved to Google Sheets!", icon="✅")
+
 def _exec_chart_trade(fetch_sym, side, ltp_p, sl_p, tg_p):
     clean_sym = str(fetch_sym).replace(".NS", "")
     qty = max(1, int(_UI.get('trade_qty', 10)))
-    mode = _UI.get('trade_mode', "🧪 Test (Chart Lines)")
+    mode = _UI.get('trade_mode', "📝 Paper Trading")
     prod_type = _UI.get('trade_prod', "INTRADAY")
     prod_label = "INTRADAY" if prod_type == "INTRADAY" else "LONGTERM (CNC)"
+    now_str = now_ist().strftime('%d-%b %I:%M:%S %p')
 
     if side == "EXIT":
         old_tr = _SS['chart_trades'].pop(fetch_sym, None)
-        if old_tr and "Dhan" in mode:
-            opp_side = "SELL" if old_tr['side'] == "BUY" else "BUY"
-            ok, msg = _place_dhan_free_order(clean_sym, opp_side, old_tr['qty'], old_tr.get('prod', 'INTRADAY'))
-            st.toast(f"EXIT {clean_sym}: {msg}", icon="🔴" if not ok else "✅")
-        else:
-            st.toast(f"🏳️ Position Closed on Chart: {clean_sym}", icon="ℹ️")
+        _sync_chart_trades_to_sheet()
+        if old_tr:
+            t_side = old_tr.get('side', 'BUY')
+            t_qty = int(old_tr.get('qty', qty))
+            t_ent = float(old_tr.get('entry', ltp_p))
+            t_prod = old_tr.get('prod', 'INTRADAY')
+            pnl_rs = round(((ltp_p - t_ent) * t_qty) if t_side == "BUY" else ((t_ent - ltp_p) * t_qty), 2)
+            pnl_pct = round((((ltp_p - t_ent) / t_ent * 100.0) if t_side == "BUY" else ((t_ent - ltp_p) / t_ent * 100.0)), 2) if t_ent > 0 else 0.0
+
+            # Save closed trade to Google Sheet Paper_TradeBook
+            df_tb = load_paper_tradebook()
+            new_closed = pd.DataFrame([{
+                "Entry_Time": old_tr.get('time', '-'),
+                "Exit_Time": now_str,
+                "Symbol": clean_sym,
+                "Side": t_side,
+                "Prod": t_prod,
+                "Quantity": t_qty,
+                "Entry_Price": t_ent,
+                "Exit_Price": round(float(ltp_p), 2),
+                "PnL_Rs": pnl_rs,
+                "PnL_Pct": pnl_pct,
+                "Mode": old_tr.get('mode', mode)
+            }])
+            save_paper_tradebook_df(pd.concat([df_tb, new_closed], ignore_index=True))
+
+            if "Dhan" in mode:
+                opp_side = "SELL" if t_side == "BUY" else "BUY"
+                ok, msg = _place_dhan_free_order(clean_sym, opp_side, t_qty, t_prod)
+                st.toast(f"EXIT {clean_sym} (PnL: ₹{pnl_rs:+,.2f}): {msg}", icon="✅" if ok else "⚠️")
+            else:
+                st.toast(f"🏳️ Closed {clean_sym} @ ₹{ltp_p:.2f} | PnL: ₹{pnl_rs:+,.2f} ({pnl_pct:+.2f}%) saved to Google Sheets!", icon="📊")
         return
 
+    # Save new BUY / SELL trade & sync to Google Sheets Paper_Portfolio
     _SS['chart_trades'][fetch_sym] = {
         'side': side,
         'qty': qty,
@@ -3238,18 +3426,123 @@ def _exec_chart_trade(fetch_sym, side, ltp_p, sl_p, tg_p):
         'entry': round(float(ltp_p), 2),
         'sl': round(float(sl_p), 2),
         'target': round(float(tg_p), 2),
-        'time': now_ist().strftime('%I:%M:%S %p')
+        'time': now_str,
+        'mode': mode
     }
+    _sync_chart_trades_to_sheet()
 
     if "Dhan" in mode:
-        ok, msg = _place_dhan_free_order(clean_sym, side, qty, prod_type)
+        use_sup = "Super" in mode
+        ok, msg = _place_dhan_free_order(clean_sym, side, qty, prod_type, sl_p, tg_p, use_super=use_sup)
         st.toast(f"{side} [{prod_label}] {clean_sym} ({qty} Qty): {msg}", icon="🟢" if ok else "⚠️")
     else:
-        st.toast(f"🎯 {side} [{prod_label}] {clean_sym} ({qty} Qty @ ₹{ltp_p:.2f}) | SL: ₹{sl_p:.2f} | TGT: ₹{tg_p:.2f}", icon="🚀")
+        st.toast(f"📝 Paper {side} [{prod_label}] {clean_sym} ({qty} Qty @ ₹{ltp_p:.2f}) saved to Google Sheets!", icon="🚀")
 
 def _on_trade_cfg_change():
     _UI['trade_qty'] = int(st.session_state.get('tr_qty_key', 10))
-    _UI['trade_mode'] = st.session_state.get('tr_mode_key', "🧪 Test (Chart Lines)")
+    _UI['trade_mode'] = st.session_state.get('tr_mode_key', "📝 Paper Trading")
+
+def render_paper_trading_terminal(df_all_stocks):
+    """Renders Dedicated Paper Trading Page (Active Positions + Closed TradeBook from Google Sheets)"""
+    df_pp = load_paper_portfolio()
+    df_pt = load_paper_tradebook()
+    lu = {}
+    if df_all_stocks is not None and not df_all_stocks.empty:
+        lu = df_all_stocks.drop_duplicates(subset=['T']).set_index('T')['P'].to_dict()
+
+    tot_inv, tot_cur, tot_unreal = 0.0, 0.0, 0.0
+    active_rows_html = ""
+    for i, (_, r) in enumerate(df_pp.iterrows()):
+        sym = str(r.get('Symbol', '')).upper().strip()
+        if not sym:
+            continue
+        side = str(r.get('Side', 'BUY')).upper()
+        prod = str(r.get('Prod', 'INTRADAY')).upper()
+        try: qty = int(float(r.get('Quantity', 1)))
+        except: qty = 1
+        try: ent = float(r.get('Entry_Price', 0))
+        except: ent = 0.0
+        try: sl_v = float(r.get('SL', 0))
+        except: sl_v = 0.0
+        try: tg_v = float(r.get('Target', 0))
+        except: tg_v = 0.0
+        dt_str = str(r.get('Date_Time', '-'))
+        mode_str = str(r.get('Mode', '📝 Paper'))
+
+        ltp = float(lu.get(sym, ent) or ent)
+        inv = ent * qty
+        cur_val = ltp * qty
+        pnl_rs = ((ltp - ent) * qty) if side == "BUY" else ((ent - ltp) * qty)
+        pnl_pct = (pnl_rs / inv * 100.0) if inv > 0 else 0.0
+
+        tot_inv += inv
+        tot_cur += cur_val
+        tot_unreal += pnl_rs
+
+        bg = "row-dark" if i % 2 == 0 else "row-light"
+        s_col = "text-green" if side == "BUY" else "text-red"
+        p_col = "text-green" if pnl_rs >= 0 else "text-red"
+        p_sign = "+" if pnl_rs > 0 else ""
+
+        active_rows_html += (
+            f"<tr class='{bg}'>"
+            f"<td class='t-symbol'><a href='?grid_sym={sym}.NS' target='_self'>{sym} 📌</a></td>"
+            f"<td>{dt_str}</td>"
+            f"<td class='{s_col}'>{side}</td>"
+            f"<td style='color:#38bdf8;font-weight:bold;'>{prod}</td>"
+            f"<td>{qty}</td>"
+            f"<td>₹{ent:.2f}</td>"
+            f"<td style='color:#ffd700;font-weight:bold;'>₹{ltp:.2f}</td>"
+            f"<td style='color:#f85149;font-weight:bold;'>₹{sl_v:.2f}</td>"
+            f"<td style='color:#3fb950;font-weight:bold;'>₹{tg_v:.2f}</td>"
+            f"<td class='{p_col}'>{p_sign}₹{pnl_rs:,.2f}</td>"
+            f"<td class='{p_col}'>{p_sign}{pnl_pct:.2f}%</td>"
+            f"<td style='font-size:10px;color:#8b949e;'>{mode_str}</td>"
+            f"</tr>"
+        )
+
+    realized_pnl = float(pd.to_numeric(df_pt['PnL_Rs'], errors='coerce').sum()) if not df_pt.empty else 0.0
+    net_total_pnl = tot_unreal + realized_pnl
+
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric("📝 Active Capital Used", f"₹{tot_inv:,.0f}")
+    k2.metric("📊 Live Open P&L", f"₹{tot_unreal:+,.2f}")
+    k3.metric("📜 Realized Paper P&L", f"₹{realized_pnl:+,.2f}")
+    k4.metric("🏆 Net Paper P&L", f"₹{net_total_pnl:+,.2f}")
+
+    if active_rows_html:
+        st.markdown(
+            "<table class='term-table'><thead>"
+            "<tr><th colspan='12' class='term-head-port' style='background:#0d47a1;'>📝 ACTIVE PAPER & CHART TRADES (SAVED IN GOOGLE SHEETS: Paper_Portfolio)</th></tr>"
+            "<tr style='background:#21262d;'>"
+            "<th style='text-align:left;width:10%;'>STOCK</th><th style='width:11%;'>TIME</th><th style='width:6%;'>SIDE</th>"
+            "<th style='width:8%;'>TYPE</th><th style='width:5%;'>QTY</th><th style='width:8%;'>ENTRY</th><th style='width:8%;'>LTP</th>"
+            "<th style='width:8%;color:#f85149;'>🛑 SL</th><th style='width:8%;color:#3fb950;'>🎯 TGT</th>"
+            "<th style='width:9%;'>LIVE P&L</th><th style='width:8%;'>P&L %</th><th style='width:11%;'>MODE</th>"
+            "</tr></thead><tbody>" + active_rows_html + "</tbody></table>",
+            unsafe_allow_html=True
+        )
+        # Quick Exit Button for Active Paper Trades
+        ec1, ec2 = st.columns([3, 1])
+        with ec1:
+            exit_pick = st.selectbox("Select Active Trade to Square-Off / Exit:", ["-- Select Stock --"] + df_pp['Symbol'].tolist(), key="pp_exit_sel", label_visibility="collapsed")
+        with ec2:
+            if st.button("🏳️ Square-Off Selected Trade", width="stretch", key="pp_exit_btn") and exit_pick != "-- Select Stock --":
+                f_s = f"{exit_pick}.NS"
+                cur_p = float(lu.get(exit_pick, 0) or _SS['chart_trades'].get(f_s, {}).get('entry', 0))
+                _exec_chart_trade(f_s, "EXIT", cur_p, 0, 0)
+                st.rerun(scope="fragment")
+    else:
+        st.info("📝 No active paper trades right now. Open any chart in Grid (1, 2, 4, 6) and click BUY or SELL!")
+
+    with st.expander("📜 Closed Paper Trades Ledger (Google Sheet: Paper_TradeBook)", expanded=True):
+        if not df_pt.empty:
+            st.dataframe(df_pt.iloc[::-1], use_container_width=True, hide_index=True)
+            if st.button("🗑️ Clear Closed Paper TradeBook", key="clr_pt_btn"):
+                save_paper_tradebook_df(pd.DataFrame(columns=df_pt.columns))
+                st.rerun(scope="fragment")
+        else:
+            st.caption("No closed paper trades yet.")
 
 def _back_to_mini_charts():
     st.session_state.grid_layout_mode = "Off"
@@ -3552,7 +3845,6 @@ def _compute_pinescript_suite(df_p):
     l = df_p['Low'].astype(float)
     v = df_p['Volume'].fillna(0.0).astype(float) if 'Volume' in df_p.columns else pd.Series(0.0, index=df_p.index)
 
-    # 1. Fast & Slow WMA Swing Ribbon (Tolerance = 2)
     fast_ma = _wma_series(c, 25)
     slow_ma = _wma_series(c, 35)
     fast_d = np.sign(fast_ma.diff(2).fillna(0.0))
@@ -3569,7 +3861,6 @@ def _compute_pinescript_suite(df_p):
             col = "#eab308"
         rib_colors.append(col)
 
-    # 2. Volatility Compression + Breakout Bands (len=20, mult=0.5)
     prev_c = c.shift(1)
     tr = pd.concat([h - l, (h - prev_c).abs(), (l - prev_c).abs()], axis=1).max(axis=1)
     atr20 = tr.ewm(alpha=1/20, adjust=False).mean()
@@ -3581,7 +3872,6 @@ def _compute_pinescript_suite(df_p):
     ltf_upper = ltf_basis + ltf_dev
     ltf_lower = ltf_basis - ltf_dev
 
-    # 3. Higher Timeframe (60m) Trend Filter & MTF EMAs (20, 100, 200)
     htf_ema21 = c.ewm(span=21 * 6, adjust=False).mean()
     htf_up = c > htf_ema21
     htf_dn = c < htf_ema21
@@ -3589,7 +3879,6 @@ def _compute_pinescript_suite(df_p):
     mtf_ema100 = c.ewm(span=100, adjust=False).mean()
     mtf_ema200 = c.ewm(span=200, adjust=False).mean()
 
-    # 4. Avoid Zone (09:15-09:30 & 15:00-15:30) + Big Trader Turn Point Detector Arrows
     t_mins = df_p.index.hour * 60 + df_p.index.minute
     in_avoid = ((t_mins >= 555) & (t_mins < 570)) | ((t_mins >= 900) & (t_mins < 930))
     vol_spike = v > (v.rolling(20, min_periods=5).mean() * 2.0)
@@ -3599,7 +3888,6 @@ def _compute_pinescript_suite(df_p):
     turn_buy = vol_spike & near_low & htf_up & (~in_avoid)
     turn_sell = vol_spike & near_high & htf_dn & (~in_avoid)
 
-    # 5. Trend Speed Analyzer (Dynamic EMA + Wave Ratio & Dominance Table)
     max_len = 50.0
     accel_mult = 5.0
     max_abs_c = c.abs().rolling(200, min_periods=1).max().replace(0, 1.0)
@@ -3666,7 +3954,7 @@ def _compute_pinescript_suite(df_p):
     }
 
 
-# --- PRO GRID CHART ENGINE (WITH DRAWING TOOLS: H-LINE, V-LINE, TRENDLINE, FREEHAND, FIBONACCI) ---
+# --- PRO GRID CHART ENGINE (PAPER TRADING + DHAN LIVE + FREEHAND FIBONACCI + DRAWING TOOLS) ---
 def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, active_inds, chart_height=330, key_idx=0, current_grid_syms=None):
     disp_sym = row_data.get('T', fetch_sym.replace('.NS', ''))
     tf_short = "5m (5D)" if timeframe == "Intraday (5m)" else ("1D" if timeframe == "Daily Chart" else "1W")
@@ -3675,6 +3963,17 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     c_col = "#4ade80" if chg_v >= 0 else "#f87171"
     if current_grid_syms is None:
         current_grid_syms = []
+
+    # Check if JS sent an updated SL/TGT via query_params
+    if "upd_sltg" in st.query_params:
+        try:
+            _parts = str(st.query_params["upd_sltg"]).split("|")
+            st.query_params.clear()
+            if len(_parts) == 3:
+                _u_sym, _u_sl, _u_tg = _parts[0], float(_parts[1]), float(_parts[2])
+                _update_chart_sl_tg(_u_sym, _u_sl, _u_tg)
+        except Exception:
+            pass
 
     prod_mode = _UI.get('trade_prod', 'INTRADAY')
     prod_badge_txt = "⚡ INTRADAY" if prod_mode == "INTRADAY" else "📦 LONGTERM"
@@ -3775,7 +4074,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         exit_btn_html = (
             f"<span style='background:{pnl_col};color:#fff;padding:0px 5px;border-radius:3px;font-size:9.5px;font-weight:bold;'>"
             f"{pnl_sign}₹{pnl_val:,.1f} ({pnl_sign}{pnl_pct:.1f}%)</span>"
-            f"<span class='tr-btn exit-b' onclick=\"exitChartTrade('{fetch_sym}', '{exit_token}')\" title='Exit / Square-Off Position'>EXIT</span>"
+            f"<span class='tr-btn exit-b' onclick=\"exitChartTrade('{fetch_sym}', '{exit_token}')\" title='Exit / Square-Off & Save to Paper_TradeBook'>EXIT</span>"
         )
 
     candles_js, spd_candles_js, vol_js, vwap_js, ema10_js, ema20_js, kal_js, st_js, bb_u_js, bb_d_js = [], [], [], [], [], [], [], [], [], []
@@ -3856,7 +4155,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         .exit-b {{ background: #eab308; color: #111827; border: 1px solid #facc15; }}
         .exit-b:hover {{ background: #ca8a04; color: #fff; }}
 
-        /* Dropdown Menus (Drawing Tools & Select Indicator) */
         .ind-drop-btn {{
             background: #1e293b; color: #38bdf8; border: 1px solid #334155; border-radius: 4px;
             padding: 1px 7px; font-size: 10px; font-weight: bold; cursor: pointer; white-space: nowrap;
@@ -3870,7 +4168,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         .draw-menu {{
             display: none; position: fixed; top: 26px; right: 155px; z-index: 9999;
             background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 0px;
-            width: 215px; box-shadow: 0 8px 24px rgba(0,0,0,0.65); color: #0f172a; font-size: 12px;
+            width: 235px; box-shadow: 0 8px 24px rgba(0,0,0,0.65); color: #0f172a; font-size: 12px;
         }}
         .ind-menu.open, .draw-menu.open {{ display: block; }}
         .ind-row {{
@@ -3914,6 +4212,11 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             width: 58px; background: #0b0e14; color: #fff; border: 1px solid #4b5563; border-radius: 3px;
             font-size: 10px; font-family: monospace; font-weight: bold; padding: 1px 3px; text-align: right;
         }}
+        .save-sltg-btn {{
+            background: #2563eb; color: #fff; border: 1px solid #38bdf8; border-radius: 3px;
+            padding: 1px 6px; font-size: 9.5px; font-weight: bold; cursor: pointer;
+        }}
+        .save-sltg-btn:hover {{ background: #1d4ed8; }}
         .line-hover-tip {{
             position: absolute; display: none; z-index: 80; pointer-events: none;
             background: rgba(15, 23, 42, 0.96); border: 1px solid #38bdf8; color: #ffffff;
@@ -3944,14 +4247,15 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 {exit_btn_html}
             </div>
             <div class="ind-bar">
-                <!-- ✏️ Drawing Tools Menu (Like 2nd Screenshot) -->
+                <!-- ✏️ Drawing Tools Menu (With FreeHand Fibonacci & High/Low Fibonacci) -->
                 <span id="draw_btn_{chart_dom_id}" class="ind-drop-btn" onclick="toggleDrawMenu(event)" title="Drawing Tools">✏️ Draw ▾</span>
                 <div id="draw_menu_{chart_dom_id}" class="draw-menu" onclick="event.stopPropagation()">
                     <div id="ditem_hline" class="draw-item" onclick="selectDrawTool('hline')"><span>Horizontal Line</span><span style="color:#64748b;font-size:10px;">━</span></div>
                     <div id="ditem_vline" class="draw-item" onclick="selectDrawTool('vline')"><span>Vertical Line</span><span style="color:#64748b;font-size:10px;">┃</span></div>
                     <div id="ditem_tl_hl" class="draw-item" onclick="selectDrawTool('tl_hl')"><span>Trendline (High/Low)</span><span style="color:#64748b;font-size:10px;">╱</span></div>
                     <div id="ditem_tl_free" class="draw-item" onclick="selectDrawTool('tl_free')"><span>Trendline (FreeHand)</span><span style="color:#64748b;font-size:10px;">✍️</span></div>
-                    <div id="ditem_fib" class="draw-item" onclick="selectDrawTool('fib')"><span>Fibonacci Retracements <b id="fib_cnt_{chart_dom_id}">(0)</b></span><span style="color:#64748b;font-size:10px;">☰</span></div>
+                    <div id="ditem_fib" class="draw-item" onclick="selectDrawTool('fib')"><span>Fibonacci (High/Low) <b id="fib_cnt_{chart_dom_id}">(0)</b></span><span style="color:#64748b;font-size:10px;">☰</span></div>
+                    <div id="ditem_fib_free" class="draw-item" onclick="selectDrawTool('fib_free')"><span>Fibonacci (FreeHand)</span><span style="color:#2563eb;font-size:10px;">✍️☰</span></div>
                     <div class="draw-clear" onclick="clearAllDrawings()">Clear all</div>
                 </div>
 
@@ -3986,13 +4290,13 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             <div>Dominance: <b style="color:{wtbl['col']};">{wtbl['dom']}</b></div>
         </div>
 
-        <!-- Floating SL & TGT Editor Box -->
+        <!-- Floating SL & TGT Editor Box (With Save to Google Sheets Button) -->
         <div id="sltg_bar_{chart_dom_id}" class="sltg-box">
             <span style="color:#f87171;font-weight:bold;">🛑 SL:</span>
             <input id="inp_sl_{chart_dom_id}" class="sltg-inp" type="number" step="0.5" onchange="onManualSLTG()" oninput="onManualSLTG()">
             <span style="color:#4ade80;font-weight:bold;margin-left:4px;">🎯 TGT:</span>
             <input id="inp_tg_{chart_dom_id}" class="sltg-inp" type="number" step="0.5" onchange="onManualSLTG()" oninput="onManualSLTG()">
-            <span style="color:#9ca3af;font-size:9px;">(↕️ Hover/Drag lines)</span>
+            <span class="save-sltg-btn" onclick="saveSLTGToSheet()" title="Save updated SL & Target to Google Sheets">💾 Save</span>
         </div>
 
         <!-- Hover Tooltip for Entry / SL / Target Percentage & Amount -->
@@ -4044,6 +4348,14 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         window.exitChartTrade = function(sym, tokenStr) {{
             delete window.parent._customSLTG[sym];
             window.triggerStBtn(tokenStr);
+        }};
+
+        window.saveSLTGToSheet = function() {{
+            const vSL = parseFloat(inpSL.value) || 0;
+            const vTG = parseFloat(inpTG.value) || 0;
+            const url = new URL(window.parent.location.href);
+            url.searchParams.set('upd_sltg', `${{SYM_KEY}}|${{vSL}}|${{vTG}}`);
+            window.parent.location.href = url.toString();
         }};
 
         const cData = {json.dumps(candles_js)};
@@ -4142,11 +4454,12 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         chart.timeScale().fitContent();
 
         // =========================================================
-        // ✏️ INTERACTIVE DRAWING ENGINE (H-LINE, V-LINE, TRENDLINES, FIBONACCI)
+        // ✏️ INTERACTIVE DRAWING ENGINE (INCLUDING FREEHAND FIBONACCI)
         // =========================================================
         let currentTool = null;
         let pendingPt = null;
         let isFreeDrawing = false;
+        let isFibFreeDragging = false;
         let freePts = [];
         let hLineObjs = [];
 
@@ -4172,8 +4485,10 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             currentTool = toolName;
             pendingPt = null;
             freePts = [];
+            isFreeDrawing = false;
+            isFibFreeDragging = false;
             document.getElementById('draw_menu_{chart_dom_id}').classList.remove('open');
-            ['hline','vline','tl_hl','tl_free','fib'].forEach(k => {{
+            ['hline','vline','tl_hl','tl_free','fib','fib_free'].forEach(k => {{
                 const el = document.getElementById('ditem_' + k);
                 if (el) el.className = 'draw-item' + (k === toolName ? ' active' : '');
             }});
@@ -4181,8 +4496,9 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 hline: '━ Click on chart to place Horizontal Line (Click here to exit)',
                 vline: '┃ Click on chart to place Vertical Line (Click here to exit)',
                 tl_hl: '╱ Click Point 1 & Point 2 for High/Low Trendline (Click here to exit)',
-                tl_free: '✍️ Drag or Click 2 points for FreeHand Trendline (Click here to exit)',
-                fib: '☰ Click Swing High & Swing Low for Fibonacci (Click here to exit)'
+                tl_free: '✍️ Drag on chart for FreeHand Trendline (Click here to exit)',
+                fib: '☰ Click Swing High & Swing Low for Fibonacci (Click here to exit)',
+                fib_free: '✍️☰ Drag freely (or Click 2 points) anywhere for FreeHand Fibonacci (Click here to exit)'
             }};
             drawBadge.innerHTML = names[toolName] || '';
             drawBadge.style.display = 'block';
@@ -4194,12 +4510,13 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             currentTool = null;
             pendingPt = null;
             isFreeDrawing = false;
+            isFibFreeDragging = false;
             freePts = [];
             drawBadge.style.display = 'none';
             drawBtn.classList.remove('active-tool');
             container.style.cursor = 'default';
             chart.applyOptions({{ handleScroll: true, handleScale: true }});
-            ['hline','vline','tl_hl','tl_free','fib'].forEach(k => {{
+            ['hline','vline','tl_hl','tl_free','fib','fib_free'].forEach(k => {{
                 const el = document.getElementById('ditem_' + k);
                 if (el) el.className = 'draw-item';
             }});
@@ -4239,8 +4556,9 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             let fibCount = 0;
 
             const allItems = [...list];
-            if (pendingPt && previewPt && (currentTool === 'tl_hl' || currentTool === 'tl_free' || currentTool === 'fib')) {{
-                allItems.push({{ type: currentTool, p1: pendingPt, p2: previewPt, preview: true }});
+            if (pendingPt && previewPt && (currentTool === 'tl_hl' || currentTool === 'fib' || currentTool === 'fib_free')) {{
+                const pType = (currentTool === 'fib_free') ? 'fib' : currentTool;
+                allItems.push({{ type: pType, p1: pendingPt, p2: previewPt, preview: true }});
             }}
             if (isFreeDrawing && freePts.length > 1) {{
                 allItems.push({{ type: 'free_path', pts: freePts, preview: true }});
@@ -4276,9 +4594,14 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                     if (!d.preview) fibCount++;
                     const x1 = chart.timeScale().timeToCoordinate(d.p1.time);
                     const x2 = chart.timeScale().timeToCoordinate(d.p2.time);
+                    const y1 = candleSeries.priceToCoordinate(d.p1.price);
+                    const y2 = candleSeries.priceToCoordinate(d.p2.price);
                     if (x1 !== null && x2 !== null) {{
                         const leftX = Math.min(x1, x2);
-                        const rightX = Math.max(x1, x2, leftX + 120);
+                        const rightX = Math.max(x1, x2, leftX + 135);
+                        if (y1 !== null && y2 !== null) {{
+                            svgHtml += `<line x1="${{x1}}" y1="${{y1}}" x2="${{x2}}" y2="${{y2}}" stroke="#64748b" stroke-width="1" stroke-dasharray="2,2" />`;
+                        }}
                         const diff = d.p2.price - d.p1.price;
                         const fibLevels = [
                             {{ lvl: 0.0, col: '#94a3b8' }},
@@ -4293,7 +4616,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                             const lvlPrice = d.p2.price - (diff * fl.lvl);
                             const y = candleSeries.priceToCoordinate(lvlPrice);
                             if (y !== null) {{
-                                svgHtml += `<line x1="${{leftX}}" y1="${{y}}" x2="${{rightX}}" y2="${{y}}" stroke="${{fl.col}}" stroke-width="1.3" stroke-dasharray="3,2" />`;
+                                svgHtml += `<line x1="${{leftX}}" y1="${{y}}" x2="${{rightX}}" y2="${{y}}" stroke="${{fl.col}}" stroke-width="1.4" stroke-dasharray="3,2" />`;
                                 svgHtml += `<text x="${{leftX + 4}}" y="${{y - 3}}" fill="${{fl.col}}" font-size="9.5" font-family="monospace" font-weight="bold">${{(fl.lvl * 100).toFixed(1)}}% (₹${{lvlPrice.toFixed(1)}})</text>`;
                             }}
                         }});
@@ -4310,7 +4633,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         chart.timeScale().subscribeVisibleLogicalRangeChange(() => renderAllDrawings());
         chart.timeScale().subscribeVisibleTimeRangeChange(() => renderAllDrawings());
 
-        // Handle Mouse/Touch Clicks for Drawing Tools
         container.addEventListener('mousedown', (e) => {{
             if (!currentTool) return;
             const rect = container.getBoundingClientRect();
@@ -4342,9 +4664,20 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 const snappedP = snapHighLow(tVal, pVal);
                 if (!pendingPt) {{
                     pendingPt = {{ time: tVal, price: snappedP }};
-                    drawBadge.innerHTML = '☰ Now click Point 2 on chart for Fibonacci Retracement';
+                    drawBadge.innerHTML = '☰ Now click Point 2 on chart for Fibonacci (High/Low)';
                 }} else {{
                     window.parent._savedDrawings[SYM_KEY].push({{ type: 'fib', p1: pendingPt, p2: {{ time: tVal, price: snappedP }} }});
+                    renderAllDrawings();
+                    cancelDrawTool();
+                }}
+            }} else if (currentTool === 'fib_free') {{
+                chart.applyOptions({{ handleScroll: false, handleScale: false }});
+                if (!pendingPt) {{
+                    pendingPt = {{ time: tVal, price: pVal }};
+                    isFibFreeDragging = true;
+                    drawBadge.innerHTML = '✍️☰ Drag & Release (or Click 2nd point) for FreeHand Fibonacci';
+                }} else {{
+                    window.parent._savedDrawings[SYM_KEY].push({{ type: 'fib', p1: pendingPt, p2: {{ time: tVal, price: pVal }} }});
                     renderAllDrawings();
                     cancelDrawTool();
                 }}
@@ -4527,7 +4860,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             window.parent._customSLTG[activePos.sym] = {{ entry: activePos.entry, sl: curSL, tg: curTG }};
         }});
 
-        window.addEventListener('mouseup', () => {{
+        window.addEventListener('mouseup', (e) => {{
             if (isFreeDrawing) {{
                 isFreeDrawing = false;
                 if (freePts.length > 1) {{
@@ -4535,6 +4868,18 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 }}
                 renderAllDrawings();
                 cancelDrawTool();
+            }} else if (isFibFreeDragging && currentTool === 'fib_free' && pendingPt) {{
+                const rect = container.getBoundingClientRect();
+                const mx = e.clientX - rect.left;
+                const my = e.clientY - rect.top;
+                const tVal = getClosestTime(mx);
+                const pVal = candleSeries.coordinateToPrice(my);
+                if (tVal && pVal !== null && Math.abs(pVal - pendingPt.price) > (pendingPt.price * 0.0005)) {{
+                    window.parent._savedDrawings[SYM_KEY].push({{ type: 'fib', p1: pendingPt, p2: {{ time: tVal, price: pVal }} }});
+                    renderAllDrawings();
+                    cancelDrawTool();
+                }}
+                isFibFreeDragging = false;
             }}
             if (draggingMode) {{
                 draggingMode = null;
@@ -4799,6 +5144,7 @@ def render_live_ui():
                 "F&O + Top 200 Heatmap 🗺️",
                 "Terminal Tables 🗃️",
                 "My Portfolio 💼",
+                "📝 Paper Trading 💼",
                 "Commodity 🛢️",
                 "Fundamentals 🏢",
                 "Mutual Funds 📈",
@@ -5090,6 +5436,10 @@ def render_live_ui():
     if watchlist_mode == "My Portfolio 💼":
         port_tickers = [f"{str(sym).upper().strip()}.NS" for sym in df_port_saved['Symbol'].tolist() if str(sym).strip() != ""]
         df_filtered = df_all_stocks[df_all_stocks['Fetch_T'].isin(port_tickers)].copy()
+    elif watchlist_mode == "📝 Paper Trading 💼":
+        pp_df_now = load_paper_portfolio()
+        pp_tickers = [f"{str(sym).upper().strip()}.NS" for sym in pp_df_now['Symbol'].tolist() if str(sym).strip() != ""] if not pp_df_now.empty else []
+        df_filtered = df_all_stocks[df_all_stocks['Fetch_T'].isin(pp_tickers)].copy()
     elif watchlist_mode == "Commodity 🛢️":
         df_filtered = df_commodities.copy()
     elif watchlist_mode == "F&O + Top 200 Heatmap 🗺️":
@@ -5614,9 +5964,12 @@ def render_live_ui():
                 st.markdown(_status_bar_html, unsafe_allow_html=True)
             with tb_mode:
                 st.markdown("<div class='pro-ActionBar'></div>", unsafe_allow_html=True)
+                _t_modes = ["📝 Paper Trading", "⚡ Dhan Live Order", "🚀 Dhan Super Order (SL+TGT)"]
+                _cur_tm = _UI.get('trade_mode', "📝 Paper Trading")
+                _tm_idx = _t_modes.index(_cur_tm) if _cur_tm in _t_modes else 0
                 st.selectbox(
-                    "Trade Mode", ["🧪 Test (Chart Lines)", "⚡ Dhan Free API"],
-                    index=0 if "Test" in _UI.get('trade_mode', '🧪 Test') else 1,
+                    "Trade Mode", _t_modes,
+                    index=_tm_idx,
                     key="tr_mode_key",
                     label_visibility="collapsed",
                     on_change=_on_trade_cfg_change
@@ -5837,6 +6190,8 @@ def render_live_ui():
                     st.markdown(render_highscore_terminal_table(df_stocks_display), unsafe_allow_html=True)
                     st.markdown(render_levels_table(df_stocks_display), unsafe_allow_html=True)
 
+                elif watchlist_mode == "📝 Paper Trading 💼":
+                    render_paper_trading_terminal(df_all_stocks)
                 elif watchlist_mode == "My Portfolio 💼" and view_mode == "Heat Map":
                     try:
                         if not df_port_saved.empty:
