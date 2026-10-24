@@ -3084,21 +3084,26 @@ st.markdown("""
             min-width: 0 !important;
         }
 
-        /* Fix Chart Container & Iframe Height on Mobile so Bottom Date & Time (X-Axis) is 100% Visible */
+        /* Fix Chart Container & Iframe Height on Mobile so Bottom Date & Time Fits Default Without Scrolling */
         div[data-testid="stVerticalBlockBorderWrapper"]:has(.left-main-scroll-marker) {
-            height: calc(100vh - 78px) !important;
-            max-height: calc(100vh - 78px) !important;
+            height: calc(100dvh - 165px) !important;
+            max-height: calc(100dvh - 165px) !important;
+            overflow: hidden !important;
         }
         div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-grid-1row) iframe {
-            height: calc(100vh - 92px) !important;
-            min-height: 420px !important;
-            max-height: calc(100vh - 92px) !important;
+            height: calc(100dvh - 180px) !important;
+            min-height: 340px !important;
+            max-height: calc(100dvh - 180px) !important;
         }
         div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-grid-2row) iframe {
-            height: calc(46vh - 40px) !important;
-            min-height: 240px !important;
+            height: calc(42dvh - 30px) !important;
+            min-height: 210px !important;
         }
-
+        div[data-testid="stVerticalBlockBorderWrapper"]:has(.right-panel-marker) {
+            padding: 3px !important;
+            height: calc(100dvh - 95px) !important;
+            max-height: calc(100dvh - 95px) !important;
+        }
         /* Ultra-Compact Right 35% Panel Controls (Fixes H-e-a-t-M-a-p vertical text wrapping) */
         div[data-testid="stVerticalBlockBorderWrapper"]:has(.right-panel-marker) {
             padding: 3px !important;
@@ -5437,7 +5442,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         const stageEl = container.parentElement || container;
         function syncChartSize() {{
             const w = stageEl.clientWidth || container.clientWidth;
-            const h = Math.max(180, (stageEl.clientHeight || container.clientHeight) - 4);
+            const h = Math.max(180, (stageEl.clientHeight || container.clientHeight) - 8);
             chart.applyOptions({{ width: w, height: h }});
             renderAllDrawings();
         }}
