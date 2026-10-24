@@ -3061,56 +3061,149 @@ st.markdown("""
     }
     div[data-testid="stElementContainer"]:has(.pro-ActionBar) { display: none !important; }
 
-    /* Mobile Responsive Fix: 65:35 Split (Left Chart 65% : Right Watchlist 35%) */
+    /* Mobile Responsive Fix: 65:35 Split + Ultra-Compact Right 35% Panel + Full X-Axis Time Visibility */
     @media screen and (max-width: 768px) {
         div[data-testid="stHorizontalBlock"]:has(.right-panel-marker) {
             display: flex !important;
             flex-direction: row !important;
             flex-wrap: nowrap !important;
             align-items: flex-start !important;
-            gap: 4px !important;
+            gap: 3px !important;
             width: 100% !important;
         }
         div[data-testid="stHorizontalBlock"]:has(.right-panel-marker) > div[data-testid="stColumn"]:nth-child(1) {
-            width: 65% !important;
-            flex: 0 0 65% !important;
-            max-width: 65% !important;
+            width: 64% !important;
+            flex: 0 0 64% !important;
+            max-width: 64% !important;
             min-width: 0 !important;
         }
         div[data-testid="stHorizontalBlock"]:has(.right-panel-marker) > div[data-testid="stColumn"]:nth-child(2) {
-            width: 35% !important;
-            flex: 0 0 35% !important;
-            max-width: 35% !important;
+            width: 36% !important;
+            flex: 0 0 36% !important;
+            max-width: 36% !important;
             min-width: 0 !important;
         }
+
+        /* Fix Chart Container & Iframe Height on Mobile so Bottom Date & Time (X-Axis) is 100% Visible */
+        div[data-testid="stVerticalBlockBorderWrapper"]:has(.left-main-scroll-marker) {
+            height: calc(100vh - 78px) !important;
+            max-height: calc(100vh - 78px) !important;
+        }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-grid-1row) iframe {
+            height: calc(100vh - 92px) !important;
+            min-height: 420px !important;
+            max-height: calc(100vh - 92px) !important;
+        }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-grid-2row) iframe {
+            height: calc(46vh - 40px) !important;
+            min-height: 240px !important;
+        }
+
+        /* Ultra-Compact Right 35% Panel Controls (Fixes H-e-a-t-M-a-p vertical text wrapping) */
+        div[data-testid="stVerticalBlockBorderWrapper"]:has(.right-panel-marker) {
+            padding: 3px !important;
+            height: calc(100vh - 10px) !important;
+        }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .right-panel-marker) div[data-testid="stSelectbox"] > div > div,
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .right-panel-marker) div[data-testid="stPopover"] button {
+            min-height: 26px !important;
+            height: auto !important;
+            padding: 2px 4px !important;
+            font-size: 9.5px !important;
+        }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .right-panel-marker) div[data-testid="stPopover"] button p {
+            font-size: 9.5px !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+        }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .right-panel-marker) div[data-testid="stRadio"] {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            padding: 2px 4px !important;
+            gap: 2px !important;
+        }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .right-panel-marker) div[data-testid="stRadio"] > label {
+            display: none !important;
+        }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .right-panel-marker) div[data-testid="stRadio"] div[role="radiogroup"] {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: wrap !important;
+            gap: 4px !important;
+            width: 100% !important;
+        }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .right-panel-marker) div[data-testid="stRadio"] label {
+            margin: 0px !important;
+            padding: 0px !important;
+        }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .right-panel-marker) div[data-testid="stRadio"] p {
+            font-size: 9.5px !important;
+            white-space: nowrap !important;
+            word-break: keep-all !important;
+        }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .right-panel-marker) div[data-testid="stExpander"] summary p {
+            font-size: 9.5px !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+        }
+
+        /* Compact Watchlist Table inside 35% Mobile Panel (Hide Chg pts column on mobile so Symbol, Last & Chg% fit cleanly!) */
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stHorizontalBlock"] {
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            padding: 2px 0px !important;
+        }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stColumn"]:nth-child(1) {
+            width: 44% !important; flex: 0 0 44% !important; padding-left: 2px !important;
+        }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stColumn"]:nth-child(2) {
+            width: 28% !important; flex: 0 0 28% !important; padding-right: 2px !important;
+        }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stColumn"]:nth-child(3) {
+            display: none !important;
+        }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stColumn"]:nth-child(4) {
+            width: 28% !important; flex: 0 0 28% !important; padding-right: 2px !important;
+        }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div.stButton > button p {
+            font-size: 9px !important;
+        }
+
+        /* Watchlist HTML Table Rows on Mobile */
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .right-panel-marker) .term-table {
+            font-size: 9px !important;
+        }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .right-panel-marker) .term-table td {
+            padding: 4px 1px !important;
+            font-size: 9px !important;
+            text-overflow: clip !important;
+        }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .right-panel-marker) .term-table td:nth-child(1) {
+            width: 44% !important; padding-left: 2px !important;
+        }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .right-panel-marker) .term-table td:nth-child(2) {
+            width: 28% !important; padding-right: 2px !important;
+        }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .right-panel-marker) .term-table td:nth-child(3) {
+            display: none !important;
+        }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .right-panel-marker) .term-table td:nth-child(4) {
+            width: 28% !important; padding-right: 2px !important;
+        }
+
         /* Top Action Bar (Paper, Qty, Mini, Theme, Clear) Compact Grid on Mobile */
         div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"] .pro-ActionBar) {
             display: flex !important;
             flex-direction: row !important;
             flex-wrap: wrap !important;
-            gap: 3px !important;
+            gap: 2px !important;
         }
         div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"] .pro-ActionBar) > div[data-testid="stColumn"] {
             flex: 1 1 30% !important;
-            min-width: 70px !important;
+            min-width: 65px !important;
             width: auto !important;
-        }
-        /* Watchlist Sort Header (Symbol | Last | Chg | Chg%) */
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stHorizontalBlock"] {
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-        }
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stColumn"]:nth-child(1) {
-            width: 36% !important; flex: 0 0 36% !important;
-        }
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stColumn"]:nth-child(2) {
-            width: 22% !important; flex: 0 0 22% !important;
-        }
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stColumn"]:nth-child(3) {
-            width: 20% !important; flex: 0 0 20% !important;
-        }
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stColumn"]:nth-child(4) {
-            width: 22% !important; flex: 0 0 22% !important;
         }
     }
     </style>
@@ -5341,12 +5434,16 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 clientX: touch ? touch.clientX : 0, clientY: touch ? touch.clientY : 0, bubbles: true
             }}));
         }}, {{ passive: false }});
-        new ResizeObserver(entries => {{
-            if (entries.length === 0) return;
-            const {{ width, height }} = entries[0].contentRect;
-            chart.applyOptions({{ width, height }});
+        const stageEl = container.parentElement || container;
+        function syncChartSize() {{
+            const w = stageEl.clientWidth || container.clientWidth;
+            const h = Math.max(180, (stageEl.clientHeight || container.clientHeight) - 4);
+            chart.applyOptions({{ width: w, height: h }});
             renderAllDrawings();
-        }}).observe(container);
+        }}
+        setTimeout(syncChartSize, 50);
+        setTimeout(syncChartSize, 250);
+        new ResizeObserver(() => syncChartSize()).observe(stageEl);
         </script>
     </body>
     </html>
