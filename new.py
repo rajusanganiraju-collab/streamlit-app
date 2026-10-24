@@ -4490,11 +4490,12 @@ def render_live_ui():
             move_type_filter = ["All Day Trading Moves 🚀"]
             fund_filter = "Top Ranked Stocks ⭐"
 
-            ai_strat_options = [
-                 ADAPTIVE_STRAT,
-                 "All Day Trading Moves 🚀",
-                 "💣 Flat-Base Coiling & Blast (Sudden Move)",
-                 NEWS_STRAT,
+            if "AI Predictions" in watchlist_mode:
+                ai_strat_options = [
+                    ADAPTIVE_STRAT,
+                    "All Day Trading Moves 🚀",
+                    "💣 Flat-Base Coiling & Blast (Sudden Move)",
+                    NEWS_STRAT,
                     "🔥 First Hour Vol Breakout (ORB+VWAP)",
                     "💥 Inside Bar Vol Breakout (NR7)",
                     "🧲 Intraday Dip & Support Bounce",
