@@ -3296,19 +3296,19 @@ if not _SS['paper_loaded']:
     _SS['paper_loaded'] = True
 
 def _place_dhan_free_order(clean_sym, side, qty, prod_type="INTRADAY", sl_p=0.0, tg_p=0.0, use_super=False):
-    """Dhan Orders API (/v2/orders) leda Super Order API (/v2/super/orders) dwara Dhan App/Web lo real order vestundi"""
+    """Dhan Orders API (/v2/orders) leda Super Order API (/v2/super/orders) dwara order vesi (ok, msg, order_id, is_super) istundi"""
     cid, tok = _dhan_creds()
     if not cid or not tok:
-        return False, "secrets.toml lo [dhan] client_id / access_token ledu! (Paper Trade matrame save ayyindi)"
+        return False, "secrets.toml lo [dhan] client_id / access_token ledu! (Paper Trade matrame save ayyindi)", "", False
     s_map = get_dhan_security_map()
     sec_id = s_map.get(clean_sym)
     if not sec_id:
-        return False, f"Dhan Scrip Master lo '{clean_sym}' securityId dorkaledu"
+        return False, f"Dhan Scrip Master lo '{clean_sym}' securityId dorkaledu", "", False
 
     dhan_prod = "INTRADAY" if prod_type == "INTRADAY" else "CNC"
     corr_id = f"st_{int(time.time())}"
 
-    # 1. Try Dhan Super Order API (Entry + Target + SL together) if selected
+    # 1. Try Dhan Super Order API (Entry + Target + SL together)
     if use_super and sl_p > 0 and tg_p > 0:
         super_payload = {
             "dhanClientId": str(cid),
@@ -3328,11 +3328,12 @@ def _place_dhan_free_order(clean_sym, side, qty, prod_type="INTRADAY", sl_p=0.0,
             rs = requests.post(f"{DHAN_REST}/super/orders", json=super_payload, headers=_dhan_headers(cid, tok), timeout=8)
             js = rs.json() if rs.content else {}
             if rs.status_code in (200, 201) and js.get("orderId"):
-                return True, f"✅ Dhan Super Order (Entry+SL+TGT) Placed! Order ID: {js.get('orderId')}"
+                oid = str(js.get("orderId"))
+                return True, f"✅ Dhan Super Order (Entry+SL+TGT) Placed! ID: {oid}", oid, True
         except Exception:
             pass
 
-    # 2. Standard Dhan v2 Market Order (/v2/orders) — Works on Free Tier Trading APIs
+    # 2. Standard Dhan v2 Market Order (/v2/orders)
     payload = {
         "dhanClientId": str(cid),
         "correlationId": corr_id,
@@ -3355,24 +3356,99 @@ def _place_dhan_free_order(clean_sym, side, qty, prod_type="INTRADAY", sl_p=0.0,
         r = requests.post(f"{DHAN_REST}/orders", json=payload, headers=_dhan_headers(cid, tok), timeout=8)
         j = r.json() if r.content else {}
         if r.status_code in (200, 201) and j.get("orderId"):
-            return True, f"✅ Dhan App/Web Order Placed! ID: {j.get('orderId')} ({j.get('orderStatus', 'TRANSIT')})"
+            oid = str(j.get("orderId"))
+            return True, f"✅ Dhan App/Web Order Placed! ID: {oid} ({j.get('orderStatus', 'TRANSIT')})", oid, False
         err_msg = j.get("errorMessage") or j.get("internalErrorMessage") or _dhan_classify(r.status_code, r.text, j)
-        return False, f"⚠️ Dhan Rejected: {err_msg}"
+        return False, f"⚠️ Dhan Rejected: {err_msg}", "", False
     except Exception as e:
-        return False, f"⚠️ Network error: {e}"
+        return False, f"⚠️ Network error: {e}", "", False
+
+
+def _modify_dhan_super_order(order_id, new_sl=0.0, new_tg=0.0):
+    """Chart meeda SL/TGT marchagane Dhan Super Order lo TARGET_LEG mariyu STOP_LOSS_LEG ni update chestundi"""
+    cid, tok = _dhan_creds()
+    if not cid or not tok or not order_id:
+        return False, "No active Dhan Super Order ID"
+
+    headers = _dhan_headers(cid, tok)
+    url = f"{DHAN_REST}/super/orders/{order_id}"
+    msgs = []
+    ok_any = False
+
+    # 1. Modify STOP_LOSS_LEG in Dhan
+    if new_sl > 0:
+        sl_payload = {
+            "dhanClientId": str(cid),
+            "orderId": str(order_id),
+            "legName": "STOP_LOSS_LEG",
+            "stopLossPrice": round(float(new_sl), 2),
+            "trailingJump": 0
+        }
+        try:
+            r_sl = requests.put(url, json=sl_payload, headers=headers, timeout=8)
+            if r_sl.status_code in (200, 201, 202):
+                ok_any = True
+                msgs.append(f"SL→₹{new_sl:.2f}")
+            else:
+                # If main entry leg is still PENDING, modify via ENTRY_LEG
+                ent_payload = {
+                    "dhanClientId": str(cid),
+                    "orderId": str(order_id),
+                    "legName": "ENTRY_LEG",
+                    "orderType": "MARKET",
+                    "stopLossPrice": round(float(new_sl), 2),
+                    "targetPrice": round(float(new_tg), 2) if new_tg > 0 else 0,
+                    "trailingJump": 0
+                }
+                r_ent = requests.put(url, json=ent_payload, headers=headers, timeout=8)
+                if r_ent.status_code in (200, 201, 202):
+                    return True, f"✅ Dhan Super Order Updated (SL: ₹{new_sl:.2f}, TGT: ₹{new_tg:.2f})"
+        except Exception as e:
+            msgs.append(f"SL err: {e}")
+
+    # 2. Modify TARGET_LEG in Dhan
+    if new_tg > 0:
+        tg_payload = {
+            "dhanClientId": str(cid),
+            "orderId": str(order_id),
+            "legName": "TARGET_LEG",
+            "targetPrice": round(float(new_tg), 2)
+        }
+        try:
+            r_tg = requests.put(url, json=tg_payload, headers=headers, timeout=8)
+            if r_tg.status_code in (200, 201, 202):
+                ok_any = True
+                msgs.append(f"TGT→₹{new_tg:.2f}")
+        except Exception as e:
+            msgs.append(f"TGT err: {e}")
+
+    if ok_any:
+        return True, f"✅ Dhan App Super Order Modified ({', '.join(msgs)})!"
+    return False, f"⚠️ Dhan Modify Failed ({', '.join(msgs) if msgs else 'Check order status in Dhan App'})"
+
 
 def _toggle_trade_prod():
     cur = _UI.get('trade_prod', 'INTRADAY')
     _UI['trade_prod'] = 'CNC' if cur == 'INTRADAY' else 'INTRADAY'
 
+
 def _update_chart_sl_tg(fetch_sym, new_sl, new_tg):
     if fetch_sym in _SS['chart_trades']:
+        tr = _SS['chart_trades'][fetch_sym]
         if new_sl > 0:
-            _SS['chart_trades'][fetch_sym]['sl'] = round(float(new_sl), 2)
+            tr['sl'] = round(float(new_sl), 2)
         if new_tg > 0:
-            _SS['chart_trades'][fetch_sym]['target'] = round(float(new_tg), 2)
+            tr['target'] = round(float(new_tg), 2)
         _sync_chart_trades_to_sheet()
-        st.toast(f"💾 Updated SL (₹{new_sl:.2f}) & TGT (₹{new_tg:.2f}) saved to Google Sheets!", icon="✅")
+
+        # If this trade was placed via Dhan Super Order, modify SL & Target inside Dhan App too!
+        oid = tr.get('order_id', '')
+        if oid and tr.get('is_super', False):
+            ok, d_msg = _modify_dhan_super_order(oid, tr['sl'], tr['target'])
+            st.toast(f"{d_msg} | Google Sheets Updated!", icon="🚀" if ok else "⚠️")
+        else:
+            st.toast(f"💾 Updated SL (₹{new_sl:.2f}) & TGT (₹{new_tg:.2f}) saved to Chart & Google Sheets!", icon="✅")
+
 
 def _exec_chart_trade(fetch_sym, side, ltp_p, sl_p, tg_p):
     clean_sym = str(fetch_sym).replace(".NS", "")
@@ -3393,7 +3469,6 @@ def _exec_chart_trade(fetch_sym, side, ltp_p, sl_p, tg_p):
             pnl_rs = round(((ltp_p - t_ent) * t_qty) if t_side == "BUY" else ((t_ent - ltp_p) * t_qty), 2)
             pnl_pct = round((((ltp_p - t_ent) / t_ent * 100.0) if t_side == "BUY" else ((t_ent - ltp_p) / t_ent * 100.0)), 2) if t_ent > 0 else 0.0
 
-            # Save closed trade to Google Sheet Paper_TradeBook
             df_tb = load_paper_tradebook()
             new_closed = pd.DataFrame([{
                 "Entry_Time": old_tr.get('time', '-'),
@@ -3412,13 +3487,20 @@ def _exec_chart_trade(fetch_sym, side, ltp_p, sl_p, tg_p):
 
             if "Dhan" in mode:
                 opp_side = "SELL" if t_side == "BUY" else "BUY"
-                ok, msg = _place_dhan_free_order(clean_sym, opp_side, t_qty, t_prod)
+                ok, msg, _, _ = _place_dhan_free_order(clean_sym, opp_side, t_qty, t_prod)
                 st.toast(f"EXIT {clean_sym} (PnL: ₹{pnl_rs:+,.2f}): {msg}", icon="✅" if ok else "⚠️")
             else:
                 st.toast(f"🏳️ Closed {clean_sym} @ ₹{ltp_p:.2f} | PnL: ₹{pnl_rs:+,.2f} ({pnl_pct:+.2f}%) saved to Google Sheets!", icon="📊")
         return
 
-    # Save new BUY / SELL trade & sync to Google Sheets Paper_Portfolio
+    oid, is_sup = "", False
+    if "Dhan" in mode:
+        use_sup = "Super" in mode
+        ok, msg, oid, is_sup = _place_dhan_free_order(clean_sym, side, qty, prod_type, sl_p, tg_p, use_super=use_sup)
+        st.toast(f"{side} [{prod_label}] {clean_sym} ({qty} Qty): {msg}", icon="🟢" if ok else "⚠️")
+    else:
+        st.toast(f"📝 Paper {side} [{prod_label}] {clean_sym} ({qty} Qty @ ₹{ltp_p:.2f}) saved to Google Sheets!", icon="🚀")
+
     _SS['chart_trades'][fetch_sym] = {
         'side': side,
         'qty': qty,
@@ -3427,16 +3509,11 @@ def _exec_chart_trade(fetch_sym, side, ltp_p, sl_p, tg_p):
         'sl': round(float(sl_p), 2),
         'target': round(float(tg_p), 2),
         'time': now_str,
-        'mode': mode
+        'mode': mode,
+        'order_id': oid,
+        'is_super': is_sup
     }
     _sync_chart_trades_to_sheet()
-
-    if "Dhan" in mode:
-        use_sup = "Super" in mode
-        ok, msg = _place_dhan_free_order(clean_sym, side, qty, prod_type, sl_p, tg_p, use_super=use_sup)
-        st.toast(f"{side} [{prod_label}] {clean_sym} ({qty} Qty): {msg}", icon="🟢" if ok else "⚠️")
-    else:
-        st.toast(f"📝 Paper {side} [{prod_label}] {clean_sym} ({qty} Qty @ ₹{ltp_p:.2f}) saved to Google Sheets!", icon="🚀")
 
 def _on_trade_cfg_change():
     _UI['trade_qty'] = int(st.session_state.get('tr_qty_key', 10))
