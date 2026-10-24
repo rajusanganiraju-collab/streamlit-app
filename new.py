@@ -2968,16 +2968,30 @@ st.markdown("""
         padding: 2px 2px 4px 2px !important;
     }
 
-    /* 5. Excel-Style Sortable Table Header (Symbol | Last | Chg | Chg%) */
+    /* 5. Excel-Style Sortable Table Header (Symbol | Last | Chg | Chg%) — Fixed for Mobile & Desktop */
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stHorizontalBlock"] {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        align-items: center !important;
         gap: 0px !important;
         border-top: 1px solid #30363d !important;
         border-bottom: 1px solid #30363d !important;
         background-color: #161b22 !important;
         padding: 4px 0px !important;
+        width: 100% !important;
     }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stColumn"] {
-        padding: 0px !important;
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stColumn"]:nth-child(1) {
+        width: 36% !important; flex: 0 0 36% !important; min-width: 0 !important; padding: 0px 0px 0px 6px !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stColumn"]:nth-child(2) {
+        width: 22% !important; flex: 0 0 22% !important; min-width: 0 !important; padding: 0px 6px 0px 0px !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stColumn"]:nth-child(3) {
+        width: 20% !important; flex: 0 0 20% !important; min-width: 0 !important; padding: 0px 6px 0px 0px !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stColumn"]:nth-child(4) {
+        width: 22% !important; flex: 0 0 22% !important; min-width: 0 !important; padding: 0px 6px 0px 0px !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div.stButton > button {
         background-color: transparent !important;
@@ -2988,12 +3002,19 @@ st.markdown("""
         margin: 0px !important;
         width: 100% !important;
     }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stColumn"]:nth-child(1) div.stButton > button p {
+        text-align: left !important; width: 100% !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stColumn"]:nth-child(n+2) div.stButton > button p {
+        text-align: right !important; width: 100% !important;
+    }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div.stButton > button p {
         font-family: 'Consolas', monospace !important;
         font-size: 11px !important;
         font-weight: 700 !important;
         color: #58a6ff !important;
         margin: 0px !important;
+        white-space: nowrap !important;
     }
     div[data-testid="stElementContainer"]:has(.tv-sort-hdr-marker) { display: none !important; }
 
@@ -3040,9 +3061,31 @@ st.markdown("""
     }
     div[data-testid="stElementContainer"]:has(.pro-ActionBar) { display: none !important; }
 
+    /* Mobile Responsive Fix: Stack only main layout columns, NEVER stack Watchlist Sort Header */
     @media screen and (max-width: 768px) {
-        div[data-testid="stHorizontalBlock"] { flex-direction: column-reverse !important; }
-        div[data-testid="stColumn"] { width: 100% !important; flex: 1 1 100% !important; }
+        div[data-testid="stHorizontalBlock"]:not(:has(.pro-ActionBar)) {
+            flex-direction: column-reverse !important;
+        }
+        div[data-testid="stHorizontalBlock"]:not(:has(.pro-ActionBar)) > div[data-testid="stColumn"] {
+            width: 100% !important;
+            flex: 1 1 100% !important;
+        }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stHorizontalBlock"] {
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+        }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stColumn"]:nth-child(1) {
+            width: 36% !important; flex: 0 0 36% !important;
+        }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stColumn"]:nth-child(2) {
+            width: 22% !important; flex: 0 0 22% !important;
+        }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stColumn"]:nth-child(3) {
+            width: 20% !important; flex: 0 0 20% !important;
+        }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stColumn"]:nth-child(4) {
+            width: 22% !important; flex: 0 0 22% !important;
+        }
     }
     </style>
 """, unsafe_allow_html=True)
@@ -3623,7 +3666,7 @@ def _compute_pinescript_suite(df_p):
     }
 
 
-# --- PRO GRID CHART ENGINE (5-DAY 5M DATA + INTRADAY/CNC + HOVER %/₹ + SELECT INDICATOR MENU + PINE V6) ---
+# --- PRO GRID CHART ENGINE (WITH DRAWING TOOLS: H-LINE, V-LINE, TRENDLINE, FREEHAND, FIBONACCI) ---
 def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, active_inds, chart_height=330, key_idx=0, current_grid_syms=None):
     disp_sym = row_data.get('T', fetch_sym.replace('.NS', ''))
     tf_short = "5m (5D)" if timeframe == "Intraday (5m)" else ("1D" if timeframe == "Daily Chart" else "1W")
@@ -3671,7 +3714,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         st.info(f"⏳ Loading chart data for {disp_sym}...")
         return
 
-    # Keep all 5 trading days (~375 candles) for 5-min chart!
     df_p = _fix_ist_df(df_c) if timeframe == "Intraday (5m)" else df_c.dropna(subset=['Open', 'High', 'Low', 'Close']).copy()
     df_p = df_p.tail(375 if timeframe == "Intraday (5m)" else 150).copy()
     if df_p.empty:
@@ -3760,7 +3802,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         if pd.notna(r.get('BB_UP')): bb_u_js.append({'time': ts, 'value': round(float(r['BB_UP']), 2)})
         if pd.notna(r.get('BB_DN')): bb_d_js.append({'time': ts, 'value': round(float(r['BB_DN']), 2)})
 
-        # Pine Script v6 Series
         if pd.notna(pine_res['fast_ma'].iloc[idx_i]):
             p_fast_js.append({'time': ts, 'value': round(float(pine_res['fast_ma'].iloc[idx_i]), 2), 'color': pine_res['rib_col'][idx_i]})
         if pd.notna(pine_res['slow_ma'].iloc[idx_i]):
@@ -3815,22 +3856,37 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         .exit-b {{ background: #eab308; color: #111827; border: 1px solid #facc15; }}
         .exit-b:hover {{ background: #ca8a04; color: #fff; }}
 
-        /* Select Indicator Dropdown Menu */
+        /* Dropdown Menus (Drawing Tools & Select Indicator) */
         .ind-drop-btn {{
             background: #1e293b; color: #38bdf8; border: 1px solid #334155; border-radius: 4px;
             padding: 1px 7px; font-size: 10px; font-weight: bold; cursor: pointer; white-space: nowrap;
         }}
-        .ind-drop-btn:hover {{ background: #334155; color: #fff; }}
+        .ind-drop-btn:hover, .ind-drop-btn.active-tool {{ background: #2563eb; color: #fff; border-color: #38bdf8; }}
         .ind-menu {{
             display: none; position: fixed; top: 26px; right: 28px; z-index: 9999;
             background: #111622; border: 1px solid #374151; border-radius: 6px; padding: 6px 8px;
             width: 235px; box-shadow: 0 8px 20px rgba(0,0,0,0.75); color: #e5e7eb; font-size: 10.5px;
         }}
-        .ind-menu.open {{ display: block; }}
+        .draw-menu {{
+            display: none; position: fixed; top: 26px; right: 155px; z-index: 9999;
+            background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 0px;
+            width: 215px; box-shadow: 0 8px 24px rgba(0,0,0,0.65); color: #0f172a; font-size: 12px;
+        }}
+        .ind-menu.open, .draw-menu.open {{ display: block; }}
         .ind-row {{
             display: flex; align-items: center; gap: 6px; padding: 3px 4px; cursor: pointer; border-radius: 4px;
         }}
         .ind-row:hover {{ background: #1f2937; }}
+        .draw-item {{
+            padding: 7px 14px; cursor: pointer; font-weight: 500; display: flex; justify-content: space-between; align-items: center;
+        }}
+        .draw-item:hover {{ background: #e2e8f0; }}
+        .draw-item.active {{ background: #dbeafe; color: #1d4ed8; font-weight: 700; }}
+        .draw-clear {{
+            padding: 6px 14px 4px 14px; text-align: right; color: #475569; text-decoration: underline;
+            cursor: pointer; font-size: 11.5px; border-top: 1px solid #e2e8f0; margin-top: 4px;
+        }}
+        .draw-clear:hover {{ color: #dc2626; }}
         .ind-sec-lbl {{ font-size: 9px; color: #9ca3af; font-weight: bold; margin: 4px 0 2px 2px; text-transform: uppercase; letter-spacing: 0.5px; }}
 
         .close-btn {{
@@ -3844,6 +3900,11 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             color: {txt_hex}; background: {'rgba(255,255,255,0.85)' if is_light else 'rgba(11,14,20,0.85)'};
             padding: 1px 5px; border-radius: 4px; pointer-events: none; font-family: monospace;
         }}
+        .draw-status-badge {{
+            position: absolute; top: 27px; left: 50%; transform: translateX(-50%); z-index: 65;
+            background: #2563eb; color: #fff; padding: 2px 10px; border-radius: 12px; font-size: 10px;
+            font-weight: bold; display: none; box-shadow: 0 2px 8px rgba(0,0,0,0.5); cursor: pointer;
+        }}
         .sltg-box {{
             position: absolute; top: 45px; left: 6px; z-index: 30; display: none; align-items: center; gap: 6px;
             background: rgba(17, 22, 34, 0.92); border: 1px solid #374151; border-radius: 5px;
@@ -3853,18 +3914,20 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             width: 58px; background: #0b0e14; color: #fff; border: 1px solid #4b5563; border-radius: 3px;
             font-size: 10px; font-family: monospace; font-weight: bold; padding: 1px 3px; text-align: right;
         }}
-        /* Hover Tooltip for Entry, SL & TGT Lines */
         .line-hover-tip {{
             position: absolute; display: none; z-index: 80; pointer-events: none;
             background: rgba(15, 23, 42, 0.96); border: 1px solid #38bdf8; color: #ffffff;
             padding: 4px 8px; border-radius: 5px; font-size: 10.5px; font-family: monospace;
             white-space: nowrap; box-shadow: 0 4px 12px rgba(0,0,0,0.6);
         }}
-        /* Pine Script Wave Dominance Table */
         .wave-tbl {{
             position: absolute; top: 28px; right: 62px; z-index: 25; display: none;
             background: rgba(17, 22, 34, 0.90); border: 1px solid #374151; border-radius: 5px;
             padding: 3px 7px; font-size: 9.5px; color: #e5e7eb; font-family: monospace;
+        }}
+        #draw_svg_{chart_dom_id} {{
+            position: absolute; top: 25px; left: 0; width: 100%; height: calc(100vh - 25px);
+            z-index: 15; pointer-events: none; overflow: hidden;
         }}
     </style>
     </head>
@@ -3875,12 +3938,24 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 <span style="background:#1e293b; color:#38bdf8; padding:0px 4px; border-radius:3px; font-size:9px; font-weight:bold;">{tf_short}</span>
                 <span style="font-weight:700; font-size:11.5px; color:#ffd700;">₹{ltp_v:,.2f}</span>
                 <span style="font-weight:700; font-size:10px; color:{c_col};">({chg_v:+.2f}%)</span>
-                <span class="tr-btn prod-b" onclick="triggerStBtn('{prod_token}')" title="Click to switch between Intraday (MIS) and Longterm (CNC)">{prod_badge_txt}</span>
+                <span class="tr-btn prod-b" onclick="triggerStBtn('{prod_token}')" title="Switch Intraday (MIS) / Longterm (CNC)">{prod_badge_txt}</span>
                 <span class="tr-btn buy-b" onclick="startNewTrade('{fetch_sym}', '{buy_token}')" title="Buy {disp_sym} ({prod_mode}) @ ₹{ltp_v:.2f}">BUY</span>
                 <span class="tr-btn sell-b" onclick="startNewTrade('{fetch_sym}', '{sell_token}')" title="Sell {disp_sym} ({prod_mode}) @ ₹{ltp_v:.2f}">SELL</span>
                 {exit_btn_html}
             </div>
             <div class="ind-bar">
+                <!-- ✏️ Drawing Tools Menu (Like 2nd Screenshot) -->
+                <span id="draw_btn_{chart_dom_id}" class="ind-drop-btn" onclick="toggleDrawMenu(event)" title="Drawing Tools">✏️ Draw ▾</span>
+                <div id="draw_menu_{chart_dom_id}" class="draw-menu" onclick="event.stopPropagation()">
+                    <div id="ditem_hline" class="draw-item" onclick="selectDrawTool('hline')"><span>Horizontal Line</span><span style="color:#64748b;font-size:10px;">━</span></div>
+                    <div id="ditem_vline" class="draw-item" onclick="selectDrawTool('vline')"><span>Vertical Line</span><span style="color:#64748b;font-size:10px;">┃</span></div>
+                    <div id="ditem_tl_hl" class="draw-item" onclick="selectDrawTool('tl_hl')"><span>Trendline (High/Low)</span><span style="color:#64748b;font-size:10px;">╱</span></div>
+                    <div id="ditem_tl_free" class="draw-item" onclick="selectDrawTool('tl_free')"><span>Trendline (FreeHand)</span><span style="color:#64748b;font-size:10px;">✍️</span></div>
+                    <div id="ditem_fib" class="draw-item" onclick="selectDrawTool('fib')"><span>Fibonacci Retracements <b id="fib_cnt_{chart_dom_id}">(0)</b></span><span style="color:#64748b;font-size:10px;">☰</span></div>
+                    <div class="draw-clear" onclick="clearAllDrawings()">Clear all</div>
+                </div>
+
+                <!-- 📊 Select Indicator Menu -->
                 <span class="ind-drop-btn" onclick="toggleIndMenu(event)">📊 Select Indicator ▾</span>
                 <div id="ind_menu_{chart_dom_id}" class="ind-menu" onclick="event.stopPropagation()">
                     <div class="ind-sec-lbl">Default Indicators (Active)</div>
@@ -3903,6 +3978,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         </div>
 
         <div id="ohlc_{chart_dom_id}" class="ohlc-overlay">Move cursor to inspect OHLCV</div>
+        <div id="draw_badge_{chart_dom_id}" class="draw-status-badge" onclick="cancelDrawTool()" title="Click to exit drawing mode"></div>
 
         <!-- Pine Script v6 Wave Dominance Table -->
         <div id="wtbl_{chart_dom_id}" class="wave-tbl">
@@ -3922,19 +3998,32 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         <!-- Hover Tooltip for Entry / SL / Target Percentage & Amount -->
         <div id="line_tip_{chart_dom_id}" class="line-hover-tip"></div>
 
+        <!-- SVG Overlay for Vertical Lines, Trendlines, FreeHand & Fibonacci Retracements -->
+        <svg id="draw_svg_{chart_dom_id}"></svg>
         <div id="{chart_dom_id}" style="width: 100%; height: calc(100vh - 25px);"></div>
 
         <script>
+        const SYM_KEY = "{fetch_sym}";
         window.parent._customSLTG = window.parent._customSLTG || {{}};
         window.parent._savedIndState = window.parent._savedIndState || null;
+        window.parent._savedDrawings = window.parent._savedDrawings || {{}};
+        window.parent._savedDrawings[SYM_KEY] = window.parent._savedDrawings[SYM_KEY] || [];
 
         window.toggleIndMenu = function(e) {{
             e.stopPropagation();
+            document.getElementById('draw_menu_{chart_dom_id}').classList.remove('open');
             document.getElementById('ind_menu_{chart_dom_id}').classList.toggle('open');
         }};
+        window.toggleDrawMenu = function(e) {{
+            e.stopPropagation();
+            document.getElementById('ind_menu_{chart_dom_id}').classList.remove('open');
+            document.getElementById('draw_menu_{chart_dom_id}').classList.toggle('open');
+        }};
         document.addEventListener('click', () => {{
-            const m = document.getElementById('ind_menu_{chart_dom_id}');
-            if (m) m.classList.remove('open');
+            const m1 = document.getElementById('ind_menu_{chart_dom_id}');
+            const m2 = document.getElementById('draw_menu_{chart_dom_id}');
+            if (m1) m1.classList.remove('open');
+            if (m2) m2.classList.remove('open');
         }});
 
         window.triggerStBtn = function(tokenStr) {{
@@ -3980,7 +4069,12 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         const bigMarkers = {json.dumps(markers_js)};
         const activePos = {pos_js};
 
+        const candleMap = Object.fromEntries(cData.map(b => [b.time, b]));
         const container = document.getElementById('{chart_dom_id}');
+        const drawSvg = document.getElementById('draw_svg_{chart_dom_id}');
+        const drawBadge = document.getElementById('draw_badge_{chart_dom_id}');
+        const drawBtn = document.getElementById('draw_btn_{chart_dom_id}');
+        const fibCntEl = document.getElementById('fib_cnt_{chart_dom_id}');
         const ohlcBox = document.getElementById('ohlc_{chart_dom_id}');
         const sltgBar = document.getElementById('sltg_bar_{chart_dom_id}');
         const inpSL = document.getElementById('inp_sl_{chart_dom_id}');
@@ -4046,6 +4140,220 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         }});
         volSeries.setData(vData);
         chart.timeScale().fitContent();
+
+        // =========================================================
+        // ✏️ INTERACTIVE DRAWING ENGINE (H-LINE, V-LINE, TRENDLINES, FIBONACCI)
+        // =========================================================
+        let currentTool = null;
+        let pendingPt = null;
+        let isFreeDrawing = false;
+        let freePts = [];
+        let hLineObjs = [];
+
+        function getClosestTime(xCoord) {{
+            const t = chart.timeScale().coordinateToTime(xCoord);
+            if (t !== null) return t;
+            if (cData.length === 0) return 0;
+            const logical = chart.timeScale().coordinateToLogical(xCoord);
+            if (logical === null) return cData[cData.length - 1].time;
+            const idx = Math.max(0, Math.min(cData.length - 1, Math.round(logical)));
+            return cData[idx].time;
+        }}
+
+        function snapHighLow(timeVal, rawPrice) {{
+            const bar = candleMap[timeVal];
+            if (!bar) return rawPrice;
+            const distH = Math.abs(rawPrice - bar.high);
+            const distL = Math.abs(rawPrice - bar.low);
+            return distH <= distL ? bar.high : bar.low;
+        }}
+
+        window.selectDrawTool = function(toolName) {{
+            currentTool = toolName;
+            pendingPt = null;
+            freePts = [];
+            document.getElementById('draw_menu_{chart_dom_id}').classList.remove('open');
+            ['hline','vline','tl_hl','tl_free','fib'].forEach(k => {{
+                const el = document.getElementById('ditem_' + k);
+                if (el) el.className = 'draw-item' + (k === toolName ? ' active' : '');
+            }});
+            const names = {{
+                hline: '━ Click on chart to place Horizontal Line (Click here to exit)',
+                vline: '┃ Click on chart to place Vertical Line (Click here to exit)',
+                tl_hl: '╱ Click Point 1 & Point 2 for High/Low Trendline (Click here to exit)',
+                tl_free: '✍️ Drag or Click 2 points for FreeHand Trendline (Click here to exit)',
+                fib: '☰ Click Swing High & Swing Low for Fibonacci (Click here to exit)'
+            }};
+            drawBadge.innerHTML = names[toolName] || '';
+            drawBadge.style.display = 'block';
+            drawBtn.classList.add('active-tool');
+            container.style.cursor = 'crosshair';
+        }};
+
+        window.cancelDrawTool = function() {{
+            currentTool = null;
+            pendingPt = null;
+            isFreeDrawing = false;
+            freePts = [];
+            drawBadge.style.display = 'none';
+            drawBtn.classList.remove('active-tool');
+            container.style.cursor = 'default';
+            chart.applyOptions({{ handleScroll: true, handleScale: true }});
+            ['hline','vline','tl_hl','tl_free','fib'].forEach(k => {{
+                const el = document.getElementById('ditem_' + k);
+                if (el) el.className = 'draw-item';
+            }});
+        }};
+
+        window.clearAllDrawings = function() {{
+            window.parent._savedDrawings[SYM_KEY] = [];
+            hLineObjs.forEach(l => candleSeries.removePriceLine(l));
+            hLineObjs = [];
+            renderAllDrawings();
+            cancelDrawTool();
+            document.getElementById('draw_menu_{chart_dom_id}').classList.remove('open');
+        }};
+
+        function rebuildHPriceLines() {{
+            hLineObjs.forEach(l => candleSeries.removePriceLine(l));
+            hLineObjs = [];
+            const list = window.parent._savedDrawings[SYM_KEY] || [];
+            list.forEach(d => {{
+                if (d.type === 'hline') {{
+                    hLineObjs.push(candleSeries.createPriceLine({{
+                        price: d.price,
+                        color: '#38bdf8',
+                        lineWidth: 1.5,
+                        lineStyle: LightweightCharts.LineStyle.Solid,
+                        axisLabelVisible: true,
+                        title: 'H-Line'
+                    }}));
+                }}
+            }});
+        }}
+
+        function renderAllDrawings(previewPt = null) {{
+            const list = window.parent._savedDrawings[SYM_KEY] || [];
+            const rect = container.getBoundingClientRect();
+            let svgHtml = '';
+            let fibCount = 0;
+
+            const allItems = [...list];
+            if (pendingPt && previewPt && (currentTool === 'tl_hl' || currentTool === 'tl_free' || currentTool === 'fib')) {{
+                allItems.push({{ type: currentTool, p1: pendingPt, p2: previewPt, preview: true }});
+            }}
+            if (isFreeDrawing && freePts.length > 1) {{
+                allItems.push({{ type: 'free_path', pts: freePts, preview: true }});
+            }}
+
+            allItems.forEach(d => {{
+                if (d.type === 'vline') {{
+                    const x = chart.timeScale().timeToCoordinate(d.time);
+                    if (x !== null && x >= 0 && x <= rect.width) {{
+                        svgHtml += `<line x1="${{x}}" y1="0" x2="${{x}}" y2="${{rect.height}}" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4,4" />`;
+                    }}
+                }} else if (d.type === 'tl_hl' || d.type === 'tl_free') {{
+                    const x1 = chart.timeScale().timeToCoordinate(d.p1.time);
+                    const y1 = candleSeries.priceToCoordinate(d.p1.price);
+                    const x2 = chart.timeScale().timeToCoordinate(d.p2.time);
+                    const y2 = candleSeries.priceToCoordinate(d.p2.price);
+                    if (x1 !== null && y1 !== null && x2 !== null && y2 !== null) {{
+                        const col = d.type === 'tl_hl' ? '#38bdf8' : '#a855f7';
+                        svgHtml += `<line x1="${{x1}}" y1="${{y1}}" x2="${{x2}}" y2="${{y2}}" stroke="${{col}}" stroke-width="2" />`;
+                        svgHtml += `<circle cx="${{x1}}" cy="${{y1}}" r="3.5" fill="${{col}}" />`;
+                        svgHtml += `<circle cx="${{x2}}" cy="${{y2}}" r="3.5" fill="${{col}}" />`;
+                    }}
+                }} else if (d.type === 'free_path' && d.pts && d.pts.length > 1) {{
+                    const ptsStr = d.pts.map(pt => {{
+                        const px = chart.timeScale().timeToCoordinate(pt.time);
+                        const py = candleSeries.priceToCoordinate(pt.price);
+                        return (px !== null && py !== null) ? `${{px}},${{py}}` : null;
+                    }}).filter(Boolean).join(' ');
+                    if (ptsStr) {{
+                        svgHtml += `<polyline fill="none" stroke="#a855f7" stroke-width="2" points="${{ptsStr}}" />`;
+                    }}
+                }} else if (d.type === 'fib') {{
+                    if (!d.preview) fibCount++;
+                    const x1 = chart.timeScale().timeToCoordinate(d.p1.time);
+                    const x2 = chart.timeScale().timeToCoordinate(d.p2.time);
+                    if (x1 !== null && x2 !== null) {{
+                        const leftX = Math.min(x1, x2);
+                        const rightX = Math.max(x1, x2, leftX + 120);
+                        const diff = d.p2.price - d.p1.price;
+                        const fibLevels = [
+                            {{ lvl: 0.0, col: '#94a3b8' }},
+                            {{ lvl: 0.236, col: '#ef4444' }},
+                            {{ lvl: 0.382, col: '#f59e0b' }},
+                            {{ lvl: 0.5, col: '#22c55e' }},
+                            {{ lvl: 0.618, col: '#06b6d4' }},
+                            {{ lvl: 0.786, col: '#3b82f6' }},
+                            {{ lvl: 1.0, col: '#94a3b8' }}
+                        ];
+                        fibLevels.forEach(fl => {{
+                            const lvlPrice = d.p2.price - (diff * fl.lvl);
+                            const y = candleSeries.priceToCoordinate(lvlPrice);
+                            if (y !== null) {{
+                                svgHtml += `<line x1="${{leftX}}" y1="${{y}}" x2="${{rightX}}" y2="${{y}}" stroke="${{fl.col}}" stroke-width="1.3" stroke-dasharray="3,2" />`;
+                                svgHtml += `<text x="${{leftX + 4}}" y="${{y - 3}}" fill="${{fl.col}}" font-size="9.5" font-family="monospace" font-weight="bold">${{(fl.lvl * 100).toFixed(1)}}% (₹${{lvlPrice.toFixed(1)}})</text>`;
+                            }}
+                        }});
+                    }}
+                }}
+            }});
+
+            drawSvg.innerHTML = svgHtml;
+            if (fibCntEl) fibCntEl.innerText = `(${{fibCount}})`;
+        }}
+
+        rebuildHPriceLines();
+        setTimeout(() => renderAllDrawings(), 80);
+        chart.timeScale().subscribeVisibleLogicalRangeChange(() => renderAllDrawings());
+        chart.timeScale().subscribeVisibleTimeRangeChange(() => renderAllDrawings());
+
+        // Handle Mouse/Touch Clicks for Drawing Tools
+        container.addEventListener('mousedown', (e) => {{
+            if (!currentTool) return;
+            const rect = container.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+            const tVal = getClosestTime(mx);
+            const pVal = candleSeries.coordinateToPrice(my);
+            if (!tVal || pVal === null) return;
+
+            if (currentTool === 'hline') {{
+                window.parent._savedDrawings[SYM_KEY].push({{ type: 'hline', price: Math.round(pVal * 20) / 20 }});
+                rebuildHPriceLines();
+                cancelDrawTool();
+            }} else if (currentTool === 'vline') {{
+                window.parent._savedDrawings[SYM_KEY].push({{ type: 'vline', time: tVal }});
+                renderAllDrawings();
+                cancelDrawTool();
+            }} else if (currentTool === 'tl_hl') {{
+                const snappedP = snapHighLow(tVal, pVal);
+                if (!pendingPt) {{
+                    pendingPt = {{ time: tVal, price: snappedP }};
+                    drawBadge.innerHTML = '╱ Now click Point 2 on chart (High/Low Snap)';
+                }} else {{
+                    window.parent._savedDrawings[SYM_KEY].push({{ type: 'tl_hl', p1: pendingPt, p2: {{ time: tVal, price: snappedP }} }});
+                    renderAllDrawings();
+                    cancelDrawTool();
+                }}
+            }} else if (currentTool === 'fib') {{
+                const snappedP = snapHighLow(tVal, pVal);
+                if (!pendingPt) {{
+                    pendingPt = {{ time: tVal, price: snappedP }};
+                    drawBadge.innerHTML = '☰ Now click Point 2 on chart for Fibonacci Retracement';
+                }} else {{
+                    window.parent._savedDrawings[SYM_KEY].push({{ type: 'fib', p1: pendingPt, p2: {{ time: tVal, price: snappedP }} }});
+                    renderAllDrawings();
+                    cancelDrawTool();
+                }}
+            }} else if (currentTool === 'tl_free') {{
+                chart.applyOptions({{ handleScroll: false, handleScale: false }});
+                isFreeDrawing = true;
+                freePts = [{{ time: tVal, price: pVal }}];
+            }}
+        }});
 
         // 🔥 INTERACTIVE ENTRY, SL & TGT LINES WITH % AND ₹ AMOUNT ON HOVER & DRAG
         let entryLineObj = null, slLineObj = null, tgLineObj = null;
@@ -4118,6 +4426,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             }};
 
             container.addEventListener('mousedown', (e) => {{
+                if (currentTool) return;
                 const rect = container.getBoundingClientRect();
                 const mouseY = e.clientY - rect.top;
                 const slY = candleSeries.priceToCoordinate(curSL);
@@ -4133,81 +4442,106 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                     e.preventDefault();
                 }}
             }});
+        }}
 
-            window.addEventListener('mousemove', (e) => {{
-                const rect = container.getBoundingClientRect();
-                const mouseX = e.clientX - rect.left;
-                const mouseY = e.clientY - rect.top;
+        window.addEventListener('mousemove', (e) => {{
+            const rect = container.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
 
-                if (!draggingMode) {{
-                    const entY = candleSeries.priceToCoordinate(activePos.entry);
-                    const slY = candleSeries.priceToCoordinate(curSL);
-                    const tgY = candleSeries.priceToCoordinate(curTG);
-
-                    if (slY !== null && Math.abs(mouseY - slY) <= 12) {{
-                        container.style.cursor = 'ns-resize';
-                        const m = calcMetrics(curSL);
-                        lineTip.style.display = 'block';
-                        lineTip.style.borderColor = '#ef4444';
-                        lineTip.style.left = Math.min(mouseX + 14, rect.width - 260) + 'px';
-                        lineTip.style.top = Math.max(28, slY - 28) + 'px';
-                        lineTip.innerHTML = `🛑 <b>STOP LOSS: ₹${{curSL.toFixed(2)}}</b> | Move: <b style="color:#f87171;">${{m.sign}}${{Math.abs(m.pct).toFixed(2)}}%</b> | Amt: <b style="color:#f87171;">${{m.sign}}₹${{Math.abs(m.rs).toFixed(2)}}</b>`;
-                    }} else if (tgY !== null && Math.abs(mouseY - tgY) <= 12) {{
-                        container.style.cursor = 'ns-resize';
-                        const m = calcMetrics(curTG);
-                        lineTip.style.display = 'block';
-                        lineTip.style.borderColor = '#22c55e';
-                        lineTip.style.left = Math.min(mouseX + 14, rect.width - 260) + 'px';
-                        lineTip.style.top = Math.max(28, tgY - 28) + 'px';
-                        lineTip.innerHTML = `🎯 <b>TARGET: ₹${{curTG.toFixed(2)}}</b> | Move: <b style="color:#4ade80;">${{m.sign}}${{Math.abs(m.pct).toFixed(2)}}%</b> | Profit: <b style="color:#4ade80;">${{m.sign}}₹${{Math.abs(m.rs).toFixed(2)}}</b>`;
-                    }} else if (entY !== null && Math.abs(mouseY - entY) <= 12) {{
-                        container.style.cursor = 'pointer';
-                        const mSL = calcMetrics(curSL);
-                        const mTG = calcMetrics(curTG);
-                        const pSign = activePos.pnlVal >= 0 ? '+' : '-';
-                        const pCol = activePos.pnlVal >= 0 ? '#4ade80' : '#f87171';
-                        lineTip.style.display = 'block';
-                        lineTip.style.borderColor = '#38bdf8';
-                        lineTip.style.left = Math.min(mouseX + 14, rect.width - 320) + 'px';
-                        lineTip.style.top = Math.max(28, entY - 32) + 'px';
-                        lineTip.innerHTML = `<b>${{activePos.side}} [${{activePos.prod}}] ${{activePos.qty}} Qty @ ₹${{activePos.entry}}</b> | Live: <b style="color:${{pCol}};">${{pSign}}${{Math.abs(activePos.pnlPct).toFixed(2)}}% (${{pSign}}₹${{Math.abs(activePos.pnlVal).toFixed(2)}})</b><br><span style="color:#f87171;">🛑 SL: ${{mSL.sign}}${{Math.abs(mSL.pct).toFixed(2)}}% (${{mSL.sign}}₹${{Math.abs(mSL.rs).toFixed(0)}})</span> &nbsp;|&nbsp; <span style="color:#4ade80;">🎯 TGT: ${{mTG.sign}}${{Math.abs(mTG.pct).toFixed(2)}}% (${{mTG.sign}}₹${{Math.abs(mTG.rs).toFixed(0)}})</span>`;
-                    }} else {{
-                        container.style.cursor = 'default';
-                        lineTip.style.display = 'none';
+            if (currentTool) {{
+                const tVal = getClosestTime(mouseX);
+                const pVal = candleSeries.coordinateToPrice(mouseY);
+                if (tVal && pVal !== null) {{
+                    if (isFreeDrawing) {{
+                        freePts.push({{ time: tVal, price: pVal }});
+                        renderAllDrawings();
+                    }} else if (pendingPt) {{
+                        const snapP = (currentTool === 'tl_hl' || currentTool === 'fib') ? snapHighLow(tVal, pVal) : pVal;
+                        renderAllDrawings({{ time: tVal, price: snapP }});
                     }}
-                    return;
                 }}
+                return;
+            }}
 
-                const rawPrice = candleSeries.coordinateToPrice(mouseY);
-                if (rawPrice === null || rawPrice <= 0) return;
-                const newP = Math.round(rawPrice * 20) / 20;
+            if (!activePos) return;
 
-                if (draggingMode === 'SL') {{
-                    curSL = newP;
-                    inpSL.value = curSL.toFixed(2);
-                    slLineObj.applyOptions({{ price: curSL, title: fmtSLTitle(curSL) }});
+            if (!draggingMode) {{
+                const entY = candleSeries.priceToCoordinate(activePos.entry);
+                const slY = candleSeries.priceToCoordinate(curSL);
+                const tgY = candleSeries.priceToCoordinate(curTG);
+
+                if (slY !== null && Math.abs(mouseY - slY) <= 12) {{
+                    container.style.cursor = 'ns-resize';
                     const m = calcMetrics(curSL);
                     lineTip.style.display = 'block';
-                    lineTip.innerHTML = `🛑 <b>SL: ₹${{curSL.toFixed(2)}}</b> | <b style="color:#f87171;">${{m.sign}}${{Math.abs(m.pct).toFixed(2)}}% (${{m.sign}}₹${{Math.abs(m.rs).toFixed(2)}})</b>`;
-                }} else if (draggingMode === 'TG') {{
-                    curTG = newP;
-                    inpTG.value = curTG.toFixed(2);
-                    tgLineObj.applyOptions({{ price: curTG, title: fmtTGTitle(curTG) }});
+                    lineTip.style.borderColor = '#ef4444';
+                    lineTip.style.left = Math.min(mouseX + 14, rect.width - 260) + 'px';
+                    lineTip.style.top = Math.max(28, slY - 28) + 'px';
+                    lineTip.innerHTML = `🛑 <b>STOP LOSS: ₹${{curSL.toFixed(2)}}</b> | Move: <b style="color:#f87171;">${{m.sign}}${{Math.abs(m.pct).toFixed(2)}}%</b> | Amt: <b style="color:#f87171;">${{m.sign}}₹${{Math.abs(m.rs).toFixed(2)}}</b>`;
+                }} else if (tgY !== null && Math.abs(mouseY - tgY) <= 12) {{
+                    container.style.cursor = 'ns-resize';
                     const m = calcMetrics(curTG);
                     lineTip.style.display = 'block';
-                    lineTip.innerHTML = `🎯 <b>TGT: ₹${{curTG.toFixed(2)}}</b> | <b style="color:#4ade80;">${{m.sign}}${{Math.abs(m.pct).toFixed(2)}}% (${{m.sign}}₹${{Math.abs(m.rs).toFixed(2)}})</b>`;
-                }}
-                window.parent._customSLTG[activePos.sym] = {{ entry: activePos.entry, sl: curSL, tg: curTG }};
-            }});
-
-            window.addEventListener('mouseup', () => {{
-                if (draggingMode) {{
-                    draggingMode = null;
+                    lineTip.style.borderColor = '#22c55e';
+                    lineTip.style.left = Math.min(mouseX + 14, rect.width - 260) + 'px';
+                    lineTip.style.top = Math.max(28, tgY - 28) + 'px';
+                    lineTip.innerHTML = `🎯 <b>TARGET: ₹${{curTG.toFixed(2)}}</b> | Move: <b style="color:#4ade80;">${{m.sign}}${{Math.abs(m.pct).toFixed(2)}}%</b> | Profit: <b style="color:#4ade80;">${{m.sign}}₹${{Math.abs(m.rs).toFixed(2)}}</b>`;
+                }} else if (entY !== null && Math.abs(mouseY - entY) <= 12) {{
+                    container.style.cursor = 'pointer';
+                    const mSL = calcMetrics(curSL);
+                    const mTG = calcMetrics(curTG);
+                    const pSign = activePos.pnlVal >= 0 ? '+' : '-';
+                    const pCol = activePos.pnlVal >= 0 ? '#4ade80' : '#f87171';
+                    lineTip.style.display = 'block';
+                    lineTip.style.borderColor = '#38bdf8';
+                    lineTip.style.left = Math.min(mouseX + 14, rect.width - 320) + 'px';
+                    lineTip.style.top = Math.max(28, entY - 32) + 'px';
+                    lineTip.innerHTML = `<b>${{activePos.side}} [${{activePos.prod}}] ${{activePos.qty}} Qty @ ₹${{activePos.entry}}</b> | Live: <b style="color:${{pCol}};">${{pSign}}${{Math.abs(activePos.pnlPct).toFixed(2)}}% (${{pSign}}₹${{Math.abs(activePos.pnlVal).toFixed(2)}})</b><br><span style="color:#f87171;">🛑 SL: ${{mSL.sign}}${{Math.abs(mSL.pct).toFixed(2)}}% (${{mSL.sign}}₹${{Math.abs(mSL.rs).toFixed(0)}})</span> &nbsp;|&nbsp; <span style="color:#4ade80;">🎯 TGT: ${{mTG.sign}}${{Math.abs(mTG.pct).toFixed(2)}}% (${{mTG.sign}}₹${{Math.abs(mTG.rs).toFixed(0)}})</span>`;
+                }} else {{
                     container.style.cursor = 'default';
-                    chart.applyOptions({{ handleScroll: true, handleScale: true }});
+                    lineTip.style.display = 'none';
                 }}
-            }});
-        }}
+                return;
+            }}
+
+            const rawPrice = candleSeries.coordinateToPrice(mouseY);
+            if (rawPrice === null || rawPrice <= 0) return;
+            const newP = Math.round(rawPrice * 20) / 20;
+
+            if (draggingMode === 'SL') {{
+                curSL = newP;
+                inpSL.value = curSL.toFixed(2);
+                slLineObj.applyOptions({{ price: curSL, title: fmtSLTitle(curSL) }});
+                const m = calcMetrics(curSL);
+                lineTip.style.display = 'block';
+                lineTip.innerHTML = `🛑 <b>SL: ₹${{curSL.toFixed(2)}}</b> | <b style="color:#f87171;">${{m.sign}}${{Math.abs(m.pct).toFixed(2)}}% (${{m.sign}}₹${{Math.abs(m.rs).toFixed(2)}})</b>`;
+            }} else if (draggingMode === 'TG') {{
+                curTG = newP;
+                inpTG.value = curTG.toFixed(2);
+                tgLineObj.applyOptions({{ price: curTG, title: fmtTGTitle(curTG) }});
+                const m = calcMetrics(curTG);
+                lineTip.style.display = 'block';
+                lineTip.innerHTML = `🎯 <b>TGT: ₹${{curTG.toFixed(2)}}</b> | <b style="color:#4ade80;">${{m.sign}}${{Math.abs(m.pct).toFixed(2)}}% (${{m.sign}}₹${{Math.abs(m.rs).toFixed(2)}})</b>`;
+            }}
+            window.parent._customSLTG[activePos.sym] = {{ entry: activePos.entry, sl: curSL, tg: curTG }};
+        }});
+
+        window.addEventListener('mouseup', () => {{
+            if (isFreeDrawing) {{
+                isFreeDrawing = false;
+                if (freePts.length > 1) {{
+                    window.parent._savedDrawings[SYM_KEY].push({{ type: 'free_path', pts: [...freePts] }});
+                }}
+                renderAllDrawings();
+                cancelDrawTool();
+            }}
+            if (draggingMode) {{
+                draggingMode = null;
+                container.style.cursor = 'default';
+                chart.applyOptions({{ handleScroll: true, handleScale: true }});
+            }}
+        }});
 
         // Default Indicators
         const vwapSeries = chart.addLineSeries({{ color: '#eab308', lineWidth: 2, title: 'VWAP', visible: {'true' if 'VWAP' in active_inds else 'false'} }});
@@ -4311,7 +4645,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             candleSeries.setData(state.pine_tsa ? spdCandles : cData);
             wTbl.style.display = state.pine_tsa ? 'block' : 'none';
 
-            // Sync checkboxes
             ['ema','sr','piv','vwap','bb','kal','st','pine_rib','pine_big','pine_tsa'].forEach(k => {{
                 const el = document.getElementById('chk_' + k);
                 if (el) el.checked = !!state[k];
@@ -4361,6 +4694,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             if (entries.length === 0) return;
             const {{ width, height }} = entries[0].contentRect;
             chart.applyOptions({{ width, height }});
+            renderAllDrawings();
         }}).observe(container);
         </script>
     </body>
