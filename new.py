@@ -4961,15 +4961,15 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 const slY = candleSeries.priceToCoordinate(curSL);
                 const tgY = candleSeries.priceToCoordinate(curTG);
 
-                if (entY !== null && Math.abs(mouseY - entY) <= 10) {{
+                if (entY !== null && Math.abs(mouseY - entY) <= 18) {{
                     draggingMode = 'ENT';
                     chart.applyOptions({{ handleScroll: false, handleScale: false }});
                     e.preventDefault();
-                }} else if (slY !== null && Math.abs(mouseY - slY) <= 10) {{
+                }} else if (slY !== null && Math.abs(mouseY - slY) <= 18) {{
                     draggingMode = 'SL';
                     chart.applyOptions({{ handleScroll: false, handleScale: false }});
                     e.preventDefault();
-                }} else if (tgY !== null && Math.abs(mouseY - tgY) <= 10) {{
+                }} else if (tgY !== null && Math.abs(mouseY - tgY) <= 18) {{
                     draggingMode = 'TG';
                     chart.applyOptions({{ handleScroll: false, handleScale: false }});
                     e.preventDefault();
@@ -5248,6 +5248,50 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             }}
         }});
 
+        // 📱 MOBILE TOUCH SUPPORT (Finger Drag for BUY/SL/TGT Lines & Drawing Tools)
+        container.addEventListener('touchstart', (e) => {{
+            if (!e.touches || e.touches.length === 0) return;
+            const touch = e.touches[0];
+            const rect = container.getBoundingClientRect();
+            const my = touch.clientY - rect.top;
+
+            let nearLine = false;
+            if (activePos) {{
+                const entY = candleSeries.priceToCoordinate(curEnt);
+                const slY = candleSeries.priceToCoordinate(curSL);
+                const tgY = candleSeries.priceToCoordinate(curTG);
+                if ((entY !== null && Math.abs(my - entY) <= 18) ||
+                    (slY !== null && Math.abs(my - slY) <= 18) ||
+                    (tgY !== null && Math.abs(my - tgY) <= 18)) {{
+                    nearLine = true;
+                }}
+            }}
+
+            if (nearLine || currentTool) {{
+                e.preventDefault();
+                container.dispatchEvent(new MouseEvent('mousedown', {{
+                    clientX: touch.clientX, clientY: touch.clientY, bubbles: true
+                }}));
+            }}
+        }}, {{ passive: false }});
+
+        window.addEventListener('touchmove', (e) => {{
+            if (!draggingMode && !isFreeDrawing && !isFibFreeDragging && !currentTool) return;
+            if (!e.touches || e.touches.length === 0) return;
+            e.preventDefault();
+            const touch = e.touches[0];
+            window.dispatchEvent(new MouseEvent('mousemove', {{
+                clientX: touch.clientX, clientY: touch.clientY, bubbles: true
+            }}));
+        }}, {{ passive: false }});
+
+        window.addEventListener('touchend', (e) => {{
+            if (!draggingMode && !isFreeDrawing && !isFibFreeDragging && !currentTool) return;
+            const touch = (e.changedTouches && e.changedTouches.length > 0) ? e.changedTouches[0] : null;
+            window.dispatchEvent(new MouseEvent('mouseup', {{
+                clientX: touch ? touch.clientX : 0, clientY: touch ? touch.clientY : 0, bubbles: true
+            }}));
+        }}, {{ passive: false }});
         new ResizeObserver(entries => {{
             if (entries.length === 0) return;
             const {{ width, height }} = entries[0].contentRect;
