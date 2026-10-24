@@ -4745,7 +4745,15 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             scaleMargins: {{ top: 0.82, bottom: 0.0 }}
         }});
         volSeries.setData(vData);
-        chart.timeScale().fitContent();
+        // Default ga Last 1 Day (75 candles) matrame chupinchu; Zoom-Out / Scroll cheste 5 Days kanipistayi
+        if ("{timeframe}" === "Intraday (5m)" && cData.length > 75) {{
+            chart.timeScale().setVisibleLogicalRange({{
+                from: cData.length - 75,
+                to: cData.length + 2
+            }});
+        }} else {{
+            chart.timeScale().fitContent();
+        }}
 
         // =========================================================
         // ✏️ INTERACTIVE DRAWING ENGINE
