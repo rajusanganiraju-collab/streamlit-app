@@ -3295,8 +3295,8 @@ if not _SS['paper_loaded']:
         pass
     _SS['paper_loaded'] = True
 
-def _place_dhan_free_order(clean_sym, side, qty, prod_type="INTRADAY", sl_p=0.0, tg_p=0.0, use_super=False):
-    """Dhan Orders API (/v2/orders) leda Super Order API (/v2/super/orders) dwara order vesi (ok, msg, order_id, is_super) istundi"""
+def _place_dhan_free_order(clean_sym, side, qty, prod_type="INTRADAY", sl_p=0.0, tg_p=0.0, use_super=False, order_type="MARKET", limit_p=0.0):
+    """Dhan Orders API (/v2/orders) leda Super Order API (/v2/super/orders) dwara MARKET leda LIMIT order vestundi"""
     cid, tok = _dhan_creds()
     if not cid or not tok:
         return False, "secrets.toml lo [dhan] client_id / access_token ledu! (Paper Trade matrame save ayyindi)", "", False
@@ -3306,6 +3306,8 @@ def _place_dhan_free_order(clean_sym, side, qty, prod_type="INTRADAY", sl_p=0.0,
         return False, f"Dhan Scrip Master lo '{clean_sym}' securityId dorkaledu", "", False
 
     dhan_prod = "INTRADAY" if prod_type == "INTRADAY" else "CNC"
+    dhan_otype = "LIMIT" if (str(order_type).upper() == "LIMIT" and limit_p > 0) else "MARKET"
+    dhan_price = round(float(limit_p), 2) if dhan_otype == "LIMIT" else 0
     corr_id = f"st_{int(time.time())}"
 
     # 1. Try Dhan Super Order API (Entry + Target + SL together)
@@ -3316,10 +3318,10 @@ def _place_dhan_free_order(clean_sym, side, qty, prod_type="INTRADAY", sl_p=0.0,
             "transactionType": side,
             "exchangeSegment": "NSE_EQ",
             "productType": dhan_prod,
-            "orderType": "MARKET",
+            "orderType": dhan_otype,
             "securityId": str(sec_id),
             "quantity": int(qty),
-            "price": 0,
+            "price": dhan_price,
             "targetPrice": round(float(tg_p), 2),
             "stopLossPrice": round(float(sl_p), 2),
             "trailingJump": 0
@@ -3329,23 +3331,23 @@ def _place_dhan_free_order(clean_sym, side, qty, prod_type="INTRADAY", sl_p=0.0,
             js = rs.json() if rs.content else {}
             if rs.status_code in (200, 201) and js.get("orderId"):
                 oid = str(js.get("orderId"))
-                return True, f"✅ Dhan Super Order (Entry+SL+TGT) Placed! ID: {oid}", oid, True
+                return True, f"✅ Dhan Super {dhan_otype} Order Placed! ID: {oid}", oid, True
         except Exception:
             pass
 
-    # 2. Standard Dhan v2 Market Order (/v2/orders)
+    # 2. Standard Dhan v2 Order (/v2/orders) — Supports MARKET & LIMIT
     payload = {
         "dhanClientId": str(cid),
         "correlationId": corr_id,
         "transactionType": side,
         "exchangeSegment": "NSE_EQ",
         "productType": dhan_prod,
-        "orderType": "MARKET",
+        "orderType": dhan_otype,
         "validity": "DAY",
         "securityId": str(sec_id),
         "quantity": int(qty),
         "disclosedQuantity": 0,
-        "price": 0,
+        "price": dhan_price,
         "triggerPrice": 0,
         "afterMarketOrder": False,
         "amoTime": "OPEN",
@@ -3357,74 +3359,103 @@ def _place_dhan_free_order(clean_sym, side, qty, prod_type="INTRADAY", sl_p=0.0,
         j = r.json() if r.content else {}
         if r.status_code in (200, 201) and j.get("orderId"):
             oid = str(j.get("orderId"))
-            return True, f"✅ Dhan App/Web Order Placed! ID: {oid} ({j.get('orderStatus', 'TRANSIT')})", oid, False
+            return True, f"✅ Dhan {dhan_otype} Order Placed! ID: {oid} ({j.get('orderStatus', 'TRANSIT')})", oid, False
         err_msg = j.get("errorMessage") or j.get("internalErrorMessage") or _dhan_classify(r.status_code, r.text, j)
         return False, f"⚠️ Dhan Rejected: {err_msg}", "", False
     except Exception as e:
         return False, f"⚠️ Network error: {e}", "", False
 
 
-def _modify_dhan_super_order(order_id, new_sl=0.0, new_tg=0.0):
-    """Chart meeda SL/TGT marchagane Dhan Super Order lo TARGET_LEG mariyu STOP_LOSS_LEG ni update chestundi"""
+def _modify_dhan_order_or_super(order_id, is_super, new_ent=0.0, new_sl=0.0, new_tg=0.0, qty=1, order_type="LIMIT"):
+    """Chart meeda Buy Price (LIMIT), SL leda Target marchinappudu Dhan App lo modify chestundi"""
     cid, tok = _dhan_creds()
     if not cid or not tok or not order_id:
-        return False, "No active Dhan Super Order ID"
+        return False, "No active Dhan Order ID"
 
     headers = _dhan_headers(cid, tok)
-    url = f"{DHAN_REST}/super/orders/{order_id}"
-    msgs = []
-    ok_any = False
+    dhan_otype = "LIMIT" if (str(order_type).upper() == "LIMIT" and new_ent > 0) else "MARKET"
 
-    # 1. Modify STOP_LOSS_LEG in Dhan
-    if new_sl > 0:
-        sl_payload = {
-            "dhanClientId": str(cid),
-            "orderId": str(order_id),
-            "legName": "STOP_LOSS_LEG",
-            "stopLossPrice": round(float(new_sl), 2),
-            "trailingJump": 0
-        }
-        try:
-            r_sl = requests.put(url, json=sl_payload, headers=headers, timeout=8)
-            if r_sl.status_code in (200, 201, 202):
-                ok_any = True
-                msgs.append(f"SL→₹{new_sl:.2f}")
-            else:
-                # If main entry leg is still PENDING, modify via ENTRY_LEG
-                ent_payload = {
-                    "dhanClientId": str(cid),
-                    "orderId": str(order_id),
-                    "legName": "ENTRY_LEG",
-                    "orderType": "MARKET",
-                    "stopLossPrice": round(float(new_sl), 2),
-                    "targetPrice": round(float(new_tg), 2) if new_tg > 0 else 0,
-                    "trailingJump": 0
-                }
+    if is_super:
+        url = f"{DHAN_REST}/super/orders/{order_id}"
+        msgs = []
+        ok_any = False
+
+        # Modify ENTRY_LEG (if pending, updates Limit Price + SL + Target together)
+        if new_ent > 0:
+            ent_payload = {
+                "dhanClientId": str(cid),
+                "orderId": str(order_id),
+                "legName": "ENTRY_LEG",
+                "orderType": dhan_otype,
+                "quantity": int(qty),
+                "price": round(float(new_ent), 2) if dhan_otype == "LIMIT" else 0,
+                "stopLossPrice": round(float(new_sl), 2) if new_sl > 0 else 0,
+                "targetPrice": round(float(new_tg), 2) if new_tg > 0 else 0,
+                "trailingJump": 0
+            }
+            try:
                 r_ent = requests.put(url, json=ent_payload, headers=headers, timeout=8)
                 if r_ent.status_code in (200, 201, 202):
-                    return True, f"✅ Dhan Super Order Updated (SL: ₹{new_sl:.2f}, TGT: ₹{new_tg:.2f})"
-        except Exception as e:
-            msgs.append(f"SL err: {e}")
+                    ok_any = True
+                    msgs.append(f"Entry({dhan_otype})→₹{new_ent:.2f}")
+            except Exception:
+                pass
 
-    # 2. Modify TARGET_LEG in Dhan
-    if new_tg > 0:
-        tg_payload = {
+        if new_sl > 0:
+            sl_payload = {
+                "dhanClientId": str(cid),
+                "orderId": str(order_id),
+                "legName": "STOP_LOSS_LEG",
+                "stopLossPrice": round(float(new_sl), 2),
+                "trailingJump": 0
+            }
+            try:
+                r_sl = requests.put(url, json=sl_payload, headers=headers, timeout=8)
+                if r_sl.status_code in (200, 201, 202):
+                    ok_any = True
+                    msgs.append(f"SL→₹{new_sl:.2f}")
+            except Exception:
+                pass
+
+        if new_tg > 0:
+            tg_payload = {
+                "dhanClientId": str(cid),
+                "orderId": str(order_id),
+                "legName": "TARGET_LEG",
+                "targetPrice": round(float(new_tg), 2)
+            }
+            try:
+                r_tg = requests.put(url, json=tg_payload, headers=headers, timeout=8)
+                if r_tg.status_code in (200, 201, 202):
+                    ok_any = True
+                    msgs.append(f"TGT→₹{new_tg:.2f}")
+            except Exception:
+                pass
+
+        if ok_any:
+            return True, f"✅ Dhan Super Order Modified ({', '.join(msgs)})!"
+        return False, "⚠️ Dhan Super Order Modify Failed"
+    else:
+        # Standard Order Modify (/v2/orders/{order-id}) -> Converts/Updates Pending Order to LIMIT Price
+        url = f"{DHAN_REST}/orders/{order_id}"
+        mod_payload = {
             "dhanClientId": str(cid),
             "orderId": str(order_id),
-            "legName": "TARGET_LEG",
-            "targetPrice": round(float(new_tg), 2)
+            "orderType": dhan_otype,
+            "legName": "ENTRY_LEG",
+            "quantity": int(qty),
+            "price": round(float(new_ent), 2) if dhan_otype == "LIMIT" else 0,
+            "disclosedQuantity": 0,
+            "triggerPrice": 0,
+            "validity": "DAY"
         }
         try:
-            r_tg = requests.put(url, json=tg_payload, headers=headers, timeout=8)
-            if r_tg.status_code in (200, 201, 202):
-                ok_any = True
-                msgs.append(f"TGT→₹{new_tg:.2f}")
+            r_m = requests.put(url, json=mod_payload, headers=headers, timeout=8)
+            if r_m.status_code in (200, 201, 202):
+                return True, f"✅ Dhan Order Modified to {dhan_otype} @ ₹{new_ent:.2f}!"
         except Exception as e:
-            msgs.append(f"TGT err: {e}")
-
-    if ok_any:
-        return True, f"✅ Dhan App Super Order Modified ({', '.join(msgs)})!"
-    return False, f"⚠️ Dhan Modify Failed ({', '.join(msgs) if msgs else 'Check order status in Dhan App'})"
+            return False, f"⚠️ Modify err: {e}"
+        return False, "⚠️ Dhan Order already traded or cannot be modified"
 
 
 def _toggle_trade_prod():
@@ -3432,22 +3463,53 @@ def _toggle_trade_prod():
     _UI['trade_prod'] = 'CNC' if cur == 'INTRADAY' else 'INTRADAY'
 
 
-def _update_chart_sl_tg(fetch_sym, new_sl, new_tg):
+def _update_chart_sl_tg(fetch_sym, new_ent, new_sl, new_tg, order_type="LIMIT"):
     if fetch_sym in _SS['chart_trades']:
         tr = _SS['chart_trades'][fetch_sym]
+        old_ent = float(tr.get('entry', 0))
+        if new_ent > 0:
+            if abs(new_ent - old_ent) >= 0.01:
+                tr['order_type'] = "LIMIT"
+            tr['entry'] = round(float(new_ent), 2)
+        if order_type in ("LIMIT", "MARKET"):
+            tr['order_type'] = order_type
         if new_sl > 0:
             tr['sl'] = round(float(new_sl), 2)
         if new_tg > 0:
             tr['target'] = round(float(new_tg), 2)
+
+        tr['mode'] = f"{_UI.get('trade_mode', '📝 Paper Trading')} ({tr.get('order_type', 'MARKET')})"
         _sync_chart_trades_to_sheet()
 
-        # If this trade was placed via Dhan Super Order, modify SL & Target inside Dhan App too!
+        clean_sym = str(fetch_sym).replace(".NS", "")
+        mode = _UI.get('trade_mode', "📝 Paper Trading")
         oid = tr.get('order_id', '')
-        if oid and tr.get('is_super', False):
-            ok, d_msg = _modify_dhan_super_order(oid, tr['sl'], tr['target'])
-            st.toast(f"{d_msg} | Google Sheets Updated!", icon="🚀" if ok else "⚠️")
+        otype_now = tr.get('order_type', 'LIMIT')
+
+        if "Dhan" in mode:
+            if oid:
+                ok, d_msg = _modify_dhan_order_or_super(
+                    oid, tr.get('is_super', False),
+                    new_ent=tr['entry'], new_sl=tr['sl'], new_tg=tr['target'],
+                    qty=tr.get('qty', 1), order_type=otype_now
+                )
+                st.toast(f"{d_msg} | Google Sheets Updated!", icon="🚀" if ok else "⚠️")
+            else:
+                # Place fresh LIMIT order in Dhan at the moved Entry Price
+                use_sup = "Super" in mode
+                ok, d_msg, new_oid, is_sup = _place_dhan_free_order(
+                    clean_sym, tr.get('side', 'BUY'), tr.get('qty', 1),
+                    tr.get('prod', 'INTRADAY'), tr['sl'], tr['target'],
+                    use_super=use_sup, order_type=otype_now, limit_p=tr['entry']
+                )
+                tr['order_id'] = new_oid
+                tr['is_super'] = is_sup
+                st.toast(f"{d_msg} | Saved to Google Sheets!", icon="🟢" if ok else "⚠️")
         else:
-            st.toast(f"💾 Updated SL (₹{new_sl:.2f}) & TGT (₹{new_tg:.2f}) saved to Chart & Google Sheets!", icon="✅")
+            st.toast(
+                f"💾 Saved [{otype_now}] Entry: ₹{tr['entry']:.2f} | SL: ₹{tr['sl']:.2f} | TGT: ₹{tr['target']:.2f} to Google Sheets!",
+                icon="✅"
+            )
 
 
 def _exec_chart_trade(fetch_sym, side, ltp_p, sl_p, tg_p):
@@ -3496,7 +3558,7 @@ def _exec_chart_trade(fetch_sym, side, ltp_p, sl_p, tg_p):
     oid, is_sup = "", False
     if "Dhan" in mode:
         use_sup = "Super" in mode
-        ok, msg, oid, is_sup = _place_dhan_free_order(clean_sym, side, qty, prod_type, sl_p, tg_p, use_super=use_sup)
+        ok, msg, oid, is_sup = _place_dhan_free_order(clean_sym, side, qty, prod_type, sl_p, tg_p, use_super=use_sup, order_type="MARKET", limit_p=ltp_p)
         st.toast(f"{side} [{prod_label}] {clean_sym} ({qty} Qty): {msg}", icon="🟢" if ok else "⚠️")
     else:
         st.toast(f"📝 Paper {side} [{prod_label}] {clean_sym} ({qty} Qty @ ₹{ltp_p:.2f}) saved to Google Sheets!", icon="🚀")
@@ -3505,11 +3567,12 @@ def _exec_chart_trade(fetch_sym, side, ltp_p, sl_p, tg_p):
         'side': side,
         'qty': qty,
         'prod': prod_type,
+        'order_type': 'MARKET',
         'entry': round(float(ltp_p), 2),
         'sl': round(float(sl_p), 2),
         'target': round(float(tg_p), 2),
         'time': now_str,
-        'mode': mode,
+        'mode': f"{mode} (MARKET)",
         'order_id': oid,
         'is_super': is_sup
     }
@@ -3599,7 +3662,6 @@ def render_paper_trading_terminal(df_all_stocks):
             "</tr></thead><tbody>" + active_rows_html + "</tbody></table>",
             unsafe_allow_html=True
         )
-        # Quick Exit Button for Active Paper Trades
         ec1, ec2 = st.columns([3, 1])
         with ec1:
             exit_pick = st.selectbox("Select Active Trade to Square-Off / Exit:", ["-- Select Stock --"] + df_pp['Symbol'].tolist(), key="pp_exit_sel", label_visibility="collapsed")
@@ -4031,7 +4093,7 @@ def _compute_pinescript_suite(df_p):
     }
 
 
-# --- PRO GRID CHART ENGINE (PAPER TRADING + DHAN LIVE + FREEHAND FIBONACCI + DRAWING TOOLS) ---
+# --- PRO GRID CHART ENGINE (DRAGGABLE BUY/SELL LIMIT LINE + SL/TGT + FREEHAND FIBONACCI) ---
 def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, active_inds, chart_height=330, key_idx=0, current_grid_syms=None):
     disp_sym = row_data.get('T', fetch_sym.replace('.NS', ''))
     tf_short = "5m (5D)" if timeframe == "Intraday (5m)" else ("1D" if timeframe == "Daily Chart" else "1W")
@@ -4041,14 +4103,17 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     if current_grid_syms is None:
         current_grid_syms = []
 
-    # Check if JS sent an updated SL/TGT via query_params
+    # Check if JS sent updated Entry (LIMIT) / SL / TGT via query_params
     if "upd_sltg" in st.query_params:
         try:
             _parts = str(st.query_params["upd_sltg"]).split("|")
             st.query_params.clear()
-            if len(_parts) == 3:
+            if len(_parts) >= 5:
+                _u_sym, _u_ent, _u_sl, _u_tg, _u_ot = _parts[0], float(_parts[1]), float(_parts[2]), float(_parts[3]), _parts[4]
+                _update_chart_sl_tg(_u_sym, _u_ent, _u_sl, _u_tg, _u_ot)
+            elif len(_parts) == 3:
                 _u_sym, _u_sl, _u_tg = _parts[0], float(_parts[1]), float(_parts[2])
-                _update_chart_sl_tg(_u_sym, _u_sl, _u_tg)
+                _update_chart_sl_tg(_u_sym, 0.0, _u_sl, _u_tg, "MARKET")
         except Exception:
             pass
 
@@ -4122,13 +4187,16 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     active_tr = _SS['chart_trades'].get(fetch_sym)
     pos_js = "null"
     exit_btn_html = ""
+    ent_lbl_html = "🔵 BUY:"
     if active_tr:
         t_side = active_tr['side']
         t_qty = int(active_tr['qty'])
         t_prod = active_tr.get('prod', 'INTRADAY')
+        t_otype = active_tr.get('order_type', 'MARKET')
         t_ent = float(active_tr['entry'])
         t_sl = float(active_tr['sl'])
         t_tg = float(active_tr['target'])
+        ent_lbl_html = "🟢 BUY:" if t_side == "BUY" else "🔴 SELL:"
         pnl_val = (ltp_v - t_ent) * t_qty if t_side == "BUY" else (t_ent - ltp_v) * t_qty
         pnl_pct = ((ltp_v - t_ent) / t_ent * 100.0) if t_side == "BUY" else ((t_ent - ltp_v) / t_ent * 100.0)
         pnl_sign = "+" if pnl_val >= 0 else ""
@@ -4137,6 +4205,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             "sym": fetch_sym,
             "side": t_side,
             "prod": "INTRADAY" if t_prod == "INTRADAY" else "LONGTERM",
+            "orderType": t_otype,
             "qty": t_qty,
             "entry": t_ent,
             "sl": t_sl,
@@ -4144,8 +4213,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             "ltp": ltp_v,
             "pnlVal": round(pnl_val, 2),
             "pnlPct": round(pnl_pct, 2),
-            "entryTitle": f"{'🟢 BUY' if t_side=='BUY' else '🔴 SELL'} [{t_prod}] {t_qty} @ ₹{t_ent} | {pnl_sign}{pnl_pct:.2f}% ({pnl_sign}₹{pnl_val:,.2f})",
-            "entryColor": "#22c55e" if pnl_val >= 0 else "#f97316"
+            "entryColor": "#38bdf8" if t_otype == "LIMIT" else ("#22c55e" if pnl_val >= 0 else "#f97316")
         }
         pos_js = json.dumps(pos_obj)
         exit_btn_html = (
@@ -4281,13 +4349,18 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             font-weight: bold; display: none; box-shadow: 0 2px 8px rgba(0,0,0,0.5); cursor: pointer;
         }}
         .sltg-box {{
-            position: absolute; top: 45px; left: 6px; z-index: 30; display: none; align-items: center; gap: 6px;
-            background: rgba(17, 22, 34, 0.92); border: 1px solid #374151; border-radius: 5px;
-            padding: 2px 7px; font-size: 10px; color: #fff; font-family: monospace; box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+            position: absolute; top: 45px; left: 6px; z-index: 30; display: none; align-items: center; gap: 5px;
+            background: rgba(17, 22, 34, 0.94); border: 1px solid #374151; border-radius: 5px;
+            padding: 2px 7px; font-size: 10px; color: #fff; font-family: monospace; box-shadow: 0 2px 6px rgba(0,0,0,0.45);
         }}
         .sltg-inp {{
-            width: 58px; background: #0b0e14; color: #fff; border: 1px solid #4b5563; border-radius: 3px;
+            width: 56px; background: #0b0e14; color: #fff; border: 1px solid #4b5563; border-radius: 3px;
             font-size: 10px; font-family: monospace; font-weight: bold; padding: 1px 3px; text-align: right;
+        }}
+        .sltg-inp:focus {{ outline: none; border-color: #38bdf8; }}
+        .otype-badge {{
+            padding: 1px 5px; border-radius: 3px; font-size: 9px; font-weight: bold;
+            background: #16a34a; color: #fff; letter-spacing: 0.3px;
         }}
         .save-sltg-btn {{
             background: #2563eb; color: #fff; border: 1px solid #38bdf8; border-radius: 3px;
@@ -4324,7 +4397,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 {exit_btn_html}
             </div>
             <div class="ind-bar">
-                <!-- ✏️ Drawing Tools Menu (With FreeHand Fibonacci & High/Low Fibonacci) -->
+                <!-- ✏️ Drawing Tools Menu -->
                 <span id="draw_btn_{chart_dom_id}" class="ind-drop-btn" onclick="toggleDrawMenu(event)" title="Drawing Tools">✏️ Draw ▾</span>
                 <div id="draw_menu_{chart_dom_id}" class="draw-menu" onclick="event.stopPropagation()">
                     <div id="ditem_hline" class="draw-item" onclick="selectDrawTool('hline')"><span>Horizontal Line</span><span style="color:#64748b;font-size:10px;">━</span></div>
@@ -4367,13 +4440,16 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             <div>Dominance: <b style="color:{wtbl['col']};">{wtbl['dom']}</b></div>
         </div>
 
-        <!-- Floating SL & TGT Editor Box (With Save to Google Sheets Button) -->
+        <!-- Floating Entry (BUY/SELL) + SL + TGT Editor Box (Moving Entry Line turns order into LIMIT) -->
         <div id="sltg_bar_{chart_dom_id}" class="sltg-box">
-            <span style="color:#f87171;font-weight:bold;">🛑 SL:</span>
-            <input id="inp_sl_{chart_dom_id}" class="sltg-inp" type="number" step="0.5" onchange="onManualSLTG()" oninput="onManualSLTG()">
-            <span style="color:#4ade80;font-weight:bold;margin-left:4px;">🎯 TGT:</span>
-            <input id="inp_tg_{chart_dom_id}" class="sltg-inp" type="number" step="0.5" onchange="onManualSLTG()" oninput="onManualSLTG()">
-            <span class="save-sltg-btn" onclick="saveSLTGToSheet()" title="Save updated SL & Target to Google Sheets">💾 Save</span>
+            <span id="ent_lbl_{chart_dom_id}" style="color:#38bdf8;font-weight:bold;">{ent_lbl_html}</span>
+            <input id="inp_ent_{chart_dom_id}" class="sltg-inp" type="number" step="0.5" onchange="onManualSLTG('ENT')" oninput="onManualSLTG('ENT')">
+            <span id="otype_badge_{chart_dom_id}" class="otype-badge">MKT</span>
+            <span style="color:#f87171;font-weight:bold;margin-left:3px;">🛑 SL:</span>
+            <input id="inp_sl_{chart_dom_id}" class="sltg-inp" type="number" step="0.5" onchange="onManualSLTG('SL')" oninput="onManualSLTG('SL')">
+            <span style="color:#4ade80;font-weight:bold;margin-left:3px;">🎯 TGT:</span>
+            <input id="inp_tg_{chart_dom_id}" class="sltg-inp" type="number" step="0.5" onchange="onManualSLTG('TG')" oninput="onManualSLTG('TG')">
+            <span class="save-sltg-btn" onclick="saveSLTGToSheet()" title="Save Entry (Limit), SL & Target to Google Sheets & Dhan">💾 Save</span>
         </div>
 
         <!-- Hover Tooltip for Entry / SL / Target Percentage & Amount -->
@@ -4427,14 +4503,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             window.triggerStBtn(tokenStr);
         }};
 
-        window.saveSLTGToSheet = function() {{
-            const vSL = parseFloat(inpSL.value) || 0;
-            const vTG = parseFloat(inpTG.value) || 0;
-            const url = new URL(window.parent.location.href);
-            url.searchParams.set('upd_sltg', `${{SYM_KEY}}|${{vSL}}|${{vTG}}`);
-            window.parent.location.href = url.toString();
-        }};
-
         const cData = {json.dumps(candles_js)};
         const spdCandles = {json.dumps(spd_candles_js)};
         const vData = {json.dumps(vol_js)};
@@ -4466,8 +4534,10 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         const fibCntEl = document.getElementById('fib_cnt_{chart_dom_id}');
         const ohlcBox = document.getElementById('ohlc_{chart_dom_id}');
         const sltgBar = document.getElementById('sltg_bar_{chart_dom_id}');
+        const inpEnt = document.getElementById('inp_ent_{chart_dom_id}');
         const inpSL = document.getElementById('inp_sl_{chart_dom_id}');
         const inpTG = document.getElementById('inp_tg_{chart_dom_id}');
+        const otypeBadge = document.getElementById('otype_badge_{chart_dom_id}');
         const lineTip = document.getElementById('line_tip_{chart_dom_id}');
         const wTbl = document.getElementById('wtbl_{chart_dom_id}');
 
@@ -4531,7 +4601,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         chart.timeScale().fitContent();
 
         // =========================================================
-        // ✏️ INTERACTIVE DRAWING ENGINE (INCLUDING FREEHAND FIBONACCI)
+        // ✏️ INTERACTIVE DRAWING ENGINE
         // =========================================================
         let currentTool = null;
         let pendingPt = null;
@@ -4765,16 +4835,27 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             }}
         }});
 
-        // 🔥 INTERACTIVE ENTRY, SL & TGT LINES WITH % AND ₹ AMOUNT ON HOVER & DRAG
+        // =========================================================
+        // 🔥 DRAGGABLE BUY/SELL ENTRY LINE (AUTO LIMIT ORDER) + SL & TGT LINES
+        // =========================================================
         let entryLineObj = null, slLineObj = null, tgLineObj = null;
-        let curSL = 0, curTG = 0, draggingMode = null;
+        let curEnt = 0, curSL = 0, curTG = 0, curOType = 'MARKET', draggingMode = null;
 
         function calcMetrics(priceVal) {{
-            const diff = activePos.side === 'BUY' ? (priceVal - activePos.entry) : (activePos.entry - priceVal);
-            const pct = (diff / activePos.entry) * 100.0;
+            const diff = activePos.side === 'BUY' ? (priceVal - curEnt) : (curEnt - priceVal);
+            const pct = curEnt > 0 ? (diff / curEnt) * 100.0 : 0.0;
             const rs = diff * activePos.qty;
             const sign = rs >= 0 ? '+' : '-';
             return {{ diff, pct, rs, sign }};
+        }}
+
+        function fmtEntTitle(entPrice, oType) {{
+            const liveDiff = activePos.side === 'BUY' ? (activePos.ltp - entPrice) : (entPrice - activePos.ltp);
+            const livePct = entPrice > 0 ? (liveDiff / entPrice) * 100.0 : 0.0;
+            const liveRs = liveDiff * activePos.qty;
+            const sign = liveRs >= 0 ? '+' : '-';
+            const modeTag = oType === 'LIMIT' ? '⏳ LIMIT' : (activePos.side === 'BUY' ? '🟢' : '🔴');
+            return `${{modeTag}} ${{activePos.side}} [${{activePos.prod}}] ${{activePos.qty}} @ ₹${{entPrice.toFixed(2)}} | ${{sign}}${{Math.abs(livePct).toFixed(2)}}% (${{sign}}₹${{Math.abs(liveRs).toFixed(2)}}) ↕`;
         }}
 
         function fmtSLTitle(slPrice) {{
@@ -4787,22 +4868,46 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             return `🎯 TGT ₹${{tgPrice.toFixed(2)}} | ${{m.sign}}${{Math.abs(m.pct).toFixed(2)}}% (${{m.sign}}₹${{Math.abs(m.rs).toFixed(0)}}) ↕`;
         }}
 
+        function updateOTypeBadge() {{
+            if (!otypeBadge) return;
+            if (curOType === 'LIMIT') {{
+                otypeBadge.innerText = 'LIMIT';
+                otypeBadge.style.background = '#d97706';
+            }} else {{
+                otypeBadge.innerText = 'MKT';
+                otypeBadge.style.background = '#16a34a';
+            }}
+        }}
+
+        window.saveSLTGToSheet = function() {{
+            const vEnt = parseFloat(inpEnt.value) || curEnt;
+            const vSL = parseFloat(inpSL.value) || curSL;
+            const vTG = parseFloat(inpTG.value) || curTG;
+            const url = new URL(window.parent.location.href);
+            url.searchParams.set('upd_sltg', `${{SYM_KEY}}|${{vEnt}}|${{vSL}}|${{vTG}}|${{curOType}}`);
+            window.parent.location.href = url.toString();
+        }};
+
         if (activePos) {{
             const saved = window.parent._customSLTG[activePos.sym];
-            curSL = (saved && saved.entry === activePos.entry) ? saved.sl : activePos.sl;
-            curTG = (saved && saved.entry === activePos.entry) ? saved.tg : activePos.target;
+            curEnt = (saved && saved.entry > 0) ? saved.entry : activePos.entry;
+            curSL = (saved && saved.sl > 0) ? saved.sl : activePos.sl;
+            curTG = (saved && saved.tg > 0) ? saved.tg : activePos.target;
+            curOType = (saved && saved.orderType) ? saved.orderType : (activePos.orderType || 'MARKET');
 
             sltgBar.style.display = 'flex';
+            inpEnt.value = curEnt.toFixed(2);
             inpSL.value = curSL.toFixed(2);
             inpTG.value = curTG.toFixed(2);
+            updateOTypeBadge();
 
             entryLineObj = candleSeries.createPriceLine({{
-                price: activePos.entry,
-                color: activePos.entryColor,
+                price: curEnt,
+                color: curOType === 'LIMIT' ? '#38bdf8' : activePos.entryColor,
                 lineWidth: 2,
                 lineStyle: LightweightCharts.LineStyle.Solid,
                 axisLabelVisible: true,
-                title: activePos.entryTitle
+                title: fmtEntTitle(curEnt, curOType)
             }});
             tgLineObj = candleSeries.createPriceLine({{
                 price: curTG,
@@ -4821,28 +4926,46 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 title: fmtSLTitle(curSL)
             }});
 
-            window.onManualSLTG = function() {{
+            window.onManualSLTG = function(changedField) {{
+                const vEnt = parseFloat(inpEnt.value);
                 const vSL = parseFloat(inpSL.value);
                 const vTG = parseFloat(inpTG.value);
+                if (!isNaN(vEnt) && vEnt > 0) {{
+                    if (changedField === 'ENT' && Math.abs(vEnt - curEnt) >= 0.01) {{
+                        curOType = 'LIMIT';
+                        updateOTypeBadge();
+                    }}
+                    curEnt = vEnt;
+                    entryLineObj.applyOptions({{
+                        price: curEnt,
+                        color: curOType === 'LIMIT' ? '#38bdf8' : activePos.entryColor,
+                        title: fmtEntTitle(curEnt, curOType)
+                    }});
+                }}
                 if (!isNaN(vSL) && vSL > 0) {{
                     curSL = vSL;
-                    slLineObj.applyOptions({{ price: curSL, title: fmtSLTitle(curSL) }});
                 }}
                 if (!isNaN(vTG) && vTG > 0) {{
                     curTG = vTG;
-                    tgLineObj.applyOptions({{ price: curTG, title: fmtTGTitle(curTG) }});
                 }}
-                window.parent._customSLTG[activePos.sym] = {{ entry: activePos.entry, sl: curSL, tg: curTG }};
+                slLineObj.applyOptions({{ price: curSL, title: fmtSLTitle(curSL) }});
+                tgLineObj.applyOptions({{ price: curTG, title: fmtTGTitle(curTG) }});
+                window.parent._customSLTG[activePos.sym] = {{ entry: curEnt, sl: curSL, tg: curTG, orderType: curOType }};
             }};
 
             container.addEventListener('mousedown', (e) => {{
                 if (currentTool) return;
                 const rect = container.getBoundingClientRect();
                 const mouseY = e.clientY - rect.top;
+                const entY = candleSeries.priceToCoordinate(curEnt);
                 const slY = candleSeries.priceToCoordinate(curSL);
                 const tgY = candleSeries.priceToCoordinate(curTG);
 
-                if (slY !== null && Math.abs(mouseY - slY) <= 10) {{
+                if (entY !== null && Math.abs(mouseY - entY) <= 10) {{
+                    draggingMode = 'ENT';
+                    chart.applyOptions({{ handleScroll: false, handleScale: false }});
+                    e.preventDefault();
+                }} else if (slY !== null && Math.abs(mouseY - slY) <= 10) {{
                     draggingMode = 'SL';
                     chart.applyOptions({{ handleScroll: false, handleScale: false }});
                     e.preventDefault();
@@ -4877,7 +5000,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             if (!activePos) return;
 
             if (!draggingMode) {{
-                const entY = candleSeries.priceToCoordinate(activePos.entry);
+                const entY = candleSeries.priceToCoordinate(curEnt);
                 const slY = candleSeries.priceToCoordinate(curSL);
                 const tgY = candleSeries.priceToCoordinate(curTG);
 
@@ -4898,16 +5021,14 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                     lineTip.style.top = Math.max(28, tgY - 28) + 'px';
                     lineTip.innerHTML = `🎯 <b>TARGET: ₹${{curTG.toFixed(2)}}</b> | Move: <b style="color:#4ade80;">${{m.sign}}${{Math.abs(m.pct).toFixed(2)}}%</b> | Profit: <b style="color:#4ade80;">${{m.sign}}₹${{Math.abs(m.rs).toFixed(2)}}</b>`;
                 }} else if (entY !== null && Math.abs(mouseY - entY) <= 12) {{
-                    container.style.cursor = 'pointer';
+                    container.style.cursor = 'ns-resize';
                     const mSL = calcMetrics(curSL);
                     const mTG = calcMetrics(curTG);
-                    const pSign = activePos.pnlVal >= 0 ? '+' : '-';
-                    const pCol = activePos.pnlVal >= 0 ? '#4ade80' : '#f87171';
                     lineTip.style.display = 'block';
                     lineTip.style.borderColor = '#38bdf8';
-                    lineTip.style.left = Math.min(mouseX + 14, rect.width - 320) + 'px';
-                    lineTip.style.top = Math.max(28, entY - 32) + 'px';
-                    lineTip.innerHTML = `<b>${{activePos.side}} [${{activePos.prod}}] ${{activePos.qty}} Qty @ ₹${{activePos.entry}}</b> | Live: <b style="color:${{pCol}};">${{pSign}}${{Math.abs(activePos.pnlPct).toFixed(2)}}% (${{pSign}}₹${{Math.abs(activePos.pnlVal).toFixed(2)}})</b><br><span style="color:#f87171;">🛑 SL: ${{mSL.sign}}${{Math.abs(mSL.pct).toFixed(2)}}% (${{mSL.sign}}₹${{Math.abs(mSL.rs).toFixed(0)}})</span> &nbsp;|&nbsp; <span style="color:#4ade80;">🎯 TGT: ${{mTG.sign}}${{Math.abs(mTG.pct).toFixed(2)}}% (${{mTG.sign}}₹${{Math.abs(mTG.rs).toFixed(0)}})</span>`;
+                    lineTip.style.left = Math.min(mouseX + 14, rect.width - 330) + 'px';
+                    lineTip.style.top = Math.max(28, entY - 36) + 'px';
+                    lineTip.innerHTML = `<b>${{curOType}} ${{activePos.side}} [${{activePos.prod}}] ${{activePos.qty}} Qty @ ₹${{curEnt.toFixed(2)}}</b> (↕ Drag for Limit Order)<br><span style="color:#f87171;">🛑 SL: ${{mSL.sign}}${{Math.abs(mSL.pct).toFixed(2)}}% (${{mSL.sign}}₹${{Math.abs(mSL.rs).toFixed(0)}})</span> &nbsp;|&nbsp; <span style="color:#4ade80;">🎯 TGT: ${{mTG.sign}}${{Math.abs(mTG.pct).toFixed(2)}}% (${{mTG.sign}}₹${{Math.abs(mTG.rs).toFixed(0)}})</span>`;
                 }} else {{
                     container.style.cursor = 'default';
                     lineTip.style.display = 'none';
@@ -4919,7 +5040,22 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             if (rawPrice === null || rawPrice <= 0) return;
             const newP = Math.round(rawPrice * 20) / 20;
 
-            if (draggingMode === 'SL') {{
+            if (draggingMode === 'ENT') {{
+                curEnt = newP;
+                curOType = 'LIMIT';
+                inpEnt.value = curEnt.toFixed(2);
+                updateOTypeBadge();
+                entryLineObj.applyOptions({{
+                    price: curEnt,
+                    color: '#38bdf8',
+                    title: fmtEntTitle(curEnt, 'LIMIT')
+                }});
+                slLineObj.applyOptions({{ price: curSL, title: fmtSLTitle(curSL) }});
+                tgLineObj.applyOptions({{ price: curTG, title: fmtTGTitle(curTG) }});
+                lineTip.style.display = 'block';
+                lineTip.style.borderColor = '#38bdf8';
+                lineTip.innerHTML = `⏳ <b>LIMIT ${{activePos.side}}: ₹${{curEnt.toFixed(2)}}</b> (Click 💾 Save to update order)`;
+            }} else if (draggingMode === 'SL') {{
                 curSL = newP;
                 inpSL.value = curSL.toFixed(2);
                 slLineObj.applyOptions({{ price: curSL, title: fmtSLTitle(curSL) }});
@@ -4934,7 +5070,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 lineTip.style.display = 'block';
                 lineTip.innerHTML = `🎯 <b>TGT: ₹${{curTG.toFixed(2)}}</b> | <b style="color:#4ade80;">${{m.sign}}${{Math.abs(m.pct).toFixed(2)}}% (${{m.sign}}₹${{Math.abs(m.rs).toFixed(2)}})</b>`;
             }}
-            window.parent._customSLTG[activePos.sym] = {{ entry: activePos.entry, sl: curSL, tg: curTG }};
+            window.parent._customSLTG[activePos.sym] = {{ entry: curEnt, sl: curSL, tg: curTG, orderType: curOType }};
         }});
 
         window.addEventListener('mouseup', (e) => {{
