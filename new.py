@@ -3061,15 +3061,41 @@ st.markdown("""
     }
     div[data-testid="stElementContainer"]:has(.pro-ActionBar) { display: none !important; }
 
-    /* Mobile Responsive Fix: Stack only main layout columns, NEVER stack Watchlist Sort Header */
+    /* Mobile Responsive Fix: 65:35 Split (Left Chart 65% : Right Watchlist 35%) */
     @media screen and (max-width: 768px) {
-        div[data-testid="stHorizontalBlock"]:not(:has(.pro-ActionBar)) {
-            flex-direction: column-reverse !important;
-        }
-        div[data-testid="stHorizontalBlock"]:not(:has(.pro-ActionBar)) > div[data-testid="stColumn"] {
+        div[data-testid="stHorizontalBlock"]:has(.right-panel-marker) {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: flex-start !important;
+            gap: 4px !important;
             width: 100% !important;
-            flex: 1 1 100% !important;
         }
+        div[data-testid="stHorizontalBlock"]:has(.right-panel-marker) > div[data-testid="stColumn"]:nth-child(1) {
+            width: 65% !important;
+            flex: 0 0 65% !important;
+            max-width: 65% !important;
+            min-width: 0 !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(.right-panel-marker) > div[data-testid="stColumn"]:nth-child(2) {
+            width: 35% !important;
+            flex: 0 0 35% !important;
+            max-width: 35% !important;
+            min-width: 0 !important;
+        }
+        /* Top Action Bar (Paper, Qty, Mini, Theme, Clear) Compact Grid on Mobile */
+        div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"] .pro-ActionBar) {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: wrap !important;
+            gap: 3px !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"] .pro-ActionBar) > div[data-testid="stColumn"] {
+            flex: 1 1 30% !important;
+            min-width: 70px !important;
+            width: auto !important;
+        }
+        /* Watchlist Sort Header (Symbol | Last | Chg | Chg%) */
         div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stHorizontalBlock"] {
             flex-direction: row !important;
             flex-wrap: nowrap !important;
@@ -3085,18 +3111,6 @@ st.markdown("""
         }
         div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stColumn"]:nth-child(4) {
             width: 22% !important; flex: 0 0 22% !important;
-        }
-        /* Mobile Top Action Bar (Paper Trading, Qty, Mini, Theme, Clear) Compact Grid */
-        div[data-testid="stHorizontalBlock"]:has(.pro-ActionBar) {
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: wrap !important;
-            gap: 4px !important;
-        }
-        div[data-testid="stHorizontalBlock"]:has(.pro-ActionBar) > div[data-testid="stColumn"] {
-            flex: 1 1 30% !important;
-            min-width: 95px !important;
-            width: auto !important;
         }
     }
     </style>
@@ -4292,14 +4306,27 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     <head>
     <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
     <style>
-        body {{ margin: 0; padding: 0; background: {bg_hex}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace; overflow: hidden; border: 1px solid #2b313f; border-radius: 6px; }}
+        body {{
+            margin: 0; padding: 0; background: {bg_hex};
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+            overflow: hidden; border: 1px solid #2b313f; border-radius: 6px;
+            height: 100vh; display: flex; flex-direction: column; box-sizing: border-box;
+        }}
         .hdr-bar {{
             background: #111622; color: #fff; padding: 3px 6px; display: flex; justify-content: space-between; align-items: center;
             border-bottom: 1px solid #2b313f; font-size: 11px; user-select: none; min-height: 25px; height: auto;
-            flex-wrap: wrap; gap: 4px; box-sizing: border-box;
+            flex: 0 0 auto; flex-wrap: wrap; gap: 3px; box-sizing: border-box; z-index: 50;
         }}
         .stk-info {{ display: flex; align-items: center; gap: 4px; flex-wrap: wrap; overflow: visible; }}
+        .chart-stage {{ position: relative; flex: 1 1 auto; width: 100%; min-height: 0; overflow: hidden; }}
         @media (max-width: 640px) {{
+            .ind-bar {{ width: 100%; justify-content: flex-end; border-top: 1px solid #1e293b; padding-top: 2px; }}
+            .ohlc-overlay {{ top: 3px !important; left: 4px !important; font-size: 8.5px !important; }}
+            .sltg-box {{ top: 20px !important; left: 4px !important; flex-wrap: wrap !important; gap: 3px !important; max-width: 95vw !important; padding: 2px 4px !important; }}
+            .sltg-inp {{ width: 44px !important; font-size: 9px !important; }}
+            .draw-menu {{ top: 52px !important; left: 4px !important; right: auto !important; }}
+            .ind-menu {{ top: 52px !important; right: 4px !important; }}
+        }}
             .ohlc-overlay {{ top: 52px !important; font-size: 9px !important; }}
             .sltg-box {{ top: 70px !important; flex-wrap: wrap !important; gap: 3px !important; max-width: 96vw !important; }}
             .sltg-inp {{ width: 48px !important; }}
@@ -4359,7 +4386,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         }}
         .close-btn:hover {{ background: #b91c1c; }}
         .ohlc-overlay {{
-            position: absolute; top: 27px; left: 6px; z-index: 20; font-size: 10px;
+            position: absolute; top: 4px; left: 6px; z-index: 20; font-size: 10px;
             color: {txt_hex}; background: {'rgba(255,255,255,0.85)' if is_light else 'rgba(11,14,20,0.85)'};
             padding: 1px 5px; border-radius: 4px; pointer-events: none; font-family: monospace;
         }}
@@ -4369,7 +4396,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             font-weight: bold; display: none; box-shadow: 0 2px 8px rgba(0,0,0,0.5); cursor: pointer;
         }}
         .sltg-box {{
-            position: absolute; top: 45px; left: 6px; z-index: 30; display: none; align-items: center; gap: 5px;
+            position: absolute; top: 24px; left: 6px; z-index: 30; display: none; align-items: center; gap: 5px;
             background: rgba(17, 22, 34, 0.94); border: 1px solid #374151; border-radius: 5px;
             padding: 2px 7px; font-size: 10px; color: #fff; font-family: monospace; box-shadow: 0 2px 6px rgba(0,0,0,0.45);
         }}
@@ -4399,7 +4426,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             padding: 3px 7px; font-size: 9.5px; color: #e5e7eb; font-family: monospace;
         }}
         #draw_svg_{chart_dom_id} {{
-            position: absolute; top: 25px; left: 0; width: 100%; height: calc(100vh - 25px);
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             z-index: 15; pointer-events: none; overflow: hidden;
         }}
     </style>
@@ -4451,33 +4478,35 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             </div>
         </div>
 
-        <div id="ohlc_{chart_dom_id}" class="ohlc-overlay">Move cursor to inspect OHLCV</div>
-        <div id="draw_badge_{chart_dom_id}" class="draw-status-badge" onclick="cancelDrawTool()" title="Click to exit drawing mode"></div>
+        <div class="chart-stage">
+            <div id="ohlc_{chart_dom_id}" class="ohlc-overlay">Move cursor to inspect OHLCV</div>
+            <div id="draw_badge_{chart_dom_id}" class="draw-status-badge" onclick="cancelDrawTool()" title="Click to exit drawing mode"></div>
 
-        <!-- Pine Script v6 Wave Dominance Table -->
-        <div id="wtbl_{chart_dom_id}" class="wave-tbl">
-            <div>Wave Avg: <b style="color:{wtbl['col']};">{wtbl['rat_avg']}</b> | Max: <b>{wtbl['rat_max']}</b></div>
-            <div>Dominance: <b style="color:{wtbl['col']};">{wtbl['dom']}</b></div>
+            <!-- Pine Script v6 Wave Dominance Table -->
+            <div id="wtbl_{chart_dom_id}" class="wave-tbl">
+                <div>Wave Avg: <b style="color:{wtbl['col']};">{wtbl['rat_avg']}</b> | Max: <b>{wtbl['rat_max']}</b></div>
+                <div>Dominance: <b style="color:{wtbl['col']};">{wtbl['dom']}</b></div>
+            </div>
+
+            <!-- Floating Entry (BUY/SELL) + SL + TGT Editor Box -->
+            <div id="sltg_bar_{chart_dom_id}" class="sltg-box">
+                <span id="ent_lbl_{chart_dom_id}" style="color:#38bdf8;font-weight:bold;">{ent_lbl_html}</span>
+                <input id="inp_ent_{chart_dom_id}" class="sltg-inp" type="number" step="0.5" onchange="onManualSLTG('ENT')" oninput="onManualSLTG('ENT')">
+                <span id="otype_badge_{chart_dom_id}" class="otype-badge">MKT</span>
+                <span style="color:#f87171;font-weight:bold;margin-left:3px;">🛑 SL:</span>
+                <input id="inp_sl_{chart_dom_id}" class="sltg-inp" type="number" step="0.5" onchange="onManualSLTG('SL')" oninput="onManualSLTG('SL')">
+                <span style="color:#4ade80;font-weight:bold;margin-left:3px;">🎯 TGT:</span>
+                <input id="inp_tg_{chart_dom_id}" class="sltg-inp" type="number" step="0.5" onchange="onManualSLTG('TG')" oninput="onManualSLTG('TG')">
+                <span class="save-sltg-btn" onclick="saveSLTGToSheet()" title="Save Entry (Limit), SL & Target to Google Sheets & Dhan">💾 Save</span>
+            </div>
+
+            <!-- Hover Tooltip for Entry / SL / Target Percentage & Amount -->
+            <div id="line_tip_{chart_dom_id}" class="line-hover-tip"></div>
+
+            <!-- SVG Overlay & Full-Height Chart Container -->
+            <svg id="draw_svg_{chart_dom_id}"></svg>
+            <div id="{chart_dom_id}" style="width: 100%; height: 100%;"></div>
         </div>
-
-        <!-- Floating Entry (BUY/SELL) + SL + TGT Editor Box (Moving Entry Line turns order into LIMIT) -->
-        <div id="sltg_bar_{chart_dom_id}" class="sltg-box">
-            <span id="ent_lbl_{chart_dom_id}" style="color:#38bdf8;font-weight:bold;">{ent_lbl_html}</span>
-            <input id="inp_ent_{chart_dom_id}" class="sltg-inp" type="number" step="0.5" onchange="onManualSLTG('ENT')" oninput="onManualSLTG('ENT')">
-            <span id="otype_badge_{chart_dom_id}" class="otype-badge">MKT</span>
-            <span style="color:#f87171;font-weight:bold;margin-left:3px;">🛑 SL:</span>
-            <input id="inp_sl_{chart_dom_id}" class="sltg-inp" type="number" step="0.5" onchange="onManualSLTG('SL')" oninput="onManualSLTG('SL')">
-            <span style="color:#4ade80;font-weight:bold;margin-left:3px;">🎯 TGT:</span>
-            <input id="inp_tg_{chart_dom_id}" class="sltg-inp" type="number" step="0.5" onchange="onManualSLTG('TG')" oninput="onManualSLTG('TG')">
-            <span class="save-sltg-btn" onclick="saveSLTGToSheet()" title="Save Entry (Limit), SL & Target to Google Sheets & Dhan">💾 Save</span>
-        </div>
-
-        <!-- Hover Tooltip for Entry / SL / Target Percentage & Amount -->
-        <div id="line_tip_{chart_dom_id}" class="line-hover-tip"></div>
-
-        <!-- SVG Overlay for Vertical Lines, Trendlines, FreeHand & Fibonacci Retracements -->
-        <svg id="draw_svg_{chart_dom_id}"></svg>
-        <div id="{chart_dom_id}" style="width: 100%; height: calc(100vh - 25px);"></div>
 
         <script>
         const SYM_KEY = "{fetch_sym}";
