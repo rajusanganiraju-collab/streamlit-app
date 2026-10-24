@@ -1607,13 +1607,13 @@ def _ae_clean(df_raw):
     return d[~d.index.duplicated(keep='last')]
 
 
-def adaptive_live_engine(five_min_data, candidates, top_n=12, min_edge=60):
-    """Institutional Order-Flow + Flat-Base Coiling Ignition Sniper Engine."""
+def adaptive_live_engine(five_min_data, candidates, top_n=8, min_edge=60):
+    """Institutional Order-Flow & Alpha Sniper Engine. Returns (res, info)"""
     res = {'buy': [], 'sell': []}
     info = {
-        'active': True, 'tier': 'A', 'status': 'Institutional Order-Flow + Coiling Sniper Active ✅',
-        'ic': 0.0, 'hit': 78.0, 'net': 0.0, 'folds': '5-Pillar + Flat-Base Ignition',
-        'n': 0, 'drivers': 'Flat-Base Blast • VWAP Control • Order-Flow CVD • Nifty Alpha RS',
+        'active': True, 'tier': 'A', 'status': 'Institutional Order-Flow Active ✅',
+        'ic': 0.0, 'hit': 75.0, 'net': 0.0, 'folds': '5-Pillar Quant Confluence',
+        'n': 0, 'drivers': 'VWAP Control • Order-Flow CVD • Nifty Alpha RS • RVOL Breakout',
         'dropped': 0, 'mkt': 'Scanning live 5-min institutional footprints...'
     }
     try:
@@ -1624,6 +1624,7 @@ def adaptive_live_engine(five_min_data, candidates, top_n=12, min_edge=60):
 
         lvl0 = list(five_min_data.columns.levels[0])
 
+        # --- Nifty Benchmark Calculation ---
         n_day_ret, n_30m_ret = 0.0, 0.0
         if "^NSEI" in lvl0:
             try:
@@ -1658,6 +1659,7 @@ def adaptive_live_engine(five_min_data, candidates, top_n=12, min_edge=60):
                     d = d.assign(Volume=0.0)
                 d = d[['Open', 'High', 'Low', 'Close', 'Volume']].astype(float)
 
+                # Indicators on 5-min series
                 c, hi, lo, op, vol = d['Close'], d['High'], d['Low'], d['Open'], d['Volume'].fillna(0.0)
                 ema9 = c.ewm(span=9, adjust=False).mean()
                 ema21 = c.ewm(span=21, adjust=False).mean()
@@ -1671,6 +1673,7 @@ def adaptive_live_engine(five_min_data, candidates, top_n=12, min_edge=60):
                 loss = (-delta.clip(upper=0)).ewm(alpha=1/14, adjust=False).mean()
                 rsi14 = (100.0 - (100.0 / (1.0 + gain / loss.replace(0, np.nan)))).fillna(50.0)
 
+                # Isolate latest trading day
                 u_dates = sorted(list(set(d.index.date)))
                 today_df = d[d.index.date == u_dates[-1]].copy()
                 if len(today_df) < 3:
@@ -1691,47 +1694,26 @@ def adaptive_live_engine(five_min_data, candidates, top_n=12, min_edge=60):
                 atr_now = max(float(atr14.iloc[-1]), ltp * 0.002)
                 rsi_now = float(rsi14.iloc[-1])
 
-                # 🔥 FLAT-BASE COILING IGNITION DETECTOR (IPCALAB 12:25 PM - 2:35 PM Pattern)
-                coil_buy_boost, coil_sell_boost = 0.0, 0.0
-                coil_tag = ""
-                if len(today_df) >= 14:
-                    for k_bars in range(1, min(8, len(today_df) - 10)):
-                        base_win = today_df.iloc[-(k_bars + 12):-k_bars]
-                        b_hi = float(base_win['High'].max())
-                        b_lo = float(base_win['Low'].min())
-                        b_rng_pct = ((b_hi - b_lo) / (b_lo + 0.001)) * 100.0
-                        if b_rng_pct <= 0.85:
-                            b_vol_avg = float(base_win['Volume'].mean())
-                            rec_win = today_df.iloc[-k_bars:]
-                            rec_vol_max = float(rec_win['Volume'].max())
-                            vol_mult = (rec_vol_max / b_vol_avg) if b_vol_avg > 0 else 1.0
-                            brk_pct_up = ((ltp - b_hi) / (b_hi + 0.001)) * 100.0
-                            brk_pct_dn = ((b_lo - ltp) / (b_lo + 0.001)) * 100.0
-                            if brk_pct_up >= 0.35 and vol_mult >= 3.0 and ltp > e9_now:
-                                coil_buy_boost = 35.0
-                                coil_tag = f"🚀FlatBase-Blast({vol_mult:.0f}xVol)"
-                                break
-                            elif brk_pct_dn >= 0.35 and vol_mult >= 3.0 and ltp < e9_now:
-                                coil_sell_boost = 35.0
-                                coil_tag = f"🩸FlatBase-Dump({vol_mult:.0f}xVol)"
-                                break
-
+                # 1. VWAP Control & Trend Structure (Max 25 pts)
                 pct_above_vwap = float((today_df['Close'] > vwap_s).mean())
                 pct_below_vwap = float((today_df['Close'] < vwap_s).mean())
 
+                # 2. Order-Flow CVD Proxy (Buying vs Selling Volume Pressure - Max 25 pts)
                 rng = (today_df['High'] - today_df['Low']).replace(0, np.nan)
-                clv = ((today_df['Close'] - today_df['Low']) / rng).fillna(0.5)
-                last_n = min(len(today_df), 12)
+                clv = ((today_df['Close'] - today_df['Low']) / rng).fillna(0.5)  # 0 to 1
+                last_n = min(len(today_df), 12)  # Last 60 mins order flow
                 recent_vol = today_df['Volume'].iloc[-last_n:]
                 recent_clv = clv.iloc[-last_n:]
                 buy_vol_ratio = float((recent_vol * recent_clv).sum() / recent_vol.sum()) if recent_vol.sum() > 0 else 0.5
 
+                # 3. Relative Strength vs Nifty (Max 20 pts)
                 s_day_ret = (ltp / day_open - 1.0) * 100.0 if day_open > 0 else 0.0
                 lb_idx = max(0, len(today_df) - 7)
                 s_30m_ret = (ltp / float(today_df['Close'].iloc[lb_idx]) - 1.0) * 100.0
                 rs_day = s_day_ret - n_day_ret
                 rs_30m = s_30m_ret - n_30m_ret
 
+                # 4. RVOL & Micro-Breakout (Max 15 pts)
                 vol_base = float(vol.iloc[-25:-3].mean()) if len(vol) >= 25 else float(vol.mean())
                 vol_rec = float(today_df['Volume'].iloc[-3:].mean())
                 rvol = (vol_rec / vol_base) if vol_base > 0 else 1.0
@@ -1741,18 +1723,19 @@ def adaptive_live_engine(five_min_data, candidates, top_n=12, min_edge=60):
                 near_day_high = ltp >= (day_high * 0.993)
                 near_day_low = ltp <= (day_low * 1.007)
 
-                # --- BUY SCORING ---
-                if (ltp > vwap_now and e9_now >= e21_now and ltp >= e21_now) or coil_buy_boost > 0:
-                    b_score = coil_buy_boost
-                    tags = [coil_tag] if coil_tag else []
-
+                # --- BUY SCORING (0 to 100) ---
+                if ltp > vwap_now and e9_now >= e21_now and ltp >= e21_now:
+                    b_score = 0.0
+                    tags = []
+                    # Pillar 1: VWAP + EMA Ribbon (25)
                     b_score += 12.0 if (ltp > e9_now > e21_now > vwap_now) else 7.0
                     if pct_above_vwap >= 0.75:
                         b_score += 13.0
                         tags.append("VWAP-Hold")
-                    elif pct_above_vwap >= 0.60 or coil_buy_boost > 0:
-                        b_score += 9.0
+                    elif pct_above_vwap >= 0.60:
+                        b_score += 8.0
 
+                    # Pillar 2: Order-Flow CVD (25)
                     if buy_vol_ratio >= 0.62:
                         b_score += 25.0
                         tags.append("CVD-Buy🔥")
@@ -1761,14 +1744,16 @@ def adaptive_live_engine(five_min_data, candidates, top_n=12, min_edge=60):
                     elif buy_vol_ratio >= 0.48:
                         b_score += 8.0
 
+                    # Pillar 3: Nifty Alpha RS (20)
                     if rs_day >= 1.0 and rs_30m >= 0.25:
                         b_score += 20.0
                         tags.append("Alpha+RS")
-                    elif rs_day >= 0.4 or rs_30m >= 0.35:
-                        b_score += 14.0
+                    elif rs_day >= 0.4 or rs_30m >= 0.15:
+                        b_score += 13.0
                     elif rs_day > 0:
                         b_score += 6.0
 
+                    # Pillar 4: RVOL & Structure (15)
                     if rvol >= 1.4:
                         b_score += 8.0
                         tags.append(f"RVOL {rvol:.1f}x")
@@ -1777,10 +1762,11 @@ def adaptive_live_engine(five_min_data, candidates, top_n=12, min_edge=60):
                     if ltp > orb_h or near_day_high:
                         b_score += 7.0
 
+                    # Pillar 5: Sweet-Spot Non-Exhaustion Guard (15)
                     ext_atr = (ltp - e9_now) / atr_now
                     if 54.0 <= rsi_now <= 76.0 and ext_atr <= 2.2:
                         b_score += 15.0
-                    elif 48.0 <= rsi_now <= 85.0:
+                    elif 48.0 <= rsi_now <= 82.0 and ext_atr <= 3.0:
                         b_score += 8.0
 
                     if b_score >= min_score:
@@ -1788,22 +1774,22 @@ def adaptive_live_engine(five_min_data, candidates, top_n=12, min_edge=60):
                         buy_items.append(dict(
                             sym=s, exp=exp_move, atr=atr_now, side='buy',
                             score=int(min(99, round(b_score))),
-                            is_coil=(coil_buy_boost > 0),
                             tag=" ".join(tags[:2]) if tags else "Inst-Buy"
                         ))
 
-                # --- SELL SCORING ---
-                elif (ltp < vwap_now and e9_now <= e21_now and ltp <= e21_now) or coil_sell_boost > 0:
-                    s_score = coil_sell_boost
-                    tags = [coil_tag] if coil_tag else []
-
+                # --- SELL SCORING (0 to 100) ---
+                elif ltp < vwap_now and e9_now <= e21_now and ltp <= e21_now:
+                    s_score = 0.0
+                    tags = []
+                    # Pillar 1: VWAP + EMA Ribbon (25)
                     s_score += 12.0 if (ltp < e9_now < e21_now < vwap_now) else 7.0
                     if pct_below_vwap >= 0.75:
                         s_score += 13.0
                         tags.append("VWAP-Rej")
-                    elif pct_below_vwap >= 0.60 or coil_sell_boost > 0:
-                        s_score += 9.0
+                    elif pct_below_vwap >= 0.60:
+                        s_score += 8.0
 
+                    # Pillar 2: Order-Flow CVD Selling Pressure (25)
                     sell_vol_ratio = 1.0 - buy_vol_ratio
                     if sell_vol_ratio >= 0.62:
                         s_score += 25.0
@@ -1813,14 +1799,16 @@ def adaptive_live_engine(five_min_data, candidates, top_n=12, min_edge=60):
                     elif sell_vol_ratio >= 0.48:
                         s_score += 8.0
 
+                    # Pillar 3: Nifty Negative Alpha (20)
                     if rs_day <= -1.0 and rs_30m <= -0.25:
                         s_score += 20.0
                         tags.append("Weak-RS")
-                    elif rs_day <= -0.4 or rs_30m <= -0.35:
-                        s_score += 14.0
+                    elif rs_day <= -0.4 or rs_30m <= -0.15:
+                        s_score += 13.0
                     elif rs_day < 0:
                         s_score += 6.0
 
+                    # Pillar 4: RVOL & Breakdown (15)
                     if rvol >= 1.4:
                         s_score += 8.0
                         tags.append(f"RVOL {rvol:.1f}x")
@@ -1829,10 +1817,11 @@ def adaptive_live_engine(five_min_data, candidates, top_n=12, min_edge=60):
                     if ltp < orb_l or near_day_low:
                         s_score += 7.0
 
+                    # Pillar 5: Non-Exhaustion Guard (15)
                     ext_atr = (e9_now - ltp) / atr_now
                     if 24.0 <= rsi_now <= 46.0 and ext_atr <= 2.2:
                         s_score += 15.0
-                    elif 15.0 <= rsi_now <= 52.0:
+                    elif 18.0 <= rsi_now <= 52.0 and ext_atr <= 3.0:
                         s_score += 8.0
 
                     if s_score >= min_score:
@@ -1840,14 +1829,13 @@ def adaptive_live_engine(five_min_data, candidates, top_n=12, min_edge=60):
                         sell_items.append(dict(
                             sym=s, exp=exp_move, atr=atr_now, side='sell',
                             score=int(min(99, round(s_score))),
-                            is_coil=(coil_sell_boost > 0),
                             tag=" ".join(tags[:2]) if tags else "Inst-Sell"
                         ))
             except Exception:
                 continue
 
-        res['buy'] = sorted(buy_items, key=lambda x: (-int(x.get('is_coil', False)), -x['score'], -x['exp']))[:top_n]
-        res['sell'] = sorted(sell_items, key=lambda x: (-int(x.get('is_coil', False)), -x['score'], x['exp']))[:top_n]
+        res['buy'] = sorted(buy_items, key=lambda x: (-x['score'], -x['exp']))[:top_n]
+        res['sell'] = sorted(sell_items, key=lambda x: (-x['score'], x['exp']))[:top_n]
         info['n'] = scanned
         all_scores = [x['score'] for x in res['buy'] + res['sell']]
         info['hit'] = float(np.mean(all_scores)) if all_scores else 70.0
@@ -4494,7 +4482,6 @@ def render_live_ui():
                 ai_strat_options = [
                     ADAPTIVE_STRAT,
                     "All Day Trading Moves 🚀",
-                    "💣 Flat-Base Coiling & Blast (Sudden Move)",
                     NEWS_STRAT,
                     "🔥 First Hour Vol Breakout (ORB+VWAP)",
                     "💥 Inside Bar Vol Breakout (NR7)",
@@ -4779,6 +4766,7 @@ def render_live_ui():
     elif watchlist_mode in ["High Score Stocks 🔥", "Terminal Tables 🗃️"]:
         df_filtered = df_stocks[df_stocks['S'] >= 10].copy()
     elif "AI Predictions" in watchlist_mode:
+        # ✅ BUG #1 FIXED: Uses 5-min Intra_EMA10 & True 5-min VWAP instead of Weekly W_EMA10
         intra_ema = df_filtered['Intra_EMA10'].where(df_filtered['Intra_EMA10'] > 0, df_filtered['VWAP'])
         base_buy = (df_filtered['P'] > intra_ema) & (df_filtered['P'] > df_filtered['VWAP'])
         base_sell = (df_filtered['P'] < intra_ema) & (df_filtered['P'] < df_filtered['VWAP'])
@@ -4786,7 +4774,6 @@ def render_live_ui():
         ai_strats_to_run = list(move_type_filter) if isinstance(move_type_filter, list) else [move_type_filter]
         if "All Day Trading Moves 🚀" in ai_strats_to_run:
             for _core_s in [
-                "💣 Flat-Base Coiling & Blast (Sudden Move)",
                 "🔥 First Hour Vol Breakout (ORB+VWAP)",
                 "💥 Inside Bar Vol Breakout (NR7)",
                 "🧲 Intraday Dip & Support Bounce",
@@ -4802,74 +4789,8 @@ def render_live_ui():
             if strat == "All Day Trading Moves 🚀":
                 continue
 
-            # 0. 💣 FLAT-BASE COILING & SUDDEN BLAST (IPCALAB 12:25-2:35 PM PATTERN -> #1 TOP PRIORITY)
-            if strat == "💣 Flat-Base Coiling & Blast (Sudden Move)":
-                coil_rows = []
-                for idx, r in df_filtered.iterrows():
-                    df_5m = processed_charts.get(r['Fetch_T'], pd.DataFrame())
-                    if df_5m is None or df_5m.empty or len(df_5m) < 15:
-                        continue
-                    u_dts = sorted(list(set(df_5m.index.date)))
-                    t_df = df_5m[df_5m.index.date == u_dts[-1]]
-                    if len(t_df) < 14:
-                        continue
-                    ltp_now = float(t_df['Close'].iloc[-1])
-                    e10_now = float(t_df['EMA_10'].iloc[-1]) if 'EMA_10' in t_df.columns else ltp_now
-
-                    # Case A: Just Broke Out of a 1+ Hour Flat Base with Volume Explosion!
-                    matched_blast = False
-                    for k_b in range(1, min(8, len(t_df) - 10)):
-                        b_win = t_df.iloc[-(k_b + 12):-k_b]
-                        b_hi, b_lo = float(b_win['High'].max()), float(b_win['Low'].min())
-                        b_rng = ((b_hi - b_lo) / (b_lo + 0.001)) * 100.0
-                        if b_rng <= 0.85:
-                            b_v_avg = float(b_win['Volume'].mean())
-                            r_v_max = float(t_df['Volume'].iloc[-k_b:].max())
-                            v_mult = (r_v_max / b_v_avg) if b_v_avg > 0 else 1.0
-                            up_brk = ((ltp_now - b_hi) / (b_hi + 0.001)) * 100.0
-                            dn_brk = ((b_lo - ltp_now) / (b_lo + 0.001)) * 100.0
-                            if up_brk >= 0.30 and v_mult >= 3.0 and ltp_now >= e10_now:
-                                rc = r.copy()
-                                rc['Strategy_Icon'] = "🚀 Flat-Base Blast BUY"
-                                rc['AlphaTag'] = f"💣Coiled({b_rng:.2f}%) → 💥{v_mult:.0f}xVol"
-                                rc['VolX'] = max(float(rc.get('VolX', 1.0)), round(v_mult, 1))
-                                rc['S'] = int(min(58, 45 + min(12, v_mult)))
-                                rc['AI_Prob'] = 99
-                                coil_rows.append(rc)
-                                matched_blast = True
-                                break
-                            elif dn_brk >= 0.30 and v_mult >= 3.0 and ltp_now <= e10_now:
-                                rc = r.copy()
-                                rc['Strategy_Icon'] = "🩸 Flat-Base Blast SELL"
-                                rc['AlphaTag'] = f"💣Coiled({b_rng:.2f}%) → 🩸{v_mult:.0f}xVol"
-                                rc['VolX'] = max(float(rc.get('VolX', 1.0)), round(v_mult, 1))
-                                rc['S'] = int(min(58, 45 + min(12, v_mult)))
-                                rc['AI_Prob'] = 99
-                                coil_rows.append(rc)
-                                matched_blast = True
-                                break
-
-                    # Case B: Pre-Breakout Coiling right now (12+ bars in <=0.45% range + initial volume tick-up)
-                    if not matched_blast and len(t_df) >= 15:
-                        c_win = t_df.iloc[-13:-1]
-                        c_hi, c_lo = float(c_win['High'].max()), float(c_win['Low'].min())
-                        c_rng = ((c_hi - c_lo) / (c_lo + 0.001)) * 100.0
-                        c_v_avg = float(c_win['Volume'].mean())
-                        last_v = float(t_df['Volume'].iloc[-1])
-                        v_tick = (last_v / c_v_avg) if c_v_avg > 0 else 1.0
-                        if c_rng <= 0.45 and v_tick >= 1.8 and ltp_now >= c_hi * 0.999:
-                            rc = r.copy()
-                            rc['Strategy_Icon'] = "💣 Coiling Ready BUY"
-                            rc['AlphaTag'] = f"💣Tight-Base({c_rng:.2f}%) • Vol {v_tick:.1f}x"
-                            rc['S'] = 42
-                            rc['AI_Prob'] = 95
-                            coil_rows.append(rc)
-
-                if coil_rows:
-                    all_dfs.append(pd.DataFrame(coil_rows).sort_values(by=['S', 'VolX'], ascending=[False, False]).head(8))
-
-            # 1. 🧠 ORDER-FLOW SNIPER (Pure 5-Pillar Quant Score + Coiling Priority)
-            elif strat == ADAPTIVE_STRAT:
+            # 1. 🧠 ORDER-FLOW SNIPER (Pure 5-Pillar Quant Score)
+            if strat == ADAPTIVE_STRAT:
                 for _side, _label in (('buy', 'BUY'), ('sell', 'SELL')):
                     _rows = sniper_cached_res.get(_side, [])
                     if not _rows:
@@ -4879,16 +4800,10 @@ def render_live_ui():
                     if _sub.empty:
                         continue
                     _sub['AI_Prob'] = _sub['Fetch_T'].map(lambda s: int(_m[s]['score']))
-                    _sub['_is_c'] = _sub['Fetch_T'].map(lambda s: int(_m[s].get('is_coil', False)))
-                    _sub = _sub.sort_values(by=['_is_c', 'AI_Prob'], ascending=[False, False]).drop(columns=['_is_c'])
-                    _sub['Strategy_Icon'] = _sub['Fetch_T'].map(
-                        lambda s: f"🚀 Flat-Base {_label}" if _m[s].get('is_coil') else f"🎯 Sniper {_label}"
-                    )
+                    _sub = _sub.sort_values('AI_Prob', ascending=False)
+                    _sub['Strategy_Icon'] = f"🎯 Sniper {_label}"
                     _sub['AlphaTag'] = _sub['Fetch_T'].map(lambda s: f"🎯{_m[s]['tag']} ({_m[s]['score']}%)")
-                    _sub['S'] = [
-                        (48 - _k) if _m[_sym].get('is_coil') else (35 - 2 * _k)
-                        for _k, _sym in enumerate(_sub['Fetch_T'].tolist())
-                    ]
+                    _sub['S'] = [35 - 2 * _k for _k in range(len(_sub))]
                     all_dfs.append(_sub)
 
             # 2. 📰 NEWS + VOL + PRICE CATALYST (Pure News Score)
