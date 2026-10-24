@@ -2861,32 +2861,29 @@ st.markdown("""
         display: block !important;
     }
 
-    /* 3. Deep Black Mini-Chart Grid (Auto-Scales: 5 Cols on 15" Laptop, 6 Cols on 22" Desktop) */
+    /* 3. Deep Black Mini-Chart Grid (minmax(0, 1fr) prevents right-side candle clipping on Mobile & Desktop) */
     .stApp { background-color: #0b0e14 !important; }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) {
         display: grid !important;
-        gap: 8px !important;
+        gap: 6px !important;
         align-items: start !important;
+        width: 100% !important;
     }
     div[data-testid="stElementContainer"]:has(.pro-mini-board) { display: none !important; }
 
-    /* 22-inch & 24-inch Desktop Monitors (6 Charts per row like Old Code) */
     @media screen and (min-width: 1600px) {
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(6, 1fr) !important; }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(6, minmax(0, 1fr)) !important; }
     }
-    /* 15-inch Laptops (5 Charts per row) */
     @media screen and (min-width: 1200px) and (max-width: 1599px) {
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(5, 1fr) !important; }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; }
     }
     @media screen and (min-width: 900px) and (max-width: 1199px) {
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(4, 1fr) !important; }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
     }
     @media screen and (max-width: 899px) {
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(2, 1fr) !important; gap: 6px !important; }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 4px !important; }
     }
 
-    /* Deep Black Card Background like First Screenshot */
-    .stApp { background-color: #0b0e14 !important; }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) > div {
         background-color: #0b0e14 !important;
         border: 1px solid #161b22 !important;
@@ -2894,6 +2891,17 @@ st.markdown("""
         padding: 2px !important;
         position: relative !important;
         width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        overflow: hidden !important;
+        box-sizing: border-box !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) div[data-testid="stPlotlyChart"],
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) .js-plotly-plot,
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) .plot-container {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) div[data-testid="stElementContainer"]:has(div[data-testid="stCheckbox"]) {
         margin-bottom: -38px !important;
@@ -4052,12 +4060,13 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
             )
             fig.add_annotation(text=title_html, xref="paper", yref="paper", x=0, xanchor="left", xshift=35, y=0.98, yanchor="top", showarrow=False, font=dict(size=13, color="#ffffff"), bgcolor="rgba(0,0,0,0)", borderwidth=0)
 
+            x_range_pad = [-1.0, len(x_idx) + 3.5]
             if show_crosshair:
                 t_step = max(1, len(x_idx) // 4)
                 fig.update_xaxes(
                     showspikes=True, spikemode='across+toaxis', spikesnap='cursor', spikethickness=1, spikedash='dash', spikecolor='#8b949e',
                     tickvals=x_idx[::t_step], ticktext=list(x_labels[::t_step]), tickfont=dict(color='#8b949e', size=9),
-                    showgrid=False, zeroline=False, showticklabels=True, fixedrange=True
+                    showgrid=False, zeroline=False, showticklabels=True, fixedrange=True, range=x_range_pad
                 )
                 fig.update_yaxes(
                     showspikes=True, spikemode='across+toaxis', spikesnap='cursor', spikethickness=1, spikedash='dash', spikecolor='#8b949e',
@@ -4065,10 +4074,14 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                     fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)], **rc
                 )
             else:
-                fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
+                fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=x_range_pad)
                 fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)], **rc)
 
-            st.plotly_chart(fig, width="stretch", key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}")
+            st.plotly_chart(
+                fig, use_container_width=True,
+                config={'displayModeBar': False, 'responsive': True},
+                key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}"
+            )
     except Exception as e:
         st.markdown(f"<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart error: {e}</div>", unsafe_allow_html=True)
 
