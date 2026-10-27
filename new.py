@@ -3223,6 +3223,53 @@ st.markdown("""
             width: auto !important;
         }
     }
+
+    /* 🔥 HIDE 20% RIGHT PANEL -> EXPAND 80% CHARTS TO 100% FULL WIDTH (DESKTOP & MOBILE) */
+    body.hide-right-20 div[data-testid="stHorizontalBlock"]:has(.right-panel-marker) > div[data-testid="stColumn"]:nth-child(2) {
+        display: none !important;
+        width: 0px !important;
+        flex: 0 0 0px !important;
+        max-width: 0px !important;
+        min-width: 0px !important;
+        overflow: hidden !important;
+        padding: 0px !important;
+        margin: 0px !important;
+    }
+    body.hide-right-20 div[data-testid="stHorizontalBlock"]:has(.right-panel-marker) > div[data-testid="stColumn"]:nth-child(1) {
+        width: 100% !important;
+        flex: 0 0 100% !important;
+        max-width: 100% !important;
+        min-width: 100% !important;
+    }
+
+    /* Floating Right-Edge Handle (Works on Desktop & Mobile to Hide/Show 20% Panel Anytime) */
+    #rp-edge-toggle {
+        position: fixed;
+        right: 0px;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 999999;
+        background: #1f6feb;
+        color: #ffffff;
+        border: 1px solid #58a6ff;
+        border-right: none;
+        border-radius: 6px 0 0 6px;
+        padding: 8px 4px;
+        font-size: 11px;
+        font-weight: bold;
+         font-family: monospace;
+        cursor: pointer;
+        box-shadow: -2px 0 8px rgba(0,0,0,0.6);
+        user-select: none;
+        writing-mode: vertical-rl;
+        text-orientation: mixed;
+        letter-spacing: 1px;
+        transition: 0.15s;
+    }
+    #rp-edge-toggle:hover {
+        background: #388bfd;
+        padding-right: 7px;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -6398,9 +6445,13 @@ def render_live_ui():
             f"height:28px;margin-bottom:2px;font-size:11.5px;overflow:hidden;white-space:nowrap;'>"
             f"<span>{_status_title}</span>"
             f"<div style='display:flex;align-items:center;gap:6px;'>{_dir_box_html}{nifty_intra_html}</div>"
-            f"<span style='color:#c9d1d9;font-size:11px;'>🕒 {_now_str_top} &nbsp;"
+            f"<span style='color:#c9d1d9;font-size:11px;display:flex;align-items:center;gap:5px;'>🕒 {_now_str_top} "
             f"<span id='live-cd-badge' data-ts='{_run_ts}' style='background:#21262d;border:1px solid #30363d;color:#00BFFF;"
-            f"padding:1px 5px;border-radius:3px;font-weight:bold;font-family:monospace;'>⏳ {_effective_refresh}s</span></span></div>"
+            f"padding:1px 5px;border-radius:3px;font-weight:bold;font-family:monospace;'>⏳ {_effective_refresh}s</span>"
+            f"<span id='top-rp-btn' onclick='window.parent.toggleRight20Panel()' "
+            f"style='background:#1f6feb;border:1px solid #38bdf8;color:#fff;padding:1px 6px;border-radius:3px;"
+            f"font-weight:bold;font-size:10.5px;cursor:pointer;' title='Hide/Show Right 20% Panel'>⏩ Hide 20%</span>"
+            f"</span></div>"
         )
 
         # 🔥 ONE-LINE UNIFIED HEADER (WITH QTY, DHAN MODE & CLEAN ON_CLICK CALLBACKS)
@@ -6451,8 +6502,48 @@ def render_live_ui():
             f"""<!-- refresh_{_run_ts} -->
             <script>
             (function() {{
-                const parentDoc = window.parent.document;
-                if (window.parent._stCdInterval) clearInterval(window.parent._stCdInterval);
+                const parentWin = window.parent;
+                const parentDoc = parentWin.document;
+
+                // 1. Setup Right-20% Panel Hide/Show Toggle (Works on Desktop & Mobile)
+                parentWin._isRight20Hidden = !!parentWin._isRight20Hidden;
+
+                function applyRight20State() {{
+                    const hidden = !!parentWin._isRight20Hidden;
+                    if (hidden) {{
+                        parentDoc.body.classList.add('hide-right-20');
+                    }} else {{
+                        parentDoc.body.classList.remove('hide-right-20');
+                    }}
+                    const topBtn = parentDoc.getElementById('top-rp-btn');
+                    if (topBtn) {{
+                        topBtn.innerHTML = hidden ? '⏪ Show 20%' : '⏩ Hide 20%';
+                        topBtn.style.background = hidden ? '#238636' : '#1f6feb';
+                    }}
+                    let edgeTab = parentDoc.getElementById('rp-edge-toggle');
+                    if (!edgeTab) {{
+                        edgeTab = parentDoc.createElement('div');
+                        edgeTab.id = 'rp-edge-toggle';
+                        edgeTab.onclick = () => parentWin.toggleRight20Panel();
+                        parentDoc.body.appendChild(edgeTab);
+                    }}
+                    edgeTab.innerHTML = hidden ? '◀ PANEL' : '▶ HIDE';
+                    edgeTab.style.background = hidden ? '#238636' : '#1f6feb';
+
+                    // Trigger chart resize so Mini-Charts & Pro-Grid Charts expand to 100% smoothly
+                    setTimeout(() => parentWin.dispatchEvent(new Event('resize')), 20);
+                    setTimeout(() => parentWin.dispatchEvent(new Event('resize')), 180);
+                }}
+
+                parentWin.toggleRight20Panel = function() {{
+                    parentWin._isRight20Hidden = !parentWin._isRight20Hidden;
+                    applyRight20State();
+                }};
+
+                applyRight20State();
+
+                // 2. Live Countdown Badge
+                if (parentWin._stCdInterval) clearInterval(parentWin._stCdInterval);
                 let secLeft = {_effective_refresh};
                 const updateBadge = () => {{
                     const el = parentDoc.getElementById('live-cd-badge');
@@ -6467,7 +6558,7 @@ def render_live_ui():
                     }}
                 }};
                 updateBadge();
-                window.parent._stCdInterval = setInterval(updateBadge, 1000);
+                parentWin._stCdInterval = setInterval(updateBadge, 1000);
             }})();
             </script>""",
             height=0,
