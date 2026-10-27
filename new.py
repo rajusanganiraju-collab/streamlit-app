@@ -3955,9 +3955,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                     df_chart = today_slice if len(today_slice) >= 10 else df_chart.tail(75)
                 else:
                     df_chart = df_chart.tail(75)
-            else:
-                df_chart = df_chart.tail(90)
-
+            
             min_val, max_val = float(df_chart['Low'].min()), float(df_chart['High'].max())
             y_padding = (max_val - min_val) * 0.16 if (max_val - min_val) != 0 else min_val * 0.005
 
@@ -4105,12 +4103,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 fig.update_xaxes(range=x_full_range, autorange=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
                 fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.6)], **rc)
 
-            st.plotly_chart(
-                fig,
-                use_container_width=True,
-                config={'displayModeBar': False, 'responsive': True},
-                key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}"
-            )
+            st.plotly_chart(fig, width="stretch", key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}")
     except Exception as e:
         st.markdown(f"<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart error: {e}</div>", unsafe_allow_html=True)
 
@@ -4322,7 +4315,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         return
 
     df_p = _fix_ist_df(df_c) if timeframe == "Intraday (5m)" else df_c.dropna(subset=['Open', 'High', 'Low', 'Close']).copy()
-    df_p = df_p.tail(375 if timeframe == "Intraday (5m)" else 150).copy()
+    df_p = df_p.tail(375 if timeframe == "Intraday (5m)" else 500).copy()
     if df_p.empty:
         st.info(f"No valid candles for {disp_sym}")
         return
