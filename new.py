@@ -3878,6 +3878,25 @@ def _on_grid_radio_change():
 
 
 # --- MINI-CHART GRID & SINGLE CHART (WITH TICK ON ALL INDICES, VOL BARS & 12-HOUR IST TIME) ---
+def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Intraday (5m)", chart_dict=None, show_crosshair=False, show_vol=False, is_sector=False):
+    if df_grid is None or df_grid.empty:
+        return
+    if chart_dict is None:
+        chart_dict = {}
+    with st.container():
+        st.markdown("<div class='pro-mini-board'></div>", unsafe_allow_html=True)
+        for _, row in df_grid.iterrows():
+            with st.container():
+                render_chart(
+                    row, chart_dict.get(row['Fetch_T'], pd.DataFrame()),
+                    show_pin=True,
+                    key_suffix=key_prefix,
+                    timeframe=timeframe, show_crosshair=show_crosshair, show_vol=show_vol
+                )
+                if is_sector:
+                    btn_lbl = "🔽 View Stocks" if st.session_state.active_sec != row['T'] else "🔼 Hide Stocks"
+                    if st.button(btn_lbl, key=f"btn_sec_{row['Fetch_T']}", width="stretch"):
+                        st.session_state.active_sec = None if st.session_state.active_sec == row['T'] else row['T']
 def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intraday (5m)", show_crosshair=False, show_vol=False):
     display_sym = row['T']
     fetch_sym = row['Fetch_T']
