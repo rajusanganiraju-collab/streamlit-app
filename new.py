@@ -2879,14 +2879,23 @@ st.markdown("""
         }
     }
 
-    /* Mobile: Strictly 3 Charts per row */
+    /* Mobile: Default 2 Charts per row -> Becomes 3 Charts per row when Right Panel is Hidden */
     @media screen and (max-width: 768px) {
+        /* 1. Default Mobile View (65:35 Split): 2 Charts per row */
         div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 4px !important;
+        }
+
+        /* 2. Full-Screen Mobile View (After clicking Hide 20% / ▶ HIDE): 3 Charts per row */
+        div[data-testid="stColumn"][style*="100%"] div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board),
+        body.hide-right-20 div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) {
             grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
             gap: 3px !important;
         }
+
         div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) > div div[data-testid="stElementContainer"]:has(div[data-testid="stCheckbox"]) {
-            transform: scale(0.8);
+            transform: scale(0.82);
             transform-origin: top left;
             top: 4px !important;
             left: 3px !important;
