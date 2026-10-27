@@ -2861,32 +2861,29 @@ st.markdown("""
         display: block !important;
     }
 
-    /* 3. Deep Black Mini-Chart Grid (Auto-Scales: 5 Cols on 15" Laptop, 6 Cols on 22" Desktop) */
+    /* 3. Deep Black Mini-Chart Grid (minmax(0, 1fr) prevents right-side candle clipping) */
     .stApp { background-color: #0b0e14 !important; }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) {
         display: grid !important;
-        gap: 8px !important;
+        gap: 6px !important;
         align-items: start !important;
+        width: 100% !important;
     }
     div[data-testid="stElementContainer"]:has(.pro-mini-board) { display: none !important; }
 
-    /* 22-inch & 24-inch Desktop Monitors (6 Charts per row like Old Code) */
     @media screen and (min-width: 1600px) {
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(6, 1fr) !important; }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(6, minmax(0, 1fr)) !important; }
     }
-    /* 15-inch Laptops (5 Charts per row) */
     @media screen and (min-width: 1200px) and (max-width: 1599px) {
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(5, 1fr) !important; }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; }
     }
     @media screen and (min-width: 900px) and (max-width: 1199px) {
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(4, 1fr) !important; }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
     }
     @media screen and (max-width: 899px) {
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(2, 1fr) !important; gap: 6px !important; }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 4px !important; }
     }
 
-    /* Deep Black Card Background like First Screenshot */
-    .stApp { background-color: #0b0e14 !important; }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) > div {
         background-color: #0b0e14 !important;
         border: 1px solid #161b22 !important;
@@ -2894,13 +2891,19 @@ st.markdown("""
         padding: 2px !important;
         position: relative !important;
         width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        overflow: hidden !important;
+        box-sizing: border-box !important;
     }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) div[data-testid="stElementContainer"]:has(div[data-testid="stCheckbox"]) {
-        margin-bottom: -38px !important;
-        position: relative !important;
-        top: 6px !important;
-        left: 6px !important;
-        z-index: 100 !important;
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) div[data-testid="stPlotlyChart"],
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) .js-plotly-plot,
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) .plot-container,
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) .svg-container {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        overflow: hidden !important;
     }
 
     /* Auto-Fit Height (100vh) for Both 15-inch Laptop & 22-inch Desktop */
@@ -3875,27 +3878,6 @@ def _on_grid_radio_change():
 
 
 # --- MINI-CHART GRID & SINGLE CHART (WITH TICK ON ALL INDICES, VOL BARS & 12-HOUR IST TIME) ---
-def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Intraday (5m)", chart_dict=None, show_crosshair=False, show_vol=False, is_sector=False):
-    if df_grid is None or df_grid.empty:
-        return
-    if chart_dict is None:
-        chart_dict = {}
-    with st.container():
-        st.markdown("<div class='pro-mini-board'></div>", unsafe_allow_html=True)
-        for _, row in df_grid.iterrows():
-            with st.container():
-                render_chart(
-                    row, chart_dict.get(row['Fetch_T'], pd.DataFrame()),
-                    show_pin=True,
-                    key_suffix=key_prefix,
-                    timeframe=timeframe, show_crosshair=show_crosshair, show_vol=show_vol
-                )
-                if is_sector:
-                    btn_lbl = "🔽 View Stocks" if st.session_state.active_sec != row['T'] else "🔼 Hide Stocks"
-                    if st.button(btn_lbl, key=f"btn_sec_{row['Fetch_T']}", width="stretch"):
-                        st.session_state.active_sec = None if st.session_state.active_sec == row['T'] else row['T']
-
-
 def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intraday (5m)", show_crosshair=False, show_vol=False):
     display_sym = row['T']
     fetch_sym = row['Fetch_T']
@@ -3912,33 +3894,49 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
             on_change=_on_pin_checkbox_change, args=(fetch_sym, display_sym, cb_key)
         )
 
-    strat_tag = f" <span style='font-size:10px; background:rgba(0,191,255,0.2); border:1px solid #00BFFF; padding:1px 4px; border-radius:3px; color:#00BFFF;'>{row.get('Strategy_Icon', '')}</span>" if row.get('Strategy_Icon') and row.get('Strategy_Icon') != "Neutral" else ""
+    strat_tag = f" <span style='font-size:9.5px; background:rgba(0,191,255,0.2); border:1px solid #00BFFF; padding:0px 3px; border-radius:3px; color:#00BFFF;'>{row.get('Strategy_Icon', '')}</span>" if row.get('Strategy_Icon') and row.get('Strategy_Icon') != "Neutral" else ""
 
     if timeframe == "Intraday (5m)":
         day_high, day_low, ltp_now = float(row.get('H', 0)), float(row.get('L', 0)), float(row.get('P', 0))
         if pct_val >= 0:
             intraday_pb = ((day_high - ltp_now) / day_high) * 100 if day_high > 0 else 0
-            pb_tag = f" &nbsp;<span style='color:#FF8C00; font-size:11px;'>📉 -{intraday_pb:.1f}% DH</span>" if intraday_pb >= 0.1 else ""
+            pb_tag = f" <span style='color:#FF8C00; font-size:10px;'>📉-{intraday_pb:.1f}%</span>" if intraday_pb >= 0.1 else ""
         else:
             intraday_bounce = ((ltp_now - day_low) / day_low) * 100 if day_low > 0 else 0
-            pb_tag = f" &nbsp;<span style='color:#00BFFF; font-size:11px;'>📈 +{intraday_bounce:.1f}% DL</span>" if intraday_bounce >= 0.1 else ""
+            pb_tag = f" <span style='color:#00BFFF; font-size:10px;'>📈+{intraday_bounce:.1f}%</span>" if intraday_bounce >= 0.1 else ""
     else:
         pb_val = float(row.get('Pullback_52W', 0))
-        pb_tag = f" &nbsp;<span style='color:#FF8C00; font-size:11px;'>📉 -{pb_val:.1f}% 52WH</span>" if pb_val >= 0.1 else ""
+        pb_tag = f" <span style='color:#FF8C00; font-size:10px;'>📉-{pb_val:.1f}%</span>" if pb_val >= 0.1 else ""
 
-    title_html = f"<a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; line-height:1.2;'><b>{display_sym}</b>{strat_tag}<br><span style='font-size:12px; color:#cccccc;'>₹{row['P']:.2f} &nbsp;<span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span>{pb_tag}</span></a>"
+    title_html = (
+        f"<a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; line-height:1.15;'>"
+        f"<b>{display_sym}</b>{strat_tag}<br>"
+        f"<span style='font-size:11px; color:#cccccc;'>₹{row['P']:.2f} "
+        f"<span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span>{pb_tag}</span></a>"
+    )
 
     try:
         if not df_chart.empty and 'Low' in df_chart.columns and 'High' in df_chart.columns:
             df_chart = _fix_ist_df(df_chart) if timeframe == "Intraday (5m)" else df_chart.copy()
+
+            # Keep full latest trading day (all 75 candles from 9:15 AM to 3:30 PM)
             if timeframe == "Intraday (5m)":
-                df_chart = df_chart.tail(75)
-            min_val, max_val = df_chart['Low'].min(), df_chart['High'].max()
-            y_padding = (max_val - min_val) * 0.15 if (max_val - min_val) != 0 else min_val * 0.005
+                u_dates = sorted(list(set(df_chart.index.date)))
+                if u_dates:
+                    today_slice = df_chart[df_chart.index.date == u_dates[-1]]
+                    df_chart = today_slice if len(today_slice) >= 10 else df_chart.tail(75)
+                else:
+                    df_chart = df_chart.tail(75)
+            else:
+                df_chart = df_chart.tail(90)
+
+            min_val, max_val = float(df_chart['Low'].min()), float(df_chart['High'].max())
+            y_padding = (max_val - min_val) * 0.16 if (max_val - min_val) != 0 else min_val * 0.005
 
             chart_times = pd.to_datetime(df_chart.index)
             x_labels = chart_times.strftime('%I:%M %p') if timeframe == "Intraday (5m)" else chart_times.strftime('%d-%b')
-            x_idx = list(range(len(df_chart)))
+            n_bars = len(df_chart)
+            x_idx = list(range(n_bars))
 
             hover_data = (
                 "🕒 " + chart_times.strftime('%d-%b %I:%M %p IST') +
@@ -3979,16 +3977,16 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
             if mask_hv_bull.any():
                 fig.add_trace(go.Candlestick(
                     x=x_idx, open=_am('Open', mask_hv_bull), high=_am('High', mask_hv_bull), low=_am('Low', mask_hv_bull), close=_am('Close', mask_hv_bull),
-                    increasing_line_color='#00FF00', increasing_fillcolor='#00FF00', increasing_line_width=2,
-                    decreasing_line_color='#00FF00', decreasing_fillcolor='#00FF00', decreasing_line_width=2,
+                    increasing_line_color='#00FF00', increasing_fillcolor='#00FF00', increasing_line_width=1.8,
+                    decreasing_line_color='#00FF00', decreasing_fillcolor='#00FF00', decreasing_line_width=1.8,
                     showlegend=False, hoverinfo='skip'
                 ), **rc)
 
             if mask_hv_bear.any():
                 fig.add_trace(go.Candlestick(
                     x=x_idx, open=_am('Open', mask_hv_bear), high=_am('High', mask_hv_bear), low=_am('Low', mask_hv_bear), close=_am('Close', mask_hv_bear),
-                    increasing_line_color='#FF0000', increasing_fillcolor='#FF0000', increasing_line_width=2,
-                    decreasing_line_color='#FF0000', decreasing_fillcolor='#FF0000', decreasing_line_width=2,
+                    increasing_line_color='#FF0000', increasing_fillcolor='#FF0000', increasing_line_width=1.8,
+                    decreasing_line_color='#FF0000', decreasing_fillcolor='#FF0000', decreasing_line_width=1.8,
                     showlegend=False, hoverinfo='skip'
                 ), **rc)
 
@@ -3999,76 +3997,92 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
             ), **rc)
 
             if timeframe == "Daily Chart":
-                if 'SMA_50' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_50'], mode='lines', line=dict(color='#FFD700', width=1.5), showlegend=False, hoverinfo='skip'), **rc)
-                if 'SMA_150' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_150'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'), **rc)
-                if 'SMA_200' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_200'], mode='lines', line=dict(color='#FF4500', width=2), showlegend=False, hoverinfo='skip'), **rc)
+                if 'SMA_50' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_50'], mode='lines', line=dict(color='#FFD700', width=1.3), showlegend=False, hoverinfo='skip'), **rc)
+                if 'SMA_150' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_150'], mode='lines', line=dict(color='#00BFFF', width=1.3, dash='dash'), showlegend=False, hoverinfo='skip'), **rc)
+                if 'SMA_200' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_200'], mode='lines', line=dict(color='#FF4500', width=1.6), showlegend=False, hoverinfo='skip'), **rc)
             elif timeframe == "Weekly Chart":
-                if 'SMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_10'], mode='lines', line=dict(color='#FFD700', width=1.5), showlegend=False, hoverinfo='skip'), **rc)
-                if 'SMA_40' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_40'], mode='lines', line=dict(color='#FF4500', width=2), showlegend=False, hoverinfo='skip'), **rc)
+                if 'SMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_10'], mode='lines', line=dict(color='#FFD700', width=1.3), showlegend=False, hoverinfo='skip'), **rc)
+                if 'SMA_40' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_40'], mode='lines', line=dict(color='#FF4500', width=1.6), showlegend=False, hoverinfo='skip'), **rc)
             else:
-                offset = -4 if len(df_chart) >= 4 else -1
-                tag_idx = x_idx[offset]
+                # Place V: and E: labels at 60% of chart width so the last 10-15 breakout candles are 100% visible!
+                tag_pos = max(0, int(n_bars * 0.60))
+                tag_idx = x_idx[tag_pos]
                 last_close = float(df_chart['Close'].iloc[-1])
                 has_vwap = 'VWAP' in df_chart.columns
                 has_ema = 'EMA_10' in df_chart.columns
                 last_vwap = float(df_chart['VWAP'].iloc[-1]) if has_vwap else 0
                 last_ema = float(df_chart['EMA_10'].iloc[-1]) if has_ema else 0
-                tag_y_vwap = float(df_chart['VWAP'].iloc[offset]) if has_vwap else 0
-                tag_y_ema = float(df_chart['EMA_10'].iloc[offset]) if has_ema else 0
+                tag_y_vwap = float(df_chart['VWAP'].iloc[tag_pos]) if has_vwap else 0
+                tag_y_ema = float(df_chart['EMA_10'].iloc[tag_pos]) if has_ema else 0
 
                 v_anchor = "bottom" if last_close <= last_vwap else "top"
                 e_anchor = "bottom" if last_close <= last_ema else "top"
-                v_shift = 6 if v_anchor == "bottom" else -6
-                e_shift = 6 if e_anchor == "bottom" else -6
+                v_shift = 5 if v_anchor == "bottom" else -5
+                e_shift = 5 if e_anchor == "bottom" else -5
 
                 if has_vwap and has_ema and abs(tag_y_vwap - tag_y_ema) / (tag_y_vwap + 0.001) < 0.008:
                     if tag_y_vwap >= tag_y_ema:
-                        v_anchor, v_shift = "bottom", 6
-                        e_anchor, e_shift = "top", -6
+                        v_anchor, v_shift = "bottom", 5
+                        e_anchor, e_shift = "top", -5
                     else:
-                        v_anchor, v_shift = "top", -6
-                        e_anchor, e_shift = "bottom", 6
+                        v_anchor, v_shift = "top", -5
+                        e_anchor, e_shift = "bottom", 5
 
                 if has_vwap:
-                    fig.add_trace(go.Scatter(x=x_idx, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.5, dash='dot'), showlegend=False, hoverinfo='skip'), **rc)
-                    fig.add_annotation(x=tag_idx, y=tag_y_vwap, text=f"V:{last_vwap:.1f}", showarrow=False, xanchor="right", yanchor=v_anchor, xshift=-5, yshift=v_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#FFD700", borderpad=2, **rc)
+                    fig.add_trace(go.Scatter(x=x_idx, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.4, dash='dot'), showlegend=False, hoverinfo='skip'), **rc)
+                    fig.add_annotation(x=tag_idx, y=tag_y_vwap, text=f"V:{last_vwap:.1f}", showarrow=False, xanchor="right", yanchor=v_anchor, yshift=v_shift, font=dict(color="#161b22", size=8.5, family="monospace", weight="bold"), bgcolor="#FFD700", borderpad=1, **rc)
                 if has_ema:
-                    fig.add_trace(go.Scatter(x=x_idx, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.5, dash='dash'), showlegend=False, hoverinfo='skip'), **rc)
-                    fig.add_annotation(x=tag_idx, y=tag_y_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="right", yanchor=e_anchor, xshift=-5, yshift=e_shift, font=dict(color="#161b22", size=10, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=2, **rc)
+                    fig.add_trace(go.Scatter(x=x_idx, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.4, dash='dash'), showlegend=False, hoverinfo='skip'), **rc)
+                    fig.add_annotation(x=tag_idx, y=tag_y_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="right", yanchor=e_anchor, yshift=e_shift, font=dict(color="#161b22", size=8.5, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=1, **rc)
 
             if show_vol and 'Volume' in df_chart.columns:
                 vol_colors = [
                     '#00FF00' if mask_hv_bull.iloc[i] else ('#FF0000' if mask_hv_bear.iloc[i] else ('rgba(46, 160, 67, 0.45)' if df_chart['Close'].iloc[i] >= df_chart['Open'].iloc[i] else 'rgba(218, 54, 51, 0.45)'))
-                    for i in range(len(df_chart))
+                    for i in range(n_bars)
                 ]
                 fig.add_trace(go.Bar(x=x_idx, y=df_chart['Volume'], marker_color=vol_colors, showlegend=False, hoverinfo='skip'), row=2, col=1)
                 fig.update_yaxes(showspikes=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, row=2, col=1)
 
+            x_full_range = [-1.5, float(n_bars) + 4.5]
+
             fig.update_layout(
-                margin=dict(l=0, r=46 if show_crosshair else 5, t=0, b=16 if show_crosshair else 0),
-                height=265 if show_vol else 225, paper_bgcolor='#0b0e14', plot_bgcolor='#0b0e14',
+                autosize=True,
+                margin=dict(l=2, r=38 if show_crosshair else 6, t=2, b=16 if show_crosshair else 2),
+                height=240 if show_vol else 205,
+                paper_bgcolor='#0b0e14', plot_bgcolor='#0b0e14',
                 showlegend=False, xaxis_rangeslider_visible=False,
                 hovermode='closest' if show_crosshair else False, dragmode=False
             )
-            fig.add_annotation(text=title_html, xref="paper", yref="paper", x=0, xanchor="left", xshift=35, y=0.98, yanchor="top", showarrow=False, font=dict(size=13, color="#ffffff"), bgcolor="rgba(0,0,0,0)", borderwidth=0)
+            fig.add_annotation(
+                text=title_html, xref="paper", yref="paper",
+                x=0, xanchor="left", xshift=28, y=0.98, yanchor="top",
+                showarrow=False, font=dict(size=11.5, color="#ffffff"),
+                bgcolor="rgba(0,0,0,0)", borderwidth=0
+            )
 
             if show_crosshair:
-                t_step = max(1, len(x_idx) // 4)
+                t_step = max(1, n_bars // 4)
                 fig.update_xaxes(
+                    range=x_full_range, autorange=False,
                     showspikes=True, spikemode='across+toaxis', spikesnap='cursor', spikethickness=1, spikedash='dash', spikecolor='#8b949e',
-                    tickvals=x_idx[::t_step], ticktext=list(x_labels[::t_step]), tickfont=dict(color='#8b949e', size=9),
+                    tickvals=x_idx[::t_step], ticktext=list(x_labels[::t_step]), tickfont=dict(color='#8b949e', size=8.5),
                     showgrid=False, zeroline=False, showticklabels=True, fixedrange=True
                 )
                 fig.update_yaxes(
                     showspikes=True, spikemode='across+toaxis', spikesnap='cursor', spikethickness=1, spikedash='dash', spikecolor='#8b949e',
-                    showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=9.5),
-                    fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)], **rc
+                    showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=9),
+                    fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.6)], **rc
                 )
             else:
-                fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
-                fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.5)], **rc)
+                fig.update_xaxes(range=x_full_range, autorange=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
+                fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.6)], **rc)
 
-            st.plotly_chart(fig, width="stretch", key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}")
+            st.plotly_chart(
+                fig,
+                use_container_width=True,
+                config={'displayModeBar': False, 'responsive': True},
+                key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}"
+            )
     except Exception as e:
         st.markdown(f"<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart error: {e}</div>", unsafe_allow_html=True)
 
@@ -4425,12 +4439,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             .draw-menu {{ top: 52px !important; left: 4px !important; right: auto !important; }}
             .ind-menu {{ top: 52px !important; right: 4px !important; }}
         }}
-            .ohlc-overlay {{ top: 52px !important; font-size: 9px !important; }}
-            .sltg-box {{ top: 70px !important; flex-wrap: wrap !important; gap: 3px !important; max-width: 96vw !important; }}
-            .sltg-inp {{ width: 48px !important; }}
-            .draw-menu {{ top: 50px !important; left: 8px !important; right: auto !important; }}
-            .ind-menu {{ top: 50px !important; right: 8px !important; }}
-        }}
+            
         .ind-bar {{ display: flex; gap: 4px; flex-wrap: nowrap; align-items: center; position: relative; }}
         .tr-btn {{
             padding: 1px 6px; border-radius: 3px; font-size: 9.5px; font-weight: 800; cursor: pointer;
