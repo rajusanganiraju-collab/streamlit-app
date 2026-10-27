@@ -6505,44 +6505,80 @@ def render_live_ui():
                 const parentWin = window.parent;
                 const parentDoc = parentWin.document;
 
-                // 1. Setup Right-20% Panel Hide/Show Toggle (Works on Desktop & Mobile)
                 parentWin._isRight20Hidden = !!parentWin._isRight20Hidden;
 
-                function applyRight20State() {{
+                parentWin.applyRight20State = function(forceResize) {{
                     const hidden = !!parentWin._isRight20Hidden;
-                    if (hidden) {{
-                        parentDoc.body.classList.add('hide-right-20');
-                    }} else {{
-                        parentDoc.body.classList.remove('hide-right-20');
+
+                    // 1. Direct ga Right 20% Column & Left 80% Column ni pattukuni Hide / 100% Expand cheyadam
+                    const marker = parentDoc.querySelector('.right-panel-marker');
+                    const col20 = marker ? marker.closest('[data-testid="stColumn"], [data-testid="column"]') : null;
+                    const rowBlock = col20 ? col20.parentElement : null;
+                    const col80 = rowBlock ? rowBlock.firstElementChild : null;
+
+                    if (col20 && col80 && col20 !== col80) {{
+                        if (hidden) {{
+                            col20.style.setProperty('display', 'none', 'important');
+                            col20.style.setProperty('width', '0px', 'important');
+                            col20.style.setProperty('flex', '0 0 0px', 'important');
+                            col80.style.setProperty('width', '100%', 'important');
+                            col80.style.setProperty('flex', '1 1 100%', 'important');
+                            col80.style.setProperty('max-width', '100%', 'important');
+                        }} else {{
+                            col20.style.removeProperty('display');
+                            col20.style.removeProperty('width');
+                            col20.style.removeProperty('flex');
+                            col80.style.removeProperty('width');
+                            col80.style.removeProperty('flex');
+                            col80.style.removeProperty('max-width');
+                        }}
                     }}
+
+                    // 2. Live Line lo unna 'Hide 20%' button ki click event jodinchatam
                     const topBtn = parentDoc.getElementById('top-rp-btn');
                     if (topBtn) {{
                         topBtn.innerHTML = hidden ? '⏪ Show 20%' : '⏩ Hide 20%';
                         topBtn.style.background = hidden ? '#238636' : '#1f6feb';
+                        topBtn.onclick = function(e) {{
+                            e.preventDefault();
+                            e.stopPropagation();
+                            parentWin.toggleRight20Panel();
+                        }};
                     }}
+
+                    // 3. Right Edge lo unna floating 'HIDE / PANEL' button
                     let edgeTab = parentDoc.getElementById('rp-edge-toggle');
                     if (!edgeTab) {{
                         edgeTab = parentDoc.createElement('div');
                         edgeTab.id = 'rp-edge-toggle';
-                        edgeTab.onclick = () => parentWin.toggleRight20Panel();
                         parentDoc.body.appendChild(edgeTab);
                     }}
                     edgeTab.innerHTML = hidden ? '◀ PANEL' : '▶ HIDE';
                     edgeTab.style.background = hidden ? '#238636' : '#1f6feb';
+                    edgeTab.onclick = function(e) {{
+                        e.preventDefault();
+                        e.stopPropagation();
+                        parentWin.toggleRight20Panel();
+                    }};
 
-                    // Trigger chart resize so Mini-Charts & Pro-Grid Charts expand to 100% smoothly
-                    setTimeout(() => parentWin.dispatchEvent(new Event('resize')), 20);
-                    setTimeout(() => parentWin.dispatchEvent(new Event('resize')), 180);
-                }}
+                    if (forceResize) {{
+                        setTimeout(() => parentWin.dispatchEvent(new Event('resize')), 30);
+                        setTimeout(() => parentWin.dispatchEvent(new Event('resize')), 200);
+                    }}
+                }};
 
                 parentWin.toggleRight20Panel = function() {{
                     parentWin._isRight20Hidden = !parentWin._isRight20Hidden;
-                    applyRight20State();
+                    parentWin.applyRight20State(true);
                 }};
 
-                applyRight20State();
+                parentWin.applyRight20State(true);
 
-                // 2. Live Countdown Badge
+                // Streamlit prati sari update ayinappudu button click & hide state pookunda kapadutundi
+                if (parentWin._rpSyncInterval) clearInterval(parentWin._rpSyncInterval);
+                parentWin._rpSyncInterval = setInterval(() => parentWin.applyRight20State(false), 400);
+
+                // 4. Live Countdown Timer
                 if (parentWin._stCdInterval) clearInterval(parentWin._stCdInterval);
                 let secLeft = {_effective_refresh};
                 const updateBadge = () => {{
