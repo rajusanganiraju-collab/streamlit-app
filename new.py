@@ -2906,6 +2906,15 @@ st.markdown("""
         overflow: hidden !important;
     }
 
+    /* 🔥 FIX: Bring Pin Checkbox & Stock Name on the exact same top line inside Mini-Charts */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) > div div[data-testid="stElementContainer"]:has(div[data-testid="stCheckbox"]) {
+        margin-bottom: -42px !important;
+        position: relative !important;
+        top: 6px !important;
+        left: 6px !important;
+        z-index: 100 !important;
+        width: 24px !important;
+    }
     /* Auto-Fit Height (100vh) for Both 15-inch Laptop & 22-inch Desktop */
     div[data-testid="stVerticalBlockBorderWrapper"]:has(.right-panel-marker) {
         height: calc(100vh - 14px) !important;
