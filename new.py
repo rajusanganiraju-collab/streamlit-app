@@ -2861,7 +2861,7 @@ st.markdown("""
         display: block !important;
     }
 
-    /* 3. Deep Black Mini-Chart Grid (minmax(0, 1fr) prevents right-side candle clipping) */
+    /* 3. Deep Black Mini-Chart Grid (Auto-Adjusts up to 8 Charts on Hide/Zoom & 3 Charts on Mobile) */
     .stApp { background-color: #0b0e14 !important; }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) {
         display: grid !important;
@@ -2871,17 +2871,26 @@ st.markdown("""
     }
     div[data-testid="stElementContainer"]:has(.pro-mini-board) { display: none !important; }
 
-    @media screen and (min-width: 1600px) {
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(6, minmax(0, 1fr)) !important; }
+    /* Desktop & Laptop: 5 charts in 80% view -> 6-7 charts when 20% hidden -> up to 8 charts on Zoom Out */
+    @media screen and (min-width: 769px) {
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) {
+            grid-template-columns: repeat(auto-fill, minmax(max(190px, calc((100% - 48px) / 8)), 1fr)) !important;
+            gap: 6px !important;
+        }
     }
-    @media screen and (min-width: 1200px) and (max-width: 1599px) {
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; }
-    }
-    @media screen and (min-width: 900px) and (max-width: 1199px) {
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
-    }
-    @media screen and (max-width: 899px) {
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 4px !important; }
+
+    /* Mobile: Strictly 3 Charts per row */
+    @media screen and (max-width: 768px) {
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+            gap: 3px !important;
+        }
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) > div div[data-testid="stElementContainer"]:has(div[data-testid="stCheckbox"]) {
+            transform: scale(0.8);
+            transform-origin: top left;
+            top: 4px !important;
+            left: 3px !important;
+        }
     }
 
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) > div {
