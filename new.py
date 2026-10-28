@@ -876,7 +876,7 @@ def fetch_cached_5m_data(tkrs_list):
     import os
     t0 = time.time()
     _m_open = is_market_open()
-    _ttl = 180 if _m_open else 64800
+    _ttl = 25 if _m_open else 64800
     _cache_5m_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "intraday_5m_cache.pkl")
     _bad_syms = globals().get('_SKIP_BAD_SYMS', {"PBFINTECH", "GUJGASLTD", "TVSHLDGS", "TATAMOTORS", "PEL", "LTIM", "JCHAC", "SEAMEC", "TIDEWATER"})
 
@@ -3622,17 +3622,17 @@ st.markdown("""
         100% { transform: translateX(-100%); }
     }
     .flash-ticker-wrap {
-        flex: 1 1 auto;
+        flex: 1 1 100% !important;
+        width: 100% !important;
+        max-width: 100% !important;
         overflow: hidden;
         white-space: nowrap;
         background: rgba(255, 215, 0, 0.10);
         border-left: 3px solid #ffd700;
         border-right: 3px solid #ffd700;
         border-radius: 4px;
-        padding: 3px 10px;
+        padding: 3px 12px;
         margin: 0 6px;
-        min-width: 180px;
-        max-width: 720px;
     }
     .flash-ticker-move {
         display: inline-block;
@@ -4384,9 +4384,17 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
         if not df_chart.empty and 'Low' in df_chart.columns and 'High' in df_chart.columns:
             df_chart = _fix_ist_df(df_chart) if timeframe == "Intraday (5m)" else df_chart.copy()
 
-            # Strictly keep ONLY Today's / Latest Trading Day's candles (Even at 9:15 AM with 1 candle!)
+            # Strictly keep ONLY Today's candles & update Last 5m Candle with Live LTP every 30s!
             if timeframe == "Intraday (5m)":
                 df_chart = df_chart[df_chart.index.date == df_chart.index.date[-1]].copy()
+                if not df_chart.empty and float(row.get('P', 0)) > 0:
+                    _live_p = float(row['P'])
+                    _last_i = df_chart.index[-1]
+                    df_chart.at[_last_i, 'Close'] = _live_p
+                    if _live_p > float(df_chart.at[_last_i, 'High']):
+                        df_chart.at[_last_i, 'High'] = _live_p
+                    if _live_p < float(df_chart.at[_last_i, 'Low']) or float(df_chart.at[_last_i, 'Low']) <= 0:
+                        df_chart.at[_last_i, 'Low'] = _live_p
             
             min_val, max_val = float(df_chart['Low'].min()), float(df_chart['High'].max())
             y_padding = (max_val - min_val) * 0.16 if (max_val - min_val) != 0 else min_val * 0.005
@@ -6859,13 +6867,11 @@ def render_live_ui():
             f"<div style='display:flex;justify-content:space-between;align-items:center;flex-wrap:nowrap;gap:8px;"
             f"background:#161b22;border:1.5px solid {_status_border};border-radius:6px;padding:0px 12px;"
             f"height:38px;margin-bottom:4px;font-size:14px;overflow:hidden;white-space:nowrap;'>"
-            f"<span>{_status_title}</span>"
-            f"<div style='display:flex;align-items:center;gap:8px;'>{_dir_box_html}{nifty_intra_html}</div>"
+            f"<div style='display:flex;align-items:center;gap:8px;flex-shrink:0;'>{_status_title}{_dir_box_html}</div>"
             f"{_flash_html}"
-            f"<span style='color:#e6edf3;font-size:13px;font-weight:bold;display:flex;align-items:center;gap:6px;'>🕒 {_now_str_top} "
             f"<span id='live-cd-badge' data-ts='{_run_ts}' style='background:#21262d;border:1px solid #30363d;color:#00BFFF;"
-            f"padding:2px 7px;border-radius:4px;font-weight:bold;font-size:13px;font-family:monospace;'>⏳ {_effective_refresh}s</span>"
-            f"</span></div>"
+            f"padding:2px 8px;border-radius:4px;font-weight:bold;font-size:13px;font-family:monospace;flex-shrink:0;'>⏳ {_effective_refresh}s</span>"
+            f"</div>"
         )
 
         # 🔥 ONE-LINE UNIFIED HEADER (Wider Status Bar so Telugu Flash News is clearly visible even in Grid Mode)
