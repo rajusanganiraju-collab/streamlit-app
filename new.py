@@ -6253,12 +6253,12 @@ def render_live_ui():
             with st.expander("⚙️ Filters, Sort & Search", expanded=False):
                 st.session_state.pause_refresh = st.toggle("⏸️ Pause Refresh", value=st.session_state.pause_refresh)
                 _sort_opts = [
-                    "Score Wise Up ⭐",
+                    "Score: High to Low ⭐ (Top First)",
                     "Intraday Pullback Max 📉 (DH / DL)",
                     "52W Pullback Max 📉 (Deep Discount)",
-                    "% Change Up 🟢",
-                    "% Change Down 🔴",
-                    "Score Wise Down ⬇️"
+                    "% Change: High to Low 🟢",
+                    "% Change: Low to High 🔴",
+                    "Score: Low to High ⬆️"
                 ]
                 _saved_sort = _UI.get('sort_mode', _sort_opts[0])
                 _sort_idx = _sort_opts.index(_saved_sort) if _saved_sort in _sort_opts else 0
@@ -6798,6 +6798,10 @@ def render_live_ui():
 
         scol = st.session_state.wl_sort_col
         sasc = st.session_state.wl_sort_asc
+        _tie_cols = ['S', 'AI_Prob', 'VolX', sort_key] if 'AI_Prob' in df_filtered.columns else ['S', 'VolX', sort_key]
+        _tie_desc = [False] * len(_tie_cols)
+        _tie_asc = [True, True, False, True] if 'AI_Prob' in df_filtered.columns else [True, False, True]
+
         if scol == "Symbol":
             df_sorted_base = df_filtered.sort_values(by='T', ascending=sasc)
         elif scol == "Last":
@@ -6815,14 +6819,15 @@ def render_live_ui():
                 ])
             elif sort_mode == "52W Pullback Max 📉 (Deep Discount)":
                 df_sorted_base = df_filtered.sort_values(by=['Pullback_52W', 'S'], ascending=[False, False])
-            elif sort_mode == "% Change Up 🟢":
+            elif sort_mode in ("% Change: High to Low 🟢", "% Change Up 🟢"):
                 df_sorted_base = df_filtered.sort_values(by=sort_key, ascending=False)
-            elif sort_mode == "% Change Down 🔴":
+            elif sort_mode in ("% Change: Low to High 🔴", "% Change Down 🔴"):
                 df_sorted_base = df_filtered.sort_values(by=sort_key, ascending=True)
-            elif sort_mode == "Score Wise Down ⬇️":
-                df_sorted_base = df_filtered.sort_values(by=['S', 'VolX', sort_key], ascending=[True, False, True])
+            elif sort_mode == "Score: Low to High ⬆️":
+                df_sorted_base = df_filtered.sort_values(by=_tie_cols, ascending=_tie_asc)
             else:
-                df_sorted_base = df_filtered.sort_values(by=['S', 'VolX', sort_key], ascending=[False, False, False])
+                # Default for ALL Strategies: Strictly HIGH SCORE to LOW SCORE (35 -> 13)
+                df_sorted_base = df_filtered.sort_values(by=_tie_cols, ascending=_tie_desc)
 
         if scol is not None:
             df_stocks_display = df_sorted_base.reset_index(drop=True)
