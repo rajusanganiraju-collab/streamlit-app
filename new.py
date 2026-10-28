@@ -4500,9 +4500,18 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
         if not df_chart.empty and 'Low' in df_chart.columns and 'High' in df_chart.columns:
             df_chart = _fix_ist_df(df_chart) if timeframe == "Intraday (5m)" else df_chart.copy()
 
-            # Strictly keep ONLY Today's candles & update Last 5m Candle with Live LTP every 30s!
+            # Indian NSE Stocks/Indices -> Today's candles only; Global (SPX, DAX, USD/INR, Commodities) -> Full 75 candles!
             if timeframe == "Intraday (5m)":
-                df_chart = df_chart[df_chart.index.date == df_chart.index.date[-1]].copy()
+                _is_indian_sym = (
+                    fetch_sym.endswith(".NS")
+                    or fetch_sym in ("^NSEI", "^NSEBANK", "^INDIAVIX")
+                    or fetch_sym.startswith("^CNX")
+                )
+                if _is_indian_sym:
+                    df_chart = df_chart[df_chart.index.date == df_chart.index.date[-1]].copy()
+                else:
+                    df_chart = df_chart.tail(75).copy()
+
                 if not df_chart.empty and float(row.get('P', 0)) > 0:
                     _live_p = float(row['P'])
                     _last_i = df_chart.index[-1]
@@ -4511,7 +4520,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                         df_chart.at[_last_i, 'High'] = _live_p
                     if _live_p < float(df_chart.at[_last_i, 'Low']) or float(df_chart.at[_last_i, 'Low']) <= 0:
                         df_chart.at[_last_i, 'Low'] = _live_p
-            
+
             min_val, max_val = float(df_chart['Low'].min()), float(df_chart['High'].max())
             y_padding = (max_val - min_val) * 0.16 if (max_val - min_val) != 0 else min_val * 0.005
 
@@ -4538,35 +4547,49 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 ema10_s = df_chart.get('EMA_10', pd.Series(0, index=df_chart.index))
                 bull = df_chart['Close'] >= df_chart['Open']
                 bear = df_chart['Close'] < df_chart['Open']
-                mask_hv_bull = hv_mask & (df_chart['Close'] > vwap_s) & (df_chart['Close'] > ema10_s) & bull
-                mask_hv_bear = hv_mask & (df_chart['Close'] < vwap_s) & (df_chart['Close'] < ema10_s) & bear
-                mask_norm = ~(mask_hv_bull | mask_hv_bear)
+                mask_hv_bull = (hv_mask & (df_chart['Close'] > vwap_s) & (df_chart['Close'] > ema10_s) & bull).fillna(False)
+                mask_hv_bear = (hv_mask & (df_chart['Close'] < vwap_s) & (df_chart['Close'] < ema10_s) & bear).fillna(False)
             else:
                 mask_hv_bull = pd.Series(False, index=df_chart.index)
                 mask_hv_bear = pd.Series(False, index=df_chart.index)
-                mask_norm = pd.Series(True, index=df_chart.index)
 
-            def _am(col, m):
-                return np.where(m, df_chart[col], np.nan)
-
+            # 1. Base Candlestick Trace: Plot ALL candles with ZERO NaNs so no chart ever cuts off!
             fig.add_trace(go.Candlestick(
-                x=x_idx, open=_am('Open', mask_norm), high=_am('High', mask_norm), low=_am('Low', mask_norm), close=_am('Close', mask_norm),
+                x=x_idx,
+                open=df_chart['Open'].tolist(),
+                high=df_chart['High'].tolist(),
+                low=df_chart['Low'].tolist(),
+                close=df_chart['Close'].tolist(),
                 increasing_line_color='#2ea043', increasing_fillcolor='#2ea043', increasing_line_width=1,
                 decreasing_line_color='#da3633', decreasing_fillcolor='#da3633', decreasing_line_width=1,
                 showlegend=False, hoverinfo='skip'
             ), **rc)
 
+            # 2. High-Volume Bull Overlay (Only matching indices — ZERO NaNs)
             if mask_hv_bull.any():
+                _b_idx = [i for i, v in enumerate(mask_hv_bull.tolist()) if v]
+                _b_df = df_chart[mask_hv_bull]
                 fig.add_trace(go.Candlestick(
-                    x=x_idx, open=_am('Open', mask_hv_bull), high=_am('High', mask_hv_bull), low=_am('Low', mask_hv_bull), close=_am('Close', mask_hv_bull),
+                    x=_b_idx,
+                    open=_b_df['Open'].tolist(),
+                    high=_b_df['High'].tolist(),
+                    low=_b_df['Low'].tolist(),
+                    close=_b_df['Close'].tolist(),
                     increasing_line_color='#00FF00', increasing_fillcolor='#00FF00', increasing_line_width=1.8,
                     decreasing_line_color='#00FF00', decreasing_fillcolor='#00FF00', decreasing_line_width=1.8,
                     showlegend=False, hoverinfo='skip'
                 ), **rc)
 
+            # 3. High-Volume Bear Overlay (Only matching indices — ZERO NaNs)
             if mask_hv_bear.any():
+                _s_idx = [i for i, v in enumerate(mask_hv_bear.tolist()) if v]
+                _s_df = df_chart[mask_hv_bear]
                 fig.add_trace(go.Candlestick(
-                    x=x_idx, open=_am('Open', mask_hv_bear), high=_am('High', mask_hv_bear), low=_am('Low', mask_hv_bear), close=_am('Close', mask_hv_bear),
+                    x=_s_idx,
+                    open=_s_df['Open'].tolist(),
+                    high=_s_df['High'].tolist(),
+                    low=_s_df['Low'].tolist(),
+                    close=_s_df['Close'].tolist(),
                     increasing_line_color='#FF0000', increasing_fillcolor='#FF0000', increasing_line_width=1.8,
                     decreasing_line_color='#FF0000', decreasing_fillcolor='#FF0000', decreasing_line_width=1.8,
                     showlegend=False, hoverinfo='skip'
