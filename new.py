@@ -4012,14 +4012,9 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
         if not df_chart.empty and 'Low' in df_chart.columns and 'High' in df_chart.columns:
             df_chart = _fix_ist_df(df_chart) if timeframe == "Intraday (5m)" else df_chart.copy()
 
-            # Keep full latest trading day (all 75 candles from 9:15 AM to 3:30 PM)
+            # Strictly keep ONLY Today's / Latest Trading Day's candles (Even at 9:15 AM with 1 candle!)
             if timeframe == "Intraday (5m)":
-                u_dates = sorted(list(set(df_chart.index.date)))
-                if u_dates:
-                    today_slice = df_chart[df_chart.index.date == u_dates[-1]]
-                    df_chart = today_slice if len(today_slice) >= 10 else df_chart.tail(75)
-                else:
-                    df_chart = df_chart.tail(75)
+                df_chart = df_chart[df_chart.index.date == df_chart.index.date[-1]].copy()
             
             min_val, max_val = float(df_chart['Low'].min()), float(df_chart['High'].max())
             y_padding = (max_val - min_val) * 0.16 if (max_val - min_val) != 0 else min_val * 0.005
@@ -4134,7 +4129,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 fig.add_trace(go.Bar(x=x_idx, y=df_chart['Volume'], marker_color=vol_colors, showlegend=False, hoverinfo='skip'), row=2, col=1)
                 fig.update_yaxes(showspikes=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, row=2, col=1)
 
-            x_full_range = [-1.5, float(n_bars) + 4.5]
+            x_full_range = [-0.6, float(n_bars) + 0.6]
 
             fig.update_layout(
                 autosize=True,
