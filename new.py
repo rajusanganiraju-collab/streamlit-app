@@ -4762,6 +4762,15 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         st.info(f"No valid candles for {disp_sym}")
         return
 
+    # 🔥 Sync Live LTP (ltp_v) into the Last Candle every 30s so Candle & Indicators move live!
+    if ltp_v > 0:
+        _last_idx = df_p.index[-1]
+        df_p.at[_last_idx, 'Close'] = ltp_v
+        if ltp_v > float(df_p.at[_last_idx, 'High']):
+            df_p.at[_last_idx, 'High'] = ltp_v
+        if ltp_v < float(df_p.at[_last_idx, 'Low']) or float(df_p.at[_last_idx, 'Low']) <= 0:
+            df_p.at[_last_idx, 'Low'] = ltp_v
+
     if 'VWAP' not in df_p.columns:
         tp = (df_p['High'] + df_p['Low'] + df_p['Close']) / 3.0
         df_p['VWAP'] = tp.expanding().mean()
