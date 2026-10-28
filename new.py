@@ -6083,7 +6083,7 @@ def render_live_ui():
                 fund_filter = st.selectbox("Fundamentals Filter", ["Top Ranked Stocks ⭐", "🦅 Warren Buffett Value Stocks", "Swing Trading Candidates 📈", "Nifty 50 Stocks", "My Portfolio 💼"], index=0, label_visibility="collapsed")
 
             default_view_idx = 0 if watchlist_mode in ["My Portfolio 💼", "F&O + Top 200 Heatmap 🗺️"] else 1
-            view_mode = st.radio("Mode:", ["Heat Map", "Chart 📈"], index=default_view_idx, horizontal=True)
+            view_mode = st.radio("Mode:", ["Heat Map", "Chart 📈", "News 📰"], index=default_view_idx, horizontal=True)
             _UI['view_mode'] = view_mode
 
             _grid_opts = ["Off", "1", "2", "4", "6"]
@@ -6685,6 +6685,22 @@ def render_live_ui():
             df_stocks_display = pd.concat([_srch_row, _rest_rows], ignore_index=True)
     else:
         df_stocks_display = df_filtered.copy()
+        # 🔥 1) Filter out stale/old-date stocks (like old ICICIPRULI) & 2) Attach News Headlines for Mini-Chart Hover
+    if not df_stocks_display.empty and chart_timeframe == "Intraday (5m)" and "^NSEI" in processed_charts and not processed_charts["^NSEI"].empty:
+        _mkt_latest_dt = processed_charts["^NSEI"].index.date[-1]
+        _valid_today_fts = [
+            ft for ft in df_stocks_display['Fetch_T']
+            if (ft in processed_charts and not processed_charts[ft].empty and processed_charts[ft].index.date[-1] == _mkt_latest_dt)
+        ]
+        if _valid_today_fts:
+            df_stocks_display = df_stocks_display[df_stocks_display['Fetch_T'].isin(_valid_today_fts)].reset_index(drop=True)
+
+    if not df_stocks_display.empty:
+        _top_news_map = fetch_live_stock_news_batch(tuple(df_stocks_display['Fetch_T'].head(30).tolist()))
+        df_stocks_display['News_Headline'] = df_stocks_display['Fetch_T'].map(lambda s: (_top_news_map.get(s) or {}).get('title', ''))
+        df_stocks_display['News_Cat'] = df_stocks_display['Fetch_T'].map(lambda s: (_top_news_map.get(s) or {}).get('tag', '📰 News'))
+        df_stocks_display['News_Age'] = df_stocks_display['Fetch_T'].map(lambda s: f"{(_top_news_map.get(s) or {}).get('age_h', 0):.1f}h ago" if s in _top_news_map else '')
+        df_stocks_display['News_Link'] = df_stocks_display['Fetch_T'].map(lambda s: (_top_news_map.get(s) or {}).get('link', '#'))
 
     # ---------------------------------------------------------
     # 👉 POPULATE RIGHT 20% WATCHLIST (EXCEL HTML TABLE) & INSPECTOR
