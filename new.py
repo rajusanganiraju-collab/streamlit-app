@@ -899,7 +899,11 @@ def fetch_cached_5m_data(tkrs_list):
     now_t = time.time()
 
     clean_req = [t for t in dict.fromkeys(tkrs_list) if str(t).replace(".NS", "") not in _bad_syms]
-    missing_tkrs = [t for t in clean_req if (t not in store) or store[t].empty or ((now_t - ts_map.get(t, 0)) > _ttl)]
+    _global_24h = {"^GSPC", "^GDAXI", "INR=X", "GC=F", "SI=F", "CL=F", "NG=F", "HG=F"}
+    missing_tkrs = [
+        t for t in clean_req
+        if (t not in store) or store[t].empty or ((now_t - ts_map.get(t, 0)) > (25 if (t in _global_24h and now_ist().weekday() < 5) else _ttl))
+    ]
 
     n_yf = 0
     if missing_tkrs:
