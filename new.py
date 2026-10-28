@@ -6809,16 +6809,29 @@ def render_live_ui():
             _below_vwap = int((_df_mkt['P'] < _df_mkt['VWAP']).sum())
             _buy_pct = (_above_vwap / _tot_stocks) * 100.0
             _sell_pct = (_below_vwap / _tot_stocks) * 100.0
-            if 49.0 <= _buy_pct <= 51.0 or _above_vwap == _below_vwap:
-                _mkt_dir_text, _mkt_dir_bg, _mkt_dir_border = f"NEUTRAL {_above_vwap}/{_tot_stocks} ({_buy_pct:.0f}%)", "#484f58", "#8b949e"
+            if 47.0 <= _buy_pct <= 53.0 or _above_vwap == _below_vwap:
+                _mkt_dir_text, _mkt_dir_bg, _mkt_dir_border = f"⚖️ NEUTRAL {_above_vwap}/{_tot_stocks} ({_buy_pct:.0f}%)", "#484f58", "#8b949e"
             elif _above_vwap > _below_vwap:
-                _mkt_dir_text, _mkt_dir_bg, _mkt_dir_border = f"BUY 📈 {_above_vwap}/{_tot_stocks} ({_buy_pct:.0f}%)", "#1e5f29", "#2ea043"
+                if _buy_pct >= 75.0:
+                    _mkt_dir_text, _mkt_dir_bg, _mkt_dir_border = f"🚀 ULTRA BUY {_above_vwap}/{_tot_stocks} ({_buy_pct:.0f}%)", "#009624", "#00e676"
+                elif _buy_pct >= 65.0:
+                    _mkt_dir_text, _mkt_dir_bg, _mkt_dir_border = f"🔥 STRONG BUY {_above_vwap}/{_tot_stocks} ({_buy_pct:.0f}%)", "#238636", "#3fb950"
+                else:
+                    _mkt_dir_text, _mkt_dir_bg, _mkt_dir_border = f"🟢 BUY 📈 {_above_vwap}/{_tot_stocks} ({_buy_pct:.0f}%)", "#1e5f29", "#2ea043"
             else:
-                _mkt_dir_text, _mkt_dir_bg, _mkt_dir_border = f"SELL 📉 {_below_vwap}/{_tot_stocks} ({_sell_pct:.0f}%)", "#b52524", "#f85149"
+                if _sell_pct >= 75.0:
+                    _mkt_dir_text, _mkt_dir_bg, _mkt_dir_border = f"💀 ULTRA SELL {_below_vwap}/{_tot_stocks} ({_sell_pct:.0f}%)", "#b71c1c", "#ff1744"
+                elif _sell_pct >= 65.0:
+                    _mkt_dir_text, _mkt_dir_bg, _mkt_dir_border = f"🩸 STRONG SELL {_below_vwap}/{_tot_stocks} ({_sell_pct:.0f}%)", "#c62828", "#ff5252"
+                else:
+                    _mkt_dir_text, _mkt_dir_bg, _mkt_dir_border = f"🔴 SELL 📉 {_below_vwap}/{_tot_stocks} ({_sell_pct:.0f}%)", "#b52524", "#f85149"
 
         _dir_box_html = f"<span style='background:{_mkt_dir_bg};border:1px solid {_mkt_dir_border};color:#ffffff;padding:1px 7px;border-radius:4px;font-weight:bold;font-size:11.5px;white-space:nowrap;'>{_mkt_dir_text}</span>"
         _status_border = "#238636" if _m_open_top else "#f85149"
         _status_title = "🟢 <b>LIVE</b>" if _m_open_top else "🔴 <b>CLOSED</b>"
+
+        _flash_str = fetch_indian_and_global_market_news().get("flash_ticker", "")
+        _flash_html = f"<div class='flash-ticker-wrap'><div class='flash-ticker-move'>⚡ <b>FLASH:</b> {_flash_str}</div></div>" if _flash_str else ""
 
         _status_bar_html = (
             f"<div style='display:flex;justify-content:space-between;align-items:center;flex-wrap:nowrap;gap:6px;"
@@ -6826,12 +6839,10 @@ def render_live_ui():
             f"height:28px;margin-bottom:2px;font-size:11.5px;overflow:hidden;white-space:nowrap;'>"
             f"<span>{_status_title}</span>"
             f"<div style='display:flex;align-items:center;gap:6px;'>{_dir_box_html}{nifty_intra_html}</div>"
+            f"{_flash_html}"
             f"<span style='color:#c9d1d9;font-size:11px;display:flex;align-items:center;gap:5px;'>🕒 {_now_str_top} "
             f"<span id='live-cd-badge' data-ts='{_run_ts}' style='background:#21262d;border:1px solid #30363d;color:#00BFFF;"
             f"padding:1px 5px;border-radius:3px;font-weight:bold;font-family:monospace;'>⏳ {_effective_refresh}s</span>"
-            f"<span id='top-rp-btn' onclick='window.parent.toggleRight20Panel()' "
-            f"style='background:#1f6feb;border:1px solid #38bdf8;color:#fff;padding:1px 6px;border-radius:3px;"
-            f"font-weight:bold;font-size:10.5px;cursor:pointer;' title='Hide/Show Right 20% Panel'>⏩ Hide 20%</span>"
             f"</span></div>"
         )
 
@@ -7042,7 +7053,10 @@ def render_live_ui():
             # 📊 MODE B: DEFAULT MINI-CHARTS / PORTFOLIO / HEATMAP
             # =========================================================
             else:
-                if watchlist_mode == "Fundamentals 🏢":
+                if view_mode == "News 📰":
+                    render_market_news_hub(df_all_stocks, processed_charts)
+                elif watchlist_mode == "Fundamentals 🏢":
+                
                     st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-bottom:8px; color:#d29922;'>🏢 Core Fundamentals ({fund_filter})</div>", unsafe_allow_html=True)
                     fund_tickers = df_stocks_display['Fetch_T'].tolist()[:50] if not df_stocks_display.empty else [f"{s}.NS" for s in NIFTY_50[:50]]
                     df_fund = fetch_fundamentals_data(fund_tickers)
@@ -7193,6 +7207,7 @@ def render_live_ui():
                     st.markdown(render_portfolio_table(df_port_view, df_all_stocks, weekly_trends, port_sort), unsafe_allow_html=True)
                     st.markdown("<br>", unsafe_allow_html=True)
 
+                    st.markdown(render_portfolio_news_and_results_table(df_port_saved, df_all_stocks, weekly_trends), unsafe_allow_html=True)
                     with st.expander("🤖 View Portfolio Swing Advisor (Action & Levels)", expanded=False):
                         st.markdown(render_portfolio_swing_advice_table(df_port_saved, df_all_stocks, weekly_trends), unsafe_allow_html=True)
 
