@@ -1656,7 +1656,7 @@ def fetch_indian_and_global_market_news():
             except Exception:
                 pass
 
-    flash_ pool = (out["india"][:3] + out["stocks"][:4] + out["global"][:2])
+    flash_pool = (out["india"][:3] + out["stocks"][:4] + out["global"][:2])
     flash_pool.sort(key=lambda x: x["age_h"])
     if flash_pool:
         parts = []
