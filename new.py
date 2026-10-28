@@ -4328,12 +4328,17 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
         )
 
     news_hl = str(row.get('News_Headline', '') or '').strip()
-    news_hover_txt = None
     if news_hl and news_hl not in ('nan', 'None'):
         n_cat = _html.escape(str(row.get('News_Cat', '📰 News')))
         n_age = _html.escape(str(row.get('News_Age', '')))
+        n_lnk = _html.escape(str(row.get('News_Link', '#')))
         n_txt = _html.escape(news_hl)
-        news_hover_txt = f"<b>{n_cat} ({n_age})</b><br>{n_txt}"
+        st.markdown(
+            f"<div class='mc-news-badge'><span class='mc-news-pill'>📰 Hover for News</span>"
+            f"<div class='mc-news-popup'><b style='color:#ffd700;'>{n_cat} ({n_age})</b><br>"
+            f"<a href='{n_lnk}' target='_blank' style='color:#58a6ff;text-decoration:none;'>{n_txt} 🔗</a></div></div>",
+            unsafe_allow_html=True
+        )
     strat_tag = f" <span style='font-size:9.5px; background:rgba(0,191,255,0.2); border:1px solid #00BFFF; padding:0px 3px; border-radius:3px; color:#00BFFF;'>{row.get('Strategy_Icon', '')}</span>" if row.get('Strategy_Icon') and row.get('Strategy_Icon') != "Neutral" else ""
 
     if timeframe == "Intraday (5m)":
@@ -4490,9 +4495,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 text=title_html, xref="paper", yref="paper",
                 x=0, xanchor="left", xshift=28, y=0.98, yanchor="top",
                 showarrow=False, font=dict(size=11.5, color="#ffffff"),
-                bgcolor="rgba(0,0,0,0)", borderwidth=0,
-                hovertext=news_hover_txt,
-                hoverlabel=dict(bgcolor="#0d1117", bordercolor="#38bdf8", font=dict(color="#ffffff", size=11, family="monospace"))
+                bgcolor="rgba(0,0,0,0)", borderwidth=0
             )
 
             if show_crosshair:
