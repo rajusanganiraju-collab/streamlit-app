@@ -1264,7 +1264,8 @@ def process_5m_data(df_raw):
         df_5d = df_s.tail(375).copy()
         if not df_5d.empty:
             df_5d['Typical_Price'] = (df_5d['High'] + df_5d['Low'] + df_5d['Close']) / 3.0
-            df_5d['_sess_date'] = df_5d.index.date
+            # Kotha trading session (2 hours = 120 mins kante ekkuva gap) vachinappudu matrame VWAP reset cheyi
+            df_5d['_sess_date'] = (df_5d.index.to_series().diff() > pd.Timedelta(minutes=120)).cumsum()
             if 'Volume' in df_5d.columns and df_5d['Volume'].sum() > 0:
                 df_5d['_tp_vol'] = df_5d['Typical_Price'] * df_5d['Volume']
                 vol_cum = df_5d.groupby('_sess_date')['Volume'].cumsum().replace(0, np.nan)
