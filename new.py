@@ -1454,7 +1454,6 @@ def run_news_vol_price_strategy(df_candidates, processed_charts, min_volx=1.2, m
     if df_candidates is None or df_candidates.empty:
         return pd.DataFrame(), []
 
-    # Step 1: Pre-filter stocks showing Volume + Price activity today
     active_mask = (
         (df_candidates['VolX'] >= min_volx) &
         ((df_candidates['Day_C'].abs() >= min_move_pct) | (df_candidates['C'].abs() >= 1.0))
@@ -1463,7 +1462,6 @@ def run_news_vol_price_strategy(df_candidates, processed_charts, min_volx=1.2, m
     if df_pre.empty:
         return pd.DataFrame(), []
 
-    # Sort by Volume * Move intensity and check top 45 active stocks for fresh news
     df_pre['_intensity'] = df_pre['VolX'] * (df_pre['Day_C'].abs() + df_pre['C'].abs())
     df_pre = df_pre.sort_values('_intensity', ascending=False).head(45)
 
@@ -1477,7 +1475,7 @@ def run_news_vol_price_strategy(df_candidates, processed_charts, min_volx=1.2, m
     for idx, row in df_pre.iterrows():
         ft = row['Fetch_T']
         if ft not in news_map:
-            continue  # ❌ STRICT RULE: No Fresh News -> Skip!
+            continue
 
         n_info = news_map[ft]
         ltp = float(row['P'])
@@ -1489,19 +1487,16 @@ def run_news_vol_price_strategy(df_candidates, processed_charts, min_volx=1.2, m
         vol_x = float(row['VolX'])
         w_ema10 = float(row['W_EMA10'])
 
-        # 5-min Intraday EMA10 & Last Candle check
         df_5m = processed_charts.get(ft, pd.DataFrame())
         intra_ema10 = float(df_5m['EMA_10'].iloc[-1]) if (not df_5m.empty and 'EMA_10' in df_5m.columns) else vwap
         vwap_live = float(df_5m['VWAP'].iloc[-1]) if (not df_5m.empty and 'VWAP' in df_5m.columns) else vwap
 
-        # Check Price + Volume Direction
         is_bull_price = (ltp > vwap_live) and (ltp >= intra_ema10) and (day_c >= min_move_pct or net_c >= 1.2)
         is_bear_price = (ltp < vwap_live) and (ltp <= intra_ema10) and (day_c <= -min_move_pct or net_c <= -1.2)
 
         if not (is_bull_price or is_bear_price):
             continue
 
-        # Score Calculation (0 to 99)
         score = 55
         if vol_x >= 2.5: score += 18
         elif vol_x >= 1.8: score += 13
@@ -1511,7 +1506,7 @@ def run_news_vol_price_strategy(df_candidates, processed_charts, min_volx=1.2, m
         elif abs(day_c) >= 1.5: score += 8
         else: score += 4
 
-        if n_info['age_h'] <= 6.0: score += 8   # Breaking intraday/morning news
+        if n_info['age_h'] <= 6.0: score += 8
         elif n_info['age_h'] <= 18.0: score += 5
 
         cat_tag = n_info['tag']
@@ -1522,7 +1517,7 @@ def run_news_vol_price_strategy(df_candidates, processed_charts, min_volx=1.2, m
             if bias == 1:
                 score += 10
             elif bias == -1:
-                cat_tag = "📰Short-Squeeze🔥"  # Bad news absorbed, buyers squeezing shorts above VWAP!
+                cat_tag = "📰Short-Squeeze🔥"
                 score += 6
             if ltp > w_ema10:
                 score += 4
@@ -1531,7 +1526,7 @@ def run_news_vol_price_strategy(df_candidates, processed_charts, min_volx=1.2, m
             if bias == -1:
                 score += 10
             elif bias == 1 and open_p > prev_c * 1.005:
-                cat_tag = "📰Sell-The-News🩸"  # Good news Gap-Up dumped below VWAP by Institutions!
+                cat_tag = "📰Sell-The-News🩸"
                 score += 8
             if ltp < w_ema10:
                 score += 4
@@ -1542,6 +1537,11 @@ def run_news_vol_price_strategy(df_candidates, processed_charts, min_volx=1.2, m
         row_copy['AI_Prob'] = final_prob
         row_copy['S'] = max(int(row_copy.get('S', 10)), int(final_prob // 3))
         row_copy['AlphaTag'] = f"{cat_tag} ({n_info['age_h']:.0f}h) | {row_copy.get('AlphaTag', '')}".strip(" |")
+        # Save news fields on row so Mini-Chart Hover Tooltip can display them!
+        row_copy['News_Headline'] = n_info['title']
+        row_copy['News_Cat'] = cat_tag
+        row_copy['News_Age'] = f"{n_info['age_h']:.1f}h ago"
+        row_copy['News_Link'] = n_info['link']
         matched_rows.append(row_copy)
 
         feed_records.append({
@@ -1597,6 +1597,284 @@ def render_news_catalyst_banner(feed_records):
         "<th style='width:6%;'>AI%</th><th style='width:7%;'>TIME</th><th style='width:40%;text-align:left;'>BREAKING HEADLINE (CLICK TO READ)</th>"
         "</tr></thead><tbody>" + rows_html + "</tbody></table>"
     )
+
+
+@st.cache_data(ttl=240, show_spinner=False)
+def fetch_indian_and_global_market_news():
+    """Fetches Indian Stock Market, Global Market & Flash Breaking News via Google News RSS"""
+    now_utc = datetime.now(ZoneInfo("UTC"))
+    queries = {
+        "india": '("Nifty" OR "Sensex" OR "NSE" OR "RBI" OR "SEBI" OR "FII" OR "Indian stock market") when:1d',
+        "global": '("Wall Street" OR "Dow Jones" OR "Nasdaq" OR "US Fed" OR "Asian markets" OR "Crude oil" OR "Global markets") when:1d',
+        "stocks": '("Q2 results" OR "Q3 results" OR "net profit" OR "order win" OR "block deal" OR "shares surge" OR "shares fall") NSE when:1d'
+    }
+    out = {"india": [], "global": [], "stocks": [], "flash_ticker": ""}
+
+    def _pull_rss(key, q_str, limit_n=10):
+        items_list = []
+        try:
+            q = urllib.parse.quote(q_str)
+            url = f"https://news.google.com/rss/search?q={q}&hl=en-IN&gl=IN&ceid=IN:en"
+            r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=4.0)
+            if r.status_code == 200 and r.content:
+                root = ET.fromstring(r.content)
+                for it in root.findall("./channel/item")[:limit_n]:
+                    title = (it.findtext("title") or "").strip()
+                    link = (it.findtext("link") or "").strip()
+                    pub_s = (it.findtext("pubDate") or "").strip()
+                    if not title:
+                        continue
+                    age_h = 4.0
+                    if pub_s:
+                        try:
+                            dt_p = parsedate_to_datetime(pub_s)
+                            if dt_p.tzinfo is None:
+                                dt_p = dt_p.replace(tzinfo=ZoneInfo("UTC"))
+                            age_h = max(0.1, (now_utc - dt_p.astimezone(ZoneInfo("UTC"))).total_seconds() / 3600.0)
+                        except Exception:
+                            age_h = 4.0
+                    if age_h <= 30.0:
+                        tag, bias = _classify_headline(title)
+                        items_list.append({
+                            "title": title,
+                            "link": link,
+                            "age_h": round(age_h, 1),
+                            "tag": tag,
+                            "bias": bias
+                        })
+        except Exception:
+            pass
+        items_list.sort(key=lambda x: x["age_h"])
+        return key, items_list
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as ex:
+        futs = [ex.submit(_pull_rss, k, q, 10) for k, q in queries.items()]
+        for f in concurrent.futures.as_completed(futs):
+            try:
+                k, lst = f.result()
+                out[k] = lst
+            except Exception:
+                pass
+
+    flash_ pool = (out["india"][:3] + out["stocks"][:4] + out["global"][:2])
+    flash_pool.sort(key=lambda x: x["age_h"])
+    if flash_pool:
+        parts = []
+        for fp in flash_pool[:6]:
+            ic = "🟢" if fp["bias"] > 0 else ("🔴" if fp["bias"] < 0 else "⚡")
+            clean_t = _html.escape(fp["title"].split(" - ")[0])
+            parts.append(f"{ic} <b>{clean_t}</b> <span style='color:#8b949e;'>({fp['age_h']:.1f}h)</span>")
+        out["flash_ticker"] = " &nbsp;&nbsp;•&nbsp;&nbsp; ".join(parts)
+    return out
+
+
+def render_market_news_hub(df_all_stocks, processed_charts):
+    """Renders Full News Hub when 'News 📰' Mode is selected in Right 20% Panel"""
+    m_news = fetch_indian_and_global_market_news()
+    _, stock_feed = run_news_vol_price_strategy(df_all_stocks, processed_charts, min_volx=1.0, min_move_pct=0.4)
+
+    if stock_feed:
+        st.markdown(render_news_catalyst_banner(stock_feed), unsafe_allow_html=True)
+
+    c_ind, c_glb = st.columns(2, gap="small")
+
+    def _build_news_box(items, box_title, head_bg):
+        if not items:
+            return f"<div style='padding:12px;background:#161b22;border:1px solid #30363d;border-radius:6px;'>No recent news for {box_title}</div>"
+        rows = ""
+        for i, it in enumerate(items):
+            bg = "row-dark" if i % 2 == 0 else "row-light"
+            imp = "🟢 Bullish" if it['bias'] > 0 else ("🔴 Bearish" if it['bias'] < 0 else "🟡 Market")
+            imp_col = "text-green" if it['bias'] > 0 else ("text-red" if it['bias'] < 0 else "")
+            t_esc = _html.escape(it['title'])
+            rows += (
+                f"<tr class='{bg}'>"
+                f"<td style='width:16%;color:#ffd700;font-weight:bold;' class='{imp_col}'>{imp}</td>"
+                f"<td style='width:12%;color:#8b949e;'>{it['age_h']}h ago</td>"
+                f"<td style='text-align:left;white-space:normal;line-height:1.35;'>"
+                f"<a href='{it['link']}' target='_blank' style='color:#e6edf3;'>{t_esc} 🔗</a></td>"
+                f"</tr>"
+            )
+        return (
+            f"<table class='term-table'><thead>"
+            f"<tr><th colspan='3' style='background:{head_bg};color:#fff;text-align:left;padding-left:10px;font-size:13px;'>{box_title}</th></tr>"
+            f"<tr style='background:#21262d;'><th style='width:16%;'>IMPACT</th><th style='width:12%;'>TIME</th><th style='text-align:left;'>HEADLINE (CLICK TO OPEN)</th></tr>"
+            f"</thead><tbody>{rows}</tbody></table>"
+        )
+
+    with c_ind:
+        st.markdown(_build_news_box(m_news.get("india", []), "🇮🇳 INDIAN STOCK MARKET & MACRO IMPACT NEWS", "#0d47a1"), unsafe_allow_html=True)
+    with c_glb:
+        st.markdown(_build_news_box(m_news.get("global", []), "🌍 GLOBAL MARKETS (US FED, NASDAQ, ASIA, CRUDE) NEWS", "#4a148c"), unsafe_allow_html=True)
+
+    if m_news.get("stocks"):
+        st.markdown(_build_news_box(m_news.get("stocks", []), "🏢 LATEST CORPORATE EARNINGS (Q-RESULTS) & STOCK ANNOUNCEMENTS", "#1e5f29"), unsafe_allow_html=True)
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def fetch_portfolio_news_and_results(port_syms_tuple):
+    """Fetches Latest News + Quarterly/Yearly Results for Portfolio Stocks (Last 14 Days)"""
+    now_utc = datetime.now(ZoneInfo("UTC"))
+
+    def _fetch_port_one(sym):
+        clean_s = str(sym).replace(".NS", "").strip()
+        items = []
+        try:
+            q = urllib.parse.quote(f'"{clean_s}" (share OR stock OR results OR profit OR quarter OR Q1 OR Q2 OR Q3 OR Q4 OR dividend OR order OR target) when:14d')
+            url = f"https://news.google.com/rss/search?q={q}&hl=en-IN&gl=IN&ceid=IN:en"
+            r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=4.0)
+            if r.status_code == 200 and r.content:
+                root = ET.fromstring(r.content)
+                for it in root.findall("./channel/item")[:5]:
+                    title = (it.findtext("title") or "").strip()
+                    link = (it.findtext("link") or "").strip()
+                    pub_s = (it.findtext("pubDate") or "").strip()
+                    if not title:
+                        continue
+                    age_d = 2.0
+                    if pub_s:
+                        try:
+                            dt_p = parsedate_to_datetime(pub_s)
+                            if dt_p.tzinfo is None:
+                                dt_p = dt_p.replace(tzinfo=ZoneInfo("UTC"))
+                            age_d = max(0.05, (now_utc - dt_p.astimezone(ZoneInfo("UTC"))).total_seconds() / 86400.0)
+                        except Exception:
+                            age_d = 2.0
+                    tag, bias = _classify_headline(title)
+                    is_res = any(w in title.lower() for w in ("q1", "q2", "q3", "q4", "quarter", "net profit", "revenue", "ebitda", "fy26", "fy27", "results", "dividend"))
+                    items.append((0 if is_res else 1, age_d, title, link, tag, bias, is_res))
+        except Exception:
+            pass
+
+        if not items:
+            return clean_s, None
+        items.sort(key=lambda x: (x[0], x[1]))
+        _, best_age_d, best_t, best_l, best_tag, best_bias, is_res = items[0]
+        age_str = f"{best_age_d * 24:.0f}h ago" if best_age_d < 1.0 else f"{best_age_d:.0f}d ago"
+        return clean_s, {
+            "title": best_t,
+            "link": best_l,
+            "age": age_str,
+            "tag": "📊 Qtr/Yr Result" if (is_res and best_tag == "📰News-Buzz") else best_tag,
+            "bias": best_bias,
+            "is_result": is_res
+        }
+
+    out = {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as ex:
+        futs = [ex.submit(_fetch_port_one, s) for s in port_syms_tuple]
+        for f in concurrent.futures.as_completed(futs):
+            try:
+                k, v = f.result()
+                if v:
+                    out[k] = v
+            except Exception:
+                pass
+    return out
+
+
+def render_portfolio_news_and_results_table(df_port, df_stocks, weekly_trends):
+    """Renders Portfolio Stocks Daily News, Qtrly/Yearly Results & Hold/Sell Decision Table"""
+    if df_port is None or df_port.empty:
+        return ""
+    stock_lookup = df_stocks.drop_duplicates(subset=['T'], keep='first').set_index('T').to_dict('index')
+    port_syms = tuple(sorted(list(set(str(r['Symbol']).upper().strip() for _, r in df_port.iterrows() if str(r.get('Symbol', '')).strip()))))
+    if not port_syms:
+        return ""
+
+    p_news_map = fetch_portfolio_news_and_results(port_syms)
+
+    html = (
+        '<table class="term-table"><thead>'
+        '<tr><th colspan="8" class="term-head-port" style="background:#0d47a1;">📰 MY PORTFOLIO STOCKS — LIVE NEWS, QTRLY/YEARLY RESULTS & HOLD / SELL ADVISOR</th></tr>'
+        '<tr style="background:#21262d;">'
+        '<th style="text-align:left;width:10%;">STOCK</th>'
+        '<th style="width:8%;">LTP (DAY%)</th>'
+        '<th style="width:8%;">P&L %</th>'
+        '<th style="width:11%;">CATALYST / RESULT</th>'
+        '<th style="width:10%;">PRICE IMPACT</th>'
+        '<th style="width:32%;text-align:left;">LATEST NEWS / QTRLY-YEARLY RESULT HEADLINE</th>'
+        '<th style="width:6%;">TIME</th>'
+        '<th style="width:15%;">💡 HOLD / SELL ADVICE</th>'
+        '</tr></thead><tbody>'
+    )
+
+    for i, (_, row) in enumerate(df_port.iterrows()):
+        bg = "row-dark" if i % 2 == 0 else "row-light"
+        sym = str(row['Symbol']).upper().strip()
+        try: buy_p = float(row['Buy_Price'])
+        except: buy_p = 0.0
+        live_d = stock_lookup.get(sym)
+        if live_d is None:
+            continue
+        ltp = float(live_d['P'])
+        day_c = float(live_d.get('Day_C', 0))
+        pnl_pct = ((ltp - buy_p) / buy_p * 100.0) if buy_p > 0 else 0.0
+        wk_trend = weekly_trends.get(live_d['Fetch_T'], "Neutral")
+        sma50 = float(live_d.get('SMA50', 0))
+        sma200 = float(live_d.get('SMA200', 0))
+
+        n_item = p_news_map.get(sym)
+        if n_item:
+            cat_str = n_item['tag']
+            bias = n_item['bias']
+            hl_html = f"<a href='{n_item['link']}' target='_blank' style='color:#e6edf3;'>{_html.escape(n_item['title'])} 🔗</a>"
+            age_s = n_item['age']
+        else:
+            cat_str = "⚪ No Major News"
+            bias = 0
+            hl_html = "<span style='color:#8b949e;'>No price-moving news or results in last 14 days (Technical trend active)</span>"
+            age_s = "-"
+
+        if bias > 0 or (bias == 0 and day_c >= 1.5):
+            imp_str, imp_col = "🟢 Positive (+)", "text-green"
+        elif bias < 0 or (bias == 0 and day_c <= -1.5):
+            imp_str, imp_col = "🔴 Negative (-)", "text-red"
+        else:
+            imp_str, imp_col = "🟡 Neutral", ""
+
+        # Combined Fundamental News + Technical Hold/Sell Decision
+        above_lt_ma = (ltp >= sma50) or (ltp >= sma200 and sma200 > 0)
+        if bias < 0 and (wk_trend == "Bearish" or ltp < sma50):
+            advice_txt = "🔴 SELL / EXIT (Bad News + Weak Trend)"
+            adv_style = "color:#f85149;font-weight:bold;"
+        elif bias < 0 and pnl_pct > 8.0:
+            advice_txt = "⚠️ BOOK PARTIAL PROFIT (Negative News)"
+            adv_style = "color:#ffd700;font-weight:bold;"
+        elif pnl_pct <= -7.0 and wk_trend == "Bearish":
+            advice_txt = "🔴 SELL / CUT LOSS (Below Support)"
+            adv_style = "color:#f85149;font-weight:bold;"
+        elif bias > 0 and above_lt_ma:
+            advice_txt = "🚀 STRONG HOLD / ADD (Positive Catalyst)"
+            adv_style = "color:#00FF00;font-weight:bold;"
+        elif pnl_pct >= 12.0 and wk_trend == "Bullish":
+            advice_txt = "🟢 HOLD & TRAIL SL (In Strong Profit)"
+            adv_style = "color:#3fb950;font-weight:bold;"
+        elif above_lt_ma or wk_trend == "Bullish":
+            advice_txt = "🟢 HOLD (Trend Intact)"
+            adv_style = "color:#3fb950;font-weight:bold;"
+        else:
+            advice_txt = "🟡 HOLD WITH STRICT SL (Watch)"
+            adv_style = "color:#ffd700;"
+
+        d_col = "text-green" if day_c >= 0 else "text-red"
+        p_col = "text-green" if pnl_pct >= 0 else "text-red"
+
+        html += (
+            f"<tr class='{bg}'>"
+            f"<td class='t-symbol'><a href='https://in.tradingview.com/chart/?symbol=NSE:{sym}' target='_blank'>{sym}</a></td>"
+            f"<td>₹{ltp:.1f} <span class='{d_col}'>({day_c:+.1f}%)</span></td>"
+            f"<td class='{p_col}'>{pnl_pct:+.2f}%</td>"
+            f"<td style='color:#ffd700;font-weight:bold;'>{cat_str}</td>"
+            f"<td class='{imp_col}'>{imp_str}</td>"
+            f"<td style='text-align:left;white-space:normal;line-height:1.3;'>{hl_html}</td>"
+            f"<td style='color:#8b949e;'>{age_s}</td>"
+            f"<td style='{adv_style}'>{advice_txt}</td>"
+            f"</tr>"
+        )
+
+    html += "</tbody></table>"
+    return html
 ADAPTIVE_STRAT = "🧠 Adaptive Live Engine (Self-Learning)"
 _AE_COST_PCT = 0.05
 
@@ -3288,6 +3566,68 @@ st.markdown("""
         background: #388bfd;
         padding-right: 7px;
     }
+    /* 📰 Mini-Chart News Hover Popup Tooltip */
+    .mc-news-badge {
+        position: relative;
+        z-index: 95;
+        margin: 2px 4px -22px 30px;
+        display: inline-block;
+        font-family: monospace;
+    }
+    .mc-news-pill {
+        background: rgba(31, 111, 235, 0.25);
+        border: 1px solid #38bdf8;
+        color: #79c0ff;
+        font-size: 9.5px;
+        font-weight: bold;
+        padding: 1px 5px;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    .mc-news-popup {
+        display: none;
+        position: absolute;
+        top: 18px;
+        left: 0px;
+        width: 220px;
+        background: rgba(13, 17, 23, 0.98);
+        border: 1px solid #38bdf8;
+        border-radius: 6px;
+        padding: 6px 8px;
+        color: #e6edf3;
+        font-size: 10.5px;
+        line-height: 1.35;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.85);
+        z-index: 9999;
+        white-space: normal;
+    }
+    .mc-news-badge:hover .mc-news-popup {
+        display: block !important;
+    }
+    @keyframes flashScroll {
+        0% { transform: translateX(100%); }
+        100% { transform: translateX(-100%); }
+    }
+    .flash-ticker-wrap {
+        flex: 1 1 auto;
+        overflow: hidden;
+        white-space: nowrap;
+        background: rgba(255, 215, 0, 0.07);
+        border-left: 2px solid #ffd700;
+        border-right: 2px solid #ffd700;
+        padding: 0 8px;
+        margin: 0 4px;
+        max-width: 420px;
+    }
+    .flash-ticker-move {
+        display: inline-block;
+        animation: flashScroll 28s linear infinite;
+        font-size: 11px;
+        color: #f0f6fc;
+    }
+    .flash-ticker-wrap:hover .flash-ticker-move {
+        animation-play-state: paused;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -3987,6 +4327,18 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
             on_change=_on_pin_checkbox_change, args=(fetch_sym, display_sym, cb_key)
         )
 
+    news_hl = str(row.get('News_Headline', '') or '').strip()
+    if news_hl and news_hl not in ('nan', 'None'):
+        n_cat = _html.escape(str(row.get('News_Cat', '📰 News')))
+        n_age = _html.escape(str(row.get('News_Age', '')))
+        n_lnk = _html.escape(str(row.get('News_Link', '#')))
+        n_txt = _html.escape(news_hl)
+        st.markdown(
+            f"<div class='mc-news-badge'><span class='mc-news-pill'>📰 Hover for News</span>"
+            f"<div class='mc-news-popup'><b style='color:#ffd700;'>{n_cat} ({n_age})</b><br>"
+            f"<a href='{n_lnk}' target='_blank' style='color:#58a6ff;text-decoration:none;'>{n_txt} 🔗</a></div></div>",
+            unsafe_allow_html=True
+        )
     strat_tag = f" <span style='font-size:9.5px; background:rgba(0,191,255,0.2); border:1px solid #00BFFF; padding:0px 3px; border-radius:3px; color:#00BFFF;'>{row.get('Strategy_Icon', '')}</span>" if row.get('Strategy_Icon') and row.get('Strategy_Icon') != "Neutral" else ""
 
     if timeframe == "Intraday (5m)":
