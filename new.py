@@ -3739,8 +3739,8 @@ st.markdown("""
         display: block !important;
     }
     @keyframes flashScroll {
-        0% { transform: translateX(25%); }
-        100% { transform: translateX(-100%); }
+        0% { transform: translateX(0%); }
+        100% { transform: translateX(-50%); }
     }
     .flash-ticker-wrap {
         flex: 1 1 100% !important;
@@ -4505,17 +4505,10 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
         if not df_chart.empty and 'Low' in df_chart.columns and 'High' in df_chart.columns:
             df_chart = _fix_ist_df(df_chart) if timeframe == "Intraday (5m)" else df_chart.copy()
 
-            # Indian NSE Stocks/Indices -> Today's candles only; Global (SPX, DAX, USD/INR, Commodities) -> Full 75 candles!
+            # Keep ONLY the Current Active Trading Session (Works for NSE, US SPX, German DAX & Commodities!)
             if timeframe == "Intraday (5m)":
-                _is_indian_sym = (
-                    fetch_sym.endswith(".NS")
-                    or fetch_sym in ("^NSEI", "^NSEBANK", "^INDIAVIX")
-                    or fetch_sym.startswith("^CNX")
-                )
-                if _is_indian_sym:
-                    df_chart = df_chart[df_chart.index.date == df_chart.index.date[-1]].copy()
-                else:
-                    df_chart = df_chart.tail(75).copy()
+                _sess_id = (df_chart.index.to_series().diff() > pd.Timedelta(minutes=120)).cumsum()
+                df_chart = df_chart[_sess_id == _sess_id.iloc[-1]].copy()
 
                 if not df_chart.empty and float(row.get('P', 0)) > 0:
                     _live_p = float(row['P'])
@@ -4526,7 +4519,16 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                     if _live_p < float(df_chart.at[_last_i, 'Low']) or float(df_chart.at[_last_i, 'Low']) <= 0:
                         df_chart.at[_last_i, 'Low'] = _live_p
 
-            min_val, max_val = float(df_chart['Low'].min()), float(df_chart['High'].max())
+            # Include VWAP & EMA_10 in Y-Axis min/max so the yellow VWAP line is NEVER clipped off the bottom/top!
+            _y_lows = [float(df_chart['Low'].min())]
+            _y_highs = [float(df_chart['High'].max())]
+            if 'VWAP' in df_chart.columns and not df_chart['VWAP'].dropna().empty:
+                _y_lows.append(float(df_chart['VWAP'].min()))
+                _y_highs.append(float(df_chart['VWAP'].max()))
+            if 'EMA_10' in df_chart.columns and not df_chart['EMA_10'].dropna().empty:
+                _y_lows.append(float(df_chart['EMA_10'].min()))
+                _y_highs.append(float(df_chart['EMA_10'].max()))
+            min_val, max_val = min(_y_lows), max(_y_highs)
             y_padding = (max_val - min_val) * 0.16 if (max_val - min_val) != 0 else min_val * 0.005
 
             chart_times = pd.to_datetime(df_chart.index)
@@ -7019,7 +7021,7 @@ def render_live_ui():
         _status_title = "🟢 <b style='font-size:14px;'>LIVE</b>" if _m_open_top else "🔴 <b style='font-size:14px;'>CLOSED</b>"
 
         _flash_str = fetch_indian_and_global_market_news().get("flash_ticker", "")
-        _flash_html = f"<div class='flash-ticker-wrap'><div class='flash-ticker-move'>📢 <b>తెలుగు మార్కెట్ వార్తలు:</b> {_flash_str}</div></div>" if _flash_str else ""
+        _flash_html = f"<div class='flash-ticker-wrap'><div id='flash-ticker-el' class='flash-ticker-move'>📢 <b>తెలుగు మార్కెట్ వార్తలు:</b> {_flash_str} &nbsp;&nbsp;&nbsp;✦&nbsp;&nbsp;&nbsp; 📢 <b>తెలుగు మార్కెట్ వార్తలు:</b> {_flash_str}</div></div>" if _flash_str else ""
 
         _status_bar_html = (
             f"<div style='display:flex;justify-content:space-between;align-items:center;flex-wrap:nowrap;gap:8px;"
@@ -7156,6 +7158,13 @@ def render_live_ui():
                 if (parentWin._rpSyncInterval) clearInterval(parentWin._rpSyncInterval);
                 parentWin._rpSyncInterval = setInterval(() => parentWin.applyRight20State(false), 400);
 
+                // Keep Flash News scrolling smoothly without resetting on 30s Streamlit refresh!
+                if (!parentWin._flashEpoch) parentWin._flashEpoch = Date.now();
+                const flashEl = parentDoc.getElementById('flash-ticker-el');
+                if (flashEl) {{
+                    const elapsedSec = ((Date.now() - parentWin._flashEpoch) / 1000) % 95;
+                    flashEl.style.animationDelay = (-elapsedSec) + 's';
+                }}
                 // 4. Live Countdown Timer
                 if (parentWin._stCdInterval) clearInterval(parentWin._stCdInterval);
                 let secLeft = {_effective_refresh};
