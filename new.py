@@ -1656,15 +1656,28 @@ def fetch_indian_and_global_market_news():
             except Exception:
                 pass
 
+    def _translate_to_telugu(text_en):
+        try:
+            q_tr = urllib.parse.quote(text_en)
+            tr_url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=te&dt=t&q={q_tr}"
+            r_tr = requests.get(tr_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=2.5)
+            if r_tr.status_code == 200:
+                j_tr = r_tr.json()
+                return "".join(seg[0] for seg in j_tr[0] if seg and seg[0])
+        except Exception:
+            pass
+        return text_en
+
     flash_pool = (out["india"][:3] + out["stocks"][:4] + out["global"][:2])
     flash_pool.sort(key=lambda x: x["age_h"])
     if flash_pool:
         parts = []
         for fp in flash_pool[:6]:
             ic = "🟢" if fp["bias"] > 0 else ("🔴" if fp["bias"] < 0 else "⚡")
-            clean_t = _html.escape(fp["title"].split(" - ")[0])
-            parts.append(f"{ic} <b>{clean_t}</b> <span style='color:#8b949e;'>({fp['age_h']:.1f}h)</span>")
-        out["flash_ticker"] = " &nbsp;&nbsp;•&nbsp;&nbsp; ".join(parts)
+            raw_t = fp["title"].split(" - ")[0].strip()
+            te_t = _html.escape(_translate_to_telugu(raw_t))
+            parts.append(f"{ic} <b style='color:#ffd700;'>{te_t}</b> <span style='color:#79c0ff;font-size:12.5px;'>({fp['age_h']:.1f}గం. క్రితం)</span>")
+        out["flash_ticker"] = " &nbsp;&nbsp;&nbsp;✦&nbsp;&nbsp;&nbsp; ".join(parts)
     return out
 
 
@@ -3605,28 +3618,40 @@ st.markdown("""
         display: block !important;
     }
     @keyframes flashScroll {
-        0% { transform: translateX(100%); }
+        0% { transform: translateX(25%); }
         100% { transform: translateX(-100%); }
     }
     .flash-ticker-wrap {
         flex: 1 1 auto;
         overflow: hidden;
         white-space: nowrap;
-        background: rgba(255, 215, 0, 0.07);
-        border-left: 2px solid #ffd700;
-        border-right: 2px solid #ffd700;
-        padding: 0 8px;
-        margin: 0 4px;
-        max-width: 420px;
+        background: rgba(255, 215, 0, 0.10);
+        border-left: 3px solid #ffd700;
+        border-right: 3px solid #ffd700;
+        border-radius: 4px;
+        padding: 3px 10px;
+        margin: 0 6px;
+        min-width: 180px;
+        max-width: 720px;
     }
     .flash-ticker-move {
         display: inline-block;
-        animation: flashScroll 28s linear infinite;
-        font-size: 11px;
-        color: #f0f6fc;
+        /* 95s valla news chala slow ga, chadavadaniki spastanga scroll avutundi */
+        animation: flashScroll 95s linear infinite;
+        font-size: 14.5px !important;
+        font-weight: 700 !important;
+        color: #ffffff;
+        letter-spacing: 0.3px;
     }
     .flash-ticker-wrap:hover .flash-ticker-move {
         animation-play-state: paused;
+    }
+    /* Top Action Bar height kuda 38px ki penchadam */
+    div[data-testid="stColumn"]:has(.pro-ActionBar) div.stButton > button,
+    div[data-testid="stColumn"]:has(.pro-ActionBar) div[data-testid="stSelectbox"] > div > div {
+        height: 38px !important;
+        min-height: 38px !important;
+        font-size: 13px !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -6823,29 +6848,29 @@ def render_live_ui():
                 else:
                     _mkt_dir_text, _mkt_dir_bg, _mkt_dir_border = f"🔴 SELL 📉 {_below_vwap}/{_tot_stocks} ({_sell_pct:.0f}%)", "#b52524", "#f85149"
 
-        _dir_box_html = f"<span style='background:{_mkt_dir_bg};border:1px solid {_mkt_dir_border};color:#ffffff;padding:1px 7px;border-radius:4px;font-weight:bold;font-size:11.5px;white-space:nowrap;'>{_mkt_dir_text}</span>"
+        _dir_box_html = f"<span style='background:{_mkt_dir_bg};border:1px solid {_mkt_dir_border};color:#ffffff;padding:3px 10px;border-radius:5px;font-weight:bold;font-size:13.5px;white-space:nowrap;'>{_mkt_dir_text}</span>"
         _status_border = "#238636" if _m_open_top else "#f85149"
-        _status_title = "🟢 <b>LIVE</b>" if _m_open_top else "🔴 <b>CLOSED</b>"
+        _status_title = "🟢 <b style='font-size:14px;'>LIVE</b>" if _m_open_top else "🔴 <b style='font-size:14px;'>CLOSED</b>"
 
         _flash_str = fetch_indian_and_global_market_news().get("flash_ticker", "")
-        _flash_html = f"<div class='flash-ticker-wrap'><div class='flash-ticker-move'>⚡ <b>FLASH:</b> {_flash_str}</div></div>" if _flash_str else ""
+        _flash_html = f"<div class='flash-ticker-wrap'><div class='flash-ticker-move'>📢 <b>తెలుగు మార్కెట్ వార్తలు:</b> {_flash_str}</div></div>" if _flash_str else ""
 
         _status_bar_html = (
-            f"<div style='display:flex;justify-content:space-between;align-items:center;flex-wrap:nowrap;gap:6px;"
-            f"background:#161b22;border:1px solid {_status_border};border-radius:5px;padding:0px 10px;"
-            f"height:28px;margin-bottom:2px;font-size:11.5px;overflow:hidden;white-space:nowrap;'>"
+            f"<div style='display:flex;justify-content:space-between;align-items:center;flex-wrap:nowrap;gap:8px;"
+            f"background:#161b22;border:1.5px solid {_status_border};border-radius:6px;padding:0px 12px;"
+            f"height:38px;margin-bottom:4px;font-size:14px;overflow:hidden;white-space:nowrap;'>"
             f"<span>{_status_title}</span>"
-            f"<div style='display:flex;align-items:center;gap:6px;'>{_dir_box_html}{nifty_intra_html}</div>"
+            f"<div style='display:flex;align-items:center;gap:8px;'>{_dir_box_html}{nifty_intra_html}</div>"
             f"{_flash_html}"
-            f"<span style='color:#c9d1d9;font-size:11px;display:flex;align-items:center;gap:5px;'>🕒 {_now_str_top} "
+            f"<span style='color:#e6edf3;font-size:13px;font-weight:bold;display:flex;align-items:center;gap:6px;'>🕒 {_now_str_top} "
             f"<span id='live-cd-badge' data-ts='{_run_ts}' style='background:#21262d;border:1px solid #30363d;color:#00BFFF;"
-            f"padding:1px 5px;border-radius:3px;font-weight:bold;font-family:monospace;'>⏳ {_effective_refresh}s</span>"
+            f"padding:2px 7px;border-radius:4px;font-weight:bold;font-size:13px;font-family:monospace;'>⏳ {_effective_refresh}s</span>"
             f"</span></div>"
         )
 
-        # 🔥 ONE-LINE UNIFIED HEADER (WITH QTY, DHAN MODE & CLEAN ON_CLICK CALLBACKS)
+        # 🔥 ONE-LINE UNIFIED HEADER (Wider Status Bar so Telugu Flash News is clearly visible even in Grid Mode)
         if st.session_state.grid_layout_mode != "Off":
-            tb_status, tb_mode, tb_qty, tb_back, tb_theme, tb_clear = st.columns([4.2, 1.25, 0.75, 0.95, 1.05, 0.85], gap="small")
+            tb_status, tb_mode, tb_qty, tb_back, tb_theme, tb_clear = st.columns([5.5, 1.1, 0.65, 0.75, 0.9, 0.7], gap="small")
             with tb_status:
                 st.markdown(_status_bar_html, unsafe_allow_html=True)
             with tb_mode:
