@@ -1308,7 +1308,7 @@ def process_5m_data(df_raw):
 #  5. Non-Exhaustion RSI & Extension Guard (No Top-Buying) [15 pts]
 # =========================================================
 # =========================================================
-# 📰 NEWS + VOLUME + PRICE CATALYST ENGINE (WITH MINI-CHART POPUP)
+# 📰 NEWS + VOLUME + PRICE CATALYST ENGINE (DEFAULT OPEN MINI-CHART v3)
 # =========================================================
 from email.utils import parsedate_to_datetime
 import re as _re
@@ -1317,7 +1317,7 @@ import xml.etree.ElementTree as ET
 
 NEWS_STRAT = "📰 News + Vol + Price Breakout (Only News)"
 
-# Professional News Tables + Mini-Chart Popup CSS
+# Professional News Tables + Default Open Mini-Chart CSS
 st.markdown(
     """
 <style>
@@ -1325,7 +1325,7 @@ st.markdown(
     background: #0d1117;
     border: 1px solid #262c36;
     border-radius: 10px;
-    overflow: visible !important;
+    overflow: hidden;
     margin-bottom: 18px;
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
     font-family: 'Inter', 'Noto Sans Telugu', 'Segoe UI', Roboto, sans-serif;
@@ -1339,7 +1339,6 @@ st.markdown(
     justify-content: space-between;
     align-items: center;
     border-bottom: 1px solid #262c36;
-    border-radius: 10px 10px 0 0;
     letter-spacing: 0.2px;
 }
 .pro-news-table {
@@ -1363,62 +1362,31 @@ st.markdown(
 }
 .pro-news-table td {
     padding: 12px 12px;
-    border-bottom: 1px solid #1c2128;
-    vertical-align: top;
+    border-bottom: 1px solid #21262d;
+    vertical-align: middle;
     white-space: normal !important;
     overflow: visible !important;
     text-overflow: clip !important;
     line-height: 1.55;
-    position: relative;
 }
 .pro-news-table tr:hover td {
-    background: rgba(56, 139, 253, 0.06);
+    background: rgba(56, 139, 253, 0.05);
 }
-.pro-stk-badge {
-    display: inline-block;
-    background: #1f2937;
-    border: 1px solid #374151;
-    color: #58a6ff !important;
-    font-weight: 800;
-    font-size: 13px;
-    padding: 3px 8px;
-    border-radius: 6px;
-    text-decoration: none !important;
-    font-family: 'Consolas', monospace;
-    cursor: pointer;
-    user-select: none;
-    list-style: none;
-}
-.pro-stk-badge::-webkit-details-marker { display: none; }
-.pro-stk-badge:hover {
-    background: #1f6feb;
-    color: #ffffff !important;
-    border-color: #58a6ff;
-}
-/* 📈 Interactive Mini-Chart Popup Box inside News Table */
-details.mc-pop-details {
-    position: relative;
-    display: inline-block;
-}
-details.mc-pop-details[open] > summary.pro-stk-badge {
-    background: #1f6feb;
-    color: #ffffff !important;
-    border-color: #79c0ff;
-    box-shadow: 0 0 10px rgba(56, 139, 253, 0.5);
-}
-.mc-pop-card {
-    position: absolute;
-    top: 34px;
-    left: 0px;
-    width: 390px;
+/* 📈 Default Open Embedded Mini-Chart Card */
+.mc-inline-card {
+    width: 100%;
     background: #0b0e14;
-    border: 1.5px solid #38bdf8;
+    border: 1.5px solid #30363d;
     border-radius: 8px;
-    padding: 8px;
-    z-index: 99999;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.92);
+    padding: 7px 8px;
+    box-sizing: border-box;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.65);
+    transition: border-color 0.2s;
 }
-.mc-pop-top {
+.mc-inline-card:hover {
+    border-color: #38bdf8;
+}
+.mc-inline-top {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
@@ -1430,16 +1398,48 @@ details.mc-pop-details[open] > summary.pro-stk-badge {
     background: #161b22;
     border: 1px solid #30363d;
     color: #38bdf8 !important;
-    font-size: 11px;
+    font-size: 10.5px;
     font-weight: 700;
     padding: 2px 7px;
     border-radius: 4px;
     text-decoration: none !important;
     font-family: monospace;
+    white-space: nowrap;
 }
 .mc-grid-btn:hover {
     background: #1f6feb;
     color: #ffffff !important;
+    border-color: #58a6ff;
+}
+/* Right-Side Matter Box Matched to Mini-Chart Height */
+.pro-matter-box {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 210px;
+    background: rgba(22, 27, 34, 0.45);
+    border: 1px solid #21262d;
+    border-radius: 8px;
+    padding: 10px 14px;
+    box-sizing: border-box;
+}
+.pro-meta-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+    border-bottom: 1px dashed #262c36;
+}
+.pro-meta-chip {
+    background: #161b22;
+    border: 1px solid #30363d;
+    padding: 2px 8px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #e6edf3;
 }
 .pro-pill-buy {
     display: inline-block;
@@ -1448,7 +1448,7 @@ details.mc-pop-details[open] > summary.pro-stk-badge {
     color: #3fb950;
     font-weight: 700;
     font-size: 11.5px;
-    padding: 2px 8px;
+    padding: 2px 9px;
     border-radius: 20px;
 }
 .pro-pill-sell {
@@ -1458,7 +1458,7 @@ details.mc-pop-details[open] > summary.pro-stk-badge {
     color: #ff7b72;
     font-weight: 700;
     font-size: 11.5px;
-    padding: 2px 8px;
+    padding: 2px 9px;
     border-radius: 20px;
 }
 .pro-pill-neut {
@@ -1468,7 +1468,7 @@ details.mc-pop-details[open] > summary.pro-stk-badge {
     color: #e3b341;
     font-weight: 700;
     font-size: 11.5px;
-    padding: 2px 8px;
+    padding: 2px 9px;
     border-radius: 20px;
 }
 .pro-cat-tag {
@@ -1479,13 +1479,12 @@ details.mc-pop-details[open] > summary.pro-stk-badge {
     font-weight: 600;
     padding: 2px 7px;
     border-radius: 4px;
-    margin-top: 5px;
 }
 .pro-news-hl {
-    font-size: 14.5px;
+    font-size: 15px;
     font-weight: 700;
     color: #f0f6fc;
-    margin-bottom: 5px;
+    margin-bottom: 6px;
     line-height: 1.45;
 }
 .pro-news-dtl {
@@ -1493,16 +1492,32 @@ details.mc-pop-details[open] > summary.pro-stk-badge {
     color: #c9d1d9;
     line-height: 1.55;
     margin-top: 4px;
-    background: rgba(22, 27, 34, 0.65);
+    background: rgba(13, 17, 23, 0.75);
     border-left: 3px solid #38bdf8;
-    padding: 6px 10px;
+    padding: 7px 11px;
     border-radius: 0 6px 6px 0;
 }
 .pro-news-mkt {
-    font-size: 12px;
+    font-size: 12.5px;
     color: #79c0ff;
-    margin-top: 5px;
+    margin-top: 6px;
     font-weight: 600;
+    background: rgba(56, 189, 248, 0.07);
+    border-left: 3px solid #eab308;
+    padding: 5px 10px;
+    border-radius: 0 5px 5px 0;
+}
+.pro-stk-badge {
+    display: inline-block;
+    background: #1f2937;
+    border: 1px solid #374151;
+    color: #58a6ff !important;
+    font-weight: 800;
+    font-size: 12.5px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    text-decoration: none !important;
+    font-family: 'Consolas', monospace;
 }
 </style>
 """,
@@ -1765,6 +1780,7 @@ _COMPANY_TO_NSE = {
     "supreme ind": "SUPREMEIND",
     "cummins": "CUMMINSIND",
     "abb ": "ABB",
+    "abb india": "ABB",
     "bharat forge": "BHARATFORG",
     "coforge": "COFORGE",
     "persistent": "PERSISTENT",
@@ -1843,14 +1859,13 @@ _COMPANY_TO_NSE = {
 }
 
 
-def _build_mini_chart_popup_html(
+def _build_inline_mini_chart_html(
     stk_sym, stock_row=None, df_5m=None, cat_label=""
 ):
-  """Builds an interactive <details> badge that opens the 5m Mini-Chart (Candles + VWAP + EMA10 + Vol) on click!"""
+  """Renders the 5m Mini-Chart (Candles + VWAP V: + EMA10 E: + Vol) ALWAYS OPEN inline inside the table cell!"""
   clean_sym = str(stk_sym).replace(".NS", "").strip()
   ft = f"{clean_sym}.NS"
 
-  # Try fetching 5m data from shared store if not passed directly
   if df_5m is None or df_5m.empty:
     store_5m = _SS.get("5m_store", {})
     if ft in store_5m and not store_5m[ft].empty:
@@ -1858,8 +1873,12 @@ def _build_mini_chart_popup_html(
 
   if df_5m is None or df_5m.empty or "Close" not in df_5m.columns:
     return (
-        f"<a class='pro-stk-badge' href='?grid_sym={ft}' target='_self'"
-        f" title='Open {clean_sym} Mini-Chart'>{clean_sym} 📊</a>"
+        "<div class='mc-inline-card'"
+        " style='min-height:190px;display:flex;flex-direction:column;justify-content:center;align-items:center;'>"
+        f"<a class='pro-stk-badge' href='?grid_sym={ft}'"
+        f" target='_self'>{clean_sym} 📌 Grid Chart</a><span"
+        " style='color:#8b949e;font-size:11px;margin-top:6px;'>5m Intraday"
+        " Chart</span></div>"
     )
 
   d = df_5m.dropna(subset=["Open", "High", "Low", "Close"]).copy()
@@ -1869,7 +1888,7 @@ def _build_mini_chart_popup_html(
         f" target='_self'>{clean_sym} 📊</a>"
     )
 
-  # Isolate current intraday session (last 75 bars)
+  # Isolate latest intraday session (75 bars)
   sess_id = (d.index.to_series().diff() > pd.Timedelta(minutes=120)).cumsum()
   d = d[sess_id == sess_id.iloc[-1]].tail(75).copy()
   if d.empty:
@@ -1899,7 +1918,6 @@ def _build_mini_chart_popup_html(
       else float(d["Low"].min())
   )
 
-  # Sync live price into last candle
   last_i = d.index[-1]
   d.at[last_i, "Close"] = ltp
   if ltp > float(d.at[last_i, "High"]):
@@ -1923,12 +1941,12 @@ def _build_mini_chart_popup_html(
   y_low = y_min - y_rng * 0.10
   y_high = y_max + y_rng * 0.12
 
-  W, H_svg = 372, 185
-  p_top, p_bot = 8, 142
-  v_top, v_bot = 146, 170
+  W, H_svg = 345, 165
+  p_top, p_bot = 6, 126
+  v_top, v_bot = 130, 152
   n_bars = len(d)
-  step_x = (W - 46) / max(n_bars, 1)
-  bar_w = max(2.2, min(6.0, step_x * 0.68))
+  step_x = (W - 44) / max(n_bars, 1)
+  bar_w = max(2.0, min(5.5, step_x * 0.68))
 
   def py(val):
     return round(
@@ -1947,7 +1965,7 @@ def _build_mini_chart_popup_html(
   vwap_pts, ema_pts = [], []
 
   for idx in range(n_bars):
-    cx = round(8 + idx * step_x + step_x * 0.5, 1)
+    cx = round(6 + idx * step_x + step_x * 0.5, 1)
     o_v = float(d["Open"].iloc[idx])
     h_v = float(d["High"].iloc[idx])
     l_v = float(d["Low"].iloc[idx])
@@ -2002,7 +2020,6 @@ def _build_mini_chart_popup_html(
     vwap_pts.append(f"{cx},{py(vw_v)}")
     ema_pts.append(f"{cx},{py(em_v)}")
 
-  # VWAP & EMA-10 Polylines
   svg_elems.append(
       f"<polyline fill='none' stroke='#FFD700' stroke-width='1.5'"
       f" stroke-dasharray='3,3' points='{' '.join(vwap_pts)}'/>"
@@ -2012,19 +2029,18 @@ def _build_mini_chart_popup_html(
       f" stroke-dasharray='5,3' points='{' '.join(ema_pts)}'/>"
   )
 
-  # V: and E: Badges on Chart
   last_vw = float(d["VWAP"].iloc[-1])
   last_em = float(d["EMA_10"].iloc[-1])
-  tag_pos = max(0, int(n_bars * 0.58))
-  tag_x = round(8 + tag_pos * step_x, 1)
+  tag_pos = max(0, int(n_bars * 0.56))
+  tag_x = round(6 + tag_pos * step_x, 1)
   vy_tag = py(float(d["VWAP"].iloc[tag_pos]))
   ey_tag = py(float(d["EMA_10"].iloc[tag_pos]))
-  if abs(vy_tag - ey_tag) < 14:
-    vy_tag -= 7
-    ey_tag += 7
+  if abs(vy_tag - ey_tag) < 13:
+    vy_tag -= 6.5
+    ey_tag += 6.5
 
   svg_elems.append(
-      f"<rect x='{tag_x}' y='{vy_tag - 7}' width='48' height='13' rx='2'"
+      f"<rect x='{tag_x}' y='{vy_tag - 7}' width='46' height='12.5' rx='2'"
       " fill='#FFD700'/><text x='{0}' y='{1}' fill='#161b22' font-size='8.5'"
       " font-family='monospace'"
       f" font-weight='bold'>V:{last_vw:.1f}</text>".format(
@@ -2032,7 +2048,7 @@ def _build_mini_chart_popup_html(
       )
   )
   svg_elems.append(
-      f"<rect x='{tag_x}' y='{ey_tag - 7}' width='48' height='13' rx='2'"
+      f"<rect x='{tag_x}' y='{ey_tag - 7}' width='46' height='12.5' rx='2'"
       " fill='#00BFFF'/><text x='{0}' y='{1}' fill='#161b22' font-size='8.5'"
       " font-family='monospace'"
       f" font-weight='bold'>E:{last_em:.1f}</text>".format(
@@ -2040,7 +2056,6 @@ def _build_mini_chart_popup_html(
       )
   )
 
-  # Right Y-Axis Price Labels & Time Labels
   svg_elems.append(
       f"<text x='{W - 2}' y='{p_top + 8}' fill='#8b949e' font-size='8.5'"
       f" font-family='monospace' text-anchor='end'>{y_max:.1f}</text>"
@@ -2052,11 +2067,11 @@ def _build_mini_chart_popup_html(
   t_start = pd.to_datetime(d.index[0]).strftime("%I:%M %p")
   t_end = pd.to_datetime(d.index[-1]).strftime("%I:%M %p")
   svg_elems.append(
-      f"<text x='8' y='{H_svg - 3}' fill='#8b949e' font-size='8.5'"
+      f"<text x='6' y='{H_svg - 2}' fill='#8b949e' font-size='8'"
       f" font-family='monospace'>{t_start}</text>"
   )
   svg_elems.append(
-      f"<text x='{W - 42}' y='{H_svg - 3}' fill='#8b949e' font-size='8.5'"
+      f"<text x='{W - 40}' y='{H_svg - 2}' fill='#8b949e' font-size='8'"
       f" font-family='monospace' text-anchor='end'>{t_end}</text>"
   )
 
@@ -2065,22 +2080,21 @@ def _build_mini_chart_popup_html(
   if day_c >= 0:
     pb = ((day_h - ltp) / day_h * 100.0) if day_h > 0 else 0.0
     pb_html = (
-        f" <span style='color:#FF8C00;font-size:10.5px;'>📉-{pb:.1f}% DH</span>"
+        f" <span style='color:#FF8C00;font-size:10px;'>📉-{pb:.1f}% DH</span>"
         if pb >= 0.1
         else ""
     )
   else:
     bnc = ((ltp - day_l) / day_l * 100.0) if day_l > 0 else 0.0
     pb_html = (
-        f" <span style='color:#00BFFF;font-size:10.5px;'>📈+{bnc:.1f}%"
-        " DL</span>"
+        f" <span style='color:#00BFFF;font-size:10px;'>📈+{bnc:.1f}% DL</span>"
         if bnc >= 0.1
         else ""
     )
 
   strat_span = (
       " <span"
-      " style='font-size:9.5px;background:rgba(0,191,255,0.2);border:1px solid"
+      " style='font-size:9px;background:rgba(0,191,255,0.2);border:1px solid"
       " #00BFFF;padding:0px"
       f" 4px;border-radius:3px;color:#00BFFF;'>{_html.escape(cat_label)}</span>"
       if cat_label
@@ -2088,23 +2102,18 @@ def _build_mini_chart_popup_html(
   )
 
   return (
-      "<details class='mc-pop-details'><summary class='pro-stk-badge'"
-      f" title='Click to open {clean_sym} 5m Mini-Chart'>{clean_sym}"
-      " 📊</summary><div class='mc-pop-card'><div"
-      " class='mc-pop-top'><div style='line-height:1.25;'><b"
-      f" style='color:#fff;font-size:13px;'>{clean_sym}</b>{strat_span}<br><span"
-      f" style='font-size:11.5px;color:#ccc;'>₹{ltp:.2f} <span"
-      f" style='color:{pct_col};font-weight:bold;'>({sign}{day_c:.2f}%)</span>{pb_html}</span></div><div"
-      " style='display:flex;gap:5px;align-items:center;'><a class='mc-grid-btn'"
-      f" href='?grid_sym={ft}' target='_self' title='Open in Pro Multi-Chart"
-      " Grid'>📌 Grid Chart</a><span"
-      " onclick=\"this.closest('details').removeAttribute('open')\""
-      " style='cursor:pointer;background:#dc2626;color:#fff;padding:1px"
-      " 6px;border-radius:4px;font-size:10.5px;font-weight:bold;'>✖</span></div></div><svg"
-      f" width='{W}' height='{H_svg}' viewBox='0 0 {W} {H_svg}'"
-      " style='background:#0b0e14;display:block;border-radius:4px;'>"
+      "<div class='mc-inline-card'>"
+      "<div class='mc-inline-top'>"
+      "<div style='line-height:1.2;'>"
+      f"<b style='color:#fff;font-size:12.5px;'>{clean_sym}</b>{strat_span}<br>"
+      f"<span style='font-size:11px;color:#ccc;'>₹{ltp:.2f} "
+      f"<span style='color:{pct_col};font-weight:bold;'>({sign}{day_c:.2f}%)</span>{pb_html}</span>"
+      "</div>"
+      f"<a class='mc-grid-btn' href='?grid_sym={ft}' target='_self' title='Open in Pro Multi-Chart Grid'>📌 Grid Chart</a>"
+      "</div>"
+      f"<svg width='100%' height='{H_svg}' viewBox='0 0 {W} {H_svg}' preserveAspectRatio='none' style='background:#0b0e14;display:block;border-radius:4px;'>"
       + "".join(svg_elems)
-      + "</svg></div></details>"
+      + "</svg></div>"
   )
 
 
@@ -2152,16 +2161,22 @@ def _clean_en_headline(title_str):
   return t
 
 
-def _strip_html_tags(raw_html):
+def _strip_html_tags(raw_html, main_title=""):
+  """Extracts clean description points while filtering out duplicate text identical to main_title"""
   if not raw_html:
     return ""
   txt = _re.sub(r"<[^>]+>", " | ", str(raw_html))
   txt = _html.unescape(txt)
+  main_low = _clean_en_headline(main_title).lower()[:35]
   parts = []
   for seg in txt.split("|"):
     s = _clean_en_headline(seg.strip())
-    if len(s) >= 20 and s not in parts and not s.lower().startswith("view full"):
-      parts.append(s)
+    s_low = s.lower()
+    if len(s) >= 22 and not s_low.startswith("view full"):
+      if main_low and (main_low in s_low or s_low[:35] in main_low):
+        continue
+      if s not in parts:
+        parts.append(s)
   return " • ".join(parts[:3])
 
 
@@ -2178,17 +2193,14 @@ def _extract_stock_from_headline(title_en):
   t_clean = _clean_en_headline(title_en)
   t_low = f" {t_clean.lower()} "
 
-  # 1. Explicit NSE:SYMBOL pattern inside headline (e.g., NSE:ROLEXRINGS, NSE:AEROFLEX)
   m_nse = _re.search(r"NSE\s*:\s*([A-Z0-9&\-]{2,15})", t_clean.upper())
   if m_nse:
     return m_nse.group(1).strip(), True
 
-  # 2. Direct company name map
   for comp_kw, nse_sym in _COMPANY_TO_NSE.items():
     if comp_kw in t_low:
       return nse_sym, True
 
-  # 3. Universe symbols check
   all_known = set(NIFTY_50 + FNO_STOCKS + MIDCAP_150 + SMALLCAP_250)
   words_up = _re.findall(r"[A-Z&]{3,15}", t_clean.upper())
   for w in words_up:
@@ -2296,7 +2308,7 @@ def fetch_live_stock_news_batch(symbols_tuple, max_age_hours=36):
         for item in root.findall("./channel/item")[:5]:
           title = _clean_en_headline(item.findtext("title") or "")
           desc_raw = item.findtext("description") or ""
-          desc_clean = _strip_html_tags(desc_raw)
+          desc_clean = _strip_html_tags(desc_raw, title)
           link = (item.findtext("link") or "").strip()
           pub_str = (item.findtext("pubDate") or "").strip()
           if not title:
@@ -2327,7 +2339,7 @@ def fetch_live_stock_news_batch(symbols_tuple, max_age_hours=36):
             c_obj = n_item["content"]
             title = _clean_en_headline(c_obj.get("title", ""))
             summary = _strip_html_tags(
-                c_obj.get("summary") or c_obj.get("description") or ""
+                c_obj.get("summary") or c_obj.get("description") or "", title
             )
             link = str((c_obj.get("canonicalUrl") or {}).get("url", "")).strip()
             pub_iso = c_obj.get("pubDate", "")
@@ -2340,7 +2352,7 @@ def fetch_live_stock_news_batch(symbols_tuple, max_age_hours=36):
                 age_hr = 12.0
           else:
             title = _clean_en_headline(n_item.get("title", ""))
-            summary = _strip_html_tags(n_item.get("summary", ""))
+            summary = _strip_html_tags(n_item.get("summary", ""), title)
             link = str(n_item.get("link", "")).strip()
             ts = n_item.get("providerPublishTime", 0)
             age_hr = (
@@ -2372,13 +2384,16 @@ def fetch_live_stock_news_batch(symbols_tuple, max_age_hours=36):
           break
 
     extra_points = []
-    if best_desc and best_desc.lower() != best_title.lower():
+    if best_desc:
       for seg in best_desc.split(" • "):
-        if seg.lower() not in best_title.lower() and seg not in extra_points:
+        if (
+            seg.lower()[:30] not in best_title.lower()
+            and seg not in extra_points
+        ):
           extra_points.append(seg)
     for _, t_other, _, _ in headlines[1:4]:
       if (
-          t_other.lower() != best_title.lower()
+          t_other.lower()[:30] not in best_title.lower()
           and t_other not in extra_points
           and _is_clear_factual_news(t_other)
       ):
@@ -2443,9 +2458,10 @@ def run_news_vol_price_strategy(
   if not news_map:
     return pd.DataFrame(), []
 
-  # Ensure 5m charts are loaded for all matched news stocks so Mini-Chart Popup works for every stock
   matched_fts = [
-      ft for ft in news_map.keys() if ft not in processed_charts or processed_charts[ft].empty
+      ft
+      for ft in news_map.keys()
+      if ft not in processed_charts or processed_charts[ft].empty
   ]
   if matched_fts:
     extra_5m = fetch_cached_5m_data(matched_fts)
@@ -2571,15 +2587,19 @@ def run_news_vol_price_strategy(
     )
 
     vwap_status = (
-        f"VWAP (₹{vwap_live:.1f}) పైన బుల్లిష్‌గా"
+        f"VWAP (₹{vwap_live:.1f}) & 10-EMA (₹{intra_ema10:.1f}) పైన బుల్లిష్‌గా"
         if ltp >= vwap_live
-        else f"VWAP (₹{vwap_live:.1f}) కింద బేరిష్‌గా"
+        else (
+            f"VWAP (₹{vwap_live:.1f}) & 10-EMA (₹{intra_ema10:.1f}) కింద"
+            " బేరిష్‌గా"
+        )
     )
     pb_52 = ((high_52w - ltp) / high_52w * 100.0) if high_52w > 0 else 0.0
     mkt_summary_te = (
-        f"📊 మార్కెట్ విశ్లేషణ: ప్రస్తుతం ₹{ltp:.2f} వద్ద ({day_c:+.2f}%),"
-        f" సాధారణం కంటే {vol_x:.1f}x రెట్ల అధిక వాల్యూమ్‌తో {vwap_status}"
-        f" ట్రేడ్ అవుతోంది (52W గరిష్టం ₹{high_52w:.1f} నుండి {pb_52:.1f}% దూరం)."
+        f"📊 చార్ట్ & టెక్నికల్ విశ్లేషణ: ప్రస్తుతం ₹{ltp:.2f} వద్ద"
+        f" ({day_c:+.2f}%), సాధారణం కంటే {vol_x:.1f}x రెట్ల వాల్యూమ్‌తో"
+        f" {vwap_status} ట్రేడ్ అవుతోంది (52W గరిష్టం ₹{high_52w:.1f} నుండి"
+        f" {pb_52:.1f}% దూరం)."
     )
 
     row_copy = row.copy()
@@ -2598,13 +2618,13 @@ def run_news_vol_price_strategy(
     matched_rows.append(row_copy)
 
     sig_txt = "🟢 BUY" if is_bull_price else "🔴 SELL"
-    mini_popup_html = _build_mini_chart_popup_html(
+    inline_chart_html = _build_inline_mini_chart_html(
         stk_name, row, df_5m, cat_tag
     )
 
     feed_records.append({
         "Stock": stk_name,
-        "Mini_Popup": mini_popup_html,
+        "Inline_Chart": inline_chart_html,
         "Signal": sig_txt,
         "Catalyst": cat_tag,
         "LTP": ltp,
@@ -2644,7 +2664,7 @@ def run_news_vol_price_strategy(
 
 
 def render_news_catalyst_banner(feed_records):
-  """Renders Professional Wide Telugu Breaking News Table with Click-to-Open Mini-Chart"""
+  """Renders Default-Open Mini-Chart on Left (30%) + Height-Matched Full Telugu News Matter on Right (70%)"""
   if not feed_records:
     return ""
   rows_html = ""
@@ -2663,55 +2683,44 @@ def render_news_catalyst_banner(feed_records):
     safe_en = _html.escape(r.get("Headline_EN", ""))
 
     dtl_block = (
-        f"<div class='pro-news-dtl'>🔹 <b>అదనపు వివరాలు:</b> {safe_dtl}</div>"
+        f"<div class='pro-news-dtl'>🔹 <b>ముఖ్యాంశాలు:</b> {safe_dtl}</div>"
         if safe_dtl
         else ""
     )
     mkt_block = f"<div class='pro-news-mkt'>{safe_mkt}</div>"
-    stk_popup_btn = r.get("Mini_Popup") or _build_mini_chart_popup_html(stk)
+    chart_box = r.get("Inline_Chart") or _build_inline_mini_chart_html(stk)
 
     rows_html += (
-        "<tr><td>"
-        f"{stk_popup_btn}"
-        f"<div style='color:#8b949e;font-size:11px;margin-top:5px;'>⏱"
-        f" {r['Age']}</div>"
-        "</td>"
-        "<td>"
-        f"<span class='{pill_cls}'>{r['Signal']}</span><br>"
+        f"<tr><td style='width:30%;'>{chart_box}</td><td style='width:70%;'"
+        f" title='{safe_en}'><div class='pro-matter-box'><div><div"
+        f" class='pro-meta-strip'><span class='{pill_cls}'>{r['Signal']}</span>"
         f"<span class='pro-cat-tag'>{r['Catalyst']}</span>"
-        "</td>"
-        "<td>"
-        f"<div style='font-size:13.5px;font-weight:700;color:#ffffff;'>₹{r['LTP']:,.2f}</div>"
-        f"<div style='font-size:12px;font-weight:700;color:{day_col};'>{r['Day%']:+.2f}%</div>"
-        "</td>"
-        "<td>"
-        f"<div style='font-size:13px;font-weight:700;color:#38bdf8;'>{r['VolX']:.1f}x</div>"
-        "<div style='font-size:11.5px;color:#3fb950;font-weight:600;'>AI:"
-        f" {r['Score']}%</div>"
-        "</td>"
-        f"<td title='{safe_en}'>"
-        f"<div class='pro-news-hl'>📰 {safe_te}</div>"
-        f"{dtl_block}"
-        f"{mkt_block}"
-        "<div style='margin-top:5px;'><a href='{0}' target='_blank'"
-        " style='color:#58a6ff;font-size:11.5px;text-decoration:none;font-weight:600;'>🔗"
-        " పూర్తి కథనం చదవండి (Source: {1}) ↗</a></div>"
-        "</td></tr>".format(r["Link"], safe_en[:75] + "...")
+        f"<span class='pro-meta-chip'>ధర: ₹{r['LTP']:,.2f} <span"
+        f" style='color:{day_col};'>({r['Day%']:+.2f}%)</span></span>"
+        "<span class='pro-meta-chip' style='color:#38bdf8;'>VOL:"
+        f" {r['VolX']:.1f}x</span><span class='pro-meta-chip'"
+        f" style='color:#3fb950;'>AI Score: {r['Score']}%</span><span"
+        " style='color:#8b949e;font-size:11.5px;margin-left:auto;'>⏱"
+        f" {r['Age']}</span></div><div class='pro-news-hl'>📰"
+        f" {safe_te}</div>{dtl_block}{mkt_block}</div><div"
+        f" style='margin-top:8px;text-align:right;'><a href='{r['Link']}'"
+        " target='_blank'"
+        " style='color:#58a6ff;font-size:12px;text-decoration:none;font-weight:700;'>🔗"
+        " పూర్తి వార్త చదవండి ↗</a></div></div></td></tr>"
     )
   return (
       "<div class='pro-news-wrap'><div class='pro-news-hdr'"
       " style='background:linear-gradient(90deg, #0f2942 0%, #0d1117"
       " 100%);border-left:4px solid #38bdf8;'><span>📰 లైవ్ స్టాక్ బ్రేకింగ్"
-      " న్యూస్ + వాల్యూమ్ + ప్రైస్ స్కానర్ (స్టాక్ పై క్లిక్ చేస్తే మినీ చార్ట్"
-      " ఓపెన్ అవుతుంది 📊)</span><span"
+      " న్యూస్ + వాల్యూమ్ + ప్రైస్ స్కానర్ (డిఫాల్ట్ మినీ చార్ట్ & పూర్తి"
+      " వివరాలు)</span><span"
       " style='font-size:12px;color:#79c0ff;background:#161b22;padding:2px"
       " 9px;border-radius:12px;border:1px solid"
       f" #30363d;'>{len(seen)} స్టాక్స్</span></div><table"
-      " class='pro-news-table'><thead><tr><th style='width:10%;'>స్టాక్"
-      " (TIME)</th><th style='width:11%;'>సిగ్నల్ & రకం</th><th"
-      " style='width:8%;'>ధర (DAY%)</th><th style='width:7%;'>VOL / AI</th><th"
-      " style='width:64%;'>📢 తెలుగు బ్రేకింగ్ న్యూస్ & పూర్తి వివరాలు"
-      " (హెడ్‌లైన్ + అదనపు సమాచారం + మార్కెట్ డేటా)</th></tr></thead><tbody>"
+      " class='pro-news-table'><thead><tr><th style='width:30%;'>📈 లైవ్ మినీ"
+      " చార్ట్ (5m INTRADAY + VWAP + EMA)</th><th style='width:70%;'>📢"
+      " సిగ్నల్, ధర & తెలుగు బ్రేకింగ్ న్యూస్ పూర్తి"
+      " వివరాలు</th></tr></thead><tbody>"
       + rows_html
       + "</tbody></table></div>"
   )
@@ -2748,10 +2757,12 @@ def _fetch_market_news_raw():
         root = ET.fromstring(r.content)
         for it in root.findall("./channel/item"):
           raw_title = (it.findtext("title") or "").strip()
-          desc_clean = _strip_html_tags(it.findtext("description") or "")
+          clean_t = _clean_en_headline(raw_title)
+          desc_clean = _strip_html_tags(
+              it.findtext("description") or "", clean_t
+          )
           link = (it.findtext("link") or "").strip()
           pub_s = (it.findtext("pubDate") or "").strip()
-          clean_t = _clean_en_headline(raw_title)
           if not _is_clear_factual_news(clean_t):
             continue
           age_h = 4.0
@@ -2786,16 +2797,16 @@ def _fetch_market_news_raw():
             if dedup_k in items_by_key:
               existing = items_by_key[dedup_k]
               if (
-                  clean_t.lower() not in existing["title_en"].lower()
+                  clean_t.lower()[:30] not in existing["title_en"].lower()
                   and clean_t not in existing["extra_en"]
               ):
                 existing["extra_en"].append(clean_t)
               continue
 
             extra_pts = []
-            if desc_clean and desc_clean.lower() != clean_t.lower():
+            if desc_clean:
               for seg in desc_clean.split(" • "):
-                if seg.lower() not in clean_t.lower():
+                if seg.lower()[:30] not in clean_t.lower():
                   extra_pts.append(seg)
 
             items_by_key[dedup_k] = {
@@ -2889,7 +2900,7 @@ def fetch_indian_and_global_market_news():
 
 
 def render_market_news_hub(df_all_stocks, processed_charts):
-  """Renders Professional Full-Width Telugu News Hub with Click-to-Open Mini-Charts"""
+  """Renders Default-Open Mini-Charts in Q-Results & Stock News + Clean Macro Tables"""
   m_news = fetch_indian_and_global_market_news()
   _, stock_feed = run_news_vol_price_strategy(
       df_all_stocks, processed_charts, min_volx=1.0, min_move_pct=0.4
@@ -2903,11 +2914,13 @@ def render_market_news_hub(df_all_stocks, processed_charts):
         .to_dict("index")
     )
 
-  # Ensure 5m charts are loaded for Q-Results stocks (like ROLEXRINGS, KALYANKJIL) so Mini-Chart opens on click!
+  # Fetch 5m data for Q-Results stocks so default-open Mini-Chart works for every stock
   q_nse_fts = []
   for it in m_news.get("stocks", []) + m_news.get("india", []):
     s_n = str(it.get("stock", "")).strip()
-    if (it.get("is_nse") or s_n in stk_lu) and f"{s_n}.NS" not in processed_charts:
+    if (
+        it.get("is_nse") or s_n in stk_lu
+    ) and f"{s_n}.NS" not in processed_charts:
       q_nse_fts.append(f"{s_n}.NS")
   if q_nse_fts:
     extra_q_5m = fetch_cached_5m_data(q_nse_fts)
@@ -2927,7 +2940,7 @@ def render_market_news_hub(df_all_stocks, processed_charts):
     st.markdown(render_news_catalyst_banner(stock_feed), unsafe_allow_html=True)
 
   def _build_pro_news_table(
-      items, box_title, accent_col, hdr_grad, show_stock_col=True
+      items, box_title, accent_col, hdr_grad, with_mini_chart=True
   ):
     if not items:
       return (
@@ -2962,73 +2975,109 @@ def render_market_news_hub(df_all_stocks, processed_charts):
       dtl_te = _html.escape(it.get("details_te", ""))
       t_en = _html.escape(t_en_raw)
 
-      p_info_html = ""
-      mkt_ctx_html = ""
       s_d = stk_lu.get(stk_name)
+      df_5m_stk = processed_charts.get(f"{stk_name}.NS", pd.DataFrame())
+      has_chart = (it.get("is_nse") or s_d is not None) and (
+          not df_5m_stk.empty
+      )
+
+      price_chip = ""
+      mkt_ctx_html = ""
       if s_d is not None:
         s_p, s_dc, s_vx = (
             float(s_d["P"]),
             float(s_d["Day_C"]),
             float(s_d["VolX"]),
         )
+        s_vw = float(s_d.get("VWAP", s_p))
+        s_h52 = float(s_d.get("High52W", s_p))
         dc_col = "#3fb950" if s_dc >= 0 else "#f85149"
-        p_info_html = (
-            "<div style='margin-top:5px;font-size:12px;font-weight:700;color:#fff;'>"
-            f"₹{s_p:,.1f} <span style='color:{dc_col};'>({s_dc:+.2f}%)</span>"
-            "</div>"
+        vw_txt = "VWAP పైన బుల్లిష్‌గా" if s_p >= s_vw else "VWAP కింద బేరిష్‌గా"
+        price_chip = (
+            f"<span class='pro-meta-chip'>₹{s_p:,.2f} <span"
+            f" style='color:{dc_col};'>({s_dc:+.2f}%)</span> | Vol:"
+            f" {s_vx:.1f}x</span>"
         )
         mkt_ctx_html = (
-            f"<div class='pro-news-mkt'>📊 లైవ్ స్టాక్ డేటా: <b>{stk_name}</b>"
-            f" ప్రస్తుతం ₹{s_p:,.2f} వద్ద ({s_dc:+.2f}%), వాల్యూమ్"
-            f" <b>{s_vx:.1f}x</b> తో ట్రేడ్ అవుతోంది.</div>"
-        )
-
-      if it.get("is_nse") or s_d is not None:
-        df_5m_stk = processed_charts.get(f"{stk_name}.NS", pd.DataFrame())
-        stk_badge_html = (
-            _build_mini_chart_popup_html(
-                stk_name, s_d, df_5m_stk, it.get("tag", "")
-            )
-            + p_info_html
-        )
-      else:
-        stk_badge_html = (
-            "<span class='pro-stk-badge'"
-            f" style='color:#e6edf3 !important;'>{_html.escape(stk_name)}</span>"
+            f"<div class='pro-news-mkt'>📊 <b>{stk_name}</b> లైవ్ విశ్లేషణ:"
+            f" ప్రస్తుతం ₹{s_p:,.2f} ({s_dc:+.2f}%) వద్ద, వాల్యూమ్"
+            f" <b>{s_vx:.1f}x</b> తో {vw_txt} (VWAP: ₹{s_vw:.1f}, 52W High:"
+            f" ₹{s_h52:.1f}) ట్రేడ్ అవుతోంది.</div>"
         )
 
       dtl_html = (
-          f"<div class='pro-news-dtl'>🔹 <b>పూర్తి వివరాలు:</b> {dtl_te}</div>"
-          if dtl_te
+          f"<div class='pro-news-dtl'>🔹 <b>ముఖ్యాంశాలు:</b> {dtl_te}</div>"
+          if (dtl_te and dtl_te[:25] not in t_te)
           else ""
       )
 
-      rows += (
-          f"<tr><td>{stk_badge_html}</td><td>{imp_pill}<br><span"
-          f" class='pro-cat-tag'>{it.get('tag', '')}</span></td><td"
-          f" style='color:#8b949e;font-size:12px;font-weight:600;'>⏱"
-          f" {it['age_h']}గం. క్రితం</td><td title='{t_en}'><div"
-          f" class='pro-news-hl'>📰 {t_te}</div>{dtl_html}{mkt_ctx_html}<div"
-          f" style='margin-top:5px;'><a href='{it['link']}' target='_blank'"
-          " style='color:#58a6ff;font-size:11.5px;text-decoration:none;font-weight:600;'>🔗"
-          f" పూర్తి వార్త లింక్ ({t_en[:70]}...) ↗</a></div></td></tr>"
+      if with_mini_chart:
+        if has_chart or it.get("is_nse") or s_d is not None:
+          left_cell = _build_inline_mini_chart_html(
+              stk_name, s_d, df_5m_stk, it.get("tag", "")
+          )
+        else:
+          left_cell = (
+              "<div class='mc-inline-card'"
+              " style='min-height:185px;display:flex;flex-direction:column;justify-content:center;align-items:center;'>"
+              "<span class='pro-stk-badge'"
+              f" style='color:#e6edf3 !important;'>{_html.escape(stk_name)}</span>"
+              "<span style='color:#8b949e;font-size:11px;margin-top:6px;'>కార్పొరేట్"
+              " ప్రకటన</span></div>"
+          )
+        rows += (
+            f"<tr><td style='width:30%;'>{left_cell}</td><td style='width:70%;'"
+            f" title='{t_en}'><div class='pro-matter-box'><div><div"
+            " class='pro-meta-strip'><span"
+            f" class='pro-stk-badge'>{_html.escape(stk_name)}</span>{imp_pill}<span"
+            f" class='pro-cat-tag'>{it.get('tag', '')}</span>{price_chip}<span"
+            " style='color:#8b949e;font-size:11.5px;margin-left:auto;'>⏱"
+            f" {it['age_h']}గం. క్రితం</span></div><div class='pro-news-hl'>📰"
+            f" {t_te}</div>{dtl_html}{mkt_ctx_html}</div><div"
+            f" style='margin-top:8px;text-align:right;'><a href='{it['link']}'"
+            " target='_blank'"
+            " style='color:#58a6ff;font-size:12px;text-decoration:none;font-weight:700;'>🔗"
+            f" పూర్తి వార్త లింక్ ({t_en[:60]}...) ↗</a></div></div></td></tr>"
+        )
+      else:
+        rows += (
+            "<tr><td style='width:16%;'>"
+            f"{imp_pill}<br><span class='pro-cat-tag'"
+            f" style='margin-top:6px;'>{it.get('tag', '')}</span>"
+            "<div style='color:#8b949e;font-size:11.5px;margin-top:6px;'>⏱"
+            f" {it['age_h']}గం. క్రితం</div>"
+            "</td>"
+            f"<td style='width:84%;' title='{t_en}'>"
+            f"<div class='pro-news-hl'>📰 {t_te}</div>"
+            f"{dtl_html}{mkt_ctx_html}"
+            f"<div style='margin-top:5px;'><a href='{it['link']}'"
+            " target='_blank'"
+            " style='color:#58a6ff;font-size:11.5px;text-decoration:none;font-weight:600;'>🔗"
+            f" పూర్తి వార్త లింక్ ({t_en[:65]}...) ↗</a></div>"
+            "</td></tr>"
+        )
+
+    if with_mini_chart:
+      thead_html = (
+          "<tr><th style='width:30%;'>📈 లైవ్ మినీ చార్ట్ (5m INTRADAY)</th><th"
+          " style='width:70%;'>📢 కంపెనీ క్వార్టర్లీ రిజల్ట్స్ (Q-Results) &"
+          " పూర్తి వివరాలు (చార్ట్ సైజుకు తగ్గట్టుగా)</th></tr>"
+      )
+    else:
+      thead_html = (
+          "<tr><th style='width:16%;'>మార్కెట్ ప్రభావం & సమయం</th><th"
+          " style='width:84%;'>📢 పూర్తి వార్త & మార్కెట్ విశ్లేషణ"
+          " (తెలుగులో)</th></tr>"
       )
 
-    col1_lbl = (
-        "స్టాక్ / కంపెనీ (STOCK)" if show_stock_col else "విభాగం / స్టాక్"
-    )
     return (
-        "<div class='pro-news-wrap'>"
-        f"<div class='pro-news-hdr' style='background:{hdr_grad};border-left:4px solid {accent_col};'>"
-        f"<span>{box_title}</span>"
-        f"<span style='font-size:12px;color:#c9d1d9;background:#161b22;padding:2px 9px;border-radius:12px;border:1px solid #30363d;'>{len(seen_keys)} వార్తలు</span>"
-        "</div>"
-        "<table class='pro-news-table'><thead><tr>"
-        f"<th style='width:14%;'>{col1_lbl}</th>"
-        "<th style='width:13%;'>మార్కెట్ ప్రభావం</th>"
-        "<th style='width:8%;'>సమయం</th>"
-        "<th style='width:65%;'>📢 తెలుగు బ్రేకింగ్ న్యూస్ & పూర్తి వివరాలు</th>"
-        f"</tr></thead><tbody>{rows}</tbody></table></div>"
+        "<div class='pro-news-wrap'><div class='pro-news-hdr'"
+        f" style='background:{hdr_grad};border-left:4px solid"
+        f" {accent_col};'><span>{box_title}</span><span"
+        " style='font-size:12px;color:#c9d1d9;background:#161b22;padding:2px"
+        " 9px;border-radius:12px;border:1px solid"
+        f" #30363d;'>{len(seen_keys)} వార్తలు</span></div><table"
+        f" class='pro-news-table'><thead>{thead_html}</thead><tbody>{rows}</tbody></table></div>"
     )
 
   if m_news.get("stocks"):
@@ -3036,10 +3085,10 @@ def render_market_news_hub(df_all_stocks, processed_charts):
         _build_pro_news_table(
             m_news.get("stocks", []),
             "🏢 కంపెనీల క్వార్టర్లీ రిజల్ట్స్ (Q-Results), ఆర్డర్లు & ముఖ్య"
-            " ప్రకటనలు (స్టాక్ పై క్లిక్ చేస్తే మినీ చార్ట్ ఓపెన్ అవుతుంది 📊)",
+            " ప్రకటనలు (డిఫాల్ట్ మినీ చార్ట్ + పూర్తి వివరాలు)",
             "#2ea043",
             "linear-gradient(90deg, #112a1c 0%, #0d1117 100%)",
-            show_stock_col=True,
+            with_mini_chart=True,
         ),
         unsafe_allow_html=True,
     )
@@ -3051,7 +3100,7 @@ def render_market_news_hub(df_all_stocks, processed_charts):
           " పూర్తి వివరాలు",
           "#38bdf8",
           "linear-gradient(90deg, #0f2942 0%, #0d1117 100%)",
-          show_stock_col=False,
+          with_mini_chart=False,
       ),
       unsafe_allow_html=True,
   )
@@ -3063,7 +3112,7 @@ def render_market_news_hub(df_all_stocks, processed_charts):
           " వార్తలు & పూర్తి వివరాలు",
           "#a371f7",
           "linear-gradient(90deg, #27143a 0%, #0d1117 100%)",
-          show_stock_col=False,
+          with_mini_chart=False,
       ),
       unsafe_allow_html=True,
   )
@@ -3090,7 +3139,7 @@ def fetch_portfolio_news_and_results(port_syms_tuple):
         for it in root.findall("./channel/item")[:6]:
           raw_t = (it.findtext("title") or "").strip()
           title = _clean_en_headline(raw_t)
-          desc_c = _strip_html_tags(it.findtext("description") or "")
+          desc_c = _strip_html_tags(it.findtext("description") or "", title)
           link = (it.findtext("link") or "").strip()
           pub_s = (it.findtext("pubDate") or "").strip()
           if not _is_clear_factual_news(title):
@@ -3126,9 +3175,16 @@ def fetch_portfolio_news_and_results(port_syms_tuple):
                   "dividend",
               )
           )
-          items.append(
-              (0 if is_res else 1, age_d, title, desc_c, link, tag, bias, is_res)
-          )
+          items.append((
+              0 if is_res else 1,
+              age_d,
+              title,
+              desc_c,
+              link,
+              tag,
+              bias,
+              is_res,
+          ))
     except Exception:
       pass
 
@@ -3138,6 +3194,16 @@ def fetch_portfolio_news_and_results(port_syms_tuple):
     _, best_age_d, best_t, best_desc, best_l, best_tag, best_bias, is_res = (
         items[0]
     )
+
+    # Combine 2nd distinct headline if description was empty
+    extra_pts = []
+    if best_desc:
+      extra_pts.append(best_desc)
+    for _, _, t_other, _, _, _, _, _ in items[1:3]:
+      if t_other.lower()[:30] not in best_t.lower() and t_other not in extra_pts:
+        extra_pts.append(t_other)
+    full_dtl_en = ". ".join(extra_pts[:2]).strip()
+
     age_str = (
         f"{best_age_d * 24:.0f}గం. క్రితం"
         if best_age_d < 1.0
@@ -3146,7 +3212,7 @@ def fetch_portfolio_news_and_results(port_syms_tuple):
     return clean_s, {
         "title_en": best_t,
         "title": _translate_to_telugu(best_t),
-        "details_te": _translate_to_telugu(best_desc) if best_desc else "",
+        "details_te": _translate_to_telugu(full_dtl_en) if full_dtl_en else "",
         "link": best_l,
         "age": age_str,
         "tag": (
@@ -3172,6 +3238,7 @@ def fetch_portfolio_news_and_results(port_syms_tuple):
 
 
 def render_portfolio_news_and_results_table(df_port, df_stocks, weekly_trends):
+  """Renders Default-Open Mini-Chart on Left (30%) + Height-Matched Portfolio News/Q-Results (54%) + Hold/Sell Advice (16%)"""
   if df_port is None or df_port.empty:
     return ""
   stock_lookup = (
@@ -3193,6 +3260,16 @@ def render_portfolio_news_and_results_table(df_port, df_stocks, weekly_trends):
   if not port_syms:
     return ""
 
+  # Ensure 5m data is loaded in _SS['5m_store'] for all portfolio stocks so Mini-Chart is always open
+  store_5m = _SS.get("5m_store", {})
+  missing_port_5m = [
+      f"{s}.NS"
+      for s in port_syms
+      if f"{s}.NS" not in store_5m or store_5m[f"{s}.NS"].empty
+  ]
+  if missing_port_5m:
+    fetch_cached_5m_data(missing_port_5m)
+
   p_news_map = fetch_portfolio_news_and_results(port_syms)
   seen_port_syms = set()
   rows_html = ""
@@ -3207,39 +3284,29 @@ def render_portfolio_news_and_results_table(df_port, df_stocks, weekly_trends):
       buy_p = float(row["Buy_Price"])
     except Exception:
       buy_p = 0.0
+    try:
+      qty_v = int(float(row.get("Quantity", 0)))
+    except Exception:
+      qty_v = 0
+
     live_d = stock_lookup.get(sym)
     if live_d is None:
       continue
     ltp = float(live_d["P"])
     day_c = float(live_d.get("Day_C", 0))
+    vol_x = float(live_d.get("VolX", 1.0))
+    vwap_v = float(live_d.get("VWAP", ltp))
     pnl_pct = ((ltp - buy_p) / buy_p * 100.0) if buy_p > 0 else 0.0
+    pnl_rs = (ltp - buy_p) * qty_v
     wk_trend = weekly_trends.get(live_d["Fetch_T"], "Neutral")
     sma50 = float(live_d.get("SMA50", 0))
     sma200 = float(live_d.get("SMA200", 0))
+    high_52w = float(live_d.get("High52W", ltp))
 
     n_item = p_news_map.get(sym)
-    if n_item:
-      cat_str = n_item["tag"]
-      bias = n_item["bias"]
-      dtl_sub = (
-          f"<div class='pro-news-dtl'>{_html.escape(n_item['details_te'])}</div>"
-          if n_item.get("details_te")
-          else ""
-      )
-      hl_html = (
-          f"<div class='pro-news-hl'>📰 {_html.escape(n_item['title'])}</div>{dtl_sub}"
-          f"<div style='margin-top:4px;'><a href='{n_item['link']}' target='_blank' style='color:#58a6ff;font-size:11.5px;text-decoration:none;'>🔗 పూర్తి వార్త ↗</a></div>"
-      )
-      age_s = n_item["age"]
-    else:
-      cat_str = "⚪ సాధారణ ట్రెండ్"
-      bias = 0
-      hl_html = (
-          "<span style='color:#8b949e;font-size:13px;'>గత 14 రోజుల్లో ధరను"
-          " ప్రభావితం చేసే పెద్ద వార్తలు లేవు (టెక్నికల్ ట్రెండ్ ప్రకారం"
-          " కొనసాగుతోంది)</span>"
-      )
-      age_s = "-"
+    cat_str = n_item["tag"] if n_item else "⚪ సాధారణ ట్రెండ్"
+    bias = n_item["bias"] if n_item else 0
+    age_s = n_item["age"] if n_item else "Live"
 
     if bias > 0 or (bias == 0 and day_c >= 1.5):
       imp_pill = "<span class='pro-pill-buy'>🟢 పాజిటివ్ (+)</span>"
@@ -3248,59 +3315,100 @@ def render_portfolio_news_and_results_table(df_port, df_stocks, weekly_trends):
     else:
       imp_pill = "<span class='pro-pill-neut'>🟡 న్యూట్రల్</span>"
 
+    # Build Technical & Portfolio Context (Never repeats headline!)
+    sma_status = (
+        f"50-SMA (₹{sma50:.1f}) పైన బుల్లిష్ సపోర్ట్‌తో"
+        if ltp >= sma50
+        else f"50-SMA (₹{sma50:.1f}) కింద బలహీనంగా"
+    )
+    vw_status = (
+        f"VWAP (₹{vwap_v:.1f}) పైన"
+        if ltp >= vwap_v
+        else f"VWAP (₹{vwap_v:.1f}) కింద"
+    )
+    tech_summary_te = (
+        f"📊 <b>టెక్నికల్ & పోర్ట్‌ఫోలియో విశ్లేషణ:</b> మీ కొనుగోలు ధర"
+        f" <b>₹{buy_p:.2f}</b> కాగా ప్రస్తుతం <b>₹{ltp:.2f}</b> వద్ద"
+        f" ({vw_status}, {sma_status}) ట్రేడ్ అవుతోంది. వీక్లీ ట్రెండ్:"
+        f" <b>{wk_trend}</b> | వాల్యూమ్: <b>{vol_x:.1f}x</b> | 52W High:"
+        f" <b>₹{high_52w:.1f}</b>."
+    )
+
+    if n_item:
+      t_te = _html.escape(n_item["title"])
+      dtl_te = _html.escape(n_item.get("details_te", ""))
+      dtl_sub = (
+          f"<div class='pro-news-dtl'>🔹 <b>అదనపు వివరాలు:</b> {dtl_te}</div>"
+          if (dtl_te and dtl_te[:25] not in t_te)
+          else ""
+      )
+      news_body_html = (
+          f"<div class='pro-news-hl'>📰 {t_te}</div>"
+          f"{dtl_sub}"
+          f"<div class='pro-news-mkt'>{tech_summary_te}</div>"
+          f"<div style='margin-top:6px;text-align:right;'><a href='{n_item['link']}' target='_blank' style='color:#58a6ff;font-size:11.5px;text-decoration:none;font-weight:700;'>🔗 పూర్తి వార్త చదవండి ↗</a></div>"
+      )
+    else:
+      news_body_html = (
+          "<div class='pro-news-hl' style='color:#c9d1d9;'>📌 గత 14 రోజుల్లో"
+          " పెద్ద కార్పొరేట్ వార్తలు లేవు — టెక్నికల్ లెవెల్స్ ఆధారంగా"
+          f" కొనసాగుతోంది</div><div class='pro-news-mkt'>{tech_summary_te}</div>"
+      )
+
     above_lt_ma = (ltp >= sma50) or (ltp >= sma200 and sma200 > 0)
     if bias < 0 and (wk_trend == "Bearish" or ltp < sma50):
-      advice_txt = "🔴 SELL / EXIT (నెగటివ్ వార్త + వీక్ ట్రెండ్)"
-      adv_style = "color:#f85149;font-weight:bold;font-size:12.5px;"
+      advice_txt = "🔴 SELL / EXIT<br><span style='font-size:11.5px;font-weight:normal;color:#ff7b72;'>(నెగటివ్ వార్త + వీక్ ట్రెండ్)</span>"
+      adv_box_style = "background:rgba(248,81,73,0.12);border:1px solid #f85149;color:#ff7b72;"
     elif bias < 0 and pnl_pct > 8.0:
-      advice_txt = "⚠️ 50% లాభం బుక్ చేయండి (నెగటివ్ వార్త)"
-      adv_style = "color:#ffd700;font-weight:bold;font-size:12.5px;"
+      advice_txt = "⚠️ 50% లాభం బుక్ చేయండి<br><span style='font-size:11.5px;font-weight:normal;color:#e3b341;'>(నెగటివ్ వార్త)</span>"
+      adv_box_style = "background:rgba(210,153,34,0.12);border:1px solid #d29922;color:#ffd700;"
     elif pnl_pct <= -7.0 and wk_trend == "Bearish":
-      advice_txt = "🔴 SELL / CUT LOSS (సపోర్ట్ కింద ఉంది)"
-      adv_style = "color:#f85149;font-weight:bold;font-size:12.5px;"
+      advice_txt = "🔴 SELL / CUT LOSS<br><span style='font-size:11.5px;font-weight:normal;color:#ff7b72;'>(సపోర్ట్ కింద ఉంది)</span>"
+      adv_box_style = "background:rgba(248,81,73,0.12);border:1px solid #f85149;color:#ff7b72;"
     elif bias > 0 and above_lt_ma:
-      advice_txt = "🚀 STRONG HOLD / ADD (పాజిటివ్ రిజల్ట్/వార్త)"
-      adv_style = "color:#00FF00;font-weight:bold;font-size:12.5px;"
+      advice_txt = "🚀 STRONG HOLD / ADD<br><span style='font-size:11.5px;font-weight:normal;color:#7ee787;'>(పాజిటివ్ రిజల్ట్/వార్త)</span>"
+      adv_box_style = "background:rgba(46,160,67,0.15);border:1px solid #2ea043;color:#3fb950;"
     elif pnl_pct >= 12.0 and wk_trend == "Bullish":
-      advice_txt = "🟢 HOLD & TRAIL SL (మంచి లాభంలో ఉంది)"
-      adv_style = "color:#3fb950;font-weight:bold;font-size:12.5px;"
+      advice_txt = "🟢 HOLD & TRAIL SL<br><span style='font-size:11.5px;font-weight:normal;color:#7ee787;'>(మంచి లాభంలో ఉంది)</span>"
+      adv_box_style = "background:rgba(46,160,67,0.15);border:1px solid #2ea043;color:#3fb950;"
     elif above_lt_ma or wk_trend == "Bullish":
-      advice_txt = "🟢 HOLD (ట్రెండ్ బాగుంది)"
-      adv_style = "color:#3fb950;font-weight:bold;font-size:12.5px;"
+      advice_txt = "🟢 HOLD<br><span style='font-size:11.5px;font-weight:normal;color:#7ee787;'>(ట్రెండ్ బాగుంది)</span>"
+      adv_box_style = "background:rgba(46,160,67,0.12);border:1px solid #2ea043;color:#3fb950;"
     else:
-      advice_txt = "🟡 HOLD WITH SL (స్టాప్ లాస్ తో వేచి చూడండి)"
-      adv_style = "color:#ffd700;font-size:12.5px;"
+      advice_txt = "🟡 HOLD WITH SL<br><span style='font-size:11.5px;font-weight:normal;color:#e3b341;'>(స్టాప్ లాస్ తో వేచి చూడండి)</span>"
+      adv_box_style = "background:rgba(210,153,34,0.12);border:1px solid #d29922;color:#ffd700;"
 
     d_col = "#3fb950" if day_c >= 0 else "#f85149"
     p_col = "#3fb950" if pnl_pct >= 0 else "#f85149"
-    stk_popup_btn = _build_mini_chart_popup_html(
-        sym, live_d, None, cat_str
-    )
+    inline_chart = _build_inline_mini_chart_html(sym, live_d, None, cat_str)
 
     rows_html += (
-        f"<tr><td>{stk_popup_btn}<div"
-        f" style='color:#8b949e;font-size:11px;margin-top:4px;'>⏱ {age_s}</div>"
-        "</td>"
-        f"<td><b style='color:#fff;'>₹{ltp:,.1f}</b><br><span"
-        f" style='color:{d_col};font-weight:700;'>({day_c:+.1f}%)</span></td>"
-        f"<td style='color:{p_col};font-weight:700;font-size:13px;'>{pnl_pct:+.2f}%</td>"
-        f"<td>{imp_pill}<br><span class='pro-cat-tag'>{cat_str}</span></td>"
-        f"<td>{hl_html}</td>"
-        f"<td style='{adv_style}'>{advice_txt}</td></tr>"
+        f"<tr><td style='width:29%;'>{inline_chart}</td><td"
+        " style='width:55%;'><div class='pro-matter-box'><div><div"
+        f" class='pro-meta-strip'>{imp_pill}<span"
+        f" class='pro-cat-tag'>{cat_str}</span><span class='pro-meta-chip'>LTP:"
+        f" ₹{ltp:,.1f} <span"
+        f" style='color:{d_col};'>({day_c:+.1f}%)</span></span><span"
+        f" class='pro-meta-chip'>Avg: ₹{buy_p:,.1f}</span><span"
+        f" class='pro-meta-chip' style='color:{p_col};'>P&L: {pnl_pct:+.2f}%"
+        f" (₹{pnl_rs:+,.0f})</span><span"
+        " style='color:#8b949e;font-size:11.5px;margin-left:auto;'>⏱"
+        f" {age_s}</span></div>{news_body_html}</div></div></td><td"
+        " style='width:16%;'><div"
+        f" style='{adv_box_style}padding:14px 10px;border-radius:8px;text-align:center;font-weight:800;font-size:13px;line-height:1.45;'>"
+        f"{advice_txt}</div></td></tr>"
     )
 
   return (
       "<div class='pro-news-wrap'><div class='pro-news-hdr'"
       " style='background:linear-gradient(90deg, #0d47a1 0%, #0d1117"
       " 100%);border-left:4px solid #58a6ff;'><span>📰 నా పోర్ట్‌ఫోలియో స్టాక్స్"
-      " — తాజా వార్తలు, క్వార్టర్లీ/ఇయర్లీ రిజల్ట్స్ & HOLD / SELL సలహా"
-      " (స్టాక్ పై క్లిక్ చేస్తే మినీ చార్ట్ ఓపెన్ అవుతుంది 📊)</span></div><table"
-      " class='pro-news-table'><thead><tr><th style='width:11%;'>స్టాక్"
-      " (TIME)</th><th style='width:9%;'>LTP (DAY%)</th><th"
-      " style='width:8%;'>P&L %</th><th style='width:13%;'>రిజల్ట్ /"
-      " ప్రభావం</th><th style='width:44%;'>📢 తాజా వార్త & క్వార్టర్లీ రిజల్ట్"
-      " పూర్తి వివరాలు (తెలుగులో)</th><th style='width:15%;'>💡 HOLD / SELL"
-      " సలహా</th></tr></thead><tbody>"
+      " — డిఫాల్ట్ మినీ చార్ట్, క్వార్టర్లీ రిజల్ట్స్ & HOLD / SELL సలహా"
+      " (తెలుగులో)</span></div><table class='pro-news-table'><thead><tr><th"
+      " style='width:29%;'>📈 లైవ్ మినీ చార్ట్ (5m INTRADAY)</th><th"
+      " style='width:55%;'>📢 పోర్ట్‌ఫోలియో P&L, క్వార్టర్లీ రిజల్ట్ & టెక్నికల్"
+      " విశ్లేషణ (చార్ట్ సైజులో)</th><th style='width:16%;text-align:center;'>💡"
+      " HOLD / SELL సలహా</th></tr></thead><tbody>"
       + rows_html
       + "</tbody></table></div>"
   )
