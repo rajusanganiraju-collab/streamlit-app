@@ -1308,707 +1308,1643 @@ def process_5m_data(df_raw):
 #  5. Non-Exhaustion RSI & Extension Guard (No Top-Buying) [15 pts]
 # =========================================================
 # =========================================================
-# 📰 NEWS + VOLUME + PRICE CATALYST ENGINE (ONLY NEWS STOCKS)
+# 📰 NEWS + VOLUME + PRICE CATALYST ENGINE (PROFESSIONAL v2)
 # =========================================================
-import xml.etree.ElementTree as ET
 from email.utils import parsedate_to_datetime
+import re as _re
 import urllib.parse
+import xml.etree.ElementTree as ET
 
 NEWS_STRAT = "📰 News + Vol + Price Breakout (Only News)"
 
+# Professional News Tables CSS
+st.markdown(
+    """
+<style>
+.pro-news-wrap {
+    background: #0d1117;
+    border: 1px solid #262c36;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 18px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+    font-family: 'Inter', 'Noto Sans Telugu', 'Segoe UI', Roboto, sans-serif;
+}
+.pro-news-hdr {
+    padding: 10px 16px;
+    font-size: 14.5px;
+    font-weight: 700;
+    color: #ffffff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #262c36;
+    letter-spacing: 0.2px;
+}
+.pro-news-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    background: #0d1117;
+    color: #e6edf3;
+    font-family: 'Inter', 'Noto Sans Telugu', 'Segoe UI', Roboto, sans-serif;
+}
+.pro-news-table th {
+    background: #161b22;
+    color: #8b949e;
+    font-size: 11.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 9px 12px;
+    border-bottom: 1px solid #262c36;
+    text-align: left;
+    letter-spacing: 0.4px;
+}
+.pro-news-table td {
+    padding: 12px 12px;
+    border-bottom: 1px solid #1c2128;
+    vertical-align: top;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    line-height: 1.55;
+}
+.pro-news-table tr:hover td {
+    background: rgba(56, 139, 253, 0.06);
+}
+.pro-stk-badge {
+    display: inline-block;
+    background: #1f2937;
+    border: 1px solid #374151;
+    color: #58a6ff !important;
+    font-weight: 800;
+    font-size: 13px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    text-decoration: none !important;
+    font-family: 'Consolas', monospace;
+}
+.pro-stk-badge:hover {
+    background: #1f6feb;
+    color: #ffffff !important;
+    border-color: #58a6ff;
+}
+.pro-pill-buy {
+    display: inline-block;
+    background: rgba(46, 160, 67, 0.18);
+    border: 1px solid #2ea043;
+    color: #3fb950;
+    font-weight: 700;
+    font-size: 11.5px;
+    padding: 2px 8px;
+    border-radius: 20px;
+}
+.pro-pill-sell {
+    display: inline-block;
+    background: rgba(248, 81, 73, 0.18);
+    border: 1px solid #f85149;
+    color: #ff7b72;
+    font-weight: 700;
+    font-size: 11.5px;
+    padding: 2px 8px;
+    border-radius: 20px;
+}
+.pro-pill-neut {
+    display: inline-block;
+    background: rgba(210, 153, 34, 0.16);
+    border: 1px solid #d29922;
+    color: #e3b341;
+    font-weight: 700;
+    font-size: 11.5px;
+    padding: 2px 8px;
+    border-radius: 20px;
+}
+.pro-cat-tag {
+    display: inline-block;
+    background: #21262d;
+    color: #ffd700;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 4px;
+    margin-top: 5px;
+}
+.pro-news-hl {
+    font-size: 14.5px;
+    font-weight: 700;
+    color: #f0f6fc;
+    margin-bottom: 5px;
+    line-height: 1.45;
+}
+.pro-news-dtl {
+    font-size: 13px;
+    color: #c9d1d9;
+    line-height: 1.55;
+    margin-top: 4px;
+    background: rgba(22, 27, 34, 0.65);
+    border-left: 3px solid #38bdf8;
+    padding: 6px 10px;
+    border-radius: 0 6px 6px 0;
+}
+.pro-news-mkt {
+    font-size: 12px;
+    color: #79c0ff;
+    margin-top: 5px;
+    font-weight: 600;
+}
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
 _BULL_CATALYSTS = [
-    ("📰Order-Win", ["order", "bagged", "contract", "letter of award", "loa", "lowest bidder", "l1 bidder", "tender", "deal win"]),
-    ("📰Q-Results", ["net profit rises", "profit jumps", "profit surges", "q1", "q2", "q3", "q4", "ebitda", "revenue grows", "margin expands", "beats estimates"]),
-    ("📰Upgrade", ["buy", "overweight", "outperform", "target price", "raises target", "upgrade", "bullish", "top pick"]),
-    ("📰Approval", ["usfda", "approval", "eir", "clean chit", "patent", "nod", "clearance", "license"]),
-    ("📰Expansion/JV", ["acquisition", "acquires", "joint venture", "mou", "partner", " commissioning", "capacity", "launch", "new plant"]),
-    ("📰Corp-Action", ["dividend", "buyback", "bonus", "stock split", "fundraise", "qip", "preferential"]),
-    ("📰Stake-Buy", ["block deal", "bulk deal", "stake buy", "promoter buys", "fii", "mutual fund buys"])
+    (
+        "📰Order-Win",
+        [
+            "order",
+            "bagged",
+            "contract",
+            "letter of award",
+            "loa",
+            "lowest bidder",
+            "l1 bidder",
+            "tender",
+            "deal win",
+        ],
+    ),
+    (
+        "📊Q-Results",
+        [
+            "net profit rises",
+            "profit jumps",
+            "profit surges",
+            "q1",
+            "q2",
+            "q3",
+            "q4",
+            "ebitda",
+            "revenue grows",
+            "margin expands",
+            "beats estimates",
+        ],
+    ),
+    (
+        "🚀Upgrade",
+        [
+            "buy",
+            "overweight",
+            "outperform",
+            "target price",
+            "raises target",
+            "upgrade",
+            "bullish",
+            "top pick",
+        ],
+    ),
+    (
+        "✅Approval",
+        [
+            "usfda",
+            "approval",
+            "eir",
+            "clean chit",
+            "patent",
+            "nod",
+            "clearance",
+            "license",
+        ],
+    ),
+    (
+        "🏭Expansion/JV",
+        [
+            "acquisition",
+            "acquires",
+            "joint venture",
+            "mou",
+            "partner",
+            "commissioning",
+            "capacity",
+            "launch",
+            "new plant",
+        ],
+    ),
+    (
+        "💰Corp-Action",
+        [
+            "dividend",
+            "buyback",
+            "bonus",
+            "stock split",
+            "fundraise",
+            "qip",
+            "preferential",
+        ],
+    ),
+    (
+        "🤝Stake-Buy",
+        [
+            "block deal",
+            "bulk deal",
+            "stake buy",
+            "promoter buys",
+            "fii",
+            "mutual fund buys",
+        ],
+    ),
 ]
 
 _BEAR_CATALYSTS = [
-    ("📰Result-Miss", ["profit falls", "profit drops", "net loss", "widens", "misses estimates", "weak results", "margin shrinks", "declines"]),
-    ("📰Downgrade", ["downgrade", "sell call", "underperform", "underweight", "cuts target", "target cut", "reduce"]),
-    ("📰Reg-Alert", ["sebi", "penalty", "notice", "tax demand", "gst", "ed raid", "probe", "show cause", "ban", "default"]),
-    ("📰USFDA-Issue", ["form 483", "observations", "warning letter", "import alert", "recall"]),
-    ("📰Exit/Sale", ["resigns", "steps down", "stake sale", "offloads", "sells stake", "pledge"])
+    (
+        "📉Result-Miss",
+        [
+            "profit falls",
+            "profit drops",
+            "net loss",
+            "widens",
+            "misses estimates",
+            "weak results",
+            "margin shrinks",
+            "declines",
+        ],
+    ),
+    (
+        "🩸Downgrade",
+        [
+            "downgrade",
+            "sell call",
+            "underperform",
+            "underweight",
+            "cuts target",
+            "target cut",
+            "reduce",
+        ],
+    ),
+    (
+        "⚠️Reg-Alert",
+        [
+            "sebi",
+            "penalty",
+            "notice",
+            "tax demand",
+            "gst",
+            "ed raid",
+            "probe",
+            "show cause",
+            "ban",
+            "default",
+        ],
+    ),
+    (
+        "🏥USFDA-Issue",
+        [
+            "form 483",
+            "observations",
+            "warning letter",
+            "import alert",
+            "recall",
+        ],
+    ),
+    (
+        "🚪Exit/Sale",
+        [
+            "resigns",
+            "steps down",
+            "stake sale",
+            "offloads",
+            "sells stake",
+            "pledge",
+        ],
+    ),
 ]
+
+# Company Name -> NSE Symbol Map (For Q-Results & Corporate News Stock Identification)
+_COMPANY_TO_NSE = {
+    "pidilite": "PIDILITIND",
+    "reliance": "RELIANCE",
+    "tcs": "TCS",
+    "tata consultancy": "TCS",
+    "infosys": "INFY",
+    "hdfc bank": "HDFCBANK",
+    "icici bank": "ICICIBANK",
+    "state bank": "SBIN",
+    "sbi ": "SBIN",
+    "bharti airtel": "BHARTIARTL",
+    "airtel": "BHARTIARTL",
+    "larsen": "LT",
+    "l&t": "LT",
+    "itc ": "ITC",
+    "hindustan unilever": "HINDUNILVR",
+    "hul": "HINDUNILVR",
+    "bajaj finance": "BAJFINANCE",
+    "axis bank": "AXISBANK",
+    "kotak mahindra": "KOTAKBANK",
+    "maruti": "MARUTI",
+    "mahindra & mahindra": "M&M",
+    "m&m": "M&M",
+    "sun pharma": "SUNPHARMA",
+    "ultratech": "ULTRACEMCO",
+    "titan": "TITAN",
+    "ntpc": "NTPC",
+    "tata motors": "TATAMOTORS",
+    "tata steel": "TATASTEEL",
+    "power grid": "POWERGRID",
+    "adani enterprises": "ADANIENT",
+    "adani ports": "ADANIPORTS",
+    "coal india": "COALINDIA",
+    "asian paints": "ASIANPAINT",
+    "hcl tech": "HCLTECH",
+    "wipro": "WIPRO",
+    "bajaj auto": "BAJAJ-AUTO",
+    "ongc": "ONGC",
+    "jsw steel": "JSWSTEEL",
+    "hindalco": "HINDALCO",
+    "grasim": "GRASIM",
+    "tech mahindra": "TECHM",
+    "cipla": "CIPLA",
+    "dr reddy": "DRREDDY",
+    "eicher": "EICHERMOT",
+    "nestle": "NESTLEIND",
+    "britannia": "BRITANNIA",
+    "apollo hosp": "APOLLOHOSP",
+    "divi's": "DIVISLAB",
+    "divis": "DIVISLAB",
+    "hero motocorp": "HEROMOTOCO",
+    "indusind": "INDUSINDBK",
+    "bharat electronics": "BEL",
+    "trent": "TRENT",
+    "shriram finance": "SHRIRAMFIN",
+    "vedanta": "VEDL",
+    "hindustan aeronautics": "HAL",
+    "hal ": "HAL",
+    "dlf": "DLF",
+    "siemens": "SIEMENS",
+    "polycab": "POLYCAB",
+    "dixon": "DIXON",
+    "zomato": "ETERNAL",
+    "eternal": "ETERNAL",
+    "paytm": "PAYTM",
+    "suzlon": "SUZLON",
+    "rvnl": "RVNL",
+    "ireda": "IREDA",
+    "mazagon": "MAZDOCK",
+    "bhel": "BHEL",
+    "punjab national": "PNB",
+    "bank of baroda": "BANKBARODA",
+    "canara bank": "CANBK",
+    "lupin": "LUPIN",
+    "aurobindo": "AUROPHARMA",
+    "torrent pharma": "TORNTPHARM",
+    "zydus": "ZYDUSLIFE",
+    "biocon": "BIOCON",
+    "gail": "GAIL",
+    "indian oil": "IOC",
+    "bpcl": "BPCL",
+    "hpcl": "HINDPETRO",
+    "mrf": "MRF",
+    "ashok leyland": "ASHOKLEY",
+    "tvs motor": "TVSMOTOR",
+    "cholamandalam": "CHOLAFIN",
+    "muthoot": "MUTHOOTFIN",
+    "manappuram": "MANAPPURAM",
+    "srf ": "SRF",
+    "pi industries": "PIIND",
+    "deepak nitrite": "DEEPAKNTR",
+    "aarti ind": "AARTIIND",
+    "astral": "ASTRAL",
+    "supreme ind": "SUPREMEIND",
+    "cummins": "CUMMINSIND",
+    "abb ": "ABB",
+    "bharat forge": "BHARATFORG",
+    "coforge": "COFORGE",
+    "persistent": "PERSISTENT",
+    "mphasis": "MPHASIS",
+    "ltimindtree": "LTIM",
+    "l&t tech": "LTTS",
+    "naukri": "NAUKRI",
+    "info edge": "NAUKRI",
+    "jubilant food": "JUBLFOOD",
+    "indian hotels": "INDHOTEL",
+    "indigo": "INDIGO",
+    "interglobe": "INDIGO",
+    "irctc": "IRCTC",
+    "irfc": "IRFC",
+    "rec ltd": "RECLTD",
+    "pfc": "PFC",
+    "hudco": "HUDCO",
+    "nhpc": "NHPC",
+    "sjvn": "SJVN",
+    "cg power": "CGPOWER",
+    "kpit": "KPITTECH",
+    "tata elxsi": "TATAELXSI",
+    "kalyan jewellers": "KALYANKJIL",
+    "fortis": "FORTIS",
+    "max health": "MAXHEALTH",
+    "oberoi realty": "OBEROIRLTY",
+    "godrej prop": "GODREJPROP",
+    "prestige estates": "PRESTIGE",
+    "lodha": "LODHA",
+    "macrotech": "LODHA",
+    "phoenix mills": "PHOENIXLTD",
+    "yes bank": "YESBANK",
+    "idfc first": "IDFCFIRSTB",
+    "federal bank": "FEDERALBNK",
+    "bandhan bank": "BANDHANBNK",
+    "rbl bank": "RBLBANK",
+    "au small": "AUBANK",
+    "bse ": "BSE",
+    "mcx": "MCX",
+    "cdsl": "CDSL",
+    "angel one": "ANGELONE",
+    "cams": "CAMS",
+    "ambuja": "AMBUJACEM",
+    "acc ": "ACC",
+    "shree cement": "SHREECEM",
+    "dalmia": "DALBHARAT",
+    "tata power": "TATAPOWER",
+    "tata consumer": "TATACONSUM",
+    "tata chem": "TATACHEM",
+    "tata comm": "TATACOMM",
+    "dabur": "DABUR",
+    "marico": "MARICO",
+    "godrej consumer": "GODREJCP",
+    "colgate": "COLPAL",
+    "united breweries": "UBL",
+    "havells": "HAVELLS",
+    "voltas": "VOLTAS",
+    "crompton": "CROMPTON",
+    "bata": "BATAINDIA",
+    "page ind": "PAGEIND",
+    "zee ": "ZEEL",
+    "sun tv": "SUNTV",
+    "pvr inox": "PVRINOX",
+    "delhivery": "DELHIVERY",
+    "nykaa": "NYKAA",
+}
 
 
 def _classify_headline(title_str):
-    t_low = str(title_str).lower()
-    for tag, kw_list in _BEAR_CATALYSTS:
-        if any(k in t_low for k in kw_list):
-            return tag, -1
-    for tag, kw_list in _BULL_CATALYSTS:
-        if any(k in t_low for k in kw_list):
-            return tag, 1
-    return "📰News-Buzz", 0
+  t_low = str(title_str).lower()
+  for tag, kw_list in _BEAR_CATALYSTS:
+    if any(k in t_low for k in kw_list):
+      return tag, -1
+  for tag, kw_list in _BULL_CATALYSTS:
+    if any(k in t_low for k in kw_list):
+      return tag, 1
+  return "📰News-Buzz", 0
 
 
-@st.cache_data(ttl=300, show_spinner=False)
-def fetch_live_stock_news_batch(symbols_tuple, max_age_hours=36):
-    """Fetches fresh news (last 36h) for active F&O stocks using yfinance + Google News RSS fallback."""
-    now_utc = datetime.now(ZoneInfo("UTC"))
-
-    def _fetch_one(fetch_sym):
-        clean_sym = str(fetch_sym).replace(".NS", "").strip()
-        headlines = []
-
-        # 1. Try Google News RSS (Fastest & most accurate for Indian NSE stocks)
-        try:
-            q = urllib.parse.quote(f'"{clean_sym}" share OR stock NSE when:2d')
-            rss_url = f"https://news.google.com/rss/search?q={q}&hl=en-IN&gl=IN&ceid=IN:en"
-            resp = requests.get(rss_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=3.5)
-            if resp.status_code == 200 and resp.content:
-                root = ET.fromstring(resp.content)
-                for item in root.findall("./channel/item")[:4]:
-                    title = (item.findtext("title") or "").strip()
-                    link = (item.findtext("link") or "").strip()
-                    pub_str = (item.findtext("pubDate") or "").strip()
-                    if not title:
-                        continue
-                    age_hr = 12.0
-                    if pub_str:
-                        try:
-                            dt_pub = parsedate_to_datetime(pub_str)
-                            if dt_pub.tzinfo is None:
-                                dt_pub = dt_pub.replace(tzinfo=ZoneInfo("UTC"))
-                            age_hr = (now_utc - dt_pub.astimezone(ZoneInfo("UTC"))).total_seconds() / 3600.0
-                        except Exception:
-                            age_hr = 12.0
-                    if 0 <= age_hr <= max_age_hours:
-                        headlines.append((age_hr, title, link))
-        except Exception:
-            pass
-
-        # 2. Fallback: yfinance Ticker.news
-        if not headlines:
-            try:
-                yf_news = yf.Ticker(fetch_sym).news or []
-                for n_item in yf_news[:4]:
-                    if isinstance(n_item, dict) and 'content' in n_item and isinstance(n_item['content'], dict):
-                        c_obj = n_item['content']
-                        title = str(c_obj.get('title', '')).strip()
-                        link = str((c_obj.get('canonicalUrl') or {}).get('url', '')).strip()
-                        pub_iso = c_obj.get('pubDate', '')
-                        age_hr = 12.0
-                        if pub_iso:
-                            try:
-                                dt_pub = pd.to_datetime(pub_iso, utc=True).to_pydatetime()
-                                age_hr = (now_utc - dt_pub).total_seconds() / 3600.0
-                            except Exception:
-                                age_hr = 12.0
-                    else:
-                        title = str(n_item.get('title', '')).strip()
-                        link = str(n_item.get('link', '')).strip()
-                        ts = n_item.get('providerPublishTime', 0)
-                        age_hr = ((now_utc.timestamp() - float(ts)) / 3600.0) if ts else 12.0
-
-                    if title and (0 <= age_hr <= max_age_hours):
-                        headlines.append((age_hr, title, link))
-            except Exception:
-                pass
-
-        if not headlines:
-            return fetch_sym, None
-
-        # Pick freshest / highest-impact headline
-        headlines.sort(key=lambda x: x[0])
-        best_age, best_title, best_link = headlines[0]
-        cat_tag, sentiment_bias = _classify_headline(best_title)
-
-        # If first headline is generic, check if another recent headline has a specific catalyst
-        if sentiment_bias == 0 and len(headlines) > 1:
-            for age_h, t_str, l_str in headlines[1:]:
-                c_tag, s_bias = _classify_headline(t_str)
-                if s_bias != 0:
-                    best_age, best_title, best_link = age_h, t_str, l_str
-                    cat_tag, sentiment_bias = c_tag, s_bias
-                    break
-
-        return fetch_sym, {
-            "title": best_title,
-            "link": best_link or f"https://www.google.com/search?q={clean_sym}+share+news&tbm=nws",
-            "age_h": round(max(0.1, best_age), 1),
-            "tag": cat_tag,
-            "bias": sentiment_bias,
-            "count": len(headlines)
-        }
-
-    out = {}
-    with concurrent.futures.ThreadPoolExecutor(max_workers=12) as ex:
-        futs = [ex.submit(_fetch_one, s) for s in symbols_tuple]
-        for f in concurrent.futures.as_completed(futs):
-            try:
-                k, val = f.result()
-                if val is not None:
-                    out[k] = val
-            except Exception:
-                 continue
-    return out
-
-
-# Clickbait / Vague headlines ni filter chese words list (Flash News clear ga undadaniki)
 _JUNK_NEWS_WORDS = (
-    "stocks to watch", "stocks in news", "live updates", "live blog", "share price live",
-    "stock market live", "check details", "know why", "here's why", "here is why",
-    "top gainers", "top losers", "market wrap", "closing bell", "opening bell",
-    "buy or sell", "stocks to buy", "buzzing stocks", "trade setup", "what should investors do"
+    "stocks to watch",
+    "stocks in news",
+    "live updates",
+    "live blog",
+    "share price live",
+    "stock market live",
+    "check details",
+    "know why",
+    "here's why",
+    "here is why",
+    "top gainers",
+    "top losers",
+    "market wrap",
+    "closing bell",
+    "opening bell",
+    "buy or sell",
+    "stocks to buy",
+    "buzzing stocks",
+    "trade setup",
+    "what should investors do",
 )
 
 
 def _clean_en_headline(title_str):
-    """Publisher peru (- Moneycontrol, - ET) teesesi, clickbait kakunda clean headline istundi"""
-    t = str(title_str or "").strip()
-    if " - " in t:
-        parts = t.split(" - ")
-        if len(parts[-1]) < 35:
-            t = " - ".join(parts[:-1]).strip()
-    return t
+  t = str(title_str or "").strip()
+  if " - " in t:
+    parts = t.split(" - ")
+    if len(parts[-1]) < 40:
+      t = " - ".join(parts[:-1]).strip()
+  return t
+
+
+def _strip_html_tags(raw_html):
+  if not raw_html:
+    return ""
+  txt = _re.sub(r"<[^>]+>", " | ", str(raw_html))
+  txt = _html.unescape(txt)
+  parts = []
+  for seg in txt.split("|"):
+    s = _clean_en_headline(seg.strip())
+    if len(s) >= 20 and s not in parts and not s.lower().startswith("view full"):
+      parts.append(s)
+  return " • ".join(parts[:3])
 
 
 def _is_clear_factual_news(title_str):
-    """Clickbait/vague titles ni reject chestundi; spastamaina news matrame allow chestundi"""
-    t_low = str(title_str or "").lower()
-    if len(t_low) < 18:
-        return False
-    if any(jw in t_low for jw in _JUNK_NEWS_WORDS):
-        return False
-    return True
+  t_low = str(title_str or "").lower()
+  if len(t_low) < 18:
+    return False
+  if any(jw in t_low for jw in _JUNK_NEWS_WORDS):
+    return False
+  return True
+
+
+def _extract_stock_from_headline(title_en):
+  """Extracts exact NSE Symbol or clean Company Name from English news headline"""
+  t_clean = _clean_en_headline(title_en)
+  t_low = f" {t_clean.lower()} "
+
+  # 1. Check direct company name map
+  for comp_kw, nse_sym in _COMPANY_TO_NSE.items():
+    if comp_kw in t_low:
+      return nse_sym, True
+
+  # 2. Check all universe symbols (NIFTY_50 + FNO + MIDCAP + SMALLCAP)
+  all_known = set(NIFTY_50 + FNO_STOCKS + MIDCAP_150 + SMALLCAP_250)
+  words_up = _re.findall(r"[A-Z&]{3,15}", t_clean.upper())
+  for w in words_up:
+    if w in all_known and w not in (
+        "NSE",
+        "BSE",
+        "RBI",
+        "SEBI",
+        "USD",
+        "INR",
+        "CEO",
+        "CFO",
+        "IPO",
+        "ETF",
+        "PSU",
+    ):
+      return w, True
+
+  # 3. Check 6-letter root match (e.g., PIDILITE -> PIDILITIND)
+  for sym in all_known:
+    if len(sym) >= 6 and sym[:6].lower() in t_low:
+      return sym, True
+
+  # 4. Fallback: Extract leading Company Name before action/result verbs
+  m = _re.match(
+      r"^([A-Z][A-Za-z0-9&\.\-\s]{2,28}?)\s+(?:Q[1-4]|FY\d{2}|net"
+      r" profit|profit|revenue|results|shares|stock|bags|wins|gets|announces|declares|reports|posts|board|acquires|signs|receives)",
+      t_clean,
+  )
+  if m:
+    comp_name = m.group(1).strip()
+    if len(comp_name) >= 3 and comp_name.upper() not in (
+        "INDIA",
+        "INDIAN",
+        "MARKET",
+        "SENSEX",
+        "NIFTY",
+        "STOCK",
+        "SHARES",
+    ):
+      return comp_name.upper()[:16], False
+
+  # 5. First 2 capitalized words
+  tokens = t_clean.split()
+  if len(tokens) >= 2 and tokens[0][0].isupper():
+    cand = " ".join(tokens[:2]).strip(":,-")
+    if cand.upper() not in ("SENSEX TODAY", "NIFTY TODAY", "STOCK MARKET"):
+      return cand.upper()[:15], False
+
+  return "NSE CORP", False
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def _translate_to_telugu(text_en):
-    """English news headline ni spastamaina Telugu loki translate chestundi (Cached for speed)"""
-    clean_en = _clean_en_headline(text_en)
-    if not clean_en:
-        return ""
-    try:
-        q_tr = urllib.parse.quote(clean_en)
-        tr_url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=te&dt=t&q={q_tr}"
-        r_tr = requests.get(tr_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=2.5)
-        if r_tr.status_code == 200:
-            j_tr = r_tr.json()
-            te_out = "".join(seg[0] for seg in j_tr[0] if seg and seg[0])
-            return te_out.strip() if te_out else clean_en
-    except Exception:
-        pass
-    return clean_en
+  clean_en = str(text_en or "").strip()
+  if not clean_en:
+    return ""
+  try:
+    q_tr = urllib.parse.quote(clean_en[:900])
+    tr_url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=te&dt=t&q={q_tr}"
+    r_tr = requests.get(
+        tr_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=3.0
+    )
+    if r_tr.status_code == 200:
+      j_tr = r_tr.json()
+      te_out = "".join(seg[0] for seg in j_tr[0] if seg and seg[0])
+      return te_out.strip() if te_out else clean_en
+  except Exception:
+    pass
+  return clean_en
 
 
 def _translate_batch_to_telugu(texts_list):
-    """Multiple headlines ni parallel ga 0.5 sec lo Telugu loki translate chestundi"""
-    if not texts_list:
-        return {}
-    unique_texts = list(dict.fromkeys([t for t in texts_list if t]))
-    out_map = {}
-    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as ex:
-        futs = {ex.submit(_translate_to_telugu, t): t for t in unique_texts}
-        for f in concurrent.futures.as_completed(futs):
-            orig_t = futs[f]
+  if not texts_list:
+    return {}
+  unique_texts = list(dict.fromkeys([t for t in texts_list if t]))
+  out_map = {}
+  with concurrent.futures.ThreadPoolExecutor(max_workers=10) as ex:
+    futs = {ex.submit(_translate_to_telugu, t): t for t in unique_texts}
+    for f in concurrent.futures.as_completed(futs):
+      orig_t = futs[f]
+      try:
+        out_map[orig_t] = f.result()
+      except Exception:
+        out_map[orig_t] = _clean_en_headline(orig_t)
+  return out_map
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_live_stock_news_batch(symbols_tuple, max_age_hours=36):
+  """Fetches fresh news + full multi-point description for active stocks."""
+  now_utc = datetime.now(ZoneInfo("UTC"))
+  unique_syms = tuple(dict.fromkeys(symbols_tuple))
+
+  def _fetch_one(fetch_sym):
+    clean_sym = str(fetch_sym).replace(".NS", "").strip()
+    headlines = []
+
+    # 1. Google News RSS (Title + Full Description bullets)
+    try:
+      q = urllib.parse.quote(f'"{clean_sym}" share OR stock NSE when:2d')
+      rss_url = (
+          f"https://news.google.com/rss/search?q={q}&hl=en-IN&gl=IN&ceid=IN:en"
+      )
+      resp = requests.get(
+          rss_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=3.5
+      )
+      if resp.status_code == 200 and resp.content:
+        root = ET.fromstring(resp.content)
+        for item in root.findall("./channel/item")[:5]:
+          title = _clean_en_headline(item.findtext("title") or "")
+          desc_raw = item.findtext("description") or ""
+          desc_clean = _strip_html_tags(desc_raw)
+          link = (item.findtext("link") or "").strip()
+          pub_str = (item.findtext("pubDate") or "").strip()
+          if not title:
+            continue
+          age_hr = 12.0
+          if pub_str:
             try:
-                out_map[orig_t] = f.result()
+              dt_pub = parsedate_to_datetime(pub_str)
+              if dt_pub.tzinfo is None:
+                dt_pub = dt_pub.replace(tzinfo=ZoneInfo("UTC"))
+              age_hr = (
+                  now_utc - dt_pub.astimezone(ZoneInfo("UTC"))
+              ).total_seconds() / 3600.0
             except Exception:
-                out_map[orig_t] = _clean_en_headline(orig_t)
-    return out_map
+              age_hr = 12.0
+          if 0 <= age_hr <= max_age_hours:
+            headlines.append((age_hr, title, desc_clean, link))
+    except Exception:
+      pass
 
-
-def run_news_vol_price_strategy(df_candidates, processed_charts, min_volx=1.2, min_move_pct=0.75):
-    """
-    Filters ONLY stocks that have:
-      1. Verified Fresh Factual News (last 36h)
-      2. Volume surge (VolX >= min_volx)
-      3. Price + VWAP + 5m Order-Flow Confirmation
-    """
-    if df_candidates is None or df_candidates.empty:
-        return pd.DataFrame(), []
-
-    active_mask = (
-        (df_candidates['VolX'] >= min_volx) &
-        ((df_candidates['Day_C'].abs() >= min_move_pct) | (df_candidates['C'].abs() >= 1.0))
-    )
-    df_pre = df_candidates[active_mask].copy()
-    if df_pre.empty:
-        return pd.DataFrame(), []
-
-    df_pre['_intensity'] = df_pre['VolX'] * (df_pre['Day_C'].abs() + df_pre['C'].abs())
-    df_pre = df_pre.sort_values('_intensity', ascending=False).head(45)
-
-    news_map = fetch_live_stock_news_batch(tuple(df_pre['Fetch_T'].tolist()))
-    if not news_map:
-        return pd.DataFrame(), []
-
-    # Translate all matched stock headlines to Telugu in one fast batch
-    raw_titles = [v['title'] for v in news_map.values() if v and v.get('title')]
-    te_map = _translate_batch_to_telugu(raw_titles)
-
-    matched_rows = []
-    feed_records = []
-    stock_flash_list = []
-
-    for idx, row in df_pre.iterrows():
-        ft = row['Fetch_T']
-        if ft not in news_map:
-            continue
-
-        n_info = news_map[ft]
-        ltp = float(row['P'])
-        vwap = float(row['VWAP'])
-        open_p = float(row['O'])
-        prev_c = float(row['Prev_C'])
-        day_c = float(row['Day_C'])
-        net_c = float(row['C'])
-        vol_x = float(row['VolX'])
-        w_ema10 = float(row['W_EMA10'])
-
-        df_5m = processed_charts.get(ft, pd.DataFrame())
-        intra_ema10 = float(df_5m['EMA_10'].iloc[-1]) if (not df_5m.empty and 'EMA_10' in df_5m.columns) else vwap
-        vwap_live = float(df_5m['VWAP'].iloc[-1]) if (not df_5m.empty and 'VWAP' in df_5m.columns) else vwap
-
-        is_bull_price = (ltp > vwap_live) and (ltp >= intra_ema10) and (day_c >= min_move_pct or net_c >= 1.2)
-        is_bear_price = (ltp < vwap_live) and (ltp <= intra_ema10) and (day_c <= -min_move_pct or net_c <= -1.2)
-
-        if not (is_bull_price or is_bear_price):
-            continue
-
-        score = 55
-        if vol_x >= 2.5: score += 18
-        elif vol_x >= 1.8: score += 13
-        elif vol_x >= 1.3: score += 8
-
-        if abs(day_c) >= 2.5: score += 12
-        elif abs(day_c) >= 1.5: score += 8
-        else: score += 4
-
-        if n_info['age_h'] <= 6.0: score += 8
-        elif n_info['age_h'] <= 18.0: score += 5
-
-        cat_tag = n_info['tag']
-        bias = n_info['bias']
-
-        if is_bull_price:
-            side_icon = "📰 News BUY"
-            if bias == 1:
-                score += 10
-            elif bias == -1:
-                cat_tag = "📰Short-Squeeze🔥"
-                score += 6
-            if ltp > w_ema10:
-                score += 4
-        else:
-            side_icon = "📰 News SELL"
-            if bias == -1:
-                score += 10
-            elif bias == 1 and open_p > prev_c * 1.005:
-                cat_tag = "📰Sell-The-News🩸"
-                score += 8
-            if ltp < w_ema10:
-                score += 4
-
-        final_prob = min(99, int(score))
-        te_headline = te_map.get(n_info['title'], _clean_en_headline(n_info['title']))
-
-        row_copy = row.copy()
-        row_copy['Strategy_Icon'] = side_icon
-        row_copy['AI_Prob'] = final_prob
-        row_copy['S'] = max(int(row_copy.get('S', 10)), int(final_prob // 3))
-        row_copy['AlphaTag'] = f"{cat_tag} ({n_info['age_h']:.0f}h) | {row_copy.get('AlphaTag', '')}".strip(" |")
-        row_copy['News_Headline'] = te_headline
-        row_copy['News_Cat'] = cat_tag
-        row_copy['News_Age'] = f"{n_info['age_h']:.1f}గం. క్రితం"
-        row_copy['News_Link'] = n_info['link']
-        matched_rows.append(row_copy)
-
-        sig_txt = "🟢 BUY" if is_bull_price else "🔴 SELL"
-        feed_records.append({
-            "Stock": row['T'],
-            "Signal": sig_txt,
-            "Catalyst": cat_tag,
-            "LTP": ltp,
-            "Day%": day_c,
-            "VolX": vol_x,
-            "Score": final_prob,
-            "Age": f"{n_info['age_h']:.1f}గం. క్రితం",
-            "Headline_TE": te_headline,
-            "Headline_EN": _clean_en_headline(n_info['title']),
-            "Link": n_info['link']
-        })
-
-        # Self-contained, crystal-clear Flash News item for the Top Live Bar
-        if _is_clear_factual_news(n_info['title']):
-            sig_col_hex = "#3fb950" if is_bull_price else "#ff5252"
-            stock_flash_list.append(
-                f"🚨 <b style='color:#00BFFF;'>{row['T']}</b> "
-                f"<span style='color:{sig_col_hex};font-weight:bold;'>({day_c:+.1f}%, Vol {vol_x:.1f}x | {sig_txt})</span>: "
-                f"<b style='color:#ffd700;'>{_html.escape(te_headline)}</b>"
+    # 2. Fallback: yfinance Ticker.news (Title + Summary)
+    if not headlines:
+      try:
+        yf_news = yf.Ticker(fetch_sym).news or []
+        for n_item in yf_news[:4]:
+          if isinstance(n_item, dict) and isinstance(
+              n_item.get("content"), dict
+          ):
+            c_obj = n_item["content"]
+            title = _clean_en_headline(c_obj.get("title", ""))
+            summary = _strip_html_tags(
+                c_obj.get("summary") or c_obj.get("description") or ""
             )
+            link = str((c_obj.get("canonicalUrl") or {}).get("url", "")).strip()
+            pub_iso = c_obj.get("pubDate", "")
+            age_hr = 12.0
+            if pub_iso:
+              try:
+                dt_pub = pd.to_datetime(pub_iso, utc=True).to_pydatetime()
+                age_hr = (now_utc - dt_pub).total_seconds() / 3600.0
+              except Exception:
+                age_hr = 12.0
+          else:
+            title = _clean_en_headline(n_item.get("title", ""))
+            summary = _strip_html_tags(n_item.get("summary", ""))
+            link = str(n_item.get("link", "")).strip()
+            ts = n_item.get("providerPublishTime", 0)
+            age_hr = (
+                ((now_utc.timestamp() - float(ts)) / 3600.0) if ts else 12.0
+            )
+          if title and (0 <= age_hr <= max_age_hours):
+            headlines.append((age_hr, title, summary, link))
+      except Exception:
+        pass
 
-    if stock_flash_list:
-        _SS['latest_stock_flash_te'] = stock_flash_list[:5]
+    if not headlines:
+      return fetch_sym, None
 
-    if not matched_rows:
-        return pd.DataFrame(), []
+    headlines.sort(key=lambda x: x[0])
+    best_age, best_title, best_desc, best_link = headlines[0]
+    cat_tag, sentiment_bias = _classify_headline(best_title)
 
-    df_out = pd.DataFrame(matched_rows).sort_values(by=['AI_Prob', 'VolX'], ascending=[False, False])
-    feed_records.sort(key=lambda x: (-x['Score'], -x['VolX']))
-    return df_out, feed_records
+    if sentiment_bias == 0 and len(headlines) > 1:
+      for age_h, t_str, d_str, l_str in headlines[1:]:
+        c_tag, s_bias = _classify_headline(t_str)
+        if s_bias != 0:
+          best_age, best_title, best_desc, best_link = (
+              age_h,
+              t_str,
+              d_str,
+              l_str,
+          )
+          cat_tag, sentiment_bias = c_tag, s_bias
+          break
+
+    # Build Full Details (Combine extra distinct headlines + description)
+    extra_points = []
+    if best_desc and best_desc.lower() != best_title.lower():
+      for seg in best_desc.split(" • "):
+        if seg.lower() not in best_title.lower() and seg not in extra_points:
+          extra_points.append(seg)
+    for _, t_other, _, _ in headlines[1:4]:
+      if (
+          t_other.lower() != best_title.lower()
+          and t_other not in extra_points
+          and _is_clear_factual_news(t_other)
+      ):
+        extra_points.append(t_other)
+
+    details_en = ". ".join(extra_points[:2]).strip()
+
+    return fetch_sym, {
+        "title": best_title,
+        "details_en": details_en,
+        "link": (
+            best_link
+            or f"https://www.google.com/search?q={clean_sym}+share+news&tbm=nws"
+        ),
+        "age_h": round(max(0.1, best_age), 1),
+        "tag": cat_tag,
+        "bias": sentiment_bias,
+        "count": len(headlines),
+    }
+
+  out = {}
+  with concurrent.futures.ThreadPoolExecutor(max_workers=12) as ex:
+    futs = [ex.submit(_fetch_one, s) for s in unique_syms]
+    for f in concurrent.futures.as_completed(futs):
+      try:
+        k, val = f.result()
+        if val is not None:
+          out[k] = val
+      except Exception:
+        continue
+  return out
+
+
+def run_news_vol_price_strategy(
+    df_candidates, processed_charts, min_volx=1.2, min_move_pct=0.75
+):
+  """Filters ONLY unique stocks with Fresh News + Volume surge + Price/VWAP confirmation."""
+  if df_candidates is None or df_candidates.empty:
+    return pd.DataFrame(), []
+
+  # Strict Deduplication so PIDILITIND or any stock NEVER appears twice
+  df_clean_cand = df_candidates.drop_duplicates(
+      subset=["T"], keep="first"
+  ).copy()
+
+  active_mask = (df_clean_cand["VolX"] >= min_volx) & (
+      (df_clean_cand["Day_C"].abs() >= min_move_pct)
+      | (df_clean_cand["C"].abs() >= 1.0)
+  )
+  df_pre = df_clean_cand[active_mask].copy()
+  if df_pre.empty:
+    return pd.DataFrame(), []
+
+  df_pre["_intensity"] = df_pre["VolX"] * (
+      df_pre["Day_C"].abs() + df_pre["C"].abs()
+  )
+  df_pre = (
+      df_pre.sort_values("_intensity", ascending=False)
+      .drop_duplicates(subset=["T"], keep="first")
+      .head(45)
+  )
+
+  news_map = fetch_live_stock_news_batch(tuple(df_pre["Fetch_T"].tolist()))
+  if not news_map:
+    return pd.DataFrame(), []
+
+  texts_to_tr = []
+  for v in news_map.values():
+    if v:
+      if v.get("title"):
+        texts_to_tr.append(v["title"])
+      if v.get("details_en"):
+        texts_to_tr.append(v["details_en"])
+  te_map = _translate_batch_to_telugu(texts_to_tr)
+
+  matched_rows = []
+  feed_records = []
+  stock_flash_list = []
+  seen_stocks = set()
+
+  for _, row in df_pre.iterrows():
+    stk_name = str(row["T"]).strip()
+    ft = row["Fetch_T"]
+    if stk_name in seen_stocks or ft not in news_map:
+      continue
+
+    n_info = news_map[ft]
+    ltp = float(row["P"])
+    vwap = float(row["VWAP"])
+    open_p = float(row["O"])
+    prev_c = float(row["Prev_C"])
+    day_c = float(row["Day_C"])
+    net_c = float(row["C"])
+    vol_x = float(row["VolX"])
+    w_ema10 = float(row["W_EMA10"])
+    high_52w = float(row.get("High52W", ltp))
+
+    df_5m = processed_charts.get(ft, pd.DataFrame())
+    intra_ema10 = (
+        float(df_5m["EMA_10"].iloc[-1])
+        if (not df_5m.empty and "EMA_10" in df_5m.columns)
+        else vwap
+    )
+    vwap_live = (
+        float(df_5m["VWAP"].iloc[-1])
+        if (not df_5m.empty and "VWAP" in df_5m.columns)
+        else vwap
+    )
+
+    is_bull_price = (
+        (ltp > vwap_live)
+        and (ltp >= intra_ema10)
+        and (day_c >= min_move_pct or net_c >= 1.2)
+    )
+    is_bear_price = (
+        (ltp < vwap_live)
+        and (ltp <= intra_ema10)
+        and (day_c <= -min_move_pct or net_c <= -1.2)
+    )
+
+    if not (is_bull_price or is_bear_price):
+      continue
+
+    seen_stocks.add(stk_name)
+
+    score = 55
+    if vol_x >= 2.5:
+      score += 18
+    elif vol_x >= 1.8:
+      score += 13
+    elif vol_x >= 1.3:
+      score += 8
+
+    if abs(day_c) >= 2.5:
+      score += 12
+    elif abs(day_c) >= 1.5:
+      score += 8
+    else:
+      score += 4
+
+    if n_info["age_h"] <= 6.0:
+      score += 8
+    elif n_info["age_h"] <= 18.0:
+      score += 5
+
+    cat_tag = n_info["tag"]
+    bias = n_info["bias"]
+
+    if is_bull_price:
+      side_icon = "📰 News BUY"
+      if bias == 1:
+        score += 10
+      elif bias == -1:
+        cat_tag = "📰Short-Squeeze🔥"
+        score += 6
+      if ltp > w_ema10:
+        score += 4
+    else:
+      side_icon = "📰 News SELL"
+      if bias == -1:
+        score += 10
+      elif bias == 1 and open_p > prev_c * 1.005:
+        cat_tag = "📰Sell-The-News🩸"
+        score += 8
+      if ltp < w_ema10:
+        score += 4
+
+    final_prob = min(99, int(score))
+    te_headline = te_map.get(
+        n_info["title"], _clean_en_headline(n_info["title"])
+    )
+    te_details = (
+        te_map.get(n_info["details_en"], "") if n_info.get("details_en") else ""
+    )
+
+    # Build Rich Telugu Market Context for Full Details
+    vwap_status = (
+        f"VWAP (₹{vwap_live:.1f}) పైన బుల్లిష్‌గా"
+        if ltp >= vwap_live
+        else f"VWAP (₹{vwap_live:.1f}) కింద బేరిష్‌గా"
+    )
+    pb_52 = ((high_52w - ltp) / high_52w * 100.0) if high_52w > 0 else 0.0
+    mkt_summary_te = (
+        f"📊 మార్కెట్ విశ్లేషణ: ప్రస్తుతం ₹{ltp:.2f} వద్ద ({day_c:+.2f}%),"
+        f" సాధారణం కంటే {vol_x:.1f}x రెట్ల అధిక వాల్యూమ్‌తో {vwap_status}"
+        f" ట్రేడ్ అవుతోంది (52W గరిష్టం ₹{high_52w:.1f} నుండి {pb_52:.1f}% దూరం)."
+    )
+
+    row_copy = row.copy()
+    row_copy["Strategy_Icon"] = side_icon
+    row_copy["AI_Prob"] = final_prob
+    row_copy["S"] = max(int(row_copy.get("S", 10)), int(final_prob // 3))
+    row_copy["AlphaTag"] = (
+        f"{cat_tag} ({n_info['age_h']:.0f}h) | {row_copy.get('AlphaTag', '')}".strip(
+            " |"
+        )
+    )
+    row_copy["News_Headline"] = te_headline
+    row_copy["News_Cat"] = cat_tag
+    row_copy["News_Age"] = f"{n_info['age_h']:.1f}గం. క్రితం"
+    row_copy["News_Link"] = n_info["link"]
+    matched_rows.append(row_copy)
+
+    sig_txt = "🟢 BUY" if is_bull_price else "🔴 SELL"
+    feed_records.append({
+        "Stock": stk_name,
+        "Signal": sig_txt,
+        "Catalyst": cat_tag,
+        "LTP": ltp,
+        "Day%": day_c,
+        "VolX": vol_x,
+        "Score": final_prob,
+        "Age": f"{n_info['age_h']:.1f}గం. క్రితం",
+        "Headline_TE": te_headline,
+        "Details_TE": te_details,
+        "Mkt_TE": mkt_summary_te,
+        "Headline_EN": _clean_en_headline(n_info["title"]),
+        "Link": n_info["link"],
+    })
+
+    if _is_clear_factual_news(n_info["title"]):
+      sig_col_hex = "#3fb950" if is_bull_price else "#ff5252"
+      stock_flash_list.append(
+          f"🚨 <b style='color:#00BFFF;'>{stk_name}</b> <span"
+          f" style='color:{sig_col_hex};font-weight:bold;'>({day_c:+.1f}%, Vol"
+          f" {vol_x:.1f}x | {sig_txt})</span>: <b"
+          f" style='color:#ffd700;'>{_html.escape(te_headline)}</b>"
+      )
+
+  if stock_flash_list:
+    _SS["latest_stock_flash_te"] = stock_flash_list[:5]
+
+  if not matched_rows:
+    return pd.DataFrame(), []
+
+  df_out = (
+      pd.DataFrame(matched_rows)
+      .drop_duplicates(subset=["T"], keep="first")
+      .sort_values(by=["AI_Prob", "VolX"], ascending=[False, False])
+  )
+  feed_records.sort(key=lambda x: (-x["Score"], -x["VolX"]))
+  return df_out, feed_records
 
 
 def render_news_catalyst_banner(feed_records):
-    """Renders Wide Telugu Breaking News + Volume + Price Table (58% Width for Telugu Headline)"""
-    if not feed_records:
-        return ""
-    rows_html = ""
-    for i, r in enumerate(feed_records):
-        bg = "row-dark" if i % 2 == 0 else "row-light"
-        sig_col = "text-green" if "BUY" in r['Signal'] else "text-red"
-        day_col = "text-green" if r['Day%'] >= 0 else "text-red"
-        safe_te = _html.escape(r.get('Headline_TE') or r.get('Headline', ''))
-        safe_en = _html.escape(r.get('Headline_EN', ''))
-        rows_html += (
-            f"<tr class='{bg}'>"
-            f"<td class='t-symbol' style='font-size:13px;'><a href='https://in.tradingview.com/chart/?symbol=NSE:{r['Stock']}' target='_blank'>{r['Stock']}</a><br>"
-            f"<span style='color:#8b949e;font-size:10.5px;'>{r['Age']}</span></td>"
-            f"<td class='{sig_col}' style='font-size:12.5px;'><b>{r['Signal']}</b><br>"
-            f"<span style='color:#ffd700;font-size:11px;'>{r['Catalyst']}</span></td>"
-            f"<td style='font-size:12.5px;'><b>₹{r['LTP']:.1f}</b><br>"
-            f"<span class='{day_col}'>{r['Day%']:+.2f}%</span></td>"
-            f"<td style='font-size:12px;'><b style='color:#00BFFF;'>{r['VolX']:.1f}x</b><br>"
-            f"<span style='color:#3fb950;'>AI: {r['Score']}%</span></td>"
-            f"<td style='text-align:left;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;"
-            f"line-height:1.45;font-size:13.5px;padding:8px 10px;' title='{safe_en}'>"
-            f"<a href='{r['Link']}' target='_blank' style='color:#ffffff;font-weight:bold;border-bottom:none;'>"
-            f"📰 {safe_te} <span style='color:#58a6ff;font-size:11.5px;'>[పూర్తి వార్త 🔗]</span></a></td>"
-            f"</tr>"
-        )
-    return (
-        "<table class='term-table' style='table-layout:fixed;width:100%;'><thead>"
-        "<tr><th colspan='5' class='term-head-brd' style='background:#1f6feb;font-size:14px;padding:8px 12px;'>"
-        "📰 లైవ్ స్టాక్ బ్రేకింగ్ న్యూస్ + వాల్యూమ్ + ప్రైస్ స్కానర్ (తెలుగులో పూర్తి వివరాలు)</th></tr>"
-        "<tr style='background:#21262d;font-size:12px;'>"
-        "<th style='width:11%;text-align:left;padding-left:8px;'>స్టాక్ (TIME)</th>"
-        "<th style='width:13%;'>సిగ్నల్ & రకం</th>"
-        "<th style='width:10%;'>ధర (DAY%)</th>"
-        "<th style='width:9%;'>VOL / AI</th>"
-        "<th style='width:57%;text-align:left;padding-left:10px;'>📢 తెలుగు బ్రేకింగ్ న్యూస్ & స్టాక్ పై ప్రభావం (క్లిక్ చేస్తే పూర్తి వార్త ఓపెన్ అవుతుంది)</th>"
-        "</tr></thead><tbody>" + rows_html + "</tbody></table>"
+  """Renders Professional Wide Telugu Breaking News Table (65% Width for Full Telugu Details)"""
+  if not feed_records:
+    return ""
+  rows_html = ""
+  seen = set()
+  for r in feed_records:
+    stk = r["Stock"]
+    if stk in seen:
+      continue
+    seen.add(stk)
+
+    pill_cls = "pro-pill-buy" if "BUY" in r["Signal"] else "pro-pill-sell"
+    day_col = "#3fb950" if r["Day%"] >= 0 else "#f85149"
+    safe_te = _html.escape(r.get("Headline_TE", ""))
+    safe_dtl = _html.escape(r.get("Details_TE", ""))
+    safe_mkt = _html.escape(r.get("Mkt_TE", ""))
+    safe_en = _html.escape(r.get("Headline_EN", ""))
+
+    dtl_block = (
+        f"<div class='pro-news-dtl'>🔹 <b>అదనపు వివరాలు:</b> {safe_dtl}</div>"
+        if safe_dtl
+        else ""
     )
+    mkt_block = f"<div class='pro-news-mkt'>{safe_mkt}</div>"
+
+    rows_html += (
+        "<tr><td>"
+        "<a class='pro-stk-badge'"
+        f" href='https://in.tradingview.com/chart/?symbol=NSE:{stk}'"
+        f" target='_blank'>{stk} ↗</a>"
+        f"<div style='color:#8b949e;font-size:11px;margin-top:5px;'>⏱"
+        f" {r['Age']}</div>"
+        "</td>"
+        "<td>"
+        f"<span class='{pill_cls}'>{r['Signal']}</span><br>"
+        f"<span class='pro-cat-tag'>{r['Catalyst']}</span>"
+        "</td>"
+        "<td>"
+        f"<div style='font-size:13.5px;font-weight:700;color:#ffffff;'>₹{r['LTP']:,.2f}</div>"
+        f"<div style='font-size:12px;font-weight:700;color:{day_col};'>{r['Day%']:+.2f}%</div>"
+        "</td>"
+        "<td>"
+        f"<div style='font-size:13px;font-weight:700;color:#38bdf8;'>{r['VolX']:.1f}x</div>"
+        "<div style='font-size:11.5px;color:#3fb950;font-weight:600;'>AI:"
+        f" {r['Score']}%</div>"
+        "</td>"
+        f"<td title='{safe_en}'>"
+        f"<div class='pro-news-hl'>📰 {safe_te}</div>"
+        f"{dtl_block}"
+        f"{mkt_block}"
+        "<div style='margin-top:5px;'><a href='{0}' target='_blank'"
+        " style='color:#58a6ff;font-size:11.5px;text-decoration:none;font-weight:600;'>🔗"
+        " పూర్తి కథనం చదవండి (Source: {1}) ↗</a></div>"
+        "</td></tr>".format(r["Link"], safe_en[:75] + "...")
+    )
+  return (
+      "<div class='pro-news-wrap'><div class='pro-news-hdr'"
+      " style='background:linear-gradient(90deg, #0f2942 0%, #0d1117"
+      " 100%);border-left:4px solid #38bdf8;'><span>📰 లైవ్ స్టాక్ బ్రేకింగ్"
+      " న్యూస్ + వాల్యూమ్ + ప్రైస్ స్కానర్ (తెలుగులో పూర్తి"
+      " వివరాలు)</span><span"
+      " style='font-size:12px;color:#79c0ff;background:#161b22;padding:2px"
+      " 9px;border-radius:12px;border:1px solid"
+      f" #30363d;'>{len(seen)} స్టాక్స్</span></div><table"
+      " class='pro-news-table'><thead><tr><th style='width:9%;'>స్టాక్"
+      " (TIME)</th><th style='width:11%;'>సిగ్నల్ & రకం</th><th"
+      " style='width:8%;'>ధర (DAY%)</th><th style='width:7%;'>VOL / AI</th><th"
+      " style='width:65%;'>📢 తెలుగు బ్రేకింగ్ న్యూస్ & పూర్తి వివరాలు"
+      " (హెడ్‌లైన్ + అదనపు సమాచారం + మార్కెట్ డేటా)</th></tr></thead><tbody>"
+      + rows_html
+      + "</tbody></table></div>"
+  )
 
 
 @st.cache_data(ttl=240, show_spinner=False)
 def _fetch_market_news_raw():
-    """Fetches & Translates Indian Stock Market, Global Market & Corporate Earnings News into Telugu"""
-    now_utc = datetime.now(ZoneInfo("UTC"))
-    queries = {
-        "india": '("Nifty" OR "Sensex" OR "RBI" OR "SEBI" OR "FII" OR "GST" OR "Indian economy" OR "Rupee") when:1d',
-        "global": '("Wall Street" OR "Dow Jones" OR "Nasdaq" OR "US Fed" OR "Crude oil" OR "Gold price" OR "Asian markets") when:1d',
-        "stocks": '("net profit" OR "order win" OR "bagged order" OR "Q1" OR "Q2" OR "Q3" OR "Q4" OR "dividend" OR "acquires" OR "USFDA") NSE when:1d'
-    }
-    out = {"india": [], "global": [], "stocks": []}
+  """Fetches & Translates Q-Results/Corporate, Indian & Global Market News with Stock Extraction & Deduplication"""
+  now_utc = datetime.now(ZoneInfo("UTC"))
+  queries = {
+      "india": (
+          '("Nifty" OR "Sensex" OR "RBI" OR "SEBI" OR "FII" OR "GST" OR "Indian'
+          ' economy" OR "Rupee") when:1d'
+      ),
+      "global": (
+          '("Wall Street" OR "Dow Jones" OR "Nasdaq" OR "US Fed" OR "Crude oil"'
+          ' OR "Gold price" OR "Asian markets") when:1d'
+      ),
+      "stocks": (
+          '("net profit" OR "order win" OR "bagged order" OR "Q1" OR "Q2" OR'
+          ' "Q3" OR "Q4" OR "dividend" OR "acquires" OR "USFDA") NSE when:2d'
+      ),
+  }
+  out = {"india": [], "global": [], "stocks": []}
 
-    def _pull_rss(key, q_str, limit_n=12):
-        items_list = []
-        try:
-            q = urllib.parse.quote(q_str)
-            url = f"https://news.google.com/rss/search?q={q}&hl=en-IN&gl=IN&ceid=IN:en"
-            r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=4.0)
-            if r.status_code == 200 and r.content:
-                root = ET.fromstring(r.content)
-                for it in root.findall("./channel/item"):
-                    raw_title = (it.findtext("title") or "").strip()
-                    link = (it.findtext("link") or "").strip()
-                    pub_s = (it.findtext("pubDate") or "").strip()
-                    clean_t = _clean_en_headline(raw_title)
-                    if not _is_clear_factual_news(clean_t):
-                        continue
-                    age_h = 4.0
-                    if pub_s:
-                        try:
-                            dt_p = parsedate_to_datetime(pub_s)
-                            if dt_p.tzinfo is None:
-                                dt_p = dt_p.replace(tzinfo=ZoneInfo("UTC"))
-                            age_h = max(0.1, (now_utc - dt_p.astimezone(ZoneInfo("UTC"))).total_seconds() / 3600.0)
-                        except Exception:
-                            age_h = 4.0
-                    if age_h <= 30.0:
-                        tag, bias = _classify_headline(clean_t)
-                        items_list.append({
-                            "title_en": clean_t,
-                            "link": link,
-                            "age_h": round(age_h, 1),
-                            "tag": tag,
-                            "bias": bias
-                        })
-                        if len(items_list) >= limit_n:
-                            break
-        except Exception:
-            pass
-        items_list.sort(key=lambda x: x["age_h"])
-        return key, items_list
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as ex:
-        futs = [ex.submit(_pull_rss, k, q, 10) for k, q in queries.items()]
-        for f in concurrent.futures.as_completed(futs):
+  def _pull_rss(key, q_str, limit_n=14):
+    items_by_key = {}
+    try:
+      q = urllib.parse.quote(q_str)
+      url = (
+          f"https://news.google.com/rss/search?q={q}&hl=en-IN&gl=IN&ceid=IN:en"
+      )
+      r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=4.0)
+      if r.status_code == 200 and r.content:
+        root = ET.fromstring(r.content)
+        for it in root.findall("./channel/item"):
+          raw_title = (it.findtext("title") or "").strip()
+          desc_clean = _strip_html_tags(it.findtext("description") or "")
+          link = (it.findtext("link") or "").strip()
+          pub_s = (it.findtext("pubDate") or "").strip()
+          clean_t = _clean_en_headline(raw_title)
+          if not _is_clear_factual_news(clean_t):
+            continue
+          age_h = 4.0
+          if pub_s:
             try:
-                k, lst = f.result()
-                out[k] = lst
+              dt_p = parsedate_to_datetime(pub_s)
+              if dt_p.tzinfo is None:
+                dt_p = dt_p.replace(tzinfo=ZoneInfo("UTC"))
+              age_h = max(
+                  0.1,
+                  (now_utc - dt_p.astimezone(ZoneInfo("UTC"))).total_seconds()
+                  / 3600.0,
+              )
             except Exception:
-                pass
+              age_h = 4.0
+          if age_h <= 36.0:
+            tag, bias = _classify_headline(clean_t)
+            stk_sym, is_nse = _extract_stock_from_headline(clean_t)
+            if key == "india" and not is_nse:
+              stk_sym = "🇮🇳 INDIA MKT"
+            elif key == "global" and not is_nse:
+              stk_sym = "🌍 GLOBAL"
 
-    all_en = [it["title_en"] for k in ("india", "global", "stocks") for it in out[k]]
-    te_dict = _translate_batch_to_telugu(all_en)
-    for k in ("india", "global", "stocks"):
-        for it in out[k]:
-            it["title"] = te_dict.get(it["title_en"], it["title_en"])
-    return out
+            # Deduplicate by stock symbol (or first 35 chars for general macro news)
+            dedup_k = (
+                stk_sym
+                if (
+                    is_nse
+                    or stk_sym not in ("NSE CORP", "🇮🇳 INDIA MKT", "🌍 GLOBAL")
+                )
+                else clean_t[:35].lower()
+            )
+            if dedup_k in items_by_key:
+              # Merge extra details into existing stock entry instead of creating a duplicate row!
+              existing = items_by_key[dedup_k]
+              if (
+                  clean_t.lower() not in existing["title_en"].lower()
+                  and clean_t not in existing["extra_en"]
+              ):
+                existing["extra_en"].append(clean_t)
+              continue
+
+            extra_pts = []
+            if desc_clean and desc_clean.lower() != clean_t.lower():
+              for seg in desc_clean.split(" • "):
+                if seg.lower() not in clean_t.lower():
+                  extra_pts.append(seg)
+
+            items_by_key[dedup_k] = {
+                "stock": stk_sym,
+                "is_nse": is_nse,
+                "title_en": clean_t,
+                "extra_en": extra_pts[:2],
+                "link": link,
+                "age_h": round(age_h, 1),
+                "tag": tag,
+                "bias": bias,
+            }
+            if len(items_by_key) >= limit_n:
+              break
+    except Exception:
+      pass
+    items_list = list(items_by_key.values())
+    items_list.sort(key=lambda x: x["age_h"])
+    return key, items_list
+
+  with concurrent.futures.ThreadPoolExecutor(max_workers=3) as ex:
+    futs = [ex.submit(_pull_rss, k, q, 12) for k, q in queries.items()]
+    for f in concurrent.futures.as_completed(futs):
+      try:
+        k, lst = f.result()
+        out[k] = lst
+      except Exception:
+        pass
+
+  all_en = []
+  for k in ("india", "global", "stocks"):
+    for it in out[k]:
+      all_en.append(it["title_en"])
+      if it.get("extra_en"):
+        it["details_en_str"] = ". ".join(it["extra_en"])
+        all_en.append(it["details_en_str"])
+      else:
+        it["details_en_str"] = ""
+
+  te_dict = _translate_batch_to_telugu(all_en)
+  for k in ("india", "global", "stocks"):
+    for it in out[k]:
+      it["title"] = te_dict.get(it["title_en"], it["title_en"])
+      it["details_te"] = (
+          te_dict.get(it["details_en_str"], "")
+          if it.get("details_en_str")
+          else ""
+      )
+  return out
 
 
 def fetch_indian_and_global_market_news():
-    """Combines Live Stock Catalyst Flash Alerts + Clear Macro/Global Telugu News for Top Live Line"""
-    base_news = _fetch_market_news_raw()
-    out = dict(base_news)
+  base_news = _fetch_market_news_raw()
+  out = dict(base_news)
 
-    flash_parts = []
-    # 1. First Priority: Live Actionable Stock Catalyst Flash News (Stock + % Move + Vol + Telugu Reason)
-    stock_flashes = _SS.get('latest_stock_flash_te', [])
-    if stock_flashes:
-        flash_parts.extend(stock_flashes[:4])
+  flash_parts = []
+  stock_flashes = _SS.get("latest_stock_flash_te", [])
+  if stock_flashes:
+    flash_parts.extend(stock_flashes[:4])
 
-    # 2. Second Priority: Clear Factual Corporate & Market Impact News in Telugu
-    macro_pool = (out.get("stocks", [])[:3] + out.get("india", [])[:2] + out.get("global", [])[:2])
-    macro_pool.sort(key=lambda x: x["age_h"])
-    for mp in macro_pool[:5]:
-        if mp["bias"] > 0:
-            imp_badge = "<span style='color:#3fb950;font-weight:bold;'>[🟢 పాజిటివ్ వార్త]</span>"
-        elif mp["bias"] < 0:
-            imp_badge = "<span style='color:#ff5252;font-weight:bold;'>[🔴 నెగటివ్ వార్త]</span>"
-        else:
-            imp_badge = "<span style='color:#00BFFF;font-weight:bold;'>[🇮🇳 మార్కెట్ అప్‌డేట్]</span>"
-        te_txt = _html.escape(mp["title"])
-        flash_parts.append(f"{imp_badge} <b style='color:#ffd700;'>{te_txt}</b> <span style='color:#79c0ff;font-size:12px;'>({mp['age_h']:.1f}గం. క్రితం)</span>")
+  macro_pool = (
+      out.get("stocks", [])[:3]
+      + out.get("india", [])[:2]
+      + out.get("global", [])[:2]
+  )
+  macro_pool.sort(key=lambda x: x["age_h"])
+  for mp in macro_pool[:5]:
+    stk_lbl = (
+        f" [{mp.get('stock', '')}]"
+        if mp.get("stock")
+        and mp.get("stock") not in ("🇮🇳 INDIA MKT", "🌍 GLOBAL", "NSE CORP")
+        else ""
+    )
+    if mp["bias"] > 0:
+      imp_badge = f"<span style='color:#3fb950;font-weight:bold;'>[🟢 పాజిటివ్{stk_lbl}]</span>"
+    elif mp["bias"] < 0:
+      imp_badge = f"<span style='color:#ff5252;font-weight:bold;'>[🔴 నెగటివ్{stk_lbl}]</span>"
+    else:
+      imp_badge = f"<span style='color:#00BFFF;font-weight:bold;'>[🇮🇳 అప్‌డేట్{stk_lbl}]</span>"
+    te_txt = _html.escape(mp["title"])
+    flash_parts.append(
+        f"{imp_badge} <b style='color:#ffd700;'>{te_txt}</b> <span"
+        f" style='color:#79c0ff;font-size:12px;'>({mp['age_h']:.1f}గం."
+        " క్రితం)</span>"
+    )
 
-    out["flash_ticker"] = " &nbsp;&nbsp;&nbsp;✦&nbsp;&nbsp;&nbsp; ".join(flash_parts)
-    return out
+  out["flash_ticker"] = " &nbsp;&nbsp;&nbsp;✦&nbsp;&nbsp;&nbsp; ".join(
+      flash_parts
+  )
+  return out
 
 
 def render_market_news_hub(df_all_stocks, processed_charts):
-    """Renders Full-Width Telugu News Hub when 'News 📰' Mode is clicked in Right 20% Panel"""
-    m_news = fetch_indian_and_global_market_news()
-    _, stock_feed = run_news_vol_price_strategy(df_all_stocks, processed_charts, min_volx=1.0, min_move_pct=0.4)
+  """Renders Professional Full-Width Telugu News Hub with Stock Names, Live Prices & Full Telugu Details"""
+  m_news = fetch_indian_and_global_market_news()
+  _, stock_feed = run_news_vol_price_strategy(
+      df_all_stocks, processed_charts, min_volx=1.0, min_move_pct=0.4
+  )
 
-    if stock_feed:
-        st.markdown(render_news_catalyst_banner(stock_feed), unsafe_allow_html=True)
+  # Price lookup for showing LTP & Day% inside Q-Results & Macro tables
+  stk_lu = {}
+  if df_all_stocks is not None and not df_all_stocks.empty:
+    stk_lu = (
+        df_all_stocks.drop_duplicates(subset=["T"])
+        .set_index("T")[["P", "Day_C", "VolX"]]
+        .to_dict("index")
+    )
 
-    def _build_wide_telugu_news_table(items, box_title, head_bg):
-        if not items:
-            return f"<div style='padding:12px;background:#161b22;border:1px solid #30363d;border-radius:6px;'>ప్రస్తుతానికి కొత్త వార్తలు లేవు ({box_title})</div>"
-        rows = ""
-        for i, it in enumerate(items):
-            bg = "row-dark" if i % 2 == 0 else "row-light"
-            if it['bias'] > 0:
-                imp = "🟢 పాజిటివ్ (Bullish)"
-                imp_col = "text-green"
-            elif it['bias'] < 0:
-                imp = "🔴 నెగటివ్ (Bearish)"
-                imp_col = "text-red"
-            else:
-                imp = "🟡 మార్కెట్ ప్రభావం"
-                imp_col = ""
-            t_te = _html.escape(it.get('title', ''))
-            t_en = _html.escape(it.get('title_en', ''))
-            rows += (
-                f"<tr class='{bg}'>"
-                f"<td style='width:16%;font-size:12.5px;font-weight:bold;' class='{imp_col}'>{imp}<br>"
-                f"<span style='color:#ffd700;font-size:11px;'>{it.get('tag', '')}</span></td>"
-                f"<td style='width:10%;color:#8b949e;font-size:12px;'>{it['age_h']}గం. క్రితం</td>"
-                f"<td style='width:74%;text-align:left;white-space:normal !important;overflow:visible !important;"
-                f"text-overflow:clip !important;line-height:1.45;font-size:13.5px;padding:8px 10px;' title='{t_en}'>"
-                f"<a href='{it['link']}' target='_blank' style='color:#ffffff;font-weight:bold;border-bottom:none;'>"
-                f"📰 {t_te} <span style='color:#58a6ff;font-size:11.5px;'>[పూర్తి వార్త 🔗]</span></a></td>"
-                f"</tr>"
-            )
-        return (
-            f"<table class='term-table' style='table-layout:fixed;width:100%;'><thead>"
-            f"<tr><th colspan='3' style='background:{head_bg};color:#fff;text-align:left;padding:8px 12px;font-size:14px;'>{box_title}</th></tr>"
-            f"<tr style='background:#21262d;font-size:12px;'>"
-            f"<th style='width:16%;'>మార్కెట్ ప్రభావం</th>"
-            f"<th style='width:10%;'>సమయం</th>"
-            f"<th style='width:74%;text-align:left;padding-left:10px;'>📢 పూర్తి వార్త సారాంశం (తెలుగులో)</th>"
-            f"</tr></thead><tbody>{rows}</tbody></table>"
+  if stock_feed:
+    st.markdown(render_news_catalyst_banner(stock_feed), unsafe_allow_html=True)
+
+  def _build_pro_news_table(
+      items, box_title, accent_col, hdr_grad, show_stock_col=True
+  ):
+    if not items:
+      return (
+          "<div class='pro-news-wrap'"
+          " style='padding:14px;color:#8b949e;'>ప్రస్తుతానికి కొత్త వార్తలు"
+          f" లేవు ({box_title})</div>"
+      )
+    rows = ""
+    seen_keys = set()
+    for it in items:
+      stk_name = str(it.get("stock", "MARKET")).strip()
+      t_en_raw = str(it.get("title_en", ""))
+      dedup_id = (
+          stk_name
+          if (
+              stk_name not in ("NSE CORP", "🇮🇳 INDIA MKT", "🌍 GLOBAL", "MARKET")
+          )
+          else t_en_raw[:40].lower()
+      )
+      if dedup_id in seen_keys:
+        continue
+      seen_keys.add(dedup_id)
+
+      if it["bias"] > 0:
+        imp_pill = "<span class='pro-pill-buy'>🟢 పాజిటివ్ (Bullish)</span>"
+      elif it["bias"] < 0:
+        imp_pill = "<span class='pro-pill-sell'>🔴 నెగటివ్ (Bearish)</span>"
+      else:
+        imp_pill = "<span class='pro-pill-neut'>🟡 మార్కెట్ ప్రభావం</span>"
+
+      t_te = _html.escape(it.get("title", ""))
+      dtl_te = _html.escape(it.get("details_te", ""))
+      t_en = _html.escape(t_en_raw)
+
+      # Live Price info if matched to NSE stock
+      p_info_html = ""
+      mkt_ctx_html = ""
+      if stk_name in stk_lu:
+        s_d = stk_lu[stk_name]
+        s_p, s_dc, s_vx = (
+            float(s_d["P"]),
+            float(s_d["Day_C"]),
+            float(s_d["VolX"]),
+        )
+        dc_col = "#3fb950" if s_dc >= 0 else "#f85149"
+        p_info_html = (
+            "<div style='margin-top:5px;font-size:12px;font-weight:700;color:#fff;'>"
+            f"₹{s_p:,.1f} <span style='color:{dc_col};'>({s_dc:+.2f}%)</span>"
+            "</div>"
+        )
+        mkt_ctx_html = (
+            f"<div class='pro-news-mkt'>📊 లైవ్ స్టాక్ డేటా: <b>{stk_name}</b>"
+            f" ప్రస్తుతం ₹{s_p:,.2f} వద్ద ({s_dc:+.2f}%), వాల్యూమ్"
+            f" <b>{s_vx:.1f}x</b> తో ట్రేడ్ అవుతోంది.</div>"
         )
 
-    if m_news.get("stocks"):
-        st.markdown(_build_wide_telugu_news_table(m_news.get("stocks", []), "🏢 కంపెనీల క్వార్టర్లీ రిజల్ట్స్ (Q-Results), ఆర్డర్లు & ముఖ్య ప్రకటనలు (తెలుగులో)", "#1e5f29"), unsafe_allow_html=True)
+      if it.get("is_nse") or stk_name in stk_lu:
+        stk_badge_html = (
+            "<a class='pro-stk-badge'"
+            f" href='https://in.tradingview.com/chart/?symbol=NSE:{stk_name}'"
+            f" target='_blank'>{stk_name} ↗</a>{p_info_html}"
+        )
+      else:
+        stk_badge_html = (
+            "<span class='pro-stk-badge'"
+            f" style='color:#e6edf3 !important;'>{_html.escape(stk_name)}</span>"
+        )
 
-    st.markdown(_build_wide_telugu_news_table(m_news.get("india", []), "🇮🇳 ఇండియన్ స్టాక్ మార్కెట్ (Nifty, RBI, SEBI, FII) ముఖ్య వార్తలు", "#0d47a1"), unsafe_allow_html=True)
-    st.markdown(_build_wide_telugu_news_table(m_news.get("global", []), "🌍 గ్లోబల్ మార్కెట్స్ (US Fed, Nasdaq, ఆసియా మార్కెట్లు, ముడి చమురు) వార్తలు", "#4a148c"), unsafe_allow_html=True)
+      dtl_html = (
+          f"<div class='pro-news-dtl'>🔹 <b>పూర్తి వివరాలు:</b> {dtl_te}</div>"
+          if dtl_te
+          else ""
+      )
+
+      rows += (
+          f"<tr><td>{stk_badge_html}</td><td>{imp_pill}<br><span"
+          f" class='pro-cat-tag'>{it.get('tag', '')}</span></td><td"
+          f" style='color:#8b949e;font-size:12px;font-weight:600;'>⏱"
+          f" {it['age_h']}గం. క్రితం</td><td title='{t_en}'><div"
+          f" class='pro-news-hl'>📰 {t_te}</div>{dtl_html}{mkt_ctx_html}<div"
+          f" style='margin-top:5px;'><a href='{it['link']}' target='_blank'"
+          " style='color:#58a6ff;font-size:11.5px;text-decoration:none;font-weight:600;'>🔗"
+          f" పూర్తి వార్త లింక్ ({t_en[:70]}...) ↗</a></div></td></tr>"
+      )
+
+    col1_lbl = (
+        "స్టాక్ / కంపెనీ (STOCK)" if show_stock_col else "విభాగం / స్టాక్"
+    )
+    return (
+        "<div class='pro-news-wrap'>"
+        f"<div class='pro-news-hdr' style='background:{hdr_grad};border-left:4px solid {accent_col};'>"
+        f"<span>{box_title}</span>"
+        f"<span style='font-size:12px;color:#c9d1d9;background:#161b22;padding:2px 9px;border-radius:12px;border:1px solid #30363d;'>{len(seen_keys)} వార్తలు</span>"
+        "</div>"
+        "<table class='pro-news-table'><thead><tr>"
+        f"<th style='width:14%;'>{col1_lbl}</th>"
+        "<th style='width:13%;'>మార్కెట్ ప్రభావం</th>"
+        "<th style='width:8%;'>సమయం</th>"
+        "<th style='width:65%;'>📢 తెలుగు బ్రేకింగ్ న్యూస్ & పూర్తి వివరాలు</th>"
+        f"</tr></thead><tbody>{rows}</tbody></table></div>"
+    )
+
+  if m_news.get("stocks"):
+    st.markdown(
+        _build_pro_news_table(
+            m_news.get("stocks", []),
+            "🏢 కంపెనీల క్వార్టర్లీ రిజల్ట్స్ (Q-Results), ఆర్డర్లు & ముఖ్య"
+            " ప్రకటనలు (స్టాక్ పేరు + పూర్తి వివరాలు)",
+            "#2ea043",
+            "linear-gradient(90deg, #112a1c 0%, #0d1117 100%)",
+            show_stock_col=True,
+        ),
+        unsafe_allow_html=True,
+    )
+
+  st.markdown(
+      _build_pro_news_table(
+          m_news.get("india", []),
+          "🇮🇳 ఇండియన్ స్టాక్ మార్కెట్ (Nifty, RBI, SEBI, FII) ముఖ్య వార్తలు &"
+          " పూర్తి వివరాలు",
+          "#38bdf8",
+          "linear-gradient(90deg, #0f2942 0%, #0d1117 100%)",
+          show_stock_col=False,
+      ),
+      unsafe_allow_html=True,
+  )
+
+  st.markdown(
+      _build_pro_news_table(
+          m_news.get("global", []),
+          "🌍 గ్లోబల్ మార్కెట్స్ (US Fed, Nasdaq, ఆసియా మార్కెట్లు, ముడి చమురు)"
+          " వార్తలు & పూర్తి వివరాలు",
+          "#a371f7",
+          "linear-gradient(90deg, #27143a 0%, #0d1117 100%)",
+          show_stock_col=False,
+      ),
+      unsafe_allow_html=True,
+  )
 
 
 @st.cache_data(ttl=600, show_spinner=False)
 def fetch_portfolio_news_and_results(port_syms_tuple):
-    """Fetches Latest News + Quarterly/Yearly Results for Portfolio Stocks & Translates to Telugu"""
-    now_utc = datetime.now(ZoneInfo("UTC"))
+  """Fetches Latest News + Quarterly/Yearly Results for Portfolio Stocks & Translates to Telugu"""
+  now_utc = datetime.now(ZoneInfo("UTC"))
 
-    def _fetch_port_one(sym):
-        clean_s = str(sym).replace(".NS", "").strip()
-        items = []
-        try:
-            q = urllib.parse.quote(f'"{clean_s}" (share OR stock OR results OR profit OR quarter OR Q1 OR Q2 OR Q3 OR Q4 OR dividend OR order OR target) when:14d')
-            url = f"https://news.google.com/rss/search?q={q}&hl=en-IN&gl=IN&ceid=IN:en"
-            r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=4.0)
-            if r.status_code == 200 and r.content:
-                root = ET.fromstring(r.content)
-                for it in root.findall("./channel/item")[:6]:
-                    raw_t = (it.findtext("title") or "").strip()
-                    title = _clean_en_headline(raw_t)
-                    link = (it.findtext("link") or "").strip()
-                    pub_s = (it.findtext("pubDate") or "").strip()
-                    if not _is_clear_factual_news(title):
-                        continue
-                    age_d = 2.0
-                    if pub_s:
-                        try:
-                            dt_p = parsedate_to_datetime(pub_s)
-                            if dt_p.tzinfo is None:
-                                dt_p = dt_p.replace(tzinfo=ZoneInfo("UTC"))
-                            age_d = max(0.05, (now_utc - dt_p.astimezone(ZoneInfo("UTC"))).total_seconds() / 86400.0)
-                        except Exception:
-                            age_d = 2.0
-                    tag, bias = _classify_headline(title)
-                    is_res = any(w in title.lower() for w in ("q1", "q2", "q3", "q4", "quarter", "net profit", "revenue", "ebitda", "fy26", "fy27", "results", "dividend"))
-                    items.append((0 if is_res else 1, age_d, title, link, tag, bias, is_res))
-        except Exception:
-            pass
-
-        if not items:
-            return clean_s, None
-        items.sort(key=lambda x: (x[0], x[1]))
-        _, best_age_d, best_t, best_l, best_tag, best_bias, is_res = items[0]
-        age_str = f"{best_age_d * 24:.0f}గం. క్రితం" if best_age_d < 1.0 else f"{best_age_d:.0f} రోజుల క్రితం"
-        return clean_s, {
-            "title_en": best_t,
-            "title": _translate_to_telugu(best_t),
-            "link": best_l,
-            "age": age_str,
-            "tag": "📊 Qtr/Yr Result" if (is_res and best_tag == "📰News-Buzz") else best_tag,
-            "bias": best_bias,
-            "is_result": is_res
-        }
-
-    out = {}
-    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as ex:
-        futs = [ex.submit(_fetch_port_one, s) for s in port_syms_tuple]
-        for f in concurrent.futures.as_completed(futs):
+  def _fetch_port_one(sym):
+    clean_s = str(sym).replace(".NS", "").strip()
+    items = []
+    try:
+      q = urllib.parse.quote(
+          f'"{clean_s}" (share OR stock OR results OR profit OR quarter OR Q1'
+          " OR Q2 OR Q3 OR Q4 OR dividend OR order OR target) when:14d"
+      )
+      url = (
+          f"https://news.google.com/rss/search?q={q}&hl=en-IN&gl=IN&ceid=IN:en"
+      )
+      r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=4.0)
+      if r.status_code == 200 and r.content:
+        root = ET.fromstring(r.content)
+        for it in root.findall("./channel/item")[:6]:
+          raw_t = (it.findtext("title") or "").strip()
+          title = _clean_en_headline(raw_t)
+          desc_c = _strip_html_tags(it.findtext("description") or "")
+          link = (it.findtext("link") or "").strip()
+          pub_s = (it.findtext("pubDate") or "").strip()
+          if not _is_clear_factual_news(title):
+            continue
+          age_d = 2.0
+          if pub_s:
             try:
-                k, v = f.result()
-                if v:
-                    out[k] = v
+              dt_p = parsedate_to_datetime(pub_s)
+              if dt_p.tzinfo is None:
+                dt_p = dt_p.replace(tzinfo=ZoneInfo("UTC"))
+              age_d = max(
+                  0.05,
+                  (now_utc - dt_p.astimezone(ZoneInfo("UTC"))).total_seconds()
+                  / 86400.0,
+              )
             except Exception:
-                pass
-    return out
+              age_d = 2.0
+          tag, bias = _classify_headline(title)
+          is_res = any(
+              w in title.lower()
+              for w in (
+                  "q1",
+                  "q2",
+                  "q3",
+                  "q4",
+                  "quarter",
+                  "net profit",
+                  "revenue",
+                  "ebitda",
+                  "fy26",
+                  "fy27",
+                  "results",
+                  "dividend",
+              )
+          )
+          items.append(
+              (0 if is_res else 1, age_d, title, desc_c, link, tag, bias, is_res)
+          )
+    except Exception:
+      pass
+
+    if not items:
+      return clean_s, None
+    items.sort(key=lambda x: (x[0], x[1]))
+    _, best_age_d, best_t, best_desc, best_l, best_tag, best_bias, is_res = (
+        items[0]
+    )
+    age_str = (
+        f"{best_age_d * 24:.0f}గం. క్రితం"
+        if best_age_d < 1.0
+        else f"{best_age_d:.0f} రోజుల క్రితం"
+    )
+    return clean_s, {
+        "title_en": best_t,
+        "title": _translate_to_telugu(best_t),
+        "details_te": _translate_to_telugu(best_desc) if best_desc else "",
+        "link": best_l,
+        "age": age_str,
+        "tag": (
+            "📊 Qtr/Yr Result"
+            if (is_res and best_tag == "📰News-Buzz")
+            else best_tag
+        ),
+        "bias": best_bias,
+        "is_result": is_res,
+    }
+
+  out = {}
+  with concurrent.futures.ThreadPoolExecutor(max_workers=10) as ex:
+    futs = [ex.submit(_fetch_port_one, s) for s in port_syms_tuple]
+    for f in concurrent.futures.as_completed(futs):
+      try:
+        k, v = f.result()
+        if v:
+          out[k] = v
+      except Exception:
+        pass
+  return out
 
 
 def render_portfolio_news_and_results_table(df_port, df_stocks, weekly_trends):
-    """Renders Portfolio Stocks Daily News, Qtrly/Yearly Results (in Telugu) & Hold/Sell Decision Table"""
-    if df_port is None or df_port.empty:
-        return ""
-    stock_lookup = df_stocks.drop_duplicates(subset=['T'], keep='first').set_index('T').to_dict('index')
-    port_syms = tuple(sorted(list(set(str(r['Symbol']).upper().strip() for _, r in df_port.iterrows() if str(r.get('Symbol', '')).strip()))))
-    if not port_syms:
-        return ""
+  """Renders Professional Portfolio Stocks Daily News, Qtrly/Yearly Results (in Telugu) & Hold/Sell Decision Table"""
+  if df_port is None or df_port.empty:
+    return ""
+  stock_lookup = (
+      df_stocks.drop_duplicates(subset=["T"], keep="first")
+      .set_index("T")
+      .to_dict("index")
+  )
+  port_syms = tuple(
+      sorted(
+          list(
+              set(
+                  str(r["Symbol"]).upper().strip()
+                  for _, r in df_port.iterrows()
+                  if str(r.get("Symbol", "")).strip()
+              )
+          )
+      )
+  )
+  if not port_syms:
+    return ""
 
-    p_news_map = fetch_portfolio_news_and_results(port_syms)
+  p_news_map = fetch_portfolio_news_and_results(port_syms)
+  seen_port_syms = set()
+  rows_html = ""
 
-    html = (
-        '<table class="term-table" style="table-layout:fixed;width:100%;"><thead>'
-        '<tr><th colspan="6" class="term-head-port" style="background:#0d47a1;font-size:14px;padding:8px 12px;">'
-        '📰 నా పోర్ట్‌ఫోలియో స్టాక్స్ — తాజా వార్తలు, క్వార్టర్లీ/ఇయర్లీ రిజల్ట్స్ & HOLD / SELL సలహా (తెలుగులో)</th></tr>'
-        '<tr style="background:#21262d;font-size:12px;">'
-        '<th style="text-align:left;width:11%;padding-left:8px;">స్టాక్ (TIME)</th>'
-        '<th style="width:10%;">LTP (DAY%)</th>'
-        '<th style="width:9%;">P&L %</th>'
-        '<th style="width:13%;">రిజల్ట్ / ప్రభావం</th>'
-        '<th style="width:41%;text-align:left;padding-left:8px;">📢 తాజా వార్త / క్వార్టర్లీ రిజల్ట్ వివరాలు (తెలుగులో)</th>'
-        '<th style="width:16%;">💡 HOLD / SELL సలహా</th>'
-        '</tr></thead><tbody>'
+  for _, row in df_port.iterrows():
+    sym = str(row["Symbol"]).upper().strip()
+    if not sym or sym in seen_port_syms:
+      continue
+    seen_port_syms.add(sym)
+
+    try:
+      buy_p = float(row["Buy_Price"])
+    except Exception:
+      buy_p = 0.0
+    live_d = stock_lookup.get(sym)
+    if live_d is None:
+      continue
+    ltp = float(live_d["P"])
+    day_c = float(live_d.get("Day_C", 0))
+    pnl_pct = ((ltp - buy_p) / buy_p * 100.0) if buy_p > 0 else 0.0
+    wk_trend = weekly_trends.get(live_d["Fetch_T"], "Neutral")
+    sma50 = float(live_d.get("SMA50", 0))
+    sma200 = float(live_d.get("SMA200", 0))
+
+    n_item = p_news_map.get(sym)
+    if n_item:
+      cat_str = n_item["tag"]
+      bias = n_item["bias"]
+      dtl_sub = (
+          f"<div class='pro-news-dtl'>{_html.escape(n_item['details_te'])}</div>"
+          if n_item.get("details_te")
+          else ""
+      )
+      hl_html = (
+          f"<div class='pro-news-hl'>📰 {_html.escape(n_item['title'])}</div>{dtl_sub}"
+          f"<div style='margin-top:4px;'><a href='{n_item['link']}' target='_blank' style='color:#58a6ff;font-size:11.5px;text-decoration:none;'>🔗 పూర్తి వార్త ↗</a></div>"
+      )
+      age_s = n_item["age"]
+    else:
+      cat_str = "⚪ సాధారణ ట్రెండ్"
+      bias = 0
+      hl_html = (
+          "<span style='color:#8b949e;font-size:13px;'>గత 14 రోజుల్లో ధరను"
+          " ప్రభావితం చేసే పెద్ద వార్తలు లేవు (టెక్నికల్ ట్రెండ్ ప్రకారం"
+          " కొనసాగుతోంది)</span>"
+      )
+      age_s = "-"
+
+    if bias > 0 or (bias == 0 and day_c >= 1.5):
+      imp_pill = "<span class='pro-pill-buy'>🟢 పాజిటివ్ (+)</span>"
+    elif bias < 0 or (bias == 0 and day_c <= -1.5):
+      imp_pill = "<span class='pro-pill-sell'>🔴 నెగటివ్ (-)</span>"
+    else:
+      imp_pill = "<span class='pro-pill-neut'>🟡 న్యూట్రల్</span>"
+
+    above_lt_ma = (ltp >= sma50) or (ltp >= sma200 and sma200 > 0)
+    if bias < 0 and (wk_trend == "Bearish" or ltp < sma50):
+      advice_txt = "🔴 SELL / EXIT (నెగటివ్ వార్త + వీక్ ట్రెండ్)"
+      adv_style = "color:#f85149;font-weight:bold;font-size:12.5px;"
+    elif bias < 0 and pnl_pct > 8.0:
+      advice_txt = "⚠️ 50% లాభం బుక్ చేయండి (నెగటివ్ వార్త)"
+      adv_style = "color:#ffd700;font-weight:bold;font-size:12.5px;"
+    elif pnl_pct <= -7.0 and wk_trend == "Bearish":
+      advice_txt = "🔴 SELL / CUT LOSS (సపోర్ట్ కింద ఉంది)"
+      adv_style = "color:#f85149;font-weight:bold;font-size:12.5px;"
+    elif bias > 0 and above_lt_ma:
+      advice_txt = "🚀 STRONG HOLD / ADD (పాజిటివ్ రిజల్ట్/వార్త)"
+      adv_style = "color:#00FF00;font-weight:bold;font-size:12.5px;"
+    elif pnl_pct >= 12.0 and wk_trend == "Bullish":
+      advice_txt = "🟢 HOLD & TRAIL SL (మంచి లాభంలో ఉంది)"
+      adv_style = "color:#3fb950;font-weight:bold;font-size:12.5px;"
+    elif above_lt_ma or wk_trend == "Bullish":
+      advice_txt = "🟢 HOLD (ట్రెండ్ బాగుంది)"
+      adv_style = "color:#3fb950;font-weight:bold;font-size:12.5px;"
+    else:
+      advice_txt = "🟡 HOLD WITH SL (స్టాప్ లాస్ తో వేచి చూడండి)"
+      adv_style = "color:#ffd700;font-size:12.5px;"
+
+    d_col = "#3fb950" if day_c >= 0 else "#f85149"
+    p_col = "#3fb950" if pnl_pct >= 0 else "#f85149"
+
+    rows_html += (
+        "<tr><td><a class='pro-stk-badge'"
+        f" href='https://in.tradingview.com/chart/?symbol=NSE:{sym}'"
+        f" target='_blank'>{sym} ↗</a><div"
+        f" style='color:#8b949e;font-size:11px;margin-top:4px;'>⏱ {age_s}</div>"
+        "</td>"
+        f"<td><b style='color:#fff;'>₹{ltp:,.1f}</b><br><span"
+        f" style='color:{d_col};font-weight:700;'>({day_c:+.1f}%)</span></td>"
+        f"<td style='color:{p_col};font-weight:700;font-size:13px;'>{pnl_pct:+.2f}%</td>"
+        f"<td>{imp_pill}<br><span class='pro-cat-tag'>{cat_str}</span></td>"
+        f"<td>{hl_html}</td>"
+        f"<td style='{adv_style}'>{advice_txt}</td></tr>"
     )
 
-    for i, (_, row) in enumerate(df_port.iterrows()):
-        bg = "row-dark" if i % 2 == 0 else "row-light"
-        sym = str(row['Symbol']).upper().strip()
-        try: buy_p = float(row['Buy_Price'])
-        except: buy_p = 0.0
-        live_d = stock_lookup.get(sym)
-        if live_d is None:
-            continue
-        ltp = float(live_d['P'])
-        day_c = float(live_d.get('Day_C', 0))
-        pnl_pct = ((ltp - buy_p) / buy_p * 100.0) if buy_p > 0 else 0.0
-        wk_trend = weekly_trends.get(live_d['Fetch_T'], "Neutral")
-        sma50 = float(live_d.get('SMA50', 0))
-        sma200 = float(live_d.get('SMA200', 0))
-
-        n_item = p_news_map.get(sym)
-        if n_item:
-            cat_str = n_item['tag']
-            bias = n_item['bias']
-            hl_html = f"<a href='{n_item['link']}' target='_blank' style='color:#ffffff;font-weight:bold;border-bottom:none;'>📰 {_html.escape(n_item['title'])} <span style='color:#58a6ff;font-size:11px;'>[🔗]</span></a>"
-            age_s = n_item['age']
-        else:
-            cat_str = "⚪ సాధారణ ట్రెండ్"
-            bias = 0
-            hl_html = "<span style='color:#8b949e;'>గత 14 రోజుల్లో ధరను ప్రభావితం చేసే పెద్ద వార్తలు లేవు (టెక్నికల్ ట్రెండ్ ప్రకారం కొనసాగుతోంది)</span>"
-            age_s = "-"
-
-        if bias > 0 or (bias == 0 and day_c >= 1.5):
-            imp_str, imp_col = "🟢 పాజిటివ్ (+)", "text-green"
-        elif bias < 0 or (bias == 0 and day_c <= -1.5):
-            imp_str, imp_col = "🔴 నెగటివ్ (-)", "text-red"
-        else:
-            imp_str, imp_col = "🟡 న్యూట్రల్", ""
-
-        above_lt_ma = (ltp >= sma50) or (ltp >= sma200 and sma200 > 0)
-        if bias < 0 and (wk_trend == "Bearish" or ltp < sma50):
-            advice_txt = "🔴 SELL / EXIT (నెగటివ్ వార్త + వీక్ ట్రెండ్)"
-            adv_style = "color:#f85149;font-weight:bold;font-size:12px;"
-        elif bias < 0 and pnl_pct > 8.0:
-            advice_txt = "⚠️ 50% లాభం బుక్ చేయండి (నెగటివ్ వార్త)"
-            adv_style = "color:#ffd700;font-weight:bold;font-size:12px;"
-        elif pnl_pct <= -7.0 and wk_trend == "Bearish":
-            advice_txt = "🔴 SELL / CUT LOSS (సపోర్ట్ కింద ఉంది)"
-            adv_style = "color:#f85149;font-weight:bold;font-size:12px;"
-        elif bias > 0 and above_lt_ma:
-            advice_txt = "🚀 STRONG HOLD / ADD (పాజిటివ్ రిజల్ట్/వార్త)"
-            adv_style = "color:#00FF00;font-weight:bold;font-size:12px;"
-        elif pnl_pct >= 12.0 and wk_trend == "Bullish":
-            advice_txt = "🟢 HOLD & TRAIL SL (మంచి లాభంలో ఉంది)"
-            adv_style = "color:#3fb950;font-weight:bold;font-size:12px;"
-        elif above_lt_ma or wk_trend == "Bullish":
-            advice_txt = "🟢 HOLD (ట్రెండ్ బాగుంది)"
-            adv_style = "color:#3fb950;font-weight:bold;font-size:12px;"
-        else:
-            advice_txt = "🟡 HOLD WITH SL (స్టాప్ లాస్ తో వేచి చూడండి)"
-            adv_style = "color:#ffd700;font-size:12px;"
-
-        d_col = "text-green" if day_c >= 0 else "text-red"
-        p_col = "text-green" if pnl_pct >= 0 else "text-red"
-
-        html += (
-            f"<tr class='{bg}'>"
-            f"<td class='t-symbol' style='font-size:12.5px;padding-left:8px;'><a href='https://in.tradingview.com/chart/?symbol=NSE:{sym}' target='_blank'>{sym}</a><br>"
-            f"<span style='color:#8b949e;font-size:10px;'>{age_s}</span></td>"
-            f"<td style='font-size:12px;'><b>₹{ltp:.1f}</b><br><span class='{d_col}'>({day_c:+.1f}%)</span></td>"
-            f"<td class='{p_col}' style='font-size:12.5px;'>{pnl_pct:+.2f}%</td>"
-            f"<td class='{imp_col}' style='font-size:12px;'><b>{imp_str}</b><br><span style='color:#ffd700;font-size:10.5px;'>{cat_str}</span></td>"
-            f"<td style='text-align:left;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;"
-            f"line-height:1.45;font-size:13px;padding:7px 8px;'>{hl_html}</td>"
-            f"<td style='white-space:normal !important;{adv_style}'>{advice_txt}</td>"
-            f"</tr>"
-        )
-
-    html += "</tbody></table>"
-    return html
+  return (
+      "<div class='pro-news-wrap'><div class='pro-news-hdr'"
+      " style='background:linear-gradient(90deg, #0d47a1 0%, #0d1117"
+      " 100%);border-left:4px solid #58a6ff;'><span>📰 నా పోర్ట్‌ఫోలియో స్టాక్స్"
+      " — తాజా వార్తలు, క్వార్టర్లీ/ఇయర్లీ రిజల్ట్స్ & HOLD / SELL సలహా"
+      " (తెలుగులో)</span></div><table class='pro-news-table'><thead><tr><th"
+      " style='width:11%;'>స్టాక్ (TIME)</th><th style='width:9%;'>LTP"
+      " (DAY%)</th><th style='width:8%;'>P&L %</th><th"
+      " style='width:13%;'>రిజల్ట్ / ప్రభావం</th><th style='width:44%;'>📢 తాజా"
+      " వార్త & క్వార్టర్లీ రిజల్ట్ పూర్తి వివరాలు (తెలుగులో)</th><th"
+      " style='width:15%;'>💡 HOLD / SELL సలహా</th></tr></thead><tbody>"
+      + rows_html
+      + "</tbody></table></div>"
+  )
 ADAPTIVE_STRAT = "🧠 Adaptive Live Engine (Self-Learning)"
 _AE_COST_PCT = 0.05
 
@@ -6334,7 +7270,12 @@ def render_live_ui():
             st.info("⏸️ Data refresh is paused.")
         return
 
-    df_live = fetch_all_data().copy()
+    df_live = (
+        fetch_all_data()
+        .drop_duplicates(subset=['T'], keep='first')
+        .reset_index(drop=True)
+        .copy()
+    )
     _m_open_top = is_market_open()
 
     if not df_live.empty:
@@ -7611,8 +8552,19 @@ def render_live_ui():
                                     if not sec_df.empty:
                                         render_chart_grid(sec_df.head(6), True, "sec_top6", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
 
-                    pinned_df = df_live[df_live['Fetch_T'].isin(st.session_state.pinned_stocks)].copy()
-                    unpinned_df = df_stocks_display[~df_stocks_display['Fetch_T'].isin(pinned_df['Fetch_T'].tolist())] if not df_stocks_display.empty else pd.DataFrame()
+                    pinned_df = df_live[
+                        df_live['Fetch_T'].isin(st.session_state.pinned_stocks)
+                    ].copy()
+                    _exclude_fts = set(pinned_df['Fetch_T'].tolist())
+                    if search_stock != '-- None --':
+                      _exclude_fts.add(f'{search_stock}.NS')
+                    unpinned_df = (
+                        df_stocks_display[
+                            ~df_stocks_display['Fetch_T'].isin(_exclude_fts)
+                        ].drop_duplicates(subset=['T'], keep='first')
+                        if not df_stocks_display.empty
+                        else pd.DataFrame()
+                    )
 
                     if not pinned_df.empty and watchlist_mode != "My Portfolio 💼":
                         st.markdown("<div style='font-size:15px; font-weight:bold; margin:6px 0 4px 0; color:#ffd700;'>📌 Pinned Priority Charts</div>", unsafe_allow_html=True)
