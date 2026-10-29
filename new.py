@@ -5854,6 +5854,11 @@ def _on_filter_sort_change():
     _UI['wl_sort_col'] = None
     _UI['sort_mode'] = st.session_state.get('main_sort_sel', 'Score Wise Up ⭐')
 
+def _on_grid_radio_change():
+    sel_g = st.session_state.get('pro_grid_radio_key', 'Off')
+    st.session_state.grid_layout_mode = sel_g
+    _UI['grid_layout_mode'] = sel_g
+
 # --- MINI-CHART GRID & SINGLE CHART (DEEP BLACK, BORDERLESS, CRISP CANDLES + PRESENT CANDLE PRICE) ---
 def render_chart_grid(
     df_grid,
