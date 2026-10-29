@@ -4655,11 +4655,13 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 fig.add_trace(go.Bar(x=x_idx, y=df_chart['Volume'], marker_color=vol_colors, showlegend=False, hoverinfo='skip'), row=2, col=1)
                 fig.update_yaxes(showspikes=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, row=2, col=1)
 
-            x_full_range = [-0.6, float(n_bars) + 0.6]
+            # Mobile & Desktop lo right-side border daggara last 3-6 candles cut avvakunda dynamic right buffer
+            _right_pad = max(3.5, float(n_bars) * 0.065)
+            x_full_range = [-0.8, float(n_bars) + _right_pad]
 
             fig.update_layout(
                 autosize=True,
-                margin=dict(l=2, r=38 if show_crosshair else 6, t=2, b=16 if show_crosshair else 2),
+                margin=dict(l=2, r=38 if show_crosshair else 12, t=2, b=16 if show_crosshair else 2),
                 height=240 if show_vol else 205,
                 paper_bgcolor='#0b0e14', plot_bgcolor='#0b0e14',
                 showlegend=False, xaxis_rangeslider_visible=False,
@@ -6075,10 +6077,24 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             }}));
         }}, {{ passive: false }});
         const stageEl = container.parentElement || container;
+        let _initialScrollDone = false;
         function syncChartSize() {{
             const w = stageEl.clientWidth || container.clientWidth;
             const h = Math.max(180, (stageEl.clientHeight || container.clientHeight) - 8);
-            chart.applyOptions({{ width: w, height: h }});
+            const isMob = w < 420;
+            chart.applyOptions({{
+                width: w,
+                height: h,
+                timeScale: {{ rightOffset: isMob ? 4 : 3, barSpacing: isMob ? 3.5 : {bar_sp} }}
+            }});
+            if (!_initialScrollDone && cData.length > 0) {{
+                const visBars = isMob ? Math.min(cData.length, 55) : Math.min(cData.length, 75);
+                chart.timeScale().setVisibleLogicalRange({{
+                    from: Math.max(0, cData.length - visBars),
+                    to: cData.length + (isMob ? 4 : 2)
+                }});
+                _initialScrollDone = true;
+            }}
             renderAllDrawings();
         }}
         setTimeout(syncChartSize, 50);
