@@ -1308,7 +1308,7 @@ def process_5m_data(df_raw):
 #  5. Non-Exhaustion RSI & Extension Guard (No Top-Buying) [15 pts]
 # =========================================================
 # =========================================================
-# 📰 NEWS + VOLUME + PRICE CATALYST ENGINE (PROFESSIONAL v2)
+# 📰 NEWS + VOLUME + PRICE CATALYST ENGINE (WITH MINI-CHART POPUP)
 # =========================================================
 from email.utils import parsedate_to_datetime
 import re as _re
@@ -1317,7 +1317,7 @@ import xml.etree.ElementTree as ET
 
 NEWS_STRAT = "📰 News + Vol + Price Breakout (Only News)"
 
-# Professional News Tables CSS
+# Professional News Tables + Mini-Chart Popup CSS
 st.markdown(
     """
 <style>
@@ -1325,7 +1325,7 @@ st.markdown(
     background: #0d1117;
     border: 1px solid #262c36;
     border-radius: 10px;
-    overflow: hidden;
+    overflow: visible !important;
     margin-bottom: 18px;
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
     font-family: 'Inter', 'Noto Sans Telugu', 'Segoe UI', Roboto, sans-serif;
@@ -1339,6 +1339,7 @@ st.markdown(
     justify-content: space-between;
     align-items: center;
     border-bottom: 1px solid #262c36;
+    border-radius: 10px 10px 0 0;
     letter-spacing: 0.2px;
 }
 .pro-news-table {
@@ -1368,6 +1369,7 @@ st.markdown(
     overflow: visible !important;
     text-overflow: clip !important;
     line-height: 1.55;
+    position: relative;
 }
 .pro-news-table tr:hover td {
     background: rgba(56, 139, 253, 0.06);
@@ -1383,11 +1385,61 @@ st.markdown(
     border-radius: 6px;
     text-decoration: none !important;
     font-family: 'Consolas', monospace;
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
 }
+.pro-stk-badge::-webkit-details-marker { display: none; }
 .pro-stk-badge:hover {
     background: #1f6feb;
     color: #ffffff !important;
     border-color: #58a6ff;
+}
+/* 📈 Interactive Mini-Chart Popup Box inside News Table */
+details.mc-pop-details {
+    position: relative;
+    display: inline-block;
+}
+details.mc-pop-details[open] > summary.pro-stk-badge {
+    background: #1f6feb;
+    color: #ffffff !important;
+    border-color: #79c0ff;
+    box-shadow: 0 0 10px rgba(56, 139, 253, 0.5);
+}
+.mc-pop-card {
+    position: absolute;
+    top: 34px;
+    left: 0px;
+    width: 390px;
+    background: #0b0e14;
+    border: 1.5px solid #38bdf8;
+    border-radius: 8px;
+    padding: 8px;
+    z-index: 99999;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.92);
+}
+.mc-pop-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 4px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #161b22;
+}
+.mc-grid-btn {
+    background: #161b22;
+    border: 1px solid #30363d;
+    color: #38bdf8 !important;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 4px;
+    text-decoration: none !important;
+    font-family: monospace;
+}
+.mc-grid-btn:hover {
+    background: #1f6feb;
+    color: #ffffff !important;
 }
 .pro-pill-buy {
     display: inline-block;
@@ -1617,7 +1669,6 @@ _BEAR_CATALYSTS = [
     ),
 ]
 
-# Company Name -> NSE Symbol Map (For Q-Results & Corporate News Stock Identification)
 _COMPANY_TO_NSE = {
     "pidilite": "PIDILITIND",
     "reliance": "RELIANCE",
@@ -1778,8 +1829,283 @@ _COMPANY_TO_NSE = {
     "sun tv": "SUNTV",
     "pvr inox": "PVRINOX",
     "delhivery": "DELHIVERY",
-    "nykaa": "NYKAA",
+    "rolex rings": "ROLEXRINGS",
+    "industower": "INDUSTOWER",
+    "indus towers": "INDUSTOWER",
+    "birlasoft": "BSOFT",
+    "karnataka bank": "KTKBANK",
+    "eclerx": "ECLERX",
+    "syrma": "SYRMA",
+    "mas financial": "MASFIN",
+    "dodla": "DODLA",
+    "vaibhav global": "VAIBHAVGBL",
+    "heg ": "HEG",
 }
+
+
+def _build_mini_chart_popup_html(
+    stk_sym, stock_row=None, df_5m=None, cat_label=""
+):
+  """Builds an interactive <details> badge that opens the 5m Mini-Chart (Candles + VWAP + EMA10 + Vol) on click!"""
+  clean_sym = str(stk_sym).replace(".NS", "").strip()
+  ft = f"{clean_sym}.NS"
+
+  # Try fetching 5m data from shared store if not passed directly
+  if df_5m is None or df_5m.empty:
+    store_5m = _SS.get("5m_store", {})
+    if ft in store_5m and not store_5m[ft].empty:
+      df_5m = process_5m_data(store_5m[ft])
+
+  if df_5m is None or df_5m.empty or "Close" not in df_5m.columns:
+    return (
+        f"<a class='pro-stk-badge' href='?grid_sym={ft}' target='_self'"
+        f" title='Open {clean_sym} Mini-Chart'>{clean_sym} 📊</a>"
+    )
+
+  d = df_5m.dropna(subset=["Open", "High", "Low", "Close"]).copy()
+  if d.empty:
+    return (
+        f"<a class='pro-stk-badge' href='?grid_sym={ft}'"
+        f" target='_self'>{clean_sym} 📊</a>"
+    )
+
+  # Isolate current intraday session (last 75 bars)
+  sess_id = (d.index.to_series().diff() > pd.Timedelta(minutes=120)).cumsum()
+  d = d[sess_id == sess_id.iloc[-1]].tail(75).copy()
+  if d.empty:
+    return (
+        f"<a class='pro-stk-badge' href='?grid_sym={ft}'"
+        f" target='_self'>{clean_sym} 📊</a>"
+    )
+
+  ltp = (
+      float(stock_row["P"])
+      if (stock_row is not None and "P" in stock_row)
+      else float(d["Close"].iloc[-1])
+  )
+  day_c = (
+      float(stock_row["Day_C"])
+      if (stock_row is not None and "Day_C" in stock_row)
+      else ((ltp / float(d["Open"].iloc[0]) - 1.0) * 100.0)
+  )
+  day_h = (
+      float(stock_row["H"])
+      if (stock_row is not None and "H" in stock_row)
+      else float(d["High"].max())
+  )
+  day_l = (
+      float(stock_row["L"])
+      if (stock_row is not None and "L" in stock_row)
+      else float(d["Low"].min())
+  )
+
+  # Sync live price into last candle
+  last_i = d.index[-1]
+  d.at[last_i, "Close"] = ltp
+  if ltp > float(d.at[last_i, "High"]):
+    d.at[last_i, "High"] = ltp
+  if ltp < float(d.at[last_i, "Low"]) or float(d.at[last_i, "Low"]) <= 0:
+    d.at[last_i, "Low"] = ltp
+
+  if "VWAP" not in d.columns:
+    tp = (d["High"] + d["Low"] + d["Close"]) / 3.0
+    d["VWAP"] = tp.expanding().mean()
+  if "EMA_10" not in d.columns:
+    d["EMA_10"] = d["Close"].ewm(span=10, adjust=False).mean()
+
+  y_min = min(
+      float(d["Low"].min()), float(d["VWAP"].min()), float(d["EMA_10"].min())
+  )
+  y_max = max(
+      float(d["High"].max()), float(d["VWAP"].max()), float(d["EMA_10"].max())
+  )
+  y_rng = max(y_max - y_min, ltp * 0.002)
+  y_low = y_min - y_rng * 0.10
+  y_high = y_max + y_rng * 0.12
+
+  W, H_svg = 372, 185
+  p_top, p_bot = 8, 142
+  v_top, v_bot = 146, 170
+  n_bars = len(d)
+  step_x = (W - 46) / max(n_bars, 1)
+  bar_w = max(2.2, min(6.0, step_x * 0.68))
+
+  def py(val):
+    return round(
+        p_bot - ((float(val) - y_low) / (y_high - y_low)) * (p_bot - p_top), 1
+    )
+
+  vol_s = (
+      d["Volume"].fillna(0.0)
+      if "Volume" in d.columns
+      else pd.Series(0.0, index=d.index)
+  )
+  vol_max = max(float(vol_s.max()), 1.0)
+  vol_sma = vol_s.rolling(20, min_periods=1).mean()
+
+  svg_elems = []
+  vwap_pts, ema_pts = [], []
+
+  for idx in range(n_bars):
+    cx = round(8 + idx * step_x + step_x * 0.5, 1)
+    o_v = float(d["Open"].iloc[idx])
+    h_v = float(d["High"].iloc[idx])
+    l_v = float(d["Low"].iloc[idx])
+    c_v = float(d["Close"].iloc[idx])
+    vw_v = float(d["VWAP"].iloc[idx])
+    em_v = float(d["EMA_10"].iloc[idx])
+    vl_v = float(vol_s.iloc[idx])
+    vsma_v = float(vol_sma.iloc[idx])
+
+    is_bull = c_v >= o_v
+    is_hv = vl_v > (vsma_v * 1.618) and vsma_v > 0
+    if is_hv and is_bull and c_v > vw_v and c_v > em_v:
+      c_col = "#00FF00"
+    elif is_hv and (not is_bull) and c_v < vw_v and c_v < em_v:
+      c_col = "#FF0000"
+    else:
+      c_col = "#2ea043" if is_bull else "#da3633"
+
+    yh, yl = py(h_v), py(l_v)
+    yo, yc = py(o_v), py(c_v)
+    b_top = min(yo, yc)
+    b_h = max(1.5, abs(yc - yo))
+
+    svg_elems.append(
+        f"<line x1='{cx}' y1='{yh}' x2='{cx}' y2='{yl}' stroke='{c_col}'"
+        " stroke-width='1.1'/>"
+    )
+    svg_elems.append(
+        f"<rect x='{round(cx - bar_w/2, 1)}' y='{b_top}'"
+        f" width='{round(bar_w, 1)}' height='{b_h}' fill='{c_col}'/>"
+    )
+
+    if vl_v > 0:
+      vh = max(1.0, (vl_v / vol_max) * (v_bot - v_top))
+      vy = round(v_bot - vh, 1)
+      v_col = (
+          "#00FF00"
+          if c_col == "#00FF00"
+          else (
+              "#FF0000"
+              if c_col == "#FF0000"
+              else (
+                  "rgba(46,160,67,0.45)" if is_bull else "rgba(218,54,51,0.45)"
+              )
+          )
+      )
+      svg_elems.append(
+          f"<rect x='{round(cx - bar_w/2, 1)}' y='{vy}'"
+          f" width='{round(bar_w, 1)}' height='{round(vh, 1)}' fill='{v_col}'/>"
+      )
+
+    vwap_pts.append(f"{cx},{py(vw_v)}")
+    ema_pts.append(f"{cx},{py(em_v)}")
+
+  # VWAP & EMA-10 Polylines
+  svg_elems.append(
+      f"<polyline fill='none' stroke='#FFD700' stroke-width='1.5'"
+      f" stroke-dasharray='3,3' points='{' '.join(vwap_pts)}'/>"
+  )
+  svg_elems.append(
+      f"<polyline fill='none' stroke='#00BFFF' stroke-width='1.4'"
+      f" stroke-dasharray='5,3' points='{' '.join(ema_pts)}'/>"
+  )
+
+  # V: and E: Badges on Chart
+  last_vw = float(d["VWAP"].iloc[-1])
+  last_em = float(d["EMA_10"].iloc[-1])
+  tag_pos = max(0, int(n_bars * 0.58))
+  tag_x = round(8 + tag_pos * step_x, 1)
+  vy_tag = py(float(d["VWAP"].iloc[tag_pos]))
+  ey_tag = py(float(d["EMA_10"].iloc[tag_pos]))
+  if abs(vy_tag - ey_tag) < 14:
+    vy_tag -= 7
+    ey_tag += 7
+
+  svg_elems.append(
+      f"<rect x='{tag_x}' y='{vy_tag - 7}' width='48' height='13' rx='2'"
+      " fill='#FFD700'/><text x='{0}' y='{1}' fill='#161b22' font-size='8.5'"
+      " font-family='monospace'"
+      f" font-weight='bold'>V:{last_vw:.1f}</text>".format(
+          tag_x + 3, vy_tag + 2.5
+      )
+  )
+  svg_elems.append(
+      f"<rect x='{tag_x}' y='{ey_tag - 7}' width='48' height='13' rx='2'"
+      " fill='#00BFFF'/><text x='{0}' y='{1}' fill='#161b22' font-size='8.5'"
+      " font-family='monospace'"
+      f" font-weight='bold'>E:{last_em:.1f}</text>".format(
+          tag_x + 3, ey_tag + 2.5
+      )
+  )
+
+  # Right Y-Axis Price Labels & Time Labels
+  svg_elems.append(
+      f"<text x='{W - 2}' y='{p_top + 8}' fill='#8b949e' font-size='8.5'"
+      f" font-family='monospace' text-anchor='end'>{y_max:.1f}</text>"
+  )
+  svg_elems.append(
+      f"<text x='{W - 2}' y='{p_bot}' fill='#8b949e' font-size='8.5'"
+      f" font-family='monospace' text-anchor='end'>{y_min:.1f}</text>"
+  )
+  t_start = pd.to_datetime(d.index[0]).strftime("%I:%M %p")
+  t_end = pd.to_datetime(d.index[-1]).strftime("%I:%M %p")
+  svg_elems.append(
+      f"<text x='8' y='{H_svg - 3}' fill='#8b949e' font-size='8.5'"
+      f" font-family='monospace'>{t_start}</text>"
+  )
+  svg_elems.append(
+      f"<text x='{W - 42}' y='{H_svg - 3}' fill='#8b949e' font-size='8.5'"
+      f" font-family='monospace' text-anchor='end'>{t_end}</text>"
+  )
+
+  pct_col = "#2ea043" if day_c >= 0 else "#da3633"
+  sign = "+" if day_c > 0 else ""
+  if day_c >= 0:
+    pb = ((day_h - ltp) / day_h * 100.0) if day_h > 0 else 0.0
+    pb_html = (
+        f" <span style='color:#FF8C00;font-size:10.5px;'>📉-{pb:.1f}% DH</span>"
+        if pb >= 0.1
+        else ""
+    )
+  else:
+    bnc = ((ltp - day_l) / day_l * 100.0) if day_l > 0 else 0.0
+    pb_html = (
+        f" <span style='color:#00BFFF;font-size:10.5px;'>📈+{bnc:.1f}%"
+        " DL</span>"
+        if bnc >= 0.1
+        else ""
+    )
+
+  strat_span = (
+      " <span"
+      " style='font-size:9.5px;background:rgba(0,191,255,0.2);border:1px solid"
+      " #00BFFF;padding:0px"
+      f" 4px;border-radius:3px;color:#00BFFF;'>{_html.escape(cat_label)}</span>"
+      if cat_label
+      else ""
+  )
+
+  return (
+      "<details class='mc-pop-details'><summary class='pro-stk-badge'"
+      f" title='Click to open {clean_sym} 5m Mini-Chart'>{clean_sym}"
+      " 📊</summary><div class='mc-pop-card'><div"
+      " class='mc-pop-top'><div style='line-height:1.25;'><b"
+      f" style='color:#fff;font-size:13px;'>{clean_sym}</b>{strat_span}<br><span"
+      f" style='font-size:11.5px;color:#ccc;'>₹{ltp:.2f} <span"
+      f" style='color:{pct_col};font-weight:bold;'>({sign}{day_c:.2f}%)</span>{pb_html}</span></div><div"
+      " style='display:flex;gap:5px;align-items:center;'><a class='mc-grid-btn'"
+      f" href='?grid_sym={ft}' target='_self' title='Open in Pro Multi-Chart"
+      " Grid'>📌 Grid Chart</a><span"
+      " onclick=\"this.closest('details').removeAttribute('open')\""
+      " style='cursor:pointer;background:#dc2626;color:#fff;padding:1px"
+      " 6px;border-radius:4px;font-size:10.5px;font-weight:bold;'>✖</span></div></div><svg"
+      f" width='{W}' height='{H_svg}' viewBox='0 0 {W} {H_svg}'"
+      " style='background:#0b0e14;display:block;border-radius:4px;'>"
+      + "".join(svg_elems)
+      + "</svg></div></details>"
+  )
 
 
 def _classify_headline(title_str):
@@ -1849,16 +2175,20 @@ def _is_clear_factual_news(title_str):
 
 
 def _extract_stock_from_headline(title_en):
-  """Extracts exact NSE Symbol or clean Company Name from English news headline"""
   t_clean = _clean_en_headline(title_en)
   t_low = f" {t_clean.lower()} "
 
-  # 1. Check direct company name map
+  # 1. Explicit NSE:SYMBOL pattern inside headline (e.g., NSE:ROLEXRINGS, NSE:AEROFLEX)
+  m_nse = _re.search(r"NSE\s*:\s*([A-Z0-9&\-]{2,15})", t_clean.upper())
+  if m_nse:
+    return m_nse.group(1).strip(), True
+
+  # 2. Direct company name map
   for comp_kw, nse_sym in _COMPANY_TO_NSE.items():
     if comp_kw in t_low:
       return nse_sym, True
 
-  # 2. Check all universe symbols (NIFTY_50 + FNO + MIDCAP + SMALLCAP)
+  # 3. Universe symbols check
   all_known = set(NIFTY_50 + FNO_STOCKS + MIDCAP_150 + SMALLCAP_250)
   words_up = _re.findall(r"[A-Z&]{3,15}", t_clean.upper())
   for w in words_up:
@@ -1877,12 +2207,10 @@ def _extract_stock_from_headline(title_en):
     ):
       return w, True
 
-  # 3. Check 6-letter root match (e.g., PIDILITE -> PIDILITIND)
   for sym in all_known:
     if len(sym) >= 6 and sym[:6].lower() in t_low:
       return sym, True
 
-  # 4. Fallback: Extract leading Company Name before action/result verbs
   m = _re.match(
       r"^([A-Z][A-Za-z0-9&\.\-\s]{2,28}?)\s+(?:Q[1-4]|FY\d{2}|net"
       r" profit|profit|revenue|results|shares|stock|bags|wins|gets|announces|declares|reports|posts|board|acquires|signs|receives)",
@@ -1901,7 +2229,6 @@ def _extract_stock_from_headline(title_en):
     ):
       return comp_name.upper()[:16], False
 
-  # 5. First 2 capitalized words
   tokens = t_clean.split()
   if len(tokens) >= 2 and tokens[0][0].isupper():
     cand = " ".join(tokens[:2]).strip(":,-")
@@ -1949,7 +2276,6 @@ def _translate_batch_to_telugu(texts_list):
 
 @st.cache_data(ttl=300, show_spinner=False)
 def fetch_live_stock_news_batch(symbols_tuple, max_age_hours=36):
-  """Fetches fresh news + full multi-point description for active stocks."""
   now_utc = datetime.now(ZoneInfo("UTC"))
   unique_syms = tuple(dict.fromkeys(symbols_tuple))
 
@@ -1957,7 +2283,6 @@ def fetch_live_stock_news_batch(symbols_tuple, max_age_hours=36):
     clean_sym = str(fetch_sym).replace(".NS", "").strip()
     headlines = []
 
-    # 1. Google News RSS (Title + Full Description bullets)
     try:
       q = urllib.parse.quote(f'"{clean_sym}" share OR stock NSE when:2d')
       rss_url = (
@@ -1992,7 +2317,6 @@ def fetch_live_stock_news_batch(symbols_tuple, max_age_hours=36):
     except Exception:
       pass
 
-    # 2. Fallback: yfinance Ticker.news (Title + Summary)
     if not headlines:
       try:
         yf_news = yf.Ticker(fetch_sym).news or []
@@ -2047,7 +2371,6 @@ def fetch_live_stock_news_batch(symbols_tuple, max_age_hours=36):
           cat_tag, sentiment_bias = c_tag, s_bias
           break
 
-    # Build Full Details (Combine extra distinct headlines + description)
     extra_points = []
     if best_desc and best_desc.lower() != best_title.lower():
       for seg in best_desc.split(" • "):
@@ -2092,11 +2415,9 @@ def fetch_live_stock_news_batch(symbols_tuple, max_age_hours=36):
 def run_news_vol_price_strategy(
     df_candidates, processed_charts, min_volx=1.2, min_move_pct=0.75
 ):
-  """Filters ONLY unique stocks with Fresh News + Volume surge + Price/VWAP confirmation."""
   if df_candidates is None or df_candidates.empty:
     return pd.DataFrame(), []
 
-  # Strict Deduplication so PIDILITIND or any stock NEVER appears twice
   df_clean_cand = df_candidates.drop_duplicates(
       subset=["T"], keep="first"
   ).copy()
@@ -2121,6 +2442,24 @@ def run_news_vol_price_strategy(
   news_map = fetch_live_stock_news_batch(tuple(df_pre["Fetch_T"].tolist()))
   if not news_map:
     return pd.DataFrame(), []
+
+  # Ensure 5m charts are loaded for all matched news stocks so Mini-Chart Popup works for every stock
+  matched_fts = [
+      ft for ft in news_map.keys() if ft not in processed_charts or processed_charts[ft].empty
+  ]
+  if matched_fts:
+    extra_5m = fetch_cached_5m_data(matched_fts)
+    if not extra_5m.empty:
+      for m_ft in matched_fts:
+        try:
+          raw_m = (
+              extra_5m[m_ft]
+              if isinstance(extra_5m.columns, pd.MultiIndex)
+              else extra_5m
+          )
+          processed_charts[m_ft] = process_5m_data(raw_m)
+        except Exception:
+          pass
 
   texts_to_tr = []
   for v in news_map.values():
@@ -2231,7 +2570,6 @@ def run_news_vol_price_strategy(
         te_map.get(n_info["details_en"], "") if n_info.get("details_en") else ""
     )
 
-    # Build Rich Telugu Market Context for Full Details
     vwap_status = (
         f"VWAP (₹{vwap_live:.1f}) పైన బుల్లిష్‌గా"
         if ltp >= vwap_live
@@ -2260,8 +2598,13 @@ def run_news_vol_price_strategy(
     matched_rows.append(row_copy)
 
     sig_txt = "🟢 BUY" if is_bull_price else "🔴 SELL"
+    mini_popup_html = _build_mini_chart_popup_html(
+        stk_name, row, df_5m, cat_tag
+    )
+
     feed_records.append({
         "Stock": stk_name,
+        "Mini_Popup": mini_popup_html,
         "Signal": sig_txt,
         "Catalyst": cat_tag,
         "LTP": ltp,
@@ -2301,7 +2644,7 @@ def run_news_vol_price_strategy(
 
 
 def render_news_catalyst_banner(feed_records):
-  """Renders Professional Wide Telugu Breaking News Table (65% Width for Full Telugu Details)"""
+  """Renders Professional Wide Telugu Breaking News Table with Click-to-Open Mini-Chart"""
   if not feed_records:
     return ""
   rows_html = ""
@@ -2325,12 +2668,11 @@ def render_news_catalyst_banner(feed_records):
         else ""
     )
     mkt_block = f"<div class='pro-news-mkt'>{safe_mkt}</div>"
+    stk_popup_btn = r.get("Mini_Popup") or _build_mini_chart_popup_html(stk)
 
     rows_html += (
         "<tr><td>"
-        "<a class='pro-stk-badge'"
-        f" href='https://in.tradingview.com/chart/?symbol=NSE:{stk}'"
-        f" target='_blank'>{stk} ↗</a>"
+        f"{stk_popup_btn}"
         f"<div style='color:#8b949e;font-size:11px;margin-top:5px;'>⏱"
         f" {r['Age']}</div>"
         "</td>"
@@ -2360,15 +2702,15 @@ def render_news_catalyst_banner(feed_records):
       "<div class='pro-news-wrap'><div class='pro-news-hdr'"
       " style='background:linear-gradient(90deg, #0f2942 0%, #0d1117"
       " 100%);border-left:4px solid #38bdf8;'><span>📰 లైవ్ స్టాక్ బ్రేకింగ్"
-      " న్యూస్ + వాల్యూమ్ + ప్రైస్ స్కానర్ (తెలుగులో పూర్తి"
-      " వివరాలు)</span><span"
+      " న్యూస్ + వాల్యూమ్ + ప్రైస్ స్కానర్ (స్టాక్ పై క్లిక్ చేస్తే మినీ చార్ట్"
+      " ఓపెన్ అవుతుంది 📊)</span><span"
       " style='font-size:12px;color:#79c0ff;background:#161b22;padding:2px"
       " 9px;border-radius:12px;border:1px solid"
       f" #30363d;'>{len(seen)} స్టాక్స్</span></div><table"
-      " class='pro-news-table'><thead><tr><th style='width:9%;'>స్టాక్"
+      " class='pro-news-table'><thead><tr><th style='width:10%;'>స్టాక్"
       " (TIME)</th><th style='width:11%;'>సిగ్నల్ & రకం</th><th"
       " style='width:8%;'>ధర (DAY%)</th><th style='width:7%;'>VOL / AI</th><th"
-      " style='width:65%;'>📢 తెలుగు బ్రేకింగ్ న్యూస్ & పూర్తి వివరాలు"
+      " style='width:64%;'>📢 తెలుగు బ్రేకింగ్ న్యూస్ & పూర్తి వివరాలు"
       " (హెడ్‌లైన్ + అదనపు సమాచారం + మార్కెట్ డేటా)</th></tr></thead><tbody>"
       + rows_html
       + "</tbody></table></div>"
@@ -2377,7 +2719,6 @@ def render_news_catalyst_banner(feed_records):
 
 @st.cache_data(ttl=240, show_spinner=False)
 def _fetch_market_news_raw():
-  """Fetches & Translates Q-Results/Corporate, Indian & Global Market News with Stock Extraction & Deduplication"""
   now_utc = datetime.now(ZoneInfo("UTC"))
   queries = {
       "india": (
@@ -2434,7 +2775,6 @@ def _fetch_market_news_raw():
             elif key == "global" and not is_nse:
               stk_sym = "🌍 GLOBAL"
 
-            # Deduplicate by stock symbol (or first 35 chars for general macro news)
             dedup_k = (
                 stk_sym
                 if (
@@ -2444,7 +2784,6 @@ def _fetch_market_news_raw():
                 else clean_t[:35].lower()
             )
             if dedup_k in items_by_key:
-              # Merge extra details into existing stock entry instead of creating a duplicate row!
               existing = items_by_key[dedup_k]
               if (
                   clean_t.lower() not in existing["title_en"].lower()
@@ -2550,20 +2889,39 @@ def fetch_indian_and_global_market_news():
 
 
 def render_market_news_hub(df_all_stocks, processed_charts):
-  """Renders Professional Full-Width Telugu News Hub with Stock Names, Live Prices & Full Telugu Details"""
+  """Renders Professional Full-Width Telugu News Hub with Click-to-Open Mini-Charts"""
   m_news = fetch_indian_and_global_market_news()
   _, stock_feed = run_news_vol_price_strategy(
       df_all_stocks, processed_charts, min_volx=1.0, min_move_pct=0.4
   )
 
-  # Price lookup for showing LTP & Day% inside Q-Results & Macro tables
   stk_lu = {}
   if df_all_stocks is not None and not df_all_stocks.empty:
     stk_lu = (
         df_all_stocks.drop_duplicates(subset=["T"])
-        .set_index("T")[["P", "Day_C", "VolX"]]
+        .set_index("T")
         .to_dict("index")
     )
+
+  # Ensure 5m charts are loaded for Q-Results stocks (like ROLEXRINGS, KALYANKJIL) so Mini-Chart opens on click!
+  q_nse_fts = []
+  for it in m_news.get("stocks", []) + m_news.get("india", []):
+    s_n = str(it.get("stock", "")).strip()
+    if (it.get("is_nse") or s_n in stk_lu) and f"{s_n}.NS" not in processed_charts:
+      q_nse_fts.append(f"{s_n}.NS")
+  if q_nse_fts:
+    extra_q_5m = fetch_cached_5m_data(q_nse_fts)
+    if not extra_q_5m.empty:
+      for q_ft in q_nse_fts:
+        try:
+          raw_q = (
+              extra_q_5m[q_ft]
+              if isinstance(extra_q_5m.columns, pd.MultiIndex)
+              else extra_q_5m
+          )
+          processed_charts[q_ft] = process_5m_data(raw_q)
+        except Exception:
+          pass
 
   if stock_feed:
     st.markdown(render_news_catalyst_banner(stock_feed), unsafe_allow_html=True)
@@ -2604,11 +2962,10 @@ def render_market_news_hub(df_all_stocks, processed_charts):
       dtl_te = _html.escape(it.get("details_te", ""))
       t_en = _html.escape(t_en_raw)
 
-      # Live Price info if matched to NSE stock
       p_info_html = ""
       mkt_ctx_html = ""
-      if stk_name in stk_lu:
-        s_d = stk_lu[stk_name]
+      s_d = stk_lu.get(stk_name)
+      if s_d is not None:
         s_p, s_dc, s_vx = (
             float(s_d["P"]),
             float(s_d["Day_C"]),
@@ -2626,11 +2983,13 @@ def render_market_news_hub(df_all_stocks, processed_charts):
             f" <b>{s_vx:.1f}x</b> తో ట్రేడ్ అవుతోంది.</div>"
         )
 
-      if it.get("is_nse") or stk_name in stk_lu:
+      if it.get("is_nse") or s_d is not None:
+        df_5m_stk = processed_charts.get(f"{stk_name}.NS", pd.DataFrame())
         stk_badge_html = (
-            "<a class='pro-stk-badge'"
-            f" href='https://in.tradingview.com/chart/?symbol=NSE:{stk_name}'"
-            f" target='_blank'>{stk_name} ↗</a>{p_info_html}"
+            _build_mini_chart_popup_html(
+                stk_name, s_d, df_5m_stk, it.get("tag", "")
+            )
+            + p_info_html
         )
       else:
         stk_badge_html = (
@@ -2677,7 +3036,7 @@ def render_market_news_hub(df_all_stocks, processed_charts):
         _build_pro_news_table(
             m_news.get("stocks", []),
             "🏢 కంపెనీల క్వార్టర్లీ రిజల్ట్స్ (Q-Results), ఆర్డర్లు & ముఖ్య"
-            " ప్రకటనలు (స్టాక్ పేరు + పూర్తి వివరాలు)",
+            " ప్రకటనలు (స్టాక్ పై క్లిక్ చేస్తే మినీ చార్ట్ ఓపెన్ అవుతుంది 📊)",
             "#2ea043",
             "linear-gradient(90deg, #112a1c 0%, #0d1117 100%)",
             show_stock_col=True,
@@ -2712,7 +3071,6 @@ def render_market_news_hub(df_all_stocks, processed_charts):
 
 @st.cache_data(ttl=600, show_spinner=False)
 def fetch_portfolio_news_and_results(port_syms_tuple):
-  """Fetches Latest News + Quarterly/Yearly Results for Portfolio Stocks & Translates to Telugu"""
   now_utc = datetime.now(ZoneInfo("UTC"))
 
   def _fetch_port_one(sym):
@@ -2814,7 +3172,6 @@ def fetch_portfolio_news_and_results(port_syms_tuple):
 
 
 def render_portfolio_news_and_results_table(df_port, df_stocks, weekly_trends):
-  """Renders Professional Portfolio Stocks Daily News, Qtrly/Yearly Results (in Telugu) & Hold/Sell Decision Table"""
   if df_port is None or df_port.empty:
     return ""
   stock_lookup = (
@@ -2916,11 +3273,12 @@ def render_portfolio_news_and_results_table(df_port, df_stocks, weekly_trends):
 
     d_col = "#3fb950" if day_c >= 0 else "#f85149"
     p_col = "#3fb950" if pnl_pct >= 0 else "#f85149"
+    stk_popup_btn = _build_mini_chart_popup_html(
+        sym, live_d, None, cat_str
+    )
 
     rows_html += (
-        "<tr><td><a class='pro-stk-badge'"
-        f" href='https://in.tradingview.com/chart/?symbol=NSE:{sym}'"
-        f" target='_blank'>{sym} ↗</a><div"
+        f"<tr><td>{stk_popup_btn}<div"
         f" style='color:#8b949e;font-size:11px;margin-top:4px;'>⏱ {age_s}</div>"
         "</td>"
         f"<td><b style='color:#fff;'>₹{ltp:,.1f}</b><br><span"
@@ -2936,12 +3294,13 @@ def render_portfolio_news_and_results_table(df_port, df_stocks, weekly_trends):
       " style='background:linear-gradient(90deg, #0d47a1 0%, #0d1117"
       " 100%);border-left:4px solid #58a6ff;'><span>📰 నా పోర్ట్‌ఫోలియో స్టాక్స్"
       " — తాజా వార్తలు, క్వార్టర్లీ/ఇయర్లీ రిజల్ట్స్ & HOLD / SELL సలహా"
-      " (తెలుగులో)</span></div><table class='pro-news-table'><thead><tr><th"
-      " style='width:11%;'>స్టాక్ (TIME)</th><th style='width:9%;'>LTP"
-      " (DAY%)</th><th style='width:8%;'>P&L %</th><th"
-      " style='width:13%;'>రిజల్ట్ / ప్రభావం</th><th style='width:44%;'>📢 తాజా"
-      " వార్త & క్వార్టర్లీ రిజల్ట్ పూర్తి వివరాలు (తెలుగులో)</th><th"
-      " style='width:15%;'>💡 HOLD / SELL సలహా</th></tr></thead><tbody>"
+      " (స్టాక్ పై క్లిక్ చేస్తే మినీ చార్ట్ ఓపెన్ అవుతుంది 📊)</span></div><table"
+      " class='pro-news-table'><thead><tr><th style='width:11%;'>స్టాక్"
+      " (TIME)</th><th style='width:9%;'>LTP (DAY%)</th><th"
+      " style='width:8%;'>P&L %</th><th style='width:13%;'>రిజల్ట్ /"
+      " ప్రభావం</th><th style='width:44%;'>📢 తాజా వార్త & క్వార్టర్లీ రిజల్ట్"
+      " పూర్తి వివరాలు (తెలుగులో)</th><th style='width:15%;'>💡 HOLD / SELL"
+      " సలహా</th></tr></thead><tbody>"
       + rows_html
       + "</tbody></table></div>"
   )
