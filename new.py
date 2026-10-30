@@ -2447,9 +2447,11 @@ def fetch_live_stock_news_batch(symbols_tuple, max_age_hours=24):
 
         details_en = ". ".join(extra_points[:2]).strip()
         te_title = _translate_to_telugu(best_title)
+        te_dtl = _translate_to_telugu(details_en) if details_en else ""
+        combined_hover_te = te_title + (f" || {te_dtl}" if te_dtl else "")
 
         return fetch_sym, {
-            "title": te_title,
+            "title": combined_hover_te,
             "title_te_full": te_title,
             "title_en": best_title,
             "details_en": details_en,
@@ -5497,17 +5499,13 @@ st.markdown("""
         background: #388bfd;
         padding-right: 7px;
     }
-    /* 📰 Mini-Chart Full-Box News Overlay on Hover (Full Card 205px Fix) */
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) > div div[data-testid="stVerticalBlock"] {
-        position: static !important;
-        gap: 0px !important;
-    }
+    /* 📰 Mini-Chart Full-Box News Overlay on Hover (Fixed Top Names & Smooth Inner Scroll) */
     div[data-testid="stElementContainer"]:has(.mc-card-news-zone),
     div[data-testid="stElementContainer"]:has(.mc-card-news-zone) > div,
     div[data-testid="stElementContainer"]:has(.mc-card-news-zone) div[data-testid="stMarkdown"],
     div[data-testid="stElementContainer"]:has(.mc-card-news-zone) div[data-testid="stMarkdownContainer"] {
         position: static !important;
-        margin: 0px !important;
+        margin: -16px 0px 0px 0px !important;
         padding: 0px !important;
         height: 0px !important;
         min-height: 0px !important;
@@ -5527,7 +5525,7 @@ st.markdown("""
         top: 2px !important;
         left: 30px !important;
         right: 4px !important;
-        height: 40px !important;
+        height: 42px !important;
         z-index: 92 !important;
         cursor: pointer !important;
         background: transparent !important;
@@ -5541,19 +5539,42 @@ st.markdown("""
         bottom: 0px !important;
         width: 100% !important;
         height: 100% !important;
-        min-height: 205px !important;
+        max-height: 100% !important;
+        min-height: 0px !important;
         background: rgba(11, 14, 20, 0.98) !important;
         border: 1.5px solid #38bdf8 !important;
         border-radius: 6px !important;
-        padding: 8px 10px !important;
+        padding: 7px 9px !important;
         box-sizing: border-box !important;
         z-index: 98 !important;
         flex-direction: column !important;
         justify-content: space-between !important;
-        overflow-y: auto !important;
+        overflow: hidden !important;
         box-shadow: 0 6px 20px rgba(0, 0, 0, 0.95) !important;
-        font-family: 'Inter', 'Segoe UI', sans-serif !important;
+        font-family: 'Inter', 'Noto Sans Telugu', 'Segoe UI', sans-serif !important;
         line-height: 1.45 !important;
+        pointer-events: auto !important;
+    }
+    .mc-overlay-body {
+        flex: 1 1 auto !important;
+        min-height: 0px !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        padding-right: 5px !important;
+        margin: 4px 0px !important;
+        pointer-events: auto !important;
+        overscroll-behavior: contain !important;
+    }
+    .mc-overlay-body::-webkit-scrollbar {
+        width: 5px !important;
+    }
+    .mc-overlay-body::-webkit-scrollbar-track {
+        background: #161b22 !important;
+        border-radius: 3px !important;
+    }
+    .mc-overlay-body::-webkit-scrollbar-thumb {
+        background: #38bdf8 !important;
+        border-radius: 3px !important;
     }
     .mc-card-news-zone:hover .mc-full-overlay,
     .mc-full-overlay:hover {
@@ -6294,40 +6315,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
             on_change=_on_pin_checkbox_change, args=(fetch_sym, display_sym, cb_key)
         )
 
-    news_hl = str(row.get('News_Headline', '') or '').strip().replace('\n', ' ')
-    if news_hl and news_hl not in ('nan', 'None'):
-        n_cat = _html.escape(str(row.get('News_Cat', '📰 News')))
-        n_age = _html.escape(str(row.get('News_Age', '')))
-        n_txt = _html.escape(news_hl)
-        n_lnk = str(row.get('News_Link', '#') or '#')
-        st.markdown(
-            f"<div class='mc-card-news-zone'>"
-            f"<div class='mc-news-trigger' title='Hover to read full news'></div>"
-            f"<div class='mc-full-overlay'>"
-            f"<div>"
-            f"<div style='display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #262c36;padding-bottom:4px;margin-bottom:6px;padding-left:22px;'>"
-            f"<b style='color:#fff;font-size:12px;'>{display_sym} <span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span></b>"
-            f"<span style='background:#1e293b;color:#ffd700;font-size:9.5px;padding:1px 5px;border-radius:4px;border:1px solid #38bdf8;'>{n_cat}</span>"
-            f"</div>"
-            f"<div style='color:#f0f6fc;font-size:12px;font-weight:600;line-height:1.45;white-space:normal;word-break:break-word;'>📰 {n_txt}</div>"
-            f"</div>"
-            f"<div style='display:flex;justify-content:space-between;align-items:center;border-top:1px dashed #262c36;padding-top:4px;margin-top:6px;font-size:10.5px;'>"
-            f"<span style='color:#79c0ff;font-weight:bold;'>🕒 {n_age}</span>"
-            f"<div>"
-            f"<a href='{tv_link}' target='_blank' style='color:#3fb950;text-decoration:none;font-weight:bold;margin-right:8px;'>📈 TV Chart ↗</a>"
-            f"<a href='{n_lnk}' target='_blank' style='color:#58a6ff;text-decoration:none;font-weight:bold;'>🔗 News Link ↗</a>"
-            f"</div>"
-            f"</div>"
-            f"</div>"
-            f"</div>",
-            unsafe_allow_html=True
-        )
-    news_hover_txt = None
-    if news_hl and news_hl not in ('nan', 'None'):
-        n_cat = _html.escape(str(row.get('News_Cat', '📰 News')))
-        n_age = _html.escape(str(row.get('News_Age', '')))
-        n_txt = _html.escape(news_hl)
-        news_hover_txt = f"<b>{n_cat} ({n_age})</b><br>{n_txt}"
     strat_tag = f" <span style='font-size:9.5px; background:rgba(0,191,255,0.2); border:1px solid #00BFFF; padding:0px 3px; border-radius:3px; color:#00BFFF;'>{row.get('Strategy_Icon', '')}</span>" if row.get('Strategy_Icon') and row.get('Strategy_Icon') != "Neutral" else ""
 
     if timeframe == "Intraday (5m)":
@@ -6353,7 +6340,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
         if not df_chart.empty and 'Low' in df_chart.columns and 'High' in df_chart.columns:
             df_chart = _fix_ist_df(df_chart) if timeframe == "Intraday (5m)" else df_chart.copy()
 
-            # Keep ONLY the Current Active Trading Session (Works for NSE, US SPX, German DAX & Commodities!)
             if timeframe == "Intraday (5m)":
                 _sess_id = (df_chart.index.to_series().diff() > pd.Timedelta(minutes=120)).cumsum()
                 df_chart = df_chart[_sess_id == _sess_id.iloc[-1]].copy()
@@ -6367,7 +6353,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                     if _live_p < float(df_chart.at[_last_i, 'Low']) or float(df_chart.at[_last_i, 'Low']) <= 0:
                         df_chart.at[_last_i, 'Low'] = _live_p
 
-            # Include VWAP & EMA_10 in Y-Axis min/max so the yellow VWAP line is NEVER clipped off the bottom/top!
             _y_lows = [float(df_chart['Low'].min())]
             _y_highs = [float(df_chart['High'].max())]
             if 'VWAP' in df_chart.columns and not df_chart['VWAP'].dropna().empty:
@@ -6408,7 +6393,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 mask_hv_bull = pd.Series(False, index=df_chart.index)
                 mask_hv_bear = pd.Series(False, index=df_chart.index)
 
-            # 1. Base Candlestick Trace: Plot ALL candles with ZERO NaNs so no chart ever cuts off!
             fig.add_trace(go.Candlestick(
                 x=x_idx,
                 open=df_chart['Open'].tolist(),
@@ -6420,7 +6404,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 showlegend=False, hoverinfo='skip'
             ), **rc)
 
-            # 2. High-Volume Bull Overlay (Only matching indices — ZERO NaNs)
             if mask_hv_bull.any():
                 _b_idx = [i for i, v in enumerate(mask_hv_bull.tolist()) if v]
                 _b_df = df_chart[mask_hv_bull]
@@ -6435,7 +6418,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                     showlegend=False, hoverinfo='skip'
                 ), **rc)
 
-            # 3. High-Volume Bear Overlay (Only matching indices — ZERO NaNs)
             if mask_hv_bear.any():
                 _s_idx = [i for i, v in enumerate(mask_hv_bear.tolist()) if v]
                 _s_df = df_chart[mask_hv_bear]
@@ -6464,7 +6446,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 if 'SMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_10'], mode='lines', line=dict(color='#FFD700', width=1.3), showlegend=False, hoverinfo='skip'), **rc)
                 if 'SMA_40' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_40'], mode='lines', line=dict(color='#FF4500', width=1.6), showlegend=False, hoverinfo='skip'), **rc)
             else:
-                # Place V: and E: labels at 60% of chart width so the last 10-15 breakout candles are 100% visible!
                 tag_pos = max(0, int(n_bars * 0.60))
                 tag_idx = x_idx[tag_pos]
                 last_close = float(df_chart['Close'].iloc[-1])
@@ -6503,7 +6484,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 fig.add_trace(go.Bar(x=x_idx, y=df_chart['Volume'], marker_color=vol_colors, showlegend=False, hoverinfo='skip'), row=2, col=1)
                 fig.update_yaxes(showspikes=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, row=2, col=1)
 
-            # Mobile & Desktop lo right-side border daggara last 3-6 candles cut avvakunda dynamic right buffer
             _right_pad = max(3.5, float(n_bars) * 0.065)
             x_full_range = [-0.8, float(n_bars) + _right_pad]
 
@@ -6540,6 +6520,54 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.6)], **rc)
 
             st.plotly_chart(fig, width="stretch", key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}")
+
+            # 📰 Render Full-Box News Overlay AFTER Plotly Chart so top stock names are NEVER cut off!
+            news_hl = str(row.get('News_Headline', '') or '').strip().replace('\n', ' ')
+            if news_hl and news_hl not in ('nan', 'None'):
+                if " || " in news_hl:
+                    hl_main, hl_dtl = news_hl.split(" || ", 1)
+                else:
+                    hl_main, hl_dtl = news_hl, ""
+                n_cat = _html.escape(str(row.get('News_Cat', '📰 News')))
+                n_age = _html.escape(str(row.get('News_Age', '')))
+                n_txt = _html.escape(hl_main.strip())
+                n_dtl_html = (
+                    f"<div style='color:#c9d1d9;font-size:11px;line-height:1.45;margin-top:6px;padding:5px 7px;background:rgba(22,27,34,0.85);border-left:2.5px solid #38bdf8;border-radius:3px;'>"
+                    f"🔹 <b>ముఖ్యాంశాలు:</b> {_html.escape(hl_dtl.strip())}</div>"
+                    if hl_dtl.strip() else ""
+                )
+                atr_v = float(row.get('ATR', float(row['P']) * 0.02))
+                is_dn = pct_val < 0
+                sl_p = float(row.get('SL', (float(row['P']) + 1.5 * atr_v) if is_dn else (float(row['P']) - 1.5 * atr_v)))
+                t1_p = float(row.get('T1', (float(row['P']) - 1.5 * atr_v) if is_dn else (float(row['P']) + 1.5 * atr_v)))
+                lvls_html = (
+                    f"<div style='color:#79c0ff;font-size:10.5px;margin-top:6px;padding:4px 6px;background:rgba(56,189,248,0.08);border-radius:3px;'>"
+                    f"📊 <b>Levels:</b> <span style='color:#f87171;'>🛑 SL: ₹{sl_p:.1f}</span> &nbsp;|&nbsp; <span style='color:#4ade80;'>🎯 T1: ₹{t1_p:.1f}</span> &nbsp;|&nbsp; Vol: <b>{float(row.get('VolX', 1.0)):.1f}x</b></div>"
+                )
+                n_lnk = str(row.get('News_Link', '#') or '#')
+                st.markdown(
+                    f"<div class='mc-card-news-zone'>"
+                    f"<div class='mc-news-trigger' title='Hover to read full news'></div>"
+                    f"<div class='mc-full-overlay'>"
+                    f"<div style='display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #262c36;padding-bottom:4px;padding-left:22px;flex-shrink:0;'>"
+                    f"<b style='color:#fff;font-size:11.5px;'>{display_sym} <span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span></b>"
+                    f"<span style='background:#1e293b;color:#ffd700;font-size:9px;padding:1px 5px;border-radius:4px;border:1px solid #38bdf8;'>{n_cat}</span>"
+                    f"</div>"
+                    f"<div class='mc-overlay-body'>"
+                    f"<div style='color:#f0f6fc;font-size:11.5px;font-weight:700;line-height:1.45;white-space:normal;word-break:break-word;'>📰 {n_txt}</div>"
+                    f"{n_dtl_html}{lvls_html}"
+                    f"</div>"
+                    f"<div style='display:flex;justify-content:space-between;align-items:center;border-top:1px dashed #262c36;padding-top:4px;font-size:10px;flex-shrink:0;'>"
+                    f"<span style='color:#79c0ff;font-weight:bold;'>🕒 {n_age}</span>"
+                    f"<div>"
+                    f"<a href='{tv_link}' target='_blank' style='color:#3fb950;text-decoration:none;font-weight:bold;margin-right:8px;'>📈 TV Chart ↗</a>"
+                    f"<a href='{n_lnk}' target='_blank' style='color:#58a6ff;text-decoration:none;font-weight:bold;'>🔗 News Link ↗</a>"
+                    f"</div>"
+                    f"</div>"
+                    f"</div>"
+                    f"</div>",
+                    unsafe_allow_html=True
+                )
     except Exception as e:
         st.markdown(f"<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart error: {e}</div>", unsafe_allow_html=True)
 
