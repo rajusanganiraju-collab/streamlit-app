@@ -2449,7 +2449,7 @@ def fetch_live_stock_news_batch(symbols_tuple, max_age_hours=24):
         te_title = _translate_to_telugu(best_title)
 
         return fetch_sym, {
-            "title": _wrap_hover_text(te_title, width=30),
+            "title": te_title,
             "title_te_full": te_title,
             "title_en": best_title,
             "details_en": details_en,
@@ -2685,7 +2685,7 @@ def run_news_vol_price_strategy(
         row_copy["AlphaTag"] = (
             f"{'🔥IMP ' if is_most_imp else ''}{cat_tag} ({age_h_val:.1f}h)"
         )
-        row_copy["News_Headline"] = _wrap_hover_text(te_headline, width=30)
+        row_copy["News_Headline"] = te_headline
         row_copy["News_Cat"] = cat_tag
         row_copy["News_Age"] = f"{age_h_val:.1f}గం. క్రితం"
         row_copy["News_Link"] = n_info["link"]
@@ -5497,40 +5497,53 @@ st.markdown("""
         background: #388bfd;
         padding-right: 7px;
     }
-    /* 📰 Mini-Chart News Hover Popup Tooltip */
-    .mc-news-badge {
-        position: relative;
-        z-index: 95;
-        margin: 2px 4px -22px 30px;
-        display: inline-block;
-        font-family: monospace;
+    /* 📰 Mini-Chart Full-Box News Overlay on Hover */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) > div > div[data-testid="stElementContainer"]:has(.mc-card-news-zone) {
+        position: static !important;
+        margin: 0px !important;
+        padding: 0px !important;
+        height: 0px !important;
+        min-height: 0px !important;
+        overflow: visible !important;
+        z-index: 95 !important;
     }
-    .mc-news-pill {
-        background: rgba(31, 111, 235, 0.25);
-        border: 1px solid #38bdf8;
-        color: #79c0ff;
-        font-size: 9.5px;
-        font-weight: bold;
-        padding: 1px 5px;
-        border-radius: 4px;
+    .mc-card-news-zone {
+        position: static;
+    }
+    .mc-news-trigger {
+        position: absolute;
+        top: 2px;
+        left: 30px;
+        right: 4px;
+        height: 38px;
+        z-index: 92;
         cursor: pointer;
+        background: transparent;
     }
-    .mc-news-popup {
+    .mc-full-overlay {
         display: none;
         position: absolute;
-        top: 18px;
+        top: 0px;
         left: 0px;
-        width: 220px;
-        background: rgba(13, 17, 23, 0.98);
-        border: 1px solid #38bdf8;
+        right: 0px;
+        bottom: 0px;
+        width: 100%;
+        height: 100%;
+        background: rgba(11, 14, 20, 0.97);
+        border: 1.5px solid #38bdf8;
         border-radius: 6px;
-        padding: 6px 8px;
-        color: #e6edf3;
-        font-size: 10.5px;
-        line-height: 1.35;
-        box-shadow: 0 6px 18px rgba(0,0,0,0.85);
-        z-index: 9999;
-        white-space: normal;
+        padding: 8px 10px;
+        box-sizing: border-box;
+        z-index: 98;
+        flex-direction: column;
+        justify-content: space-between;
+        overflow-y: auto;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.9);
+        font-family: 'Inter', 'Segoe UI', sans-serif;
+    }
+    .mc-card-news-zone:hover .mc-full-overlay,
+    .mc-full-overlay:hover {
+        display: flex !important;
     }
     .mc-news-badge:hover .mc-news-popup {
         display: block !important;
@@ -6270,7 +6283,34 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
             on_change=_on_pin_checkbox_change, args=(fetch_sym, display_sym, cb_key)
         )
 
-    news_hl = str(row.get('News_Headline', '') or '').strip()
+    news_hl = str(row.get('News_Headline', '') or '').strip().replace('\n', ' ')
+    if news_hl and news_hl not in ('nan', 'None'):
+        n_cat = _html.escape(str(row.get('News_Cat', '📰 News')))
+        n_age = _html.escape(str(row.get('News_Age', '')))
+        n_txt = _html.escape(news_hl)
+        n_lnk = str(row.get('News_Link', '#') or '#')
+        st.markdown(
+            f"<div class='mc-card-news-zone'>"
+            f"<div class='mc-news-trigger' title='Hover to read full news'></div>"
+            f"<div class='mc-full-overlay'>"
+            f"<div>"
+            f"<div style='display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #262c36;padding-bottom:4px;margin-bottom:6px;padding-left:22px;'>"
+            f"<b style='color:#fff;font-size:12px;'>{display_sym} <span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span></b>"
+            f"<span style='background:#1e293b;color:#ffd700;font-size:9.5px;padding:1px 5px;border-radius:4px;border:1px solid #38bdf8;'>{n_cat}</span>"
+            f"</div>"
+            f"<div style='color:#f0f6fc;font-size:12px;font-weight:600;line-height:1.45;white-space:normal;word-break:break-word;'>📰 {n_txt}</div>"
+            f"</div>"
+            f"<div style='display:flex;justify-content:space-between;align-items:center;border-top:1px dashed #262c36;padding-top:4px;margin-top:6px;font-size:10.5px;'>"
+            f"<span style='color:#79c0ff;font-weight:bold;'>🕒 {n_age}</span>"
+            f"<div>"
+            f"<a href='{tv_link}' target='_blank' style='color:#3fb950;text-decoration:none;font-weight:bold;margin-right:8px;'>📈 TV Chart ↗</a>"
+            f"<a href='{n_lnk}' target='_blank' style='color:#58a6ff;text-decoration:none;font-weight:bold;'>🔗 News Link ↗</a>"
+            f"</div>"
+            f"</div>"
+            f"</div>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
     news_hover_txt = None
     if news_hl and news_hl not in ('nan', 'None'):
         n_cat = _html.escape(str(row.get('News_Cat', '📰 News')))
@@ -6468,9 +6508,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 text=title_html, xref="paper", yref="paper",
                 x=0, xanchor="left", xshift=28, y=0.98, yanchor="top",
                 showarrow=False, font=dict(size=11.5, color="#ffffff"),
-                bgcolor="rgba(0,0,0,0)", borderwidth=0,
-                hovertext=news_hover_txt,
-                hoverlabel=dict(bgcolor="#0d1117", bordercolor="#38bdf8", font=dict(color="#ffffff", size=11, family="monospace"))
+                bgcolor="rgba(0,0,0,0)", borderwidth=0
             )
 
             if show_crosshair:
