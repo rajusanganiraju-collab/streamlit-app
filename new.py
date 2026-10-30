@@ -5497,56 +5497,67 @@ st.markdown("""
         background: #388bfd;
         padding-right: 7px;
     }
-    /* 📰 Mini-Chart Full-Box News Overlay on Hover */
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) > div > div[data-testid="stElementContainer"]:has(.mc-card-news-zone) {
+    /* 📰 Mini-Chart Full-Box News Overlay on Hover (Full Card 205px Fix) */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) > div div[data-testid="stVerticalBlock"] {
+        position: static !important;
+        gap: 0px !important;
+    }
+    div[data-testid="stElementContainer"]:has(.mc-card-news-zone),
+    div[data-testid="stElementContainer"]:has(.mc-card-news-zone) > div,
+    div[data-testid="stElementContainer"]:has(.mc-card-news-zone) div[data-testid="stMarkdown"],
+    div[data-testid="stElementContainer"]:has(.mc-card-news-zone) div[data-testid="stMarkdownContainer"] {
         position: static !important;
         margin: 0px !important;
         padding: 0px !important;
         height: 0px !important;
         min-height: 0px !important;
+        max-height: 0px !important;
+        line-height: 0px !important;
         overflow: visible !important;
         z-index: 95 !important;
     }
     .mc-card-news-zone {
-        position: static;
+        position: static !important;
+        margin: 0px !important;
+        padding: 0px !important;
+        height: 0px !important;
     }
     .mc-news-trigger {
-        position: absolute;
-        top: 2px;
-        left: 30px;
-        right: 4px;
-        height: 38px;
-        z-index: 92;
-        cursor: pointer;
-        background: transparent;
+        position: absolute !important;
+        top: 2px !important;
+        left: 30px !important;
+        right: 4px !important;
+        height: 40px !important;
+        z-index: 92 !important;
+        cursor: pointer !important;
+        background: transparent !important;
     }
     .mc-full-overlay {
         display: none;
-        position: absolute;
-        top: 0px;
-        left: 0px;
-        right: 0px;
-        bottom: 0px;
-        width: 100%;
-        height: 100%;
-        background: rgba(11, 14, 20, 0.97);
-        border: 1.5px solid #38bdf8;
-        border-radius: 6px;
-        padding: 8px 10px;
-        box-sizing: border-box;
-        z-index: 98;
-        flex-direction: column;
-        justify-content: space-between;
-        overflow-y: auto;
-        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.9);
-        font-family: 'Inter', 'Segoe UI', sans-serif;
+        position: absolute !important;
+        top: 0px !important;
+        left: 0px !important;
+        right: 0px !important;
+        bottom: 0px !important;
+        width: 100% !important;
+        height: 100% !important;
+        min-height: 205px !important;
+        background: rgba(11, 14, 20, 0.98) !important;
+        border: 1.5px solid #38bdf8 !important;
+        border-radius: 6px !important;
+        padding: 8px 10px !important;
+        box-sizing: border-box !important;
+        z-index: 98 !important;
+        flex-direction: column !important;
+        justify-content: space-between !important;
+        overflow-y: auto !important;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.95) !important;
+        font-family: 'Inter', 'Segoe UI', sans-serif !important;
+        line-height: 1.45 !important;
     }
     .mc-card-news-zone:hover .mc-full-overlay,
     .mc-full-overlay:hover {
         display: flex !important;
-    }
-    .mc-news-badge:hover .mc-news-popup {
-        display: block !important;
     }
     @keyframes flashScroll {
         0% { transform: translateX(0%); }
