@@ -1308,11 +1308,11 @@ def process_5m_data(df_raw):
 #  5. Non-Exhaustion RSI & Extension Guard (No Top-Buying) [15 pts]
 # =========================================================
 # =========================================================
-# 📰 NEWS + VOLUME + PRICE CATALYST ENGINE (PRO INSTITUTIONAL v5)
+# 📰 NEWS + VOLUME + PRICE CATALYST ENGINE (PRO INSTITUTIONAL v6)
 # ---------------------------------------------------------
-#  • 24h Strict Rule: Unexpected High Volume (VolX >= 1.8x) + Price Surge
+#  • Full 24-Hour Search across all 5 Filters (All, Most Important, Q-Results, Latest 24h, Orders)
+#  • Restored Full Stock Coverage for AI Strategy (Both BUY & SELL with VolX >= 1.2x)
 #  • Priority Sorting: Most Important News at Top & Scrolling Ticker -> Remaining in Time-Wise Order
-#  • Interactive Filters: All | Most Important | Q-Results Only | Latest (<4h) | Order Wins
 # =========================================================
 from email.utils import parsedate_to_datetime
 import re as _re
@@ -1569,7 +1569,7 @@ _BULL_CATALYSTS = [
         [
             "order", "bagged", "contract", "letter of award", "loa",
             "lowest bidder", "l1 bidder", "tender", "deal win", "work order",
-            "secures order", "wins order", "mega order",
+            "secures order", "wins order", "mega order", "project win",
         ],
     ),
     (
@@ -1580,44 +1580,45 @@ _BULL_CATALYSTS = [
             "ebitda rises", "ebitda jumps", "revenue grows", "revenue rises",
             "margin expands", "beats estimates", "beats street", "strong q1",
             "strong q2", "strong q3", "strong q4", "turnaround", "posts profit",
+            "q1 results", "q2 results", "q3 results", "q4 results",
         ],
     ),
     (
         "🚀Broker-Upgrade",
         [
-            "upgrades to buy", "initiates coverage", "overweight", "outperform",
-            "raises target", "target price raised", "hikes target", "top pick",
-            "conviction buy",
+            "buy", "upgrades to buy", "initiates coverage", "overweight", "outperform",
+            "raises target", "target price", "hikes target", "top pick",
+            "conviction buy", "bullish",
         ],
     ),
     (
         "✅Regulatory-Nod",
         [
-            "usfda approval", "final approval", "tentative approval", "eir",
-            "zero observations", "clean chit", "patent granted", "dcgi nod",
-            "cabinet approves", "pli incentive", "subsidy approved",
+            "usfda", "approval", "final approval", "tentative approval", "eir",
+            "zero observations", "clean chit", "patent", "dcgi", "nod",
+            "clearance", "license", "pli", "subsidy",
         ],
     ),
     (
         "🏭Expansion/M&A",
         [
-            "acquisition", "acquires", "joint venture", "mou", "strategic partner",
-            "commissioning", "commercial production", "capacity expansion",
-            "new plant", "demerger", "value unlocking",
+            "acquisition", "acquires", "joint venture", "mou", "partner",
+            "commissioning", "commercial production", "capacity", "launch",
+            "new plant", "demerger", "tie-up",
         ],
     ),
     (
         "💰Corp-Action",
         [
-            "dividend", "buyback", "bonus issue", "stock split", "qip",
-            "preferential issue", "rights issue", "record date",
+            "dividend", "buyback", "bonus", "stock split", "qip",
+            "preferential", "rights issue", "fundraise", "record date",
         ],
     ),
     (
         "🤝Institutional-Buy",
         [
             "block deal", "bulk deal", "stake buy", "promoter buys",
-            "promoter increases", "fii buys", "mutual fund buys", "marquee investor",
+            "promoter increases", "fii", "mutual fund buys", "stake",
         ],
     ),
 ]
@@ -1629,37 +1630,37 @@ _BEAR_CATALYSTS = [
             "profit falls", "profit drops", "profit declines", "profit plunges",
             "profit slumps", "pat falls", "pat drops", "net loss", "loss widens",
             "misses estimates", "misses street", "weak results", "margin shrinks",
-            "margin contracts", "ebitda falls", "revenue falls", "disappointing q",
+            "margin contracts", "ebitda falls", "revenue falls", "disappointing",
+            "q2 loss", "q1 loss", "q3 loss", "q4 loss", "falls %", "slumps",
         ],
     ),
     (
         "🩸Broker-Downgrade",
         [
-            "downgrade", "downgrades to sell", "underperform", "underweight",
-            "cuts target", "target cut", "slashes target", "reduce rating",
+            "downgrade", "sell call", "underperform", "underweight",
+            "cuts target", "target cut", "slashes target", "reduce",
         ],
     ),
     (
         "⚠️Regulatory/Tax",
         [
-            "sebi ban", "sebi notice", "penalty", "show cause", "tax demand",
-            "gst notice", "ed raid", "it raid", "cbi", "probe", "fraud",
-            "default", "insolvency", "nclt", "rbi ban", "rbi penalty",
+            "sebi", "penalty", "show cause", "tax demand", "notice",
+            "gst", "ed raid", "it raid", "cbi", "probe", "fraud",
+            "default", "insolvency", "nclt", "ban",
         ],
     ),
     (
         "🏥USFDA-Alert",
         [
             "form 483", "observations", "warning letter", "import alert",
-            "oai status", "drug recall", "plant inspection",
+            "oai status", "recall",
         ],
     ),
     (
         "🚪Stake-Sale/Exit",
         [
             "resigns", "steps down", "auditor resigns", "stake sale",
-            "offloads", "sells stake", "promoter sells", "pledge increases",
-            "ofs",
+            "offloads", "sells stake", "promoter sells", "pledge", "ofs",
         ],
     ),
 ]
@@ -2015,32 +2016,31 @@ def _classify_headline(title_str, is_macro=False):
             return "🟢Macro-Positive", 1
         if any(k in t_low for k in _MACRO_CORE_KW):
             return "🏛️Policy/Macro", 1 if any(w in t_low for w in ("rises", "gains", "jumps", "boost", "inflow", "cut")) else (-1 if any(w in t_low for w in ("falls", "drops", "slumps", "outflow", "deficit", "hike")) else 0)
-    if any(q in t_low for q in ("q1", "q2", "q3", "q4", "quarter", "net profit", "pat ")):
-        if any(w in t_low for w in ("up ", "rises", "jumps", "grows", "higher", "surges", "beats")):
-            return "📊Q-Results (Beat)", 1
-        if any(w in t_low for w in ("down ", "falls", "drops", "declines", "lower", "loss", "misses")):
+    if any(q in t_low for q in ("q1", "q2", "q3", "q4", "quarter", "net profit", "pat ", "results")):
+        if any(w in t_low for w in ("down ", "falls", "drops", "declines", "lower", "loss", "misses", "slumps")):
             return "📉Q-Results (Miss)", -1
-    return "📰News-Buzz", 0
+        return "📊Q-Results (Beat)", 1
+    return "📰News-Catalyst", 0
 
 
 def _is_most_important_catalyst(cat_tag, title_en="", vol_x=1.0, day_c=0.0, age_h=12.0, is_macro=False):
     """
-    Determines if a news item is MOST IMPORTANT (Tier-1 Blockbuster):
-    - Stock News: Major Catalyst (Q-Results, Order-Win, USFDA/SEBI, M&A) + Heavy Market Reaction (VolX >= 2.5x & |Day%| >= 2.5%) or fresh (< 3h) Q-Result/Order with VolX >= 2.0x
-    - Macro News: RBI, US Fed, Inflation, GDP, FII/DII,Tariff, War with fresh age <= 12h
+    Checks across the FULL 24 HOURS if a news item is MOST IMPORTANT (Blockbuster):
+    - Stock News (24h): Major Catalyst (Q-Results, Order-Win, USFDA/SEBI, M&A) + High Volume (VolX >= 2.0x) & Price Move (|Day%| >= 1.8%), OR Extreme Volume/Price spike (VolX >= 3.0x & |Day%| >= 2.5%)
+    - Macro News (24h): RBI, US Fed, Inflation, GDP, FII/DII, Tariff, Crude/Nasdaq major moves within 24h
     """
+    if age_h > 24.0:
+        return False
     t_low = str(title_en).lower()
     if is_macro:
-        hi_macro = ("rbi", "repo rate", "us fed", "federal reserve", "powell", "cpi", "inflation", "gdp", "fii", "sebi", "tariff", "crude surges", "dow plunges", "nasdaq")
-        return age_h <= 12.0 and any(k in t_low for k in hi_macro)
+        hi_macro = ("rbi", "repo rate", "us fed", "federal reserve", "powell", "cpi", "inflation", "gdp", "fii", "sebi", "tariff", "crude", "dow ", "nasdaq")
+        return any(k in t_low for k in hi_macro)
 
     major_cats = ("Q-Results", "Order-Win", "Regulatory", "USFDA", "Expansion/M&A", "Sell-The-News", "Short-Squeeze")
     is_major_cat = any(mc.lower() in str(cat_tag).lower() for mc in major_cats)
-    if is_major_cat and vol_x >= 2.5 and abs(day_c) >= 2.5:
+    if is_major_cat and vol_x >= 1.8 and abs(day_c) >= 1.5:
         return True
-    if is_major_cat and age_h <= 3.0 and vol_x >= 2.0 and abs(day_c) >= 1.8:
-        return True
-    if vol_x >= 4.0 and abs(day_c) >= 3.5:
+    if vol_x >= 2.8 and abs(day_c) >= 2.5:
         return True
     return False
 
@@ -2051,8 +2051,8 @@ _JUNK_NEWS_WORDS = (
     "here's why", "here is why", "top gainers", "top losers", "market wrap",
     "closing bell", "opening bell", "buy or sell", "stocks to buy",
     "buzzing stocks", "trade setup", "what should investors do",
-    "share price today", "share price target", "stock split history",
-    "dividend history", "how to trade", "picks for today", "intraday picks",
+    "share price today", "stock split history", "dividend history",
+    "how to trade", "picks for today", "intraday picks",
 )
 
 
@@ -2075,7 +2075,7 @@ def _strip_html_tags(raw_html, main_title=""):
     for seg in txt.split("|"):
         s = _clean_en_headline(seg.strip())
         s_low = s.lower()
-        if len(s) >= 22 and not s_low.startswith("view full"):
+        if len(s) >= 20 and not s_low.startswith("view full"):
             if main_low and (main_low in s_low or s_low[:35] in main_low):
                 continue
             if not _is_clear_factual_news(s):
@@ -2087,7 +2087,7 @@ def _strip_html_tags(raw_html, main_title=""):
 
 def _is_clear_factual_news(title_str):
     t_low = str(title_str or "").lower()
-    if len(t_low) < 20:
+    if len(t_low) < 18:
         return False
     if any(jw in t_low for jw in _JUNK_NEWS_WORDS):
         return False
@@ -2328,7 +2328,11 @@ def _translate_batch_to_telugu(texts_list):
 
 @st.cache_data(ttl=300, show_spinner=False)
 def fetch_live_stock_news_batch(symbols_tuple, max_age_hours=24):
-    """Fetches ONLY news from the last 24 hours that has a verified impact/catalyst on the stock"""
+    """
+    Fetches stock news within the last 24 hours (`max_age_hours=24`).
+    Uses broad query so active stocks in `Select Strategies` are never missed,
+    and tags each with its catalyst & sentiment bias.
+    """
     now_utc = datetime.now(ZoneInfo("UTC"))
     unique_syms = tuple(dict.fromkeys(symbols_tuple))
 
@@ -2337,7 +2341,7 @@ def fetch_live_stock_news_batch(symbols_tuple, max_age_hours=24):
         headlines = []
 
         try:
-            q = urllib.parse.quote(f'"{clean_sym}" (profit OR order OR results OR quarter OR deal OR approval OR upgrade OR downgrade OR dividend OR sebi OR usfda) NSE when:1d')
+            q = urllib.parse.quote(f'"{clean_sym}" share OR stock NSE when:1d')
             rss_url = (
                 f"https://news.google.com/rss/search?q={q}&hl=en-IN&gl=IN&ceid=IN:en"
             )
@@ -2348,7 +2352,7 @@ def fetch_live_stock_news_batch(symbols_tuple, max_age_hours=24):
                 root = ET.fromstring(resp.content)
                 for item in root.findall("./channel/item")[:6]:
                     title = _clean_en_headline(item.findtext("title") or "")
-                    if not _has_real_market_impact(title, is_macro=False):
+                    if not _is_clear_factual_news(title):
                         continue
                     desc_raw = item.findtext("description") or ""
                     desc_clean = _strip_html_tags(desc_raw, title)
@@ -2399,7 +2403,7 @@ def fetch_live_stock_news_batch(symbols_tuple, max_age_hours=24):
                         age_hr = (
                             ((now_utc.timestamp() - float(ts)) / 3600.0) if ts else 6.0
                         )
-                    if title and (0 <= age_hr <= max_age_hours) and _has_real_market_impact(title, is_macro=False):
+                    if title and (0 <= age_hr <= max_age_hours) and _is_clear_factual_news(title):
                         headlines.append((age_hr, title, summary, link))
             except Exception:
                 pass
@@ -2407,21 +2411,19 @@ def fetch_live_stock_news_batch(symbols_tuple, max_age_hours=24):
         if not headlines:
             return fetch_sym, None
 
-        # Strictly sort by time (newest first)
+        # Sort by time (newest first)
         headlines.sort(key=lambda x: x[0])
         best_age, best_title, best_desc, best_link = headlines[0]
         cat_tag, sentiment_bias = _classify_headline(best_title, is_macro=False)
 
-        if sentiment_bias == 0:
+        # Prefer a headline with a specific catalyst if the newest one was generic
+        if sentiment_bias == 0 and len(headlines) > 1:
             for age_h, t_str, d_str, l_str in headlines[1:]:
                 c_tag, s_bias = _classify_headline(t_str, is_macro=False)
                 if s_bias != 0:
                     best_age, best_title, best_desc, best_link = age_h, t_str, d_str, l_str
                     cat_tag, sentiment_bias = c_tag, s_bias
                     break
-
-        if sentiment_bias == 0:
-            return fetch_sym, None
 
         extra_points = []
         if best_desc:
@@ -2470,16 +2472,17 @@ def fetch_live_stock_news_batch(symbols_tuple, max_age_hours=24):
 def run_news_vol_price_strategy(
     df_candidates,
     processed_charts,
-    min_volx=1.8,
-    min_move_pct=1.5,
-    only_price_up=True,
+    min_volx=1.2,
+    min_move_pct=0.75,
     cat_filter="ALL",
 ):
     """
-    Scans for stocks with news in the last 24 hours that have UNEXPECTED HIGH VOLUME + PRICE SURGE.
+    Used by BOTH:
+      1. `Select Strategies -> 📰 News + Vol + Price Breakout` (min_volx=1.2, min_move_pct=0.75) -> Full stock list (BUY & SELL)!
+      2. `News 📰` Tab -> Full 24-Hour Search across all 5 filters!
     Sorting:
-      1. Most Important News (Tier-0) at the very top (sorted by newest time first)
-      2. Remaining News (Tier-1) sorted strictly by Time-Wise Order (age_h ascending - newest first)
+      - If cat_filter == "LATEST": Pure Time-Wise Order (0.1h to 24.0h)
+      - Otherwise: Most Important News (Tier-0) at the top, followed by Remaining News in Time-Wise Order (0.1h to 24.0h)
     """
     if df_candidates is None or df_candidates.empty:
         return pd.DataFrame(), []
@@ -2488,20 +2491,10 @@ def run_news_vol_price_strategy(
         subset=["T"], keep="first"
     ).copy()
 
-    # Enforce unexpected high volume (minimum 1.8x) and strong price move
-    eff_volx = max(float(min_volx), 1.8)
-    eff_move = max(float(min_move_pct), 1.5)
-
-    if only_price_up:
-        active_mask = (df_clean_cand["VolX"] >= eff_volx) & (
-            (df_clean_cand["Day_C"] >= eff_move) | (df_clean_cand["C"] >= 2.0)
-        )
-    else:
-        active_mask = (df_clean_cand["VolX"] >= eff_volx) & (
-            (df_clean_cand["Day_C"].abs() >= eff_move)
-            | (df_clean_cand["C"].abs() >= 2.0)
-        )
-
+    active_mask = (df_clean_cand["VolX"] >= min_volx) & (
+        (df_clean_cand["Day_C"].abs() >= min_move_pct)
+        | (df_clean_cand["C"].abs() >= 1.0)
+    )
     df_pre = df_clean_cand[active_mask].copy()
     if df_pre.empty:
         return pd.DataFrame(), []
@@ -2590,13 +2583,12 @@ def run_news_vol_price_strategy(
         is_bull_price = (
             (ltp > vwap_live)
             and (ltp >= intra_ema10)
-            and (day_c >= eff_move or net_c >= 2.0)
+            and (day_c >= min_move_pct or net_c >= 1.2)
         )
         is_bear_price = (
-            (not only_price_up)
-            and (ltp < vwap_live)
+            (ltp < vwap_live)
             and (ltp <= intra_ema10)
-            and (day_c <= -eff_move or net_c <= -2.0)
+            and (day_c <= -min_move_pct or net_c <= -1.2)
         )
 
         if not (is_bull_price or is_bear_price):
@@ -2604,6 +2596,14 @@ def run_news_vol_price_strategy(
 
         cat_tag = n_info["tag"]
         bias = n_info["bias"]
+
+        # If news headline didn't match a keyword yet stock is moving with high volume + price breakout,
+        # tag it clearly as High-Vol Breakout Catalyst
+        if bias == 0:
+            if vol_x >= 1.8 and abs(day_c) >= 1.5:
+                cat_tag = "📰High-Vol Breakout🔥" if is_bull_price else "📰High-Vol Breakdown🩸"
+            elif cat_filter != "ALL":
+                continue
 
         if is_bull_price:
             side_icon = "📰 News BUY"
@@ -2622,39 +2622,42 @@ def run_news_vol_price_strategy(
             for w in ("q1", "q2", "q3", "q4", "profit", "revenue", "ebitda", "results")
         )
 
-        # Apply interactive user category filter if selected
+        # All 5 filters search across the full 24 hours (`age_h_val <= 24.0`)
         if cat_filter == "IMP" and not is_most_imp:
             continue
         if cat_filter == "QRES" and not is_qres:
             continue
-        if cat_filter == "LATEST" and age_h_val > 4.0:
-            continue
         if cat_filter == "ORDER" and not any(
-            k in cat_tag for k in ("Order-Win", "Regulatory", "Expansion")
+            k in cat_tag for k in ("Order-Win", "Regulatory", "Expansion", "Corp-Action", "Institutional")
         ):
             continue
 
         seen_stocks.add(stk_name)
 
-        score = 60
-        if vol_x >= 3.0:
+        score = 58
+        if vol_x >= 2.5:
             score += 18
-        elif vol_x >= 2.2:
-            score += 14
-        else:
-            score += 9
+        elif vol_x >= 1.8:
+            score += 13
+        elif vol_x >= 1.3:
+            score += 8
 
-        if abs(day_c) >= 3.0:
+        if abs(day_c) >= 2.5:
             score += 12
-        elif abs(day_c) >= 2.0:
+        elif abs(day_c) >= 1.5:
             score += 8
         else:
+            score += 4
+
+        if age_h_val <= 3.0:
+            score += 9
+        elif age_h_val <= 12.0:
             score += 5
 
-        if age_h_val <= 2.0:
-            score += 10
-        elif age_h_val <= 6.0:
-            score += 6
+        if is_bull_price and bias == 1:
+            score += 8
+        elif is_bear_price and bias == -1:
+            score += 8
 
         final_prob = min(99, int(score))
         te_headline = te_map.get(
@@ -2678,7 +2681,7 @@ def run_news_vol_price_strategy(
         pb_52 = ((high_52w - ltp) / high_52w * 100.0) if high_52w > 0 else 0.0
         mkt_summary_te = (
             f"📊 చార్ట్ & టెక్నికల్ విశ్లేషణ: ప్రస్తుతం ₹{ltp:.2f} వద్ద"
-            f" ({day_c:+.2f}%), సాధారణం కంటే {vol_x:.1f}x రెట్ల ఆకస్మిక వాల్యూమ్‌తో"
+            f" ({day_c:+.2f}%), సాధారణం కంటే {vol_x:.1f}x రెట్ల వాల్యూమ్‌తో"
             f" {vwap_status} ట్రేడ్ అవుతోంది (52W గరిష్టం ₹{high_52w:.1f} నుండి"
             f" {pb_52:.1f}% దూరం)."
         )
@@ -2694,7 +2697,7 @@ def run_news_vol_price_strategy(
         row_copy["News_Cat"] = cat_tag
         row_copy["News_Age"] = f"{age_h_val:.1f}గం. క్రితం"
         row_copy["News_Link"] = n_info["link"]
-        row_copy["_imp_rank"] = 0 if is_most_imp else 1
+        row_copy["_imp_rank"] = 0 if (is_most_imp and cat_filter != "LATEST") else 1
         row_copy["_age_h"] = age_h_val
         matched_rows.append(row_copy)
 
@@ -2743,21 +2746,21 @@ def run_news_vol_price_strategy(
     if not matched_rows:
         return pd.DataFrame(), []
 
-    # 🏆 SORTING RULE:
-    # 1. Most Important News (Is_Imp == True -> 0) first, sorted by newest time (Age_H ascending)
-    # 2. Remaining News (Is_Imp == False -> 1), sorted strictly by newest time (Age_H ascending)
     df_out = (
         pd.DataFrame(matched_rows)
         .drop_duplicates(subset=["T"], keep="first")
         .sort_values(by=["_imp_rank", "_age_h"], ascending=[True, True])
         .drop(columns=["_imp_rank", "_age_h"], errors="ignore")
     )
-    feed_records.sort(key=lambda x: (0 if x.get("Is_Imp") else 1, x.get("Age_H", 99.0)))
+    if cat_filter == "LATEST":
+        feed_records.sort(key=lambda x: x.get("Age_H", 99.0))
+    else:
+        feed_records.sort(key=lambda x: (0 if x.get("Is_Imp") else 1, x.get("Age_H", 99.0)))
     return df_out, feed_records
 
 
 def render_news_catalyst_banner(feed_records):
-    """Renders Most Important News at Top, followed by Time-Wise Order"""
+    """Renders Most Important News at Top, followed by Time-Wise Order (24h)"""
     if not feed_records:
         return ""
     rows_html = ""
@@ -2809,7 +2812,7 @@ def render_news_catalyst_banner(feed_records):
         "<div class='pro-news-wrap'><div class='pro-news-hdr'"
         " style='background:linear-gradient(90deg, #0f2942 0%, #0d1117"
         " 100%);border-left:4px solid #38bdf8;'><span>📰 24h హై-ఇంపాక్ట్ స్టాక్ బ్రేకింగ్"
-        " న్యూస్ + ఆకస్మిక వాల్యూమ్ + ప్రైస్ స్కానర్ (🔥 Most Important First • 🕒 Time-Wise Order)</span><span"
+        " న్యూస్ + వాల్యూమ్ + ప్రైస్ స్కానర్ (🔥 Most Important First • 🕒 24h Time-Wise Order)</span><span"
         " style='font-size:12px;color:#79c0ff;background:#161b22;padding:2px"
         " 9px;border-radius:12px;border:1px solid"
         f" #30363d;'>{len(seen)} స్టాక్స్</span></div><table"
@@ -2824,7 +2827,7 @@ def render_news_catalyst_banner(feed_records):
 
 @st.cache_data(ttl=240, show_spinner=False)
 def _fetch_market_news_raw():
-    """Fetches ONLY High-Impact Corporate Q-Results/Orders, Indian Macro & Global Macro News (Last 24h)"""
+    """Fetches High-Impact Corporate Q-Results/Orders, Indian Macro & Global Macro News across Full 24 Hours"""
     now_utc = datetime.now(ZoneInfo("UTC"))
     queries = {
         "india": (
@@ -2842,7 +2845,7 @@ def _fetch_market_news_raw():
     }
     out = {"india": [], "global": [], "stocks": []}
 
-    def _pull_rss(key, q_str, limit_n=14):
+    def _pull_rss(key, q_str, limit_n=15):
         items_by_key = {}
         is_macro_feed = key in ("india", "global")
         try:
@@ -2888,7 +2891,7 @@ def _fetch_market_news_raw():
                         except Exception:
                             age_h = 4.0
 
-                    # Strictly last 24 hours only
+                    # Full 24 hours coverage
                     if age_h <= 24.0:
                         is_imp_m = _is_most_important_catalyst(
                             tag, clean_t, vol_x=2.5, day_c=2.5, age_h=age_h, is_macro=is_macro_feed
@@ -2934,12 +2937,11 @@ def _fetch_market_news_raw():
         except Exception:
             pass
         items_list = list(items_by_key.values())
-        # Sort: Most Important first, then strictly by Time-Wise Order (age_h ascending)
         items_list.sort(key=lambda x: (0 if x.get("is_imp") else 1, x["age_h"]))
         return key, items_list
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as ex:
-        futs = [ex.submit(_pull_rss, k, q, 14) for k, q in queries.items()]
+        futs = [ex.submit(_pull_rss, k, q, 15) for k, q in queries.items()]
         for f in concurrent.futures.as_completed(futs):
             try:
                 k, lst = f.result()
@@ -2970,18 +2972,18 @@ def _fetch_market_news_raw():
 
 
 def fetch_indian_and_global_market_news():
-    """Builds Top Scrolling Flash Ticker ONLY from Most Important Stock & Macro News"""
+    """Builds Top Scrolling Flash Ticker ONLY from Most Important Stock & Macro News (24h)"""
     base_news = _fetch_market_news_raw()
     out = dict(base_news)
 
     flash_parts = []
     stock_flashes = _SS.get("latest_stock_flash_te", [])
     if stock_flashes:
-        flash_parts.extend(stock_flashes[:4])
+        flash_parts.extend(stock_flashes[:5])
 
     macro_pool = [
         it for it in (out.get("india", []) + out.get("global", []))
-        if it.get("is_imp") and it.get("age_h", 99) <= 12.0
+        if it.get("is_imp") and it.get("age_h", 99) <= 24.0
     ]
     macro_pool.sort(key=lambda x: x["age_h"])
     for mp in macro_pool[:4]:
@@ -3012,53 +3014,39 @@ def fetch_indian_and_global_market_news():
 
 def render_market_news_hub(df_all_stocks, processed_charts):
     """
-    Renders Interactive Filter Bar + 24h Unexpected High-Vol Stock News + Filtered Corporate/Macro News
+    All 5 Filters search the FULL 24 HOURS of News!
+    Includes both Bullish (Price Up) & Bearish (Price Down) High-Volume Breakout stocks.
     Sorted by: Most Important at Top -> Remaining in Strict Time-Wise Order (Newest First)
     """
-    fc1, fc2 = st.columns([2.3, 1.3], gap="small")
-    with fc1:
-        news_cat_pick = st.radio(
-            "🔎 News Filter:",
-            [
-                "🔥 All High-Impact",
-                "🚨 Most Important Only",
-                "📊 Q-Results Only",
-                "⚡ Latest (< 4 Hours)",
-                "📰 Order Wins & Approvals",
-            ],
-            horizontal=True,
-            key="pro_news_cat_filter",
-        )
-    with fc2:
-        vol_dir_pick = st.radio(
-            "📈 Price & Vol Rule (24h):",
-            [
-                "🚀 High Vol + Price Up Only",
-                "💥 High Vol + Price Up/Down",
-            ],
-            horizontal=True,
-            key="pro_news_dir_filter",
-        )
+    news_cat_pick = st.radio(
+        "🔎 24-Hour News Filter:",
+        [
+            "🔥 All High-Impact (24h)",
+            "🚨 Most Important Only (24h)",
+            "📊 Q-Results Only (24h)",
+            "⚡ Latest Time-Wise (24h)",
+            "📰 Order Wins & Approvals (24h)",
+        ],
+        horizontal=True,
+        key="pro_news_cat_filter",
+    )
 
     cat_code = "ALL"
     if "Most Important" in news_cat_pick:
         cat_code = "IMP"
     elif "Q-Results" in news_cat_pick:
         cat_code = "QRES"
-    elif "Latest" in news_cat_pick:
+    elif "Latest Time-Wise" in news_cat_pick:
         cat_code = "LATEST"
     elif "Order Wins" in news_cat_pick:
         cat_code = "ORDER"
-
-    only_up_flag = "Price Up Only" in vol_dir_pick
 
     m_news = fetch_indian_and_global_market_news()
     _, stock_feed = run_news_vol_price_strategy(
         df_all_stocks,
         processed_charts,
-        min_volx=1.8,
-        min_move_pct=1.5,
-        only_price_up=only_up_flag,
+        min_volx=1.3,
+        min_move_pct=0.75,
         cat_filter=cat_code,
     )
 
@@ -3072,31 +3060,23 @@ def render_market_news_hub(df_all_stocks, processed_charts):
 
     if stock_feed:
         st.markdown(render_news_catalyst_banner(stock_feed), unsafe_allow_html=True)
-    else:
-        st.info(
-            "ℹ️ గత 24 గంటల్లో ఈ ఫిల్టర్ కండిషన్స్ (Unexpected High Volume ≥ 1.8x + Price Surge ≥ 1.5%) తో మ్యాచ్ అయిన స్టాక్ వార్తలు లేవు. పైన '💥 High Vol + Price Up/Down' ఫిల్టర్ మార్చి చూడండి."
-        )
 
-    # Filter the secondary Corporate Q-Results & Macro tables according to the same rules
+    # Secondary Corporate Q-Results & Announcements Table (Full 24h)
     raw_stocks_list = m_news.get("stocks", [])
     filtered_corp_stocks = []
     for it in raw_stocks_list:
         s_n = str(it.get("stock", "")).strip()
         s_d = stk_lu.get(s_n)
-        # Strictly require stock to be in our live lookup with unexpected high volume + price move
-        if s_d is None:
-            continue
-        s_vx = float(s_d.get("VolX", 0.0))
-        s_dc = float(s_d.get("Day_C", 0.0))
-        s_nc = float(s_d.get("C", 0.0))
-        if s_vx < 1.8:
-            continue
-        if only_up_flag and not (s_dc >= 1.5 or s_nc >= 2.0):
-            continue
-        if (not only_up_flag) and not (abs(s_dc) >= 1.5 or abs(s_nc) >= 2.0):
+        s_vx = float(s_d.get("VolX", 1.5)) if s_d is not None else 1.5
+        s_dc = float(s_d.get("Day_C", 1.0)) if s_d is not None else 1.0
+
+        # If live stock data exists, require active volume (VolX >= 1.2)
+        if s_d is not None and s_vx < 1.2 and abs(s_dc) < 0.75:
             continue
 
         age_v = float(it.get("age_h", 12.0))
+        if age_v > 24.0:
+            continue
         tag_v = str(it.get("tag", ""))
         is_imp_v = _is_most_important_catalyst(
             tag_v, it.get("title_en", ""), s_vx, s_dc, age_v, is_macro=False
@@ -3109,10 +3089,8 @@ def render_market_news_hub(df_all_stocks, processed_charts):
             continue
         if cat_code == "QRES" and not is_q_v:
             continue
-        if cat_code == "LATEST" and age_v > 4.0:
-            continue
         if cat_code == "ORDER" and not any(
-            k in tag_v for k in ("Order-Win", "Regulatory", "Expansion")
+            k in tag_v for k in ("Order-Win", "Regulatory", "Expansion", "Corp-Action", "Institutional")
         ):
             continue
 
@@ -3120,10 +3098,12 @@ def render_market_news_hub(df_all_stocks, processed_charts):
         it_copy["is_imp"] = is_imp_v
         filtered_corp_stocks.append(it_copy)
 
-    # Sort secondary stock table: Most Important first, then strictly by Time-Wise Order
-    filtered_corp_stocks.sort(
-        key=lambda x: (0 if x.get("is_imp") else 1, x.get("age_h", 99.0))
-    )
+    if cat_code == "LATEST":
+        filtered_corp_stocks.sort(key=lambda x: x.get("age_h", 99.0))
+    else:
+        filtered_corp_stocks.sort(
+            key=lambda x: (0 if x.get("is_imp") else 1, x.get("age_h", 99.0))
+        )
 
     q_nse_fts = [
         f"{it['stock']}.NS"
@@ -3207,7 +3187,7 @@ def render_market_news_hub(df_all_stocks, processed_charts):
                 )
                 mkt_ctx_html = (
                     f"<div class='pro-news-mkt'>📊 <b>{stk_name}</b> లైవ్ టెక్నికల్ రియాక్షన్:"
-                    f" ప్రస్తుతం ₹{s_p:,.2f} ({s_dc:+.2f}%) వద్ద, ఆకస్మిక వాల్యూమ్"
+                    f" ప్రస్తుతం ₹{s_p:,.2f} ({s_dc:+.2f}%) వద్ద, వాల్యూమ్"
                     f" <b>{s_vx:.1f}x</b> తో {vw_txt} (VWAP: ₹{s_vw:.1f}, 52W High:"
                     f" ₹{s_h52:.1f}) ట్రేడ్ అవుతోంది.</div>"
                 )
@@ -3271,13 +3251,13 @@ def render_market_news_hub(df_all_stocks, processed_charts):
         if with_mini_chart:
             thead_html = (
                 "<tr><th style='width:30%;'>📈 లైవ్ మినీ చార్ట్ (5m INTRADAY)</th><th"
-                " style='width:70%;'>📢 కంపెనీ క్వార్టర్లీ రిజల్ట్స్ (🔥 Most Important First • 🕒 Time-Wise Order)</th></tr>"
+                " style='width:70%;'>📢 కంపెనీ క్వార్టర్లీ రిజల్ట్స్ (🔥 Most Important First • 🕒 24h Time-Wise Order)</th></tr>"
             )
         else:
             thead_html = (
                 "<tr><th style='width:20%;'>ఇంపార్టెన్స్ & సమయం</th><th"
                 " style='width:80%;'>📢 హై-ఇంపాక్ట్ వార్త & మార్కెట్ విశ్లేషణ"
-                " (🔥 Most Important First • 🕒 Time-Wise)</th></tr>"
+                " (🔥 Most Important First • 🕒 24h Time-Wise)</th></tr>"
             )
 
         return (
@@ -3294,7 +3274,7 @@ def render_market_news_hub(df_all_stocks, processed_charts):
         st.markdown(
             _build_pro_news_table(
                 filtered_corp_stocks,
-                "🏢 24h హై-వాల్యూమ్ Q-Results & కార్పొరేట్ ప్రకటనలు (🔥 Most Important First • 🕒 Time-Wise)",
+                "🏢 24h క్వార్టర్లీ రిజల్ట్స్ (Q-Results) & ముఖ్య కార్పొరేట్ ప్రకటనలు (🔥 Most Important First • 🕒 Time-Wise)",
                 "#2ea043",
                 "linear-gradient(90deg, #112a1c 0%, #0d1117 100%)",
                 with_mini_chart=True,
@@ -3303,20 +3283,20 @@ def render_market_news_hub(df_all_stocks, processed_charts):
         )
 
     if cat_code in ("ALL", "IMP", "LATEST"):
-        india_list = m_news.get("india", [])
-        global_list = m_news.get("global", [])
+        india_list = list(m_news.get("india", []))
+        global_list = list(m_news.get("global", []))
         if cat_code == "IMP":
             india_list = [x for x in india_list if x.get("is_imp")]
             global_list = [x for x in global_list if x.get("is_imp")]
         elif cat_code == "LATEST":
-            india_list = [x for x in india_list if x.get("age_h", 99) <= 4.0]
-            global_list = [x for x in global_list if x.get("age_h", 99) <= 4.0]
+            india_list.sort(key=lambda x: x.get("age_h", 99.0))
+            global_list.sort(key=lambda x: x.get("age_h", 99.0))
 
         if india_list:
             st.markdown(
                 _build_pro_news_table(
                     india_list,
-                    "🇮🇳 ఇండియన్ స్టాక్ మార్కెట్‌పై ప్రభావం చూపే ముఖ్య వార్తలు (🔥 Most Important First • 🕒 Time-Wise)",
+                    "🇮🇳 ఇండియన్ స్టాక్ మార్కెట్‌పై ప్రభావం చూపే ముఖ్య వార్తలు (24h • 🔥 Most Important First • 🕒 Time-Wise)",
                     "#38bdf8",
                     "linear-gradient(90deg, #0f2942 0%, #0d1117 100%)",
                     with_mini_chart=False,
@@ -3328,7 +3308,7 @@ def render_market_news_hub(df_all_stocks, processed_charts):
             st.markdown(
                 _build_pro_news_table(
                     global_list,
-                    "🌍 గ్లోబల్ మార్కెట్స్‌పై ప్రభావం చూపే వార్తలు (🔥 Most Important First • 🕒 Time-Wise)",
+                    "🌍 గ్లోబల్ మార్కెట్స్‌పై ప్రభావం చూపే వార్తలు (24h • 🔥 Most Important First • 🕒 Time-Wise)",
                     "#a371f7",
                     "linear-gradient(90deg, #27143a 0%, #0d1117 100%)",
                     with_mini_chart=False,
@@ -3490,7 +3470,6 @@ def render_portfolio_news_and_results_table(df_port, df_stocks, weekly_trends):
         has_imp = 0 if (n_item and n_item.get("is_result")) else (1 if n_item else 2)
         port_items.append((has_imp, age_sort, sym, row, n_item))
 
-    # Sort Portfolio News: Latest Q-Results & Breaking News at the top in Time-Wise order
     port_items.sort(key=lambda x: (x[0], x[1]))
     rows_html = ""
 
