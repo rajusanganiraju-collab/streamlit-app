@@ -5552,11 +5552,11 @@ st.markdown("""
         z-index: 105 !important;
         background: transparent !important;
     }
-    /* 🔥 Full Screen (⛶) nokkinappudu Mini-Chart peddaga (88vh) kanipinchela */
-    div[data-testid="stFullScreenFrame"] div[data-testid="stPlotlyChart"],
-    div[data-testid="stFullScreenFrame"] .js-plotly-plot,
-    div[data-testid="stFullScreenFrame"] .plot-container,
-    div[data-testid="stFullScreenFrame"] .svg-container {
+    /* 🔥 Full Screen (⛶) nokkinappudu MATRAME Mini-Chart peddaga (88vh) kanipinchela */
+    div[data-testid="stFullScreenFrame"]:fullscreen div[data-testid="stPlotlyChart"],
+    div[data-testid="stFullScreenFrame"]:fullscreen .js-plotly-plot,
+    div[data-testid="stFullScreenFrame"]:fullscreen .plot-container,
+    div[data-testid="stFullScreenFrame"]:fullscreen .svg-container {
         height: 88vh !important;
         min-height: 88vh !important;
     }
