@@ -878,7 +878,7 @@ def fetch_cached_5m_data(tkrs_list):
     _m_open = is_market_open()
     _ttl = 25 if _m_open else 64800
     _cache_5m_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "intraday_5m_cache.pkl")
-    _bad_syms = globals().get('_SKIP_BAD_SYMS', {"PBFINTECH", "GUJGASLTD", "TVSHLDGS", "TATAMOTORS", "PEL", "LTIM", "JCHAC", "SEAMEC", "TIDEWATER"})
+    _SKIP_BAD_SYMS = {"PBFINTECH", "GUJGASLTD", "TVSHLDGS", "PEL", "LTIM", "JCHAC", "TIDEWATER"}
 
     if '5m_store' not in _SS:
         _SS['5m_store'] = {}
@@ -1322,6 +1322,543 @@ import urllib.parse
 import xml.etree.ElementTree as ET
 
 NEWS_STRAT = "📰 News + Vol + Price Breakout (Only News)"
+DOMINO_STRAT = "🌍 Domino Effect & Crisis Matrix (Victim vs Winner)"
+
+# =========================================================
+# 🌍 DOMINO EFFECT & CRISIS INTELLIGENCE MATRIX (POINTS 1 TO 6)
+# =========================================================
+DOMINO_CRISIS_MATRIX = [
+    # 1. GLOBAL DEFENCE & MICRO-PARTS SUPPLY CHAIN
+    {
+        "id": "DEF_APACHE",
+        "name": "🚁 Apache & Global Aerospace Supply",
+        "keywords": ["apache", "boeing", "lockheed", "aerospace", "fighter jet", "missile", "drone order", "pentagon", "israel war", "nato", "airbus", "ge aerospace"],
+        "beneficiaries": ["MTARTECH", "DATAPATTNS", "ZENTEC", "HAL", "BEL", "BDL"],
+        "victims": [],
+        "tag_buy": "🚁Aero-Supply BUY",
+        "tag_sell": "",
+        "te_desc": "అమెరికా/ఇజ్రాయెల్/యూరప్ ఏరోస్పేస్ & డిఫెన్స్ మైక్రో-పార్ట్స్ డిమాండ్ వల్ల ఈ కంపెనీలకు డైరెక్ట్ ఆర్డర్ల లాభం."
+    },
+    {
+        "id": "DEF_AMMO",
+        "name": "💣 Global Ammunition & Artillery Shortage",
+        "keywords": ["ammunition", "artillery", "shells shortage", "howitzer", "warship", "frigate", "defence export", "middle east war", "ukraine war", "arms supply"],
+        "beneficiaries": ["BHARATFORG", "MAZDOCK", "BEML", "BDL", "HAL"],
+        "victims": [],
+        "tag_buy": "💣Ammo-Shortage BUY",
+        "tag_sell": "",
+        "te_desc": "గ్లోబల్ యుద్ధాల వల్ల షెల్స్ & గన్స్ కొరత ఏర్పడి యూరప్/మిడిల్-ఈస్ట్ ఎగుమతుల ఆర్డర్లు పెరుగుతాయి."
+    },
+    {
+        "id": "DEF_TITANIUM",
+        "name": "🛡️ Russia Titanium & Super-Alloys Cut",
+        "keywords": ["titanium", "super alloy", "special metal", "russia sanctions", "russian metal", "forging demand", "aerospace metal"],
+        "beneficiaries": ["MIDHANI", "RKFORGE", "BHARATFORG"],
+        "victims": [],
+        "tag_buy": "🛡️Titanium-Gain BUY",
+        "tag_sell": "",
+        "te_desc": "రష్యా నుండి టైటానియం/సూపర్-అల్లాయ్స్ సరఫరా ఆగిపోతే దేశీయ డిఫెన్స్ మెటల్ కంపెనీలకు భారీ డిమాండ్."
+    },
+
+    # 2. FACTORY FIRE, BLAST, STRIKE & GLOBAL MINE SHUTDOWNS
+    {
+        "id": "CHEM_FIRE_CRISIS",
+        "name": "🔥 Chemical/Pharma Plant Fire or Blast",
+        "keywords": ["fire at plant", "factory fire", "boiler blast", "explosion at", "gas leak", "plant shutdown", "workers strike", "closure notice", "pollution board", "production halt"],
+        "beneficiaries": ["CLEAN", "VINATIORGA", "FINEORG", "NAVINFLUOR"],
+        "victims": ["DEEPAKNTR", "AARTIIND", "SRF", "DIVISLAB"],
+        "tag_buy": "🏆Sympathy-Jackpot BUY",
+        "tag_sell": "🩸Plant-Crisis SELL",
+        "te_desc": "ఫ్యాక్టరీలో ప్రమాదం/స్ట్రైక్ జరిగితే ఆ స్టాక్ పడుతుంది (SELL), కానీ సప్లై తగ్గిపోవడం వల్ల దాని డైరెక్ట్ కాంపిటీటర్స్ (BUY) లాభపడతాయి."
+    },
+    {
+        "id": "GLOBAL_MINE_SHUT",
+        "name": "⛏️ Global Copper/Zinc/Coal Mine Shutdown",
+        "keywords": ["mine strike", "mine shutdown", "peru copper", "chile copper", "zinc mine", "coal mine accident", "smelter shut", "lme copper", "lme zinc", "mining ban"],
+        "beneficiaries": ["HINDCOPPER", "HINDZINC", "COALINDIA", "NMDC", "VEDL", "NATIONALUM"],
+        "victims": [],
+        "tag_buy": "⛏️Mine-Shortage BUY",
+        "tag_sell": "",
+        "te_desc": "విదేశీ గనుల్లో సమ్మె లేదా ప్రమాదం వల్ల గ్లోబల్ మెటల్ ధరలు పెరిగి ఇండియా మైనింగ్ కంపెనీలకు లాభం."
+    },
+
+    # 3. NATURAL DISASTERS (EARTHQUAKE, CYCLONE, HEATWAVE)
+    {
+        "id": "REBUILD_DISASTER",
+        "name": "🌪️ Earthquake / Cyclone / Flood Rebuild",
+        "keywords": ["cyclone", "flood", "reconstruction", "housing rebuild", "infrastructure damage", "bridge collapse", "landslide"],
+        "beneficiaries": ["ULTRACEMCO", "AMBUJACEM", "TATASTEEL", "POLYCAB", "KEI", "ACC", "JSWSTEEL"],
+        "victims": [],
+        "tag_buy": "🏗️Rebuild-Demand BUY",
+        "tag_sell": "",
+        "te_desc": "తుఫాను/భూకంపం తర్వాత పునర్నిర్మాణం కోసం సిమెంట్, స్టీల్ మరియు కేబుల్స్ కి భారీ డిమాండ్."
+    },
+    {
+        "id": "TAIWAN_CHIP_SHOCK",
+        "name": "🌏 Taiwan / Japan Earthquake (Chip Shortage)",
+        "keywords": ["taiwan earthquake", "japan earthquake", "tsmc", "semiconductor shortage", "chip shortage", "wafer plant", "fab halt", "supply chain disruption"],
+        "beneficiaries": [],
+        "victims": ["TATAMOTORS", "MARUTI", "DIXON", "SYRMA", "M&M", "EICHERMOT"],
+        "tag_buy": "",
+        "tag_sell": "📉Chip-Shock SELL",
+        "te_desc": "తైవాన్/జపాన్ భూకంపం వల్ల సెమీకండక్టర్ చిప్ సప్లై ఆగిపోయి ఆటో & EMS కంపెనీలకు ప్రొడక్షన్ సమస్య."
+    },
+    {
+        "id": "EXTREME_HEATWAVE",
+        "name": "☀️ Extreme Heatwave & El Nino Power Surge",
+        "keywords": ["heatwave", "el nino", "record temperature", "summer demand", "peak power demand", "ac sales", "cooling demand", "power shortage", "warmest"],
+        "beneficiaries": ["VOLTAS", "AMBER", "SYMPHONY", "HAVELLS", "IEX", "TATAPOWER", "NTPC", "BLUESTARCO"],
+        "victims": [],
+        "tag_buy": "☀️Heatwave-Rally BUY",
+        "tag_sell": "",
+        "te_desc": "ఎండలు విపరీతంగా పెరిగితే AC/కూలర్ కంపెనీలు మరియు పవర్ ఎక్స్చేంజ్/జనరేషన్ స్టాక్స్ లో ర్యాలీ."
+    },
+
+    # 4. FOOD CRISIS, CROP DISEASE & AGRI EXPORT BANS
+    {
+        "id": "FOOD_SHORTAGE",
+        "name": "🌾 Global Food Shortage & Drought",
+        "keywords": ["food shortage", "global drought", "sugar shortage", "coffee price", "rice shortage", "brazil drought", "vietnam coffee", "wheat crisis", "famine"],
+        "beneficiaries": ["KRBL", "BALRAMCHIN", "EIDPARRY", "CCL", "GAEL", "RENUKA"],
+        "victims": [],
+        "tag_buy": "🌾Food-Crisis BUY",
+        "tag_sell": "",
+        "te_desc": "ప్రపంచ ఆహార కొరత లేదా కరువు వల్ల రైస్, షుగర్, కాఫీ మరియు ఆగ్రో కంపెనీలకు అధిక ధరల లాభం."
+    },
+    {
+        "id": "AGRI_EXPORT_BAN",
+        "name": "🚫 Govt Agri Export Ban / Duty Hike",
+        "keywords": ["rice export ban", "sugar export ban", "export duty hike", "minimum export price", "mep on rice", "bans export of", "curbs export"],
+        "beneficiaries": [],
+        "victims": ["KRBL", "BALRAMCHIN", "EIDPARRY", "BANARISUG", "GAEL"],
+        "tag_buy": "",
+        "tag_sell": "🚫Export-Ban SELL",
+        "te_desc": "ప్రభుత్వం రైస్ లేదా షుగర్ ఎగుమతులపై నిషేధం/డ్యూటీ విధిస్తే ఆ స్టాక్స్ పై తక్షణ నెగటివ్ ప్రభావం."
+    },
+    {
+        "id": "AGRI_DUTY_CUT",
+        "name": "✅ Agri Export Duty Cut / Ethanol Boost",
+        "keywords": ["lifts export ban", "cuts export duty", "removes minimum export", "allows sugar export", "ethanol price hike", "rice export quota", "scraps export duty"],
+        "beneficiaries": ["KRBL", "BALRAMCHIN", "BANARISUG", "EIDPARRY", "GAEL"],
+        "victims": [],
+        "tag_buy": "✅Duty-Cut Breakout BUY",
+        "tag_sell": "",
+        "te_desc": "ఎగుమతి సుంకం తగ్గింపు లేదా నిషేధం ఎత్తివేత వల్ల రైస్ & షుగర్ స్టాక్స్ లో తక్షణ బ్రేక్అవుట్."
+    },
+    {
+        "id": "CROP_PEST_FERT",
+        "name": "🐛 Crop Disease / Locusts / Fertilizer Demand",
+        "keywords": ["crop disease", "pest attack", "locust", "unseasonal rain", "fertilizer subsidy", "agrochemical demand", "kharif", "rabi", "dap shortage", "urea"],
+        "beneficiaries": ["PIIND", "COROMANDEL", "CHAMBLFERT", "DHANUKA", "RALLIS", "DEEPAKFERT", "FACT", "RCF"],
+        "victims": [],
+        "tag_buy": "🧪Agro-Chem BUY",
+        "tag_sell": "",
+        "te_desc": "పంట తెగుళ్లు లేదా అకాల వర్షాల వల్ల ఆగ్రో-కెమికల్స్ మరియు ఫెర్టిలైజర్ కంపెనీలకు డిమాండ్ పెరుగుతుంది."
+    },
+
+    # 5. 5 HIDDEN REAL-WORLD RISKS
+    {
+        "id": "RED_SEA_CHOKE",
+        "name": "🚢 Red Sea Attack & Maritime Freight Surge",
+        "keywords": ["red sea", "houthi", "suez canal", "container shortage", "freight rate", "shipping crisis", "maritime choke", "vessel attack", "baltic dry"],
+        "beneficiaries": ["CONCOR", "ALLCARGO", "SEAMEC", "GATEWAY", "AEGISLOG"],
+        "victims": ["BALKRISIND", "GOKEX", "KPRMILL", "WELSPUNLIV"],
+        "tag_buy": "🚢Freight-Boom BUY",
+        "tag_sell": "📉Freight-Hit SELL",
+        "te_desc": "సముద్ర మార్గాల్లో (Red Sea) దాడుల వల్ల షిప్పింగ్/లాజిస్టిక్స్ స్టాక్స్ పెరుగుతాయి, ఎగుమతిదారుల మార్జిన్లు తగ్గుతాయి."
+    },
+    {
+        "id": "VIRUS_OUTBREAK",
+        "name": "🦠 Virus Outbreak & Epidemic Scare",
+        "keywords": ["new virus", "outbreak", "epidemic", "pandemic", "covid", "nipah", "bird flu", "mpox", "h1n1", "surge in cases", "testing kit", "who alert", "paracetamol"],
+        "beneficiaries": ["LALPATHLAB", "METROPOLIS", "VIJAYA", "APOLLOHOSP", "MAXHEALTH", "GRANULES", "FORTIS"],
+        "victims": ["INDIGO", "INDHOTEL", "PVRINOX", "EIHOTEL"],
+        "tag_buy": "🦠Health-Scare BUY",
+        "tag_sell": "📉Travel-Hit SELL",
+        "te_desc": "కొత్త వైరస్/ఎపిడెమిక్ వార్త రాగానే డయాగ్నస్టిక్స్, హాస్పిటల్స్ మరియు పారాసెటమాల్ (GRANULES) స్టాక్స్ రన్ అవుతాయి."
+    },
+    {
+        "id": "ANTI_DUMPING_SHIELD",
+        "name": "🛡️ India Anti-Dumping Duty on China",
+        "keywords": ["anti-dumping", "anti dumping duty", "dgtr", "safeguard duty", "chinese import", "import duty on steel", "chemical import duty", "caustic soda", "pvc duty"],
+        "beneficiaries": ["EPIGRAL", "GUJALKALI", "NOCIL", "GNFC", "JSWSTEEL", "TATASTEEL", "ATUL", "DEEPAKNTR"],
+        "victims": [],
+        "tag_buy": "🛡️ADD-Shield BUY",
+        "tag_sell": "",
+        "te_desc": "చైనా చౌక కెమికల్స్/స్టీల్ పై యాంటీ-డంపింగ్ డ్యూటీ వేయగానే దేశీయ ఉత్పత్తిదారుల్లో తక్షణ బయింగ్ వస్తుంది."
+    },
+    {
+        "id": "CYBER_OUTAGE",
+        "name": "💻 Cyber Attack & Banking/Infra Tech Outage",
+        "keywords": ["cyber attack", "ransomware", "data breach", "server outage", "tech outage", "network security", "cloud security", "ddos", "it outage"],
+        "beneficiaries": ["TATACOMM", "TEJASNET", "NEWGEN", "RAILTEL", "AFFLE"],
+        "victims": [],
+        "tag_buy": "🔒Cyber-Shield BUY",
+        "tag_sell": "🩸Cyber-Victim SELL",
+        "te_desc": "బ్యాంకింగ్/ఇన్‌ఫ్రాపై సైబర్ దాడి జరిగితే ఆ స్టాక్ పడుతుంది, నెట్‌వర్క్ సెక్యూరిటీ & క్లౌడ్ ఇన్‌ఫ్రా స్టాక్స్ లాభపడతాయి."
+    },
+    {
+        "id": "POWER_GRID_SHORTAGE",
+        "name": "⚡ Coal Crisis & Industrial Power Grid Shortage",
+        "keywords": ["coal shortage", "power crisis", "grid failure", "blackout", "industrial power cut", "transformer shortage", "genset demand", "captive power", "turbine order"],
+        "beneficiaries": ["CUMMINSIND", "THERMAX", "ABB", "SIEMENS", "CGPOWER", "TRITURBINE", "APARINDS", "BHEL"],
+        "victims": [],
+        "tag_buy": "⚡Grid-Infra BUY",
+        "tag_sell": "",
+        "te_desc": "బొగ్గు కొరత లేదా పవర్ సంక్షోభం వస్తే జెన్‌సెట్స్, టర్బైన్స్ మరియు ట్రాన్స్‌ఫార్మర్ కంపెనీలకు భారీ ఆర్డర్లు."
+    }
+]
+
+# 🔄 VICTIM-TO-WINNER AUTO SWITCH MAP (Direct Competitor Mapping)
+COMPETITOR_SYMPATHY_MAP = {
+    # Chemicals & Specialty Chemicals
+    "DEEPAKNTR": ["CLEAN", "VINATIORGA", "ATUL", "AARTIIND"],
+    "AARTIIND": ["VINATIORGA", "CLEAN", "DEEPAKNTR", "ATUL"],
+    "SRF": ["NAVINFLUOR", "GUJALKALI", "EPIGRAL", "CLEAN"],
+    "NAVINFLUOR": ["SRF", "CLEAN", "EPIGRAL"],
+    "ATUL": ["DEEPAKNTR", "VINATIORGA", "CLEAN", "NOCIL"],
+    "CLEAN": ["VINATIORGA", "FINEORG", "DEEPAKNTR"],
+    "VINATIORGA": ["CLEAN", "FINEORG", "AARTIIND"],
+    "FINEORG": ["CLEAN", "VINATIORGA", "GALAXYSURF"],
+    "TATACHEM": ["GUJALKALI", "EPIGRAL", "GNFC", "DCMSHRIRAM"],
+    "UPL": ["PIIND", "SUMICHEM", "RALLIS", "DHANUKA"],
+    # Pharma APIs & Formulations
+    "DIVISLAB": ["LAURUSLABS", "SYNGENE", "NEULANDLAB", "GRANULES"],
+    "LAURUSLABS": ["DIVISLAB", "GRANULES", "NEULANDLAB"],
+    "GRANULES": ["DIVISLAB", "LAURUSLABS", "AARTIDRUGS"],
+    "DRREDDY": ["SUNPHARMA", "CIPLA", "LUPIN"],
+    "SUNPHARMA": ["CIPLA", "DRREDDY", "TORNTPHARM"],
+    "CIPLA": ["SUNPHARMA", "DRREDDY", "ALKEM"],
+    "LUPIN": ["AUROPHARMA", "DRREDDY", "GLENMARK"],
+    "AUROPHARMA": ["LUPIN", "BIOCON", "GRANULES"],
+    # Auto & EMS
+    "TATAMOTORS": ["M&M", "MARUTI", "ASHOKLEY"],
+    "MARUTI": ["M&M", "TATAMOTORS", "HYUNDAI"],
+    "DIXON": ["AMBER", "SYRMA", "KAYNES"],
+    "SYRMA": ["DIXON", "AMBER"],
+    # Metals, Cement & Cables
+    "TATASTEEL": ["JSWSTEEL", "JINDALSTEL", "SAIL"],
+    "JSWSTEEL": ["TATASTEEL", "JINDALSTEL"],
+    "ULTRACEMCO": ["AMBUJACEM", "SHREECEM", "DALBHARAT"],
+    "POLYCAB": ["KEI", "FINCABLES", "HAVELLS"],
+    # Banking / Cyber Outage -> Security / Rival Bank
+    "HDFCBANK": ["ICICIBANK", "SBIN", "TATACOMM", "NEWGEN"],
+    "ICICIBANK": ["HDFCBANK", "SBIN", "TATACOMM", "NEWGEN"],
+    "INDUSINDBK": ["AXISBANK", "KOTAKBANK", "TATACOMM"],
+    "KOTAKBANK": ["HDFCBANK", "ICICIBANK", "TATACOMM", "NEWGEN"],
+}
+
+_SEVERE_VICTIM_KW = (
+    "fire", "blast", "explosion", "gas leak", "strike", "shutdown", "closure",
+    "import alert", "warning letter", "form 483", "oai", "ed raid", "it raid",
+    "cbi", "ban", "cyber attack", "ransomware", "outage", "default", "fraud",
+    "penalty", "sebi ban", "plant halt", "recall"
+)
+
+
+@st.cache_data(ttl=180, show_spinner=False)
+def fetch_domino_crisis_rss():
+    """Scans 24h Global & Indian Crisis/Supply-Chain/Disaster/Plant-Fire RSS feeds"""
+    now_utc = datetime.now(ZoneInfo("UTC"))
+    q_list = [
+        '("factory fire" OR "boiler blast" OR "gas leak" OR "plant shutdown" OR "workers strike" OR "USFDA" OR "import alert") NSE OR India when:1d',
+        '("Apache" OR "Boeing" OR "Lockheed" OR "ammunition" OR "titanium" OR "anti-dumping duty" OR "DGTR" OR "Red Sea") India OR stock when:1d',
+        '("earthquake" OR "cyclone" OR "heatwave" OR "El Nino" OR "mine strike" OR "copper mine" OR "chip shortage" OR "coal shortage") when:1d',
+        '("export ban" OR "export duty" OR "rice export" OR "sugar export" OR "crop disease" OR "virus outbreak" OR "cyber attack") India when:1d'
+    ]
+    raw_items = []
+    seen_titles = set()
+
+    def _pull_q(q_str):
+        local_list = []
+        try:
+            q = urllib.parse.quote(q_str)
+            url = f"https://news.google.com/rss/search?q={q}&hl=en-IN&gl=IN&ceid=IN:en"
+            r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=3.8)
+            if r.status_code == 200 and r.content:
+                root = ET.fromstring(r.content)
+                for it in root.findall("./channel/item")[:12]:
+                    t_clean = _clean_en_headline(it.findtext("title") or "")
+                    if not t_clean or len(t_clean) < 15:
+                        continue
+                    link = (it.findtext("link") or "").strip()
+                    pub_s = (it.findtext("pubDate") or "").strip()
+                    age_h = 4.0
+                    if pub_s:
+                        try:
+                            dt_p = parsedate_to_datetime(pub_s)
+                            if dt_p.tzinfo is None:
+                                dt_p = dt_p.replace(tzinfo=ZoneInfo("UTC"))
+                            age_h = max(0.1, (now_utc - dt_p.astimezone(ZoneInfo("UTC"))).total_seconds() / 3600.0)
+                        except Exception:
+                            age_h = 4.0
+                    if age_h <= 24.0:
+                        local_list.append({"title_en": t_clean, "link": link, "age_h": round(age_h, 1)})
+        except Exception:
+            pass
+        return local_list
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex:
+        for res in ex.map(_pull_q, q_list):
+            for item in res:
+                k = item["title_en"][:40].lower()
+                if k not in seen_titles:
+                    seen_titles.add(k)
+                    raw_items.append(item)
+
+    raw_items.sort(key=lambda x: x["age_h"])
+    return raw_items
+
+
+def run_domino_crisis_engine(df_universe, processed_charts):
+    """
+    Executes Points 1 to 6:
+      1. Matches Global & Domestic Crisis RSS against DOMINO_CRISIS_MATRIX
+      2. Victim-to-Winner Auto Switch: Direct Victim -> SELL & Competitor -> #1 BUY
+      3. Zero-Lag Pre-Guessing: 5-min 3x VolX drop without news -> '🚨 Hidden Trouble' + Competitor Watch
+    """
+    if df_universe is None or df_universe.empty:
+        return pd.DataFrame(), []
+
+    df_clean = df_universe.drop_duplicates(subset=["T"], keep="first").copy()
+    stk_lookup = df_clean.set_index("T").to_dict("index")
+
+    crisis_rss = fetch_domino_crisis_rss()
+
+    # Also inspect live stock news from top volatile stocks
+    volatile_mask = (df_clean["VolX"] >= 1.4) & (df_clean["Day_C"].abs() >= 1.0)
+    vol_fts = df_clean[volatile_mask].sort_values("VolX", ascending=False)["Fetch_T"].head(35).tolist()
+    stk_news_map = fetch_live_stock_news_batch(tuple(vol_fts), max_age_hours=24) if vol_fts else {}
+
+    domino_signals = {}  # sym -> dict of signal metadata
+
+    def _register_signal(sym, side, tag, reason_en, te_rule, link_url, age_h, base_score, priority_rank):
+        if sym not in stk_lookup:
+            return
+        s_row = stk_lookup[sym]
+        day_c = float(s_row.get("Day_C", 0.0))
+        vol_x = float(s_row.get("VolX", 1.0))
+
+        # Boost score when price & volume confirm the Domino direction
+        score = base_score
+        if side == "BUY" and day_c > 0:
+            score += min(6, int(vol_x * 2 + day_c))
+        elif side == "SELL" and day_c < 0:
+            score += min(6, int(vol_x * 2 + abs(day_c)))
+
+        if sym not in domino_signals or priority_rank < domino_signals[sym]["priority_rank"]:
+            domino_signals[sym] = {
+                "sym": sym,
+                "side": side,
+                "tag": tag,
+                "reason_en": reason_en,
+                "te_rule": te_rule,
+                "link": link_url or f"https://www.google.com/search?q={sym}+share+news&tbm=nws",
+                "age_h": age_h,
+                "score": min(99, max(75, int(score))),
+                "priority_rank": priority_rank
+            }
+
+    # ---------------------------------------------------------
+    # STEP A: SCAN GLOBAL & DOMESTIC CRISIS RSS (POINTS 1 TO 5)
+    # ---------------------------------------------------------
+    for item in crisis_rss:
+        t_en = item["title_en"]
+        t_low = t_en.lower()
+        age_h = item["age_h"]
+        lnk = item["link"]
+
+        # 1. Check if a specific NSE stock is a Direct Victim of Fire/Blast/Strike/Cyber/Ban
+        ext_sym, is_nse = _extract_stock_from_headline(t_en)
+        if is_nse and ext_sym in stk_lookup and any(vk in t_low for vk in _SEVERE_VICTIM_KW):
+            _register_signal(
+                ext_sym, "SELL", "🩸Direct-Victim SELL", t_en,
+                f"🚨 <b>Direct Victim (Instant Short):</b> {ext_sym} లో ఊహించని సంక్షోభం/ప్రమాదం వార్త కారణంగా తక్షణ SELL ఒత్తిడి.",
+                lnk, age_h, base_score=96, priority_rank=1
+            )
+            # 🔄 VICTIM-TO-WINNER AUTO SWITCH: Push direct competitors to #1 BUY!
+            for comp_sym in COMPETITOR_SYMPATHY_MAP.get(ext_sym, []):
+                _register_signal(
+                    comp_sym, "BUY", f"🏆Sympathy-Winner (#1 vs {ext_sym})",
+                    f"Competitor Gain: {ext_sym} crisis shifts market share & pricing power to {comp_sym} | Ref: {t_en}",
+                    f"🏆 <b>Victim-to-Winner Auto Switch (#1 BUY):</b> ప్రత్యర్థి కంపెనీ ({ext_sym}) లో సమస్య వల్ల సప్లై తగ్గి <b>{comp_sym}</b> కి డైరెక్ట్ ఆర్డర్లు & ధరల లాభం!",
+                    lnk, age_h, base_score=98, priority_rank=0
+                )
+
+        # 2. Match against the 16 Domino Crisis Matrix Rules
+        for rule in DOMINO_CRISIS_MATRIX:
+            if any(kw in t_low for kw in rule["keywords"]):
+                for b_sym in rule["beneficiaries"]:
+                    if b_sym in stk_lookup:
+                        b_row = stk_lookup[b_sym]
+                        # Show if stock is active or breaking out
+                        if float(b_row.get("Day_C", 0)) >= -0.5 or float(b_row.get("VolX", 0)) >= 1.1:
+                            _register_signal(
+                                b_sym, "BUY", rule["tag_buy"], t_en,
+                                f"🌍 <b>{rule['name']}:</b> {rule['te_desc']}",
+                                lnk, age_h, base_score=86, priority_rank=2
+                            )
+                for v_sym in rule["victims"]:
+                    if v_sym in stk_lookup and v_sym != ext_sym:
+                        v_row = stk_lookup[v_sym]
+                        if float(v_row.get("Day_C", 0)) <= 0.5 or float(v_row.get("VolX", 0)) >= 1.1:
+                            _register_signal(
+                                v_sym, "SELL", rule["tag_sell"], t_en,
+                                f"⚠️ <b>{rule['name']} (Victim):</b> {rule['te_desc']}",
+                                lnk, age_h, base_score=85, priority_rank=2
+                            )
+
+    # ---------------------------------------------------------
+    # STEP B: CHECK DIRECT STOCK NEWS FOR VICTIM-TO-WINNER SWITCH
+    # ---------------------------------------------------------
+    for ft, n_info in stk_news_map.items():
+        if not n_info:
+            continue
+        s_name = ft.replace(".NS", "")
+        t_en = n_info.get("title_en", "")
+        t_low = t_en.lower()
+        age_h = float(n_info.get("age_h", 6.0))
+        lnk = n_info.get("link", "")
+
+        if any(vk in t_low for vk in _SEVERE_VICTIM_KW):
+            _register_signal(
+                s_name, "SELL", "🩸Direct-Victim SELL", t_en,
+                f"🚨 <b>Direct Victim (Instant Short):</b> {s_name} లో నెగటివ్ బ్రేకింగ్ న్యూస్ వల్ల తక్షణ SELL.",
+                lnk, age_h, base_score=96, priority_rank=1
+            )
+            for comp_sym in COMPETITOR_SYMPATHY_MAP.get(s_name, []):
+                _register_signal(
+                    comp_sym, "BUY", f"🏆Sympathy-Winner (#1 vs {s_name})",
+                    f"Sympathy Buy: {s_name} trouble benefits direct rival {comp_sym} | {t_en}",
+                    f"🏆 <b>Victim-to-Winner Auto Switch (#1 BUY):</b> {s_name} లో ఏర్పడిన సమస్య వల్ల దాని డైరెక్ట్ కాంపిటీటర్ <b>{comp_sym}</b> కి తక్షణ లాభం!",
+                    lnk, age_h, base_score=99, priority_rank=0
+                )
+
+    # ---------------------------------------------------------
+    # STEP C: POINT 6 — ZERO-LAG PRE-GUESSING (3x VolX Insider Panic Detector)
+    # ---------------------------------------------------------
+    for sym, s_row in stk_lookup.items():
+        ft = s_row["Fetch_T"]
+        vol_x = float(s_row.get("VolX", 0.0))
+        day_c = float(s_row.get("Day_C", 0.0))
+        ltp = float(s_row.get("P", 0.0))
+        vwap = float(s_row.get("VWAP", ltp))
+
+        # Check 5-min chart for sudden 3x volume spike & sharp red breakdown
+        df_5m = processed_charts.get(ft, pd.DataFrame())
+        sudden_5m_dump = False
+        if not df_5m.empty and len(df_5m) >= 6 and "Volume" in df_5m.columns:
+            v_avg = float(df_5m["Volume"].iloc[-20:-2].mean()) if len(df_5m) >= 20 else float(df_5m["Volume"].mean())
+            v_last2 = float(df_5m["Volume"].iloc[-2:].max())
+            p_drop_15m = ((float(df_5m["Close"].iloc[-1]) - float(df_5m["Open"].iloc[-3])) / max(float(df_5m["Open"].iloc[-3]), 1.0)) * 100.0
+            if v_avg > 0 and (v_last2 >= v_avg * 3.0) and p_drop_15m <= -1.4 and ltp < vwap:
+                sudden_5m_dump = True
+
+        is_insider_panic = ((vol_x >= 3.0 and day_c <= -2.2 and ltp < vwap) or sudden_5m_dump) and (ft not in stk_news_map)
+        if is_insider_panic and sym not in domino_signals:
+            _register_signal(
+                sym, "SELL", "🚨Hidden-Trouble (3x Vol Dump)",
+                f"Zero-Lag Pre-Guess: {sym} crashing ({day_c:+.2f}%) on {vol_x:.1f}x Volume below VWAP without public news (Possible Insider Panic / Plant Trouble)",
+                f"🚨 <b>Zero-Lag Insider Panic Detector:</b> మీడియాలో వార్త రాకముందే <b>{sym}</b> లో <b>{vol_x:.1f}x</b> వాల్యూమ్‌తో సడెన్ క్రాష్ ({day_c:+.2f}%) కనిపిస్తోంది! లోకల్ ఇన్‌సైడర్ సెల్లింగ్ / ఫ్యాక్టరీ సమస్య అయ్యే అవకాశం.",
+                f"https://www.google.com/search?q={sym}+share+news&tbm=nws",
+                0.1, base_score=95, priority_rank=1
+            )
+            # Pre-position into direct competitors if they are holding green above VWAP
+            for comp_sym in COMPETITOR_SYMPATHY_MAP.get(sym, []):
+                if comp_sym in stk_lookup:
+                    c_row = stk_lookup[comp_sym]
+                    if float(c_row.get("P", 0)) >= float(c_row.get("VWAP", 0)) and float(c_row.get("Day_C", 0)) > 0:
+                        _register_signal(
+                            comp_sym, "BUY", f"⚡Pre-Guess Winner (vs {sym})",
+                            f"Pre-Guess Sympathy Buy: Rival {sym} showing 3x volume panic dump while {comp_sym} holds strong above VWAP",
+                            f"⚡ <b>Zero-Lag Sympathy Switch:</b> ప్రత్యర్థి స్టాక్ ({sym}) లో సడెన్ 3x వాల్యూమ్ క్రాష్ జరుగుతుండగా, <b>{comp_sym}</b> VWAP పైన స్ట్రాంగ్‌గా నిలబడింది!",
+                            f"https://www.google.com/search?q={comp_sym}+share+news&tbm=nws",
+                            0.1, base_score=93, priority_rank=1
+                        )
+
+    if not domino_signals:
+        return pd.DataFrame(), []
+
+    # Ensure 5m charts are loaded for all matched Domino stocks
+    dom_fts = [
+        stk_lookup[s]["Fetch_T"] for s in domino_signals
+        if stk_lookup[s]["Fetch_T"] not in processed_charts or processed_charts[stk_lookup[s]["Fetch_T"]].empty
+    ]
+    if dom_fts:
+        extra_5m = fetch_cached_5m_data(dom_fts)
+        if not extra_5m.empty:
+            for m_ft in dom_fts:
+                try:
+                    raw_m = extra_5m[m_ft] if isinstance(extra_5m.columns, pd.MultiIndex) else extra_5m
+                    processed_charts[m_ft] = process_5m_data(raw_m)
+                except Exception:
+                    pass
+
+    out_rows = []
+    feed_records = []
+
+    sorted_sigs = sorted(
+        domino_signals.values(),
+        key=lambda x: (x["priority_rank"], -x["score"], x["age_h"])
+    )
+
+    for sig in sorted_sigs:
+        sym = sig["sym"]
+        s_row = stk_lookup[sym].copy()
+        ft = s_row["Fetch_T"]
+        ltp = float(s_row["P"])
+        day_c = float(s_row.get("Day_C", 0.0))
+        vol_x = float(s_row.get("VolX", 1.0))
+        vwap = float(s_row.get("VWAP", ltp))
+        atr_val = float(s_row.get("ATR", ltp * 0.02))
+        is_buy = (sig["side"] == "BUY")
+
+        sl_v = round((ltp - 1.5 * atr_val) if is_buy else (ltp + 1.5 * atr_val), 2)
+        t1_v = round((ltp + 1.5 * atr_val) if is_buy else (ltp - 1.5 * atr_val), 2)
+        t2_v = round((ltp + 3.0 * atr_val) if is_buy else (ltp - 3.0 * atr_val), 2)
+
+        te_hl = _translate_to_telugu(sig["reason_en"])
+
+        # Top priority score (36..40) so Sympathy Winner sits at #1 place in BUY list!
+        s_row["Strategy_Icon"] = f"🟢 {sig['tag']}" if is_buy else f"🔴 {sig['tag']}"
+        s_row["AI_Prob"] = sig["score"]
+        s_row["S"] = 40 if sig["priority_rank"] == 0 else (38 if sig["priority_rank"] == 1 else max(int(s_row.get("S", 12)), int(sig["score"] // 3)))
+        s_row["SL"], s_row["T1"], s_row["T2"] = sl_v, t1_v, t2_v
+        s_row["AlphaTag"] = f"{sig['tag']} ({sig['age_h']:.1f}h)"
+        s_row["News_Headline"] = f"{te_hl} || {sig['te_rule']}"
+        s_row["News_Cat"] = sig["tag"]
+        s_row["News_Age"] = f"{sig['age_h']:.1f}గం. క్రితం"
+        s_row["News_Link"] = sig["link"]
+        out_rows.append(s_row)
+
+        df_5m = processed_charts.get(ft, pd.DataFrame())
+        inline_chart = _build_inline_mini_chart_html(sym, s_row, df_5m, sig["tag"])
+        mkt_te = (
+            f"📊 Domino ట్రేడ్ లెవెల్స్: LTP ₹{ltp:.2f} ({day_c:+.2f}%) | Vol: {vol_x:.1f}x | "
+            f"🛑 SL: ₹{sl_v:.2f} | 🎯 T1: ₹{t1_v:.2f} | 🎯 T2: ₹{t2_v:.2f}"
+        )
+
+        feed_records.append({
+            "Stock": sym,
+            "Inline_Chart": inline_chart,
+            "Signal": "🟢 BUY" if is_buy else "🔴 SELL",
+            "Catalyst": sig["tag"],
+            "Is_Imp": sig["priority_rank"] <= 1,
+            "LTP": ltp,
+            "Day%": day_c,
+            "VolX": vol_x,
+            "Score": sig["score"],
+            "Age_H": sig["age_h"],
+            "Age": f"{sig['age_h']:.1f}గం. క్రితం",
+            "Headline_TE": te_hl,
+            "Details_TE": _re.sub(r"<[^>]+>", "", sig["te_rule"]),
+            "QRes_HTML": "",
+            "Mkt_TE": mkt_te,
+            "Headline_EN": sig["reason_en"],
+            "Link": sig["link"],
+        })
+
+    return pd.DataFrame(out_rows), feed_records
 
 # Professional News Tables + Default Open Mini-Chart CSS
 st.markdown(
@@ -1743,6 +2280,24 @@ _COMPANY_TO_NSE = {
     "birlasoft": "BSOFT", "karnataka bank": "KTKBANK", "eclerx": "ECLERX",
     "syrma": "SYRMA", "mas financial": "MASFIN", "dodla": "DODLA",
     "vaibhav global": "VAIBHAVGBL", "heg ": "HEG", "nocil": "NOCIL",
+    # 🔥 DOMINO MATRIX COMPANY NAME MAPPINGS (Add inside _COMPANY_TO_NSE)
+    "mtar": "MTARTECH", "data patterns": "DATAPATTNS", "zen tech": "ZENTEC",
+    "bharat dynamics": "BDL", "bdl ": "BDL", "beml": "BEML", "midhani": "MIDHANI",
+    "mishra dhatu": "MIDHANI", "ramkrishna forg": "RKFORGE", "rk forge": "RKFORGE",
+    "clean science": "CLEAN", "vinati": "VINATIORGA", "fine organic": "FINEORG",
+    "navin fluor": "NAVINFLUOR", "hindustan copper": "HINDCOPPER", "hind copper": "HINDCOPPER",
+    "hindustan zinc": "HINDZINC", "hind zinc": "HINDZINC", "nmdc": "NMDC",
+    "kei ind": "KEI", "amber ent": "AMBER", "symphony": "SYMPHONY", "iex ": "IEX",
+    "indian energy ex": "IEX", "krbl": "KRBL", "india gate": "KRBL",
+    "balrampur": "BALRAMCHIN", "eid parry": "EIDPARRY", "bannari": "BANARISUG",
+    "ccl prod": "CCL", "gujarat ambuja": "GAEL", "coromandel": "COROMANDEL",
+    "chambal": "CHAMBLFERT", "dhanuka": "DHANUKA", "rallis": "RALLIS",
+    "concor": "CONCOR", "container corp": "CONCOR", "allcargo": "ALLCARGO",
+    "seamec": "SEAMEC", "lal path": "LALPATHLAB", "metropolis": "METROPOLIS",
+    "vijaya diag": "VIJAYA", "granules": "GRANULES", "epigral": "EPIGRAL",
+    "meghmani": "EPIGRAL", "gujarat alkali": "GUJALKALI", "gnfc": "GNFC",
+    "tejas net": "TEJASNET", "newgen": "NEWGEN", "thermax": "THERMAX",
+    "triveni turbine": "TRITURBINE", "syrma": "SYRMA",
 }
 
 
@@ -3188,6 +3743,7 @@ def render_market_news_hub(df_all_stocks, processed_charts, df_strategy_stocks=N
     filter_options = [
         "🔥 All High-Impact (24h)",
         "🚨 Most Important Only (24h)",
+        "🌍 Domino & Crisis Matrix (24h)",
         "📊 Q-Results Only (24h)",
         "⚡ Latest Time-Wise (24h)",
         "📰 Order Wins & Approvals (24h)",
@@ -3196,10 +3752,24 @@ def render_market_news_hub(df_all_stocks, processed_charts, df_strategy_stocks=N
     news_cat_pick = st.radio(
         "🔎 24-Hour News & Strategy Filter:",
         filter_options,
-        index=5,  # 🎯 Strategy is Default!
+        index=6,  # 🎯 Strategy remains Default
         horizontal=True,
         key="pro_news_cat_filter_v7",
     )
+
+    # 🔥 Add this block right below `news_cat_pick = st.radio(...)`:
+    if news_cat_pick == "🌍 Domino & Crisis Matrix (24h)":
+        _, dom_feed = run_domino_crisis_engine(df_all_stocks, processed_charts)
+        if dom_feed:
+            dom_buy = [r for r in dom_feed if "BUY" in r["Signal"]]
+            dom_sell = [r for r in dom_feed if "SELL" in r["Signal"]]
+            if dom_buy:
+                st.markdown(render_news_catalyst_banner(dom_buy, banner_title="🟢 DOMINO BENEFICIARIES & SYMPATHY WINNERS (#1 BUY RADAR)"), unsafe_allow_html=True)
+            if dom_sell:
+                st.markdown(render_news_catalyst_banner(dom_sell, banner_title="🔴 DOMINO VICTIMS & 3x VOL INSIDER PANIC (INSTANT SHORT RADAR)"), unsafe_allow_html=True)
+        else:
+            st.info("ℹ️ ప్రస్తుతం 24 గంటల్లో Domino Crisis లేదా 3x VolX Insider Panic సిగ్నల్స్ ఏవీ లేవు.")
+        return
 
     # =========================================================
     # 🎯 MODE 1: STRATEGY VIEW (DEFAULT) — Shows Selected Strategy Stocks with Charts + Full Details
@@ -5036,7 +5606,7 @@ if 'wl_sort_col' not in st.session_state:
 if 'wl_sort_asc' not in st.session_state:
     st.session_state.wl_sort_asc = False
 if 'selected_ai_strats' not in st.session_state:
-    st.session_state.selected_ai_strats = [ADAPTIVE_STRAT, "All Day Trading Moves 🚀", NEWS_STRAT]
+    st.session_state.selected_ai_strats = [ADAPTIVE_STRAT, "All Day Trading Moves 🚀", NEWS_STRAT, DOMINO_STRAT]
 if 'selected_sw_strats' not in st.session_state:
     st.session_state.selected_sw_strats = ["📈 Minervini Trend Template (VCP)"]
 
@@ -5692,7 +6262,7 @@ if 'ui' not in _SS:
         'sort_mode': 'Score Wise Up ⭐',
         'chart_timeframe': 'Intraday (5m)',
         'view_mode': 'Chart 📈',
-        'selected_ai_strats': [ADAPTIVE_STRAT, "All Day Trading Moves 🚀", NEWS_STRAT],
+        'selected_ai_strats': [ADAPTIVE_STRAT, "All Day Trading Moves 🚀", NEWS_STRAT, DOMINO_STRAT],
         'selected_sw_strats': ["📈 Minervini Trend Template (VCP)"]
     }
 
@@ -8153,6 +8723,7 @@ def render_live_ui():
                     ADAPTIVE_STRAT,
                     "All Day Trading Moves 🚀",
                     NEWS_STRAT,
+                    DOMINO_STRAT,
                     "🔥 First Hour Vol Breakout (ORB+VWAP)",
                     "💥 Inside Bar Vol Breakout (NR7)",
                     "🧲 Intraday Dip & Support Bounce",
@@ -8490,6 +9061,11 @@ def render_live_ui():
                 _df_news, _ = run_news_vol_price_strategy(df_filtered, processed_charts, min_volx=1.2, min_move_pct=0.75)
                 if not _df_news.empty:
                     all_dfs.append(_df_news)
+            # 2B. 🌍 DOMINO EFFECT & CRISIS MATRIX (Victim vs Winner + 3x Vol Insider Panic)
+            elif strat == DOMINO_STRAT:
+                _df_domino, _ = run_domino_crisis_engine(df_all_stocks, processed_charts)
+                if not _df_domino.empty:
+                    all_dfs.append(_df_domino)
 
             # 3. 🔥 FIRST HOUR VOL BREAKOUT (ORB + VWAP)
             elif strat == "🔥 First Hour Vol Breakout (ORB+VWAP)":
