@@ -1787,7 +1787,6 @@ def run_domino_crisis_engine(df_universe, processed_charts):
         if stk_lookup[s]["Fetch_T"] not in processed_charts or processed_charts[stk_lookup[s]["Fetch_T"]].empty
     ]
     if dom_fts:
-        if dom_fts:
         extra_5m = fetch_cached_5m_data(dom_fts)
         if not extra_5m.empty:
             for m_ft in dom_fts:
