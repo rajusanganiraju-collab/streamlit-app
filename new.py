@@ -878,7 +878,7 @@ def fetch_cached_5m_data(tkrs_list):
     _m_open = is_market_open()
     _ttl = 25 if _m_open else 64800
     _cache_5m_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "intraday_5m_cache.pkl")
-    _SKIP_BAD_SYMS = {"PBFINTECH", "GUJGASLTD", "TVSHLDGS", "PEL", "LTIM", "JCHAC", "TIDEWATER"}
+    _bad_syms = globals().get('_SKIP_BAD_SYMS', {"PBFINTECH", "GUJGASLTD", "TVSHLDGS", "PEL", "LTIM", "JCHAC", "TIDEWATER"})
 
     if '5m_store' not in _SS:
         _SS['5m_store'] = {}
@@ -985,7 +985,7 @@ def fetch_historical_charts_data(tkrs, timeframe):
 import os
 
 # CMD lo HTTP Error 404 istunna symbols ni automatic ga skip chese list
-_SKIP_BAD_SYMS = {"PBFINTECH", "GUJGASLTD", "TVSHLDGS", "TATAMOTORS", "PEL", "LTIM", "JCHAC", "SEAMEC", "TIDEWATER"}
+_SKIP_BAD_SYMS = {"PBFINTECH", "GUJGASLTD", "TVSHLDGS", "PEL", "LTIM", "JCHAC", "TIDEWATER"}
 
 @st.cache_data(ttl=900, show_spinner=False)
 def fetch_all_data():
