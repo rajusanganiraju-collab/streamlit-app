@@ -1621,7 +1621,7 @@ def run_domino_crisis_engine(df_universe, processed_charts):
         return pd.DataFrame(), []
 
     df_clean = df_universe.drop_duplicates(subset=["T"], keep="first").copy()
-    df_clean = df_universe.drop_duplicates(subset=["T"], keep="first").copy()
+    
     # 👇 'T' column miss avvakunda dict tayaru cheyadam:
     stk_lookup = {str(r["T"]).strip(): r.to_dict() for _, r in df_clean.iterrows()}
 
