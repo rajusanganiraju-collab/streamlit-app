@@ -9118,45 +9118,49 @@ def render_live_ui():
                     flashEl.style.animationDelay = (-elapsedSec) + 's';
                 }}
                 // 3B. News Mode Mini-Charts Fullscreen (⛶) & Download PNG (📷) Handlers
-                parentDoc.querySelectorAll('.mc-svg-fs-btn').forEach(btn => {
-                    btn.onclick = function(e) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const card = btn.closest('.mc-inline-card');
-                        if (!card) return;
-                        if (!parentDoc.fullscreenElement) {
-                            card.requestFullscreen().catch(() => {});
-                        } else {
-                            parentDoc.exitFullscreen().catch(() => {});
-                        }
-                    };
-                });
-                parentDoc.querySelectorAll('.mc-svg-png-btn').forEach(btn => {
-                    btn.onclick = function(e) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const card = btn.closest('.mc-inline-card');
-                        const svgEl = card ? card.querySelector('svg') : null;
-                        if (!svgEl) return;
-                        const sym = btn.getAttribute('data-sym') || 'chart';
-                        const xml = new XMLSerializer().serializeToString(svgEl);
-                        const img = new Image();
-                        img.onload = function() {
-                            const canvas = parentDoc.createElement('canvas');
-                            canvas.width = 1050;
-                            canvas.height = 500;
-                            const ctx = canvas.getContext('2d');
-                            ctx.fillStyle = '#0b0e14';
-                            ctx.fillRect(0, 0, canvas.width, canvas.height);
-                            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                            const a = parentDoc.createElement('a');
-                            a.download = sym + '_5m_chart.png';
-                            a.href = canvas.toDataURL('image/png');
-                            a.click();
-                        };
-                        img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(xml)));
-                    };
-                });
+                if (!parentWin._mcSvgListenerAdded) {{
+                    parentWin._mcSvgListenerAdded = true;
+                    parentDoc.addEventListener('click', function(e) {{
+                        const fsBtn = e.target.closest('.mc-svg-fs-btn');
+                        if (fsBtn) {{
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const card = fsBtn.closest('.mc-inline-card');
+                            if (!card) return;
+                            if (!parentDoc.fullscreenElement) {{
+                                card.requestFullscreen().catch(() => {{}});
+                            }} else {{
+                                parentDoc.exitFullscreen().catch(() => {{}});
+                            }}
+                            return;
+                        }}
+                        const pngBtn = e.target.closest('.mc-svg-png-btn');
+                        if (pngBtn) {{
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const card = pngBtn.closest('.mc-inline-card');
+                            const svgEl = card ? card.querySelector('svg') : null;
+                            if (!svgEl) return;
+                            const sym = pngBtn.getAttribute('data-sym') || 'chart';
+                            const xml = new XMLSerializer().serializeToString(svgEl);
+                            const img = new Image();
+                            img.onload = function() {{
+                                const canvas = parentDoc.createElement('canvas');
+                                canvas.width = 1050;
+                                canvas.height = 500;
+                                const ctx = canvas.getContext('2d');
+                                ctx.fillStyle = '#0b0e14';
+                                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                                const a = parentDoc.createElement('a');
+                                a.download = sym + '_5m_chart.png';
+                                a.href = canvas.toDataURL('image/png');
+                                a.click();
+                            }};
+                            img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(xml)));
+                        }}
+                    }}, true);
+                }}
                 // 4. Live Countdown Timer
                 if (parentWin._stCdInterval) clearInterval(parentWin._stCdInterval);
                 let secLeft = {_effective_refresh};
