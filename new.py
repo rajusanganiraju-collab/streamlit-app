@@ -1621,7 +1621,9 @@ def run_domino_crisis_engine(df_universe, processed_charts):
         return pd.DataFrame(), []
 
     df_clean = df_universe.drop_duplicates(subset=["T"], keep="first").copy()
-    stk_lookup = df_clean.set_index("T").to_dict("index")
+    df_clean = df_universe.drop_duplicates(subset=["T"], keep="first").copy()
+    # 👇 'T' column miss avvakunda dict tayaru cheyadam:
+    stk_lookup = {str(r["T"]).strip(): r.to_dict() for _, r in df_clean.iterrows()}
 
     crisis_rss = fetch_domino_crisis_rss()
 
@@ -1785,12 +1787,13 @@ def run_domino_crisis_engine(df_universe, processed_charts):
         if stk_lookup[s]["Fetch_T"] not in processed_charts or processed_charts[stk_lookup[s]["Fetch_T"]].empty
     ]
     if dom_fts:
+        if dom_fts:
         extra_5m = fetch_cached_5m_data(dom_fts)
         if not extra_5m.empty:
             for m_ft in dom_fts:
                 try:
                     raw_m = extra_5m[m_ft] if isinstance(extra_5m.columns, pd.MultiIndex) else extra_5m
-                    processed_charts[m_ft] = process_5m_data(raw_m)
+                    processed_charts[m_ft] = _fix_ist_df(process_5m_data(raw_m))
                 except Exception:
                     pass
 
@@ -1805,6 +1808,7 @@ def run_domino_crisis_engine(df_universe, processed_charts):
     for sig in sorted_sigs:
         sym = sig["sym"]
         s_row = stk_lookup[sym].copy()
+        s_row["T"] = sym  # 👈 Ee okka line add cheyandi (Fixes KeyError: 'T')
         ft = s_row["Fetch_T"]
         ltp = float(s_row["P"])
         day_c = float(s_row.get("Day_C", 0.0))
