@@ -1995,7 +1995,11 @@ def _build_inline_mini_chart_html(
         f"<span style='font-size:11px;color:#ccc;'>₹{ltp:.2f} "
         f"<span style='color:{pct_col};font-weight:bold;'>({sign}{day_c:.2f}%)</span>{pb_html}</span>"
         "</div>"
-        f"<a class='mc-grid-btn' href='?grid_sym={ft}' target='_self' title='Open in Pro Multi-Chart Grid'>📌 Grid Chart</a>"
+        "<div style='display:flex;gap:4px;align-items:center;'>"
+        f"<span class='mc-grid-btn mc-svg-png-btn' data-sym='{clean_sym}' style='cursor:pointer;padding:2px 5px;' title='Download plot as a png'>📷</span>"
+        f"<span class='mc-grid-btn mc-svg-fs-btn' data-sym='{clean_sym}' style='cursor:pointer;padding:2px 6px;' title='Fullscreen'>⛶</span>"
+        f"<a class='mc-grid-btn' href='?grid_sym={ft}' target='_self' title='Open in Pro Multi-Chart Grid'>📌 Grid</a>"
+        "</div>"
         "</div>"
         f"<svg width='100%' height='{H_svg}' viewBox='0 0 {W} {H_svg}' preserveAspectRatio='none' style='background:#0b0e14;display:block;border-radius:4px;'>"
         + "".join(svg_elems)
@@ -5499,7 +5503,7 @@ st.markdown("""
         background: #388bfd;
         padding-right: 7px;
     }
-    /* 📰 Mini-Chart Full-Box News Overlay on Hover (Fixed Top Names & Smooth Inner Scroll) */
+    /* 📰 Mini-Chart Full-Box News Overlay on Hover + 📷 PNG & ⛶ Full-Screen Buttons Fix */
     div[data-testid="stElementContainer"]:has(.mc-card-news-zone),
     div[data-testid="stElementContainer"]:has(.mc-card-news-zone) > div,
     div[data-testid="stElementContainer"]:has(.mc-card-news-zone) div[data-testid="stMarkdown"],
@@ -5520,15 +5524,56 @@ st.markdown("""
         padding: 0px !important;
         height: 0px !important;
     }
+    /* 🔥 Trigger kevalam stock name paina matrame untundi (Right side PNG & Fullscreen buttons ni block cheyadu) */
     .mc-news-trigger {
         position: absolute !important;
-        top: 2px !important;
-        left: 30px !important;
-        right: 4px !important;
-        height: 42px !important;
+        top: 4px !important;
+        left: 28px !important;
+        width: 90px !important;
+        right: auto !important;
+        height: 32px !important;
         z-index: 92 !important;
         cursor: pointer !important;
         background: transparent !important;
+    }
+    /* 🔥 Stock Name pakkana Right Side lo 📷 PNG & ⛶ Full Screen buttons eppudu hide avvakunda kanipinchela */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) div[data-testid="stElementToolbar"] {
+        position: absolute !important;
+        top: 2px !important;
+        right: 2px !important;
+        z-index: 105 !important;
+        background: rgba(11, 14, 20, 0.85) !important;
+        border-radius: 4px !important;
+        padding: 0px !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) .js-plotly-plot .plotly .modebar {
+        top: 2px !important;
+        right: 30px !important;
+        z-index: 105 !important;
+        background: transparent !important;
+    }
+    /* 🔥 Full Screen (⛶) nokkinappudu Mini-Chart peddaga (88vh) kanipinchela */
+    div[data-testid="stFullScreenFrame"] div[data-testid="stPlotlyChart"],
+    div[data-testid="stFullScreenFrame"] .js-plotly-plot,
+    div[data-testid="stFullScreenFrame"] .plot-container,
+    div[data-testid="stFullScreenFrame"] .svg-container {
+        height: 88vh !important;
+        min-height: 88vh !important;
+    }
+    /* 🔥 News Mode Mini-Chart Full Screen Style */
+    .mc-inline-card:fullscreen {
+        background: #0b0e14 !important;
+        padding: 20px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        box-sizing: border-box !important;
+    }
+    .mc-inline-card:fullscreen svg {
+        height: 85vh !important;
+        width: 100% !important;
     }
     .mc-full-overlay {
         display: none;
@@ -6519,7 +6564,19 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 fig.update_xaxes(range=x_full_range, autorange=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
                 fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.6)], **rc)
 
-            st.plotly_chart(fig, width="stretch", key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}")
+            st.plotly_chart(
+                fig,
+                width="stretch",
+                key=f"plot_{fetch_sym}_{key_suffix}_{timeframe}_{show_vol}_{show_crosshair}",
+                config={
+                    "displayModeBar": "hover",
+                    "displaylogo": False,
+                    "modeBarButtonsToRemove": [
+                        "zoom2d", "pan2d", "select2d", "lasso2d",
+                        "zoomIn2d", "zoomOut2d", "autoScale2d", "resetScale2d"
+                    ],
+                },
+            )
 
             # 📰 Render Full-Box News Overlay AFTER Plotly Chart so top stock names are NEVER cut off!
             news_hl = str(row.get('News_Headline', '') or '').strip().replace('\n', ' ')
@@ -9060,6 +9117,46 @@ def render_live_ui():
                     const elapsedSec = ((Date.now() - parentWin._flashEpoch) / 1000) % 95;
                     flashEl.style.animationDelay = (-elapsedSec) + 's';
                 }}
+                // 3B. News Mode Mini-Charts Fullscreen (⛶) & Download PNG (📷) Handlers
+                parentDoc.querySelectorAll('.mc-svg-fs-btn').forEach(btn => {
+                    btn.onclick = function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const card = btn.closest('.mc-inline-card');
+                        if (!card) return;
+                        if (!parentDoc.fullscreenElement) {
+                            card.requestFullscreen().catch(() => {});
+                        } else {
+                            parentDoc.exitFullscreen().catch(() => {});
+                        }
+                    };
+                });
+                parentDoc.querySelectorAll('.mc-svg-png-btn').forEach(btn => {
+                    btn.onclick = function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const card = btn.closest('.mc-inline-card');
+                        const svgEl = card ? card.querySelector('svg') : null;
+                        if (!svgEl) return;
+                        const sym = btn.getAttribute('data-sym') || 'chart';
+                        const xml = new XMLSerializer().serializeToString(svgEl);
+                        const img = new Image();
+                        img.onload = function() {
+                            const canvas = parentDoc.createElement('canvas');
+                            canvas.width = 1050;
+                            canvas.height = 500;
+                            const ctx = canvas.getContext('2d');
+                            ctx.fillStyle = '#0b0e14';
+                            ctx.fillRect(0, 0, canvas.width, canvas.height);
+                            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                            const a = parentDoc.createElement('a');
+                            a.download = sym + '_5m_chart.png';
+                            a.href = canvas.toDataURL('image/png');
+                            a.click();
+                        };
+                        img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(xml)));
+                    };
+                });
                 // 4. Live Countdown Timer
                 if (parentWin._stCdInterval) clearInterval(parentWin._stCdInterval);
                 let secLeft = {_effective_refresh};
