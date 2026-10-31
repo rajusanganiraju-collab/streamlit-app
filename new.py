@@ -3389,8 +3389,22 @@ def _build_strategy_news_feed_records(df_strat_stocks, processed_charts):
         t1_v = float(row.get("T1", default_t1))
         t2_v = float(row.get("T2", default_t2))
 
+        existing_dom_hl = str(row.get("News_Headline", "") or "").strip()
         n_info = news_map.get(ft)
-        if n_info:
+
+        if " || " in existing_dom_hl:
+            # 🌍 Domino Crisis Stock అయితే డైరెక్ట్‌గా అసలు వార్త + Victim/Winner కారణం చూపించు:
+            dom_hl_part, dom_rule_part = existing_dom_hl.split(" || ", 1)
+            age_h_val = 1.0
+            age_str = str(row.get("News_Age", "Live Domino") or "Live Domino")
+            cat_tag = str(row.get("News_Cat", strat_icon) or strat_icon)
+            raw_en_title = dom_hl_part
+            te_headline = dom_hl_part
+            te_details = _re.sub(r"<[^>]+>", "", dom_rule_part)
+            link_url = str(row.get("News_Link", f"https://www.google.com/search?q={stk_name}+share+news&tbm=nws"))
+            bias = -1 if is_sell else 1
+            is_most_imp = True
+        elif n_info:
             age_h_val = float(n_info.get("age_h", 12.0))
             age_str = (
                 f"{age_h_val:.1f}గం. క్రితం"
@@ -9418,10 +9432,15 @@ def render_live_ui():
 
     if not df_stocks_display.empty:
         _top_news_map = fetch_live_stock_news_batch(tuple(df_stocks_display['Fetch_T'].head(30).tolist()))
-        df_stocks_display['News_Headline'] = df_stocks_display['Fetch_T'].map(lambda s: (_top_news_map.get(s) or {}).get('title', ''))
-        df_stocks_display['News_Cat'] = df_stocks_display['Fetch_T'].map(lambda s: (_top_news_map.get(s) or {}).get('tag', '📰 News'))
-        df_stocks_display['News_Age'] = df_stocks_display['Fetch_T'].map(lambda s: f"{(_top_news_map.get(s) or {}).get('age_h', 0):.1f}h ago" if s in _top_news_map else '')
-        df_stocks_display['News_Link'] = df_stocks_display['Fetch_T'].map(lambda s: (_top_news_map.get(s) or {}).get('link', '#'))
+        for _idx_n, _r_n in df_stocks_display.iterrows():
+            _ft_n = _r_n['Fetch_T']
+            _existing_hl = str(_r_n.get('News_Headline', '') or '').strip()
+            if not _existing_hl or _existing_hl in ('nan', 'None'):
+                _n_obj = _top_news_map.get(_ft_n) or {}
+                df_stocks_display.at[_idx_n, 'News_Headline'] = _n_obj.get('title', '')
+                df_stocks_display.at[_idx_n, 'News_Cat'] = _n_obj.get('tag', '📰 News')
+                df_stocks_display.at[_idx_n, 'News_Age'] = f"{_n_obj.get('age_h', 0):.1f}h ago" if _ft_n in _top_news_map else ''
+                df_stocks_display.at[_idx_n, 'News_Link'] = _n_obj.get('link', '#')
 
     # ---------------------------------------------------------
     # 👉 POPULATE RIGHT 20% WATCHLIST (EXCEL HTML TABLE) & INSPECTOR
