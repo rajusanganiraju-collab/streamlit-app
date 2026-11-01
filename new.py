@@ -1578,7 +1578,17 @@ DOMINO_CRISIS_MATRIX = [
         "tag_buy": "🛢️Oil-Upstream BUY",
         "tag_sell": "🩸Crude-Victim SELL",
         "te_desc": "క్రూడ్ ఆయిల్ ధర ఎగబాకితే ఆయిల్ ఉత్పత్తి చేసే ONGC, OIL పెరుగుతాయి; ఏవియేషన్, పెయింట్స్, టైర్లు & OMC స్టాక్స్ పడతాయి."
-    }
+    },
+    {
+        "id": "TRUMP_TARIFF_VISA",
+        "name": "🏛️ Trump Speech, Tariffs, H-1B Visa & China+1",
+        "keywords": ["trump", "reciprocal tariff", "us tariff", "import duty", "h-1b", "h1b visa", "outsourcing", "trade war", "china tariff", "china plus one"],
+        "beneficiaries": ["DIXON", "SYRMA", "AMBER", "SRF", "NAVINFLUOR", "PIIND", "ATUL", "CLEAN"],
+        "victims": ["TCS", "INFY", "WIPRO", "TECHM", "MPHASIS", "LTIM", "SONACOMS", "WELSPUNLIV", "GOKEX", "VAIBHAVGBL"],
+        "tag_buy": "🏛️Trump-China+1 BUY",
+        "tag_sell": "🩸Trump-Tariff SELL",
+        "te_desc": "Trump Tariff / H-1B Visa hecharikala valla IT & US Exporters pai selling pressure; China pai tariff valla India EMS & Chemical stocks ki labham."
+    },
 ]
 
 # 🔄 VICTIM-TO-WINNER AUTO SWITCH MAP (Direct Competitor Mapping)
@@ -1946,7 +1956,129 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=3.0
                 f"🔥 <b>Natural Gas Spike ({natgas_chg:+.2f}%):</b> గ్యాస్ ధర పెరగడం వల్ల సిటీ గ్యాస్ కంపెనీ <b>{v_s}</b> మార్జిన్లపై నెగటివ్ ప్రభావం.",
                 "https://in.tradingview.com/chart/?symbol=NYMEX:NG1!", 0.2, base_score=87, priority_rank=2
             )
+    # ---------------------------------------------------------
+    # STEP C2: 🌍 USA (SPX), EUROPE (DAX) & SILVER LIVE AUTO-TRIGGERS
+    # ---------------------------------------------------------
+    spx_chg, _ = _macro_chg("^GSPC")
+    dax_chg, _ = _macro_chg("^GDAXI")
+    silver_chg, _ = _macro_chg("SI=F")
 
+    if spx_chg >= 0.65:
+        for b_s in ["TCS", "INFY", "HCLTECH", "WIPRO", "TECHM", "PERSISTENT", "COFORGE", "LTIM"]:
+            _register_signal(
+                b_s, "BUY", f"🇺🇸US-Mkt +{spx_chg:.1f}% BUY",
+                f"US S&P 500 Rally ({spx_chg:+.2f}%) triggers global risk-on buying in Indian IT stock {b_s}",
+                f"🇺🇸 <b>US Market Rally ({spx_chg:+.2f}%):</b> America market peragadam tho IT orders mariyu FII buying valla <b>{b_s}</b> ki bullish trigger.",
+                "https://in.tradingview.com/chart/?symbol=SP:SPX", 0.2, base_score=89, priority_rank=1
+            )
+    elif spx_chg <= -0.65:
+        for v_s in ["TCS", "INFY", "HCLTECH", "WIPRO", "TECHM", "MPHASIS", "LTIM"]:
+            _register_signal(
+                v_s, "SELL", f"🩸US-Mkt {spx_chg:.1f}% Hit",
+                f"US S&P 500 Fall ({spx_chg:+.2f}%) creates selling pressure on US-dependent IT stock {v_s}",
+                f"🇺🇸 <b>US Market Fall ({spx_chg:+.2f}%):</b> America market patanam valla Indian IT stock <b>{v_s}</b> pai direct selling pressure.",
+                "https://in.tradingview.com/chart/?symbol=SP:SPX", 0.2, base_score=89, priority_rank=1
+            )
+        for safe_s in ["BEL", "HAL", "NTPC", "POWERGRID", "TRENT"]:
+            _register_signal(
+                safe_s, "BUY", "🛡️Domestic-Shield BUY",
+                f"Global market fall shifts institutional money into domestic safe-haven {safe_s}",
+                f"🛡️ <b>Global Fall Safe-Haven:</b> US market padinappudu global impact leni domestic defence/power stock <b>{safe_s}</b> loki smart money shift.",
+                "https://in.tradingview.com/chart/?symbol=NSE:NIFTY", 0.2, base_score=86, priority_rank=2
+            )
+
+    if dax_chg >= 0.65:
+        for b_s in ["TATAMOTORS", "MOTHERSON", "BHARATFORG", "SONACOMS", "APOLLOTYRE", "BALKRISIND"]:
+            _register_signal(
+                b_s, "BUY", f"🇪🇺Europe-DAX +{dax_chg:.1f}% BUY",
+                f"Europe DAX Rally ({dax_chg:+.2f}%) boosts European auto & forging supplier {b_s}",
+                f"🇪🇺 <b>Europe DAX Rally ({dax_chg:+.2f}%):</b> Europe market peragadam tho akkada auto/forging supply chese <b>{b_s}</b> ki direct labham.",
+                "https://in.tradingview.com/chart/?symbol=XETR:DAX", 0.2, base_score=88, priority_rank=1
+            )
+    elif dax_chg <= -0.65:
+        for v_s in ["TATAMOTORS", "MOTHERSON", "BHARATFORG", "SONACOMS", "TATASTEEL"]:
+            _register_signal(
+                v_s, "SELL", f"🩸Europe-DAX {dax_chg:.1f}% Hit",
+                f"Europe DAX Drop ({dax_chg:+.2f}%) weighs on Europe-exposed stock {v_s}",
+                f"🇪🇺 <b>Europe DAX Drop ({dax_chg:+.2f}%):</b> Europe market balaheenata valla Europe exposure unna <b>{v_s}</b> pai selling pressure.",
+                "https://in.tradingview.com/chart/?symbol=XETR:DAX", 0.2, base_score=88, priority_rank=1
+            )
+
+    if silver_chg >= 1.5:
+        for b_s in ["HINDZINC", "VEDL"]:
+            _register_signal(
+                b_s, "BUY", f"🥈Silver +{silver_chg:.1f}% BUY",
+                f"Global Silver Surge ({silver_chg:+.2f}%) directly boosts earnings for silver producer {b_s}",
+                f"🥈 <b>Silver Live Surge ({silver_chg:+.2f}%):</b> Vendi dhara perugudala valla India's largest silver producer <b>{b_s}</b> ki direct labham.",
+                "https://in.tradingview.com/chart/?symbol=COMEX:SI1!", 0.2, base_score=90, priority_rank=1
+            )
+
+    # ---------------------------------------------------------
+    # STEP C3: 🕵️ HARSHAD MEHTA STEALTH ACCUMULATION & 3 SECRET GLITCHES
+    # ---------------------------------------------------------
+    _TWIN_PAIRS = [
+        ("PFC", "RECLTD"), ("BALRAMCHIN", "EIDPARRY"), ("HINDALCO", "NATIONALUM"),
+        ("MUTHOOTFIN", "MANAPPURAM"), ("CHAMBLFERT", "COROMANDEL"), ("BPCL", "HINDPETRO"),
+        ("TATASTEEL", "JSWSTEEL"), ("HAL", "BEL"), ("MTARTECH", "DATAPATTNS"),
+        ("DEEPAKNTR", "CLEAN"), ("VOLTAS", "AMBER"), ("POLYCAB", "KEI")
+    ]
+    for s1, s2 in _TWIN_PAIRS:
+        if s1 in stk_lookup and s2 in stk_lookup:
+            r1, r2 = stk_lookup[s1], stk_lookup[s2]
+            c1, c2 = float(r1.get("Day_C", 0)), float(r2.get("Day_C", 0))
+            v1, v2 = float(r1.get("VolX", 1)), float(r2.get("VolX", 1))
+            if c1 >= 2.0 and v1 >= 1.4 and (-0.4 <= c2 <= 0.85):
+                _register_signal(
+                    s2, "BUY", f"👯Twin-Lag Glitch (vs {s1})",
+                    f"Twin Sister Lag Glitch: {s1} surged +{c1:.2f}% ({v1:.1f}x Vol) while twin stock {s2} is still at {c2:+.2f}%",
+                    f"👯 <b>Twin Sister Lag Glitch (#1 Catch-Up BUY):</b> Jatha stock <b>{s1}</b> appatike +{c1:.2f}% perigindi, kani <b>{s2}</b> inka {c2:+.2f}% daggare undi. Next catch-up rally {s2} lo vasthundi!",
+                    f"https://in.tradingview.com/chart/?symbol=NSE:{s2}", 0.1, base_score=96, priority_rank=0
+                )
+            elif c2 >= 2.0 and v2 >= 1.4 and (-0.4 <= c1 <= 0.85):
+                _register_signal(
+                    s1, "BUY", f"👯Twin-Lag Glitch (vs {s2})",
+                    f"Twin Sister Lag Glitch: {s2} surged +{c2:.2f}% ({v2:.1f}x Vol) while twin stock {s1} is still at {c1:+.2f}%",
+                    f"👯 <b>Twin Sister Lag Glitch (#1 Catch-Up BUY):</b> Jatha stock <b>{s2}</b> appatike +{c2:.2f}% perigindi, kani <b>{s1}</b> inka {c1:+.2f}% daggare undi. Next catch-up rally {s1} lo vasthundi!",
+                    f"https://in.tradingview.com/chart/?symbol=NSE:{s1}", 0.1, base_score=96, priority_rank=0
+                )
+
+    for sym_g, row_g in stk_lookup.items():
+        vx_g = float(row_g.get("VolX", 0))
+        dc_g = float(row_g.get("Day_C", 0))
+        ltp_g = float(row_g.get("P", 0))
+        op_g = float(row_g.get("O", 0))
+        lo_g = float(row_g.get("L", 0))
+        pl_g = float(row_g.get("Prev_L", lo_g))
+        pc_g = float(row_g.get("Prev_C", ltp_g))
+        bp_g = float(row_g.get("Bull_P", 50))
+        brp_g = float(row_g.get("Bear_P", 50))
+
+        # 1. Harshad Mehta Bullish Silent Accumulation (High Vol, Flat Price, Strong Bull Power)
+        if vx_g >= 2.6 and (-0.3 <= dc_g <= 1.75) and bp_g >= 70:
+            _register_signal(
+                sym_g, "BUY", f"🕵️Insider-Stealth ({vx_g:.1f}x Vol)",
+                f"Harshad Mehta Silent Accumulation: {sym_g} has {vx_g:.1f}x abnormal volume with {int(bp_g)}% Bull Power while price is still quiet ({dc_g:+.2f}%)",
+                f"🕵️ <b>Harshad Mehta Silent Insider Accumulation:</b> Public news rakamunde <b>{sym_g}</b> lo dhara peddaga peragakunda ({dc_g:+.2f}%) <b>{vx_g:.1f}x</b> bhari volume tho rahasya buying jarugutondi!",
+                f"https://in.tradingview.com/chart/?symbol=NSE:{sym_g}", 0.1, base_score=97, priority_rank=0
+            )
+
+        # 2. Stop-Loss Hunt Reversal Glitch (Sweeps Prev_L and reverses above VWAP)
+        if lo_g < (pl_g * 0.998) and ltp_g > pl_g and vx_g >= 1.5 and bp_g >= 68:
+            _register_signal(
+                sym_g, "BUY", "🪤SL-Hunt Reversal BUY",
+                f"Stop-Loss Hunt Glitch: {sym_g} swept yesterday's low (₹{pl_g:.1f}) down to ₹{lo_g:.1f} and reversed above VWAP on {vx_g:.1f}x volume",
+                f"🪤 <b>Stop-Loss Hunt Glitch:</b> Ninnaటి Low (₹{pl_g:.1f}) kindaki velli retail traders SL kottesi, operators <b>{vx_g:.1f}x</b> volume tho VWAP paina strong reversal icharu!",
+                f"https://in.tradingview.com/chart/?symbol=NSE:{sym_g}", 0.1, base_score=95, priority_rank=0
+            )
+
+        # 3. Operator Gap-Up Pump & Dump Trap
+        if op_g >= (pc_g * 1.018) and ltp_g < (op_g * 0.985) and vx_g >= 1.6 and brp_g >= 72:
+            _register_signal(
+                sym_g, "SELL", "⚠️Operator Pump-Dump SELL",
+                f"Operator Trap: {sym_g} gapped up to ₹{op_g:.1f} and dumped below VWAP with {int(brp_g)}% Bear Power",
+                f"⚠️ <b>Operator Pump & Dump Trap:</b> Positive news tho ₹{op_g:.1f} daggara Gap-Up ayyi, retail vallaki ammesi operators VWAP kindaki dump chestunnaru (AVOID BUY / SHORT)!",
+                f"https://in.tradingview.com/chart/?symbol=NSE:{sym_g}", 0.1, base_score=94, priority_rank=1
+            )
     # ---------------------------------------------------------
     # STEP D: POINT 6 — ZERO-LAG PRE-GUESSING (3x VolX Insider Panic Detector)
     # ---------------------------------------------------------
