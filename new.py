@@ -1325,15 +1325,15 @@ NEWS_STRAT = "📰 News + Vol + Price Breakout (Only News)"
 DOMINO_STRAT = "🌍 Domino Effect & Crisis Matrix (Victim vs Winner)"
 
 # =========================================================
-# 🌍 DOMINO EFFECT & CRISIS INTELLIGENCE MATRIX (POINTS 1 TO 6)
+# 🌍 DOMINO EFFECT, LIVE MACRO SPIKES & CRISIS MATRIX (v2 PRO)
 # =========================================================
 DOMINO_CRISIS_MATRIX = [
     # 1. GLOBAL DEFENCE & MICRO-PARTS SUPPLY CHAIN
     {
         "id": "DEF_APACHE",
         "name": "🚁 Apache & Global Aerospace Supply",
-        "keywords": ["apache", "boeing", "lockheed", "aerospace", "fighter jet", "missile", "drone order", "pentagon", "israel war", "nato", "airbus", "ge aerospace"],
-        "beneficiaries": ["MTARTECH", "DATAPATTNS", "ZENTEC", "HAL", "BEL", "BDL"],
+        "keywords": ["apache", "boeing", "lockheed", "aerospace", "fighter jet", "missile", "drone order", "pentagon", "israel war", "nato", "airbus", "ge aerospace", "tejas"],
+        "beneficiaries": ["MTARTECH", "DATAPATTNS", "ZENTEC", "HAL", "BEL", "BDL", "ASTRAMICRO"],
         "victims": [],
         "tag_buy": "🚁Aero-Supply BUY",
         "tag_sell": "",
@@ -1342,8 +1342,8 @@ DOMINO_CRISIS_MATRIX = [
     {
         "id": "DEF_AMMO",
         "name": "💣 Global Ammunition & Artillery Shortage",
-        "keywords": ["ammunition", "artillery", "shells shortage", "howitzer", "warship", "frigate", "defence export", "middle east war", "ukraine war", "arms supply"],
-        "beneficiaries": ["BHARATFORG", "MAZDOCK", "BEML", "BDL", "HAL"],
+        "keywords": ["ammunition", "artillery", "shells shortage", "howitzer", "warship", "frigate", "defence export", "middle east war", "ukraine war", "arms supply", "pinaka"],
+        "beneficiaries": ["BHARATFORG", "MAZDOCK", "BEML", "BDL", "HAL", "SOLARINDS"],
         "victims": [],
         "tag_buy": "💣Ammo-Shortage BUY",
         "tag_sell": "",
@@ -1353,7 +1353,7 @@ DOMINO_CRISIS_MATRIX = [
         "id": "DEF_TITANIUM",
         "name": "🛡️ Russia Titanium & Super-Alloys Cut",
         "keywords": ["titanium", "super alloy", "special metal", "russia sanctions", "russian metal", "forging demand", "aerospace metal"],
-        "beneficiaries": ["MIDHANI", "RKFORGE", "BHARATFORG"],
+        "beneficiaries": ["MIDHANI", "RKFORGE", "BHARATFORG", "PTCIL"],
         "victims": [],
         "tag_buy": "🛡️Titanium-Gain BUY",
         "tag_sell": "",
@@ -1365,7 +1365,7 @@ DOMINO_CRISIS_MATRIX = [
         "id": "CHEM_FIRE_CRISIS",
         "name": "🔥 Chemical/Pharma Plant Fire or Blast",
         "keywords": ["fire at plant", "factory fire", "boiler blast", "explosion at", "gas leak", "plant shutdown", "workers strike", "closure notice", "pollution board", "production halt"],
-        "beneficiaries": ["CLEAN", "VINATIORGA", "FINEORG", "NAVINFLUOR"],
+        "beneficiaries": ["CLEAN", "VINATIORGA", "FINEORG", "NAVINFLUOR", "ATUL", "PIIND"],
         "victims": ["DEEPAKNTR", "AARTIIND", "SRF", "DIVISLAB"],
         "tag_buy": "🏆Sympathy-Jackpot BUY",
         "tag_sell": "🩸Plant-Crisis SELL",
@@ -1374,8 +1374,8 @@ DOMINO_CRISIS_MATRIX = [
     {
         "id": "GLOBAL_MINE_SHUT",
         "name": "⛏️ Global Copper/Zinc/Coal Mine Shutdown",
-        "keywords": ["mine strike", "mine shutdown", "peru copper", "chile copper", "zinc mine", "coal mine accident", "smelter shut", "lme copper", "lme zinc", "mining ban"],
-        "beneficiaries": ["HINDCOPPER", "HINDZINC", "COALINDIA", "NMDC", "VEDL", "NATIONALUM"],
+        "keywords": ["mine strike", "mine shutdown", "peru copper", "chile copper", "zinc mine", "coal mine accident", "smelter shut", "lme copper", "lme zinc", "mining ban", "aluminium ban"],
+        "beneficiaries": ["HINDCOPPER", "HINDZINC", "COALINDIA", "NMDC", "VEDL", "NATIONALUM", "HINDALCO"],
         "victims": [],
         "tag_buy": "⛏️Mine-Shortage BUY",
         "tag_sell": "",
@@ -1387,11 +1387,11 @@ DOMINO_CRISIS_MATRIX = [
         "id": "REBUILD_DISASTER",
         "name": "🌪️ Earthquake / Cyclone / Flood Rebuild",
         "keywords": ["cyclone", "flood", "reconstruction", "housing rebuild", "infrastructure damage", "bridge collapse", "landslide"],
-        "beneficiaries": ["ULTRACEMCO", "AMBUJACEM", "TATASTEEL", "POLYCAB", "KEI", "ACC", "JSWSTEEL"],
+        "beneficiaries": ["ULTRACEMCO", "AMBUJACEM", "TATASTEEL", "POLYCAB", "KEI", "ACC", "JSWSTEEL", "ASTRAL", "SUPREMEIND"],
         "victims": [],
         "tag_buy": "🏗️Rebuild-Demand BUY",
         "tag_sell": "",
-        "te_desc": "తుఫాను/భూకంపం తర్వాత పునర్నిర్మాణం కోసం సిమెంట్, స్టీల్ మరియు కేబుల్స్ కి భారీ డిమాండ్."
+        "te_desc": "తుఫాను/భూకంపం తర్వాత పునర్నిర్మాణం కోసం సిమెంట్, స్టీల్, పైపులు మరియు కేబుల్స్ కి భారీ డిమాండ్."
     },
     {
         "id": "TAIWAN_CHIP_SHOCK",
@@ -1407,7 +1407,7 @@ DOMINO_CRISIS_MATRIX = [
         "id": "EXTREME_HEATWAVE",
         "name": "☀️ Extreme Heatwave & El Nino Power Surge",
         "keywords": ["heatwave", "el nino", "record temperature", "summer demand", "peak power demand", "ac sales", "cooling demand", "power shortage", "warmest"],
-        "beneficiaries": ["VOLTAS", "AMBER", "SYMPHONY", "HAVELLS", "IEX", "TATAPOWER", "NTPC", "BLUESTARCO"],
+        "beneficiaries": ["VOLTAS", "AMBER", "SYMPHONY", "HAVELLS", "IEX", "TATAPOWER", "NTPC", "CROMPTON"],
         "victims": [],
         "tag_buy": "☀️Heatwave-Rally BUY",
         "tag_sell": "",
@@ -1419,7 +1419,7 @@ DOMINO_CRISIS_MATRIX = [
         "id": "FOOD_SHORTAGE",
         "name": "🌾 Global Food Shortage & Drought",
         "keywords": ["food shortage", "global drought", "sugar shortage", "coffee price", "rice shortage", "brazil drought", "vietnam coffee", "wheat crisis", "famine"],
-        "beneficiaries": ["KRBL", "BALRAMCHIN", "EIDPARRY", "CCL", "GAEL", "RENUKA"],
+        "beneficiaries": ["KRBL", "BALRAMCHIN", "EIDPARRY", "CCL", "GAEL", "BANARISUG"],
         "victims": [],
         "tag_buy": "🌾Food-Crisis BUY",
         "tag_sell": "",
@@ -1428,7 +1428,7 @@ DOMINO_CRISIS_MATRIX = [
     {
         "id": "AGRI_EXPORT_BAN",
         "name": "🚫 Govt Agri Export Ban / Duty Hike",
-        "keywords": ["rice export ban", "sugar export ban", "export duty hike", "minimum export price", "mep on rice", "bans export of", "curbs export"],
+        "keywords": ["rice export ban", "sugar export ban", "export duty hike", "minimum export price", "mep on rice", "bans export of", "curbs export", "ethanol restriction"],
         "beneficiaries": [],
         "victims": ["KRBL", "BALRAMCHIN", "EIDPARRY", "BANARISUG", "GAEL"],
         "tag_buy": "",
@@ -1438,30 +1438,30 @@ DOMINO_CRISIS_MATRIX = [
     {
         "id": "AGRI_DUTY_CUT",
         "name": "✅ Agri Export Duty Cut / Ethanol Boost",
-        "keywords": ["lifts export ban", "cuts export duty", "removes minimum export", "allows sugar export", "ethanol price hike", "rice export quota", "scraps export duty"],
-        "beneficiaries": ["KRBL", "BALRAMCHIN", "BANARISUG", "EIDPARRY", "GAEL"],
+        "keywords": ["lifts export ban", "cuts export duty", "removes minimum export", "allows sugar export", "ethanol price hike", "rice export quota", "scraps export duty", "ethanol blending"],
+        "beneficiaries": ["KRBL", "BALRAMCHIN", "BANARISUG", "EIDPARRY", "GAEL", "PRAJIND"],
         "victims": [],
         "tag_buy": "✅Duty-Cut Breakout BUY",
         "tag_sell": "",
-        "te_desc": "ఎగుమతి సుంకం తగ్గింపు లేదా నిషేధం ఎత్తివేత వల్ల రైస్ & షుగర్ స్టాక్స్ లో తక్షణ బ్రేక్అవుట్."
+        "te_desc": "ఎగుమతి సుంకం తగ్గింపు లేదా ఇథనాల్ ధర పెంపు వల్ల రైస్ & షుగర్ స్టాక్స్ లో తక్షణ బ్రేక్అవుట్."
     },
     {
         "id": "CROP_PEST_FERT",
-        "name": "🐛 Crop Disease / Locusts / Fertilizer Demand",
+        "name": "🐛 Crop Disease / Locusts / Fertilizer Subsidy",
         "keywords": ["crop disease", "pest attack", "locust", "unseasonal rain", "fertilizer subsidy", "agrochemical demand", "kharif", "rabi", "dap shortage", "urea"],
-        "beneficiaries": ["PIIND", "COROMANDEL", "CHAMBLFERT", "DHANUKA", "RALLIS", "DEEPAKFERT", "FACT", "RCF"],
+        "beneficiaries": ["PIIND", "COROMANDEL", "CHAMBLFERT", "DHANUKA", "RALLIS", "DEEPAKFERT", "FACT", "RCF", "GSFC", "NFL"],
         "victims": [],
         "tag_buy": "🧪Agro-Chem BUY",
         "tag_sell": "",
-        "te_desc": "పంట తెగుళ్లు లేదా అకాల వర్షాల వల్ల ఆగ్రో-కెమికల్స్ మరియు ఫెర్టిలైజర్ కంపెనీలకు డిమాండ్ పెరుగుతుంది."
+        "te_desc": "పంట తెగుళ్లు లేదా ఫెర్టిలైజర్ సబ్సిడీ పెంపు వల్ల ఆగ్రో-కెమికల్స్ మరియు ఫెర్టిలైజర్ కంపెనీలకు డిమాండ్."
     },
 
-    # 5. 5 HIDDEN REAL-WORLD RISKS
+    # 5. SHIPPING, VIRUS, ANTI-DUMPING, CYBER & POWER GRID
     {
         "id": "RED_SEA_CHOKE",
         "name": "🚢 Red Sea Attack & Maritime Freight Surge",
         "keywords": ["red sea", "houthi", "suez canal", "container shortage", "freight rate", "shipping crisis", "maritime choke", "vessel attack", "baltic dry"],
-        "beneficiaries": ["CONCOR", "ALLCARGO", "SEAMEC", "GATEWAY", "AEGISLOG"],
+        "beneficiaries": ["CONCOR", "ALLCARGO", "SEAMEC", "GATEWAY", "AEGISLOG", "GESHIP"],
         "victims": ["BALKRISIND", "GOKEX", "KPRMILL", "WELSPUNLIV"],
         "tag_buy": "🚢Freight-Boom BUY",
         "tag_sell": "📉Freight-Hit SELL",
@@ -1472,7 +1472,7 @@ DOMINO_CRISIS_MATRIX = [
         "name": "🦠 Virus Outbreak & Epidemic Scare",
         "keywords": ["new virus", "outbreak", "epidemic", "pandemic", "covid", "nipah", "bird flu", "mpox", "h1n1", "surge in cases", "testing kit", "who alert", "paracetamol"],
         "beneficiaries": ["LALPATHLAB", "METROPOLIS", "VIJAYA", "APOLLOHOSP", "MAXHEALTH", "GRANULES", "FORTIS"],
-        "victims": ["INDIGO", "INDHOTEL", "PVRINOX", "EIHOTEL"],
+        "victims": ["INDIGO", "INDHOTEL", "PVRINOX", "EIHOTEL", "LEMONTREE", "CHALET"],
         "tag_buy": "🦠Health-Scare BUY",
         "tag_sell": "📉Travel-Hit SELL",
         "te_desc": "కొత్త వైరస్/ఎపిడెమిక్ వార్త రాగానే డయాగ్నస్టిక్స్, హాస్పిటల్స్ మరియు పారాసెటమాల్ (GRANULES) స్టాక్స్ రన్ అవుతాయి."
@@ -1480,8 +1480,8 @@ DOMINO_CRISIS_MATRIX = [
     {
         "id": "ANTI_DUMPING_SHIELD",
         "name": "🛡️ India Anti-Dumping Duty on China",
-        "keywords": ["anti-dumping", "anti dumping duty", "dgtr", "safeguard duty", "chinese import", "import duty on steel", "chemical import duty", "caustic soda", "pvc duty"],
-        "beneficiaries": ["EPIGRAL", "GUJALKALI", "NOCIL", "GNFC", "JSWSTEEL", "TATASTEEL", "ATUL", "DEEPAKNTR"],
+        "keywords": ["anti-dumping", "anti dumping duty", "dgtr", "safeguard duty", "chinese import", "import duty on steel", "chemical import duty", "caustic soda", "pvc duty", "solar glass duty"],
+        "beneficiaries": ["EPIGRAL", "GUJALKALI", "NOCIL", "GNFC", "JSWSTEEL", "TATASTEEL", "ATUL", "DEEPAKNTR", "ARCHEAN"],
         "victims": [],
         "tag_buy": "🛡️ADD-Shield BUY",
         "tag_sell": "",
@@ -1491,7 +1491,7 @@ DOMINO_CRISIS_MATRIX = [
         "id": "CYBER_OUTAGE",
         "name": "💻 Cyber Attack & Banking/Infra Tech Outage",
         "keywords": ["cyber attack", "ransomware", "data breach", "server outage", "tech outage", "network security", "cloud security", "ddos", "it outage"],
-        "beneficiaries": ["TATACOMM", "TEJASNET", "NEWGEN", "RAILTEL", "AFFLE"],
+        "beneficiaries": ["TATACOMM", "TEJASNET", "NEWGEN", "RAILTEL", "AFFLE", "NETWEB"],
         "victims": [],
         "tag_buy": "🔒Cyber-Shield BUY",
         "tag_sell": "🩸Cyber-Victim SELL",
@@ -1500,12 +1500,84 @@ DOMINO_CRISIS_MATRIX = [
     {
         "id": "POWER_GRID_SHORTAGE",
         "name": "⚡ Coal Crisis & Industrial Power Grid Shortage",
-        "keywords": ["coal shortage", "power crisis", "grid failure", "blackout", "industrial power cut", "transformer shortage", "genset demand", "captive power", "turbine order"],
+        "keywords": ["coal shortage", "power crisis", "grid failure", "blackout", "industrial power cut", "transformer shortage", "genset demand", "captive power", "turbine order", "hvdc"],
         "beneficiaries": ["CUMMINSIND", "THERMAX", "ABB", "SIEMENS", "CGPOWER", "TRITURBINE", "APARINDS", "BHEL"],
         "victims": [],
         "tag_buy": "⚡Grid-Infra BUY",
         "tag_sell": "",
-        "te_desc": "బొగ్గు కొరత లేదా పవర్ సంక్షోభం వస్తే జెన్‌సెట్స్, టర్బైన్స్ మరియు ట్రాన్స్‌ఫార్మర్ కంపెనీలకు భారీ ఆర్డర్లు."
+        "te_desc": "బొగ్గు కొరత లేదా పవర్ గ్రిడ్ డిమాండ్ పెరిగితే జెన్‌సెట్స్, టర్బైన్స్ మరియు ట్రాన్స్‌ఫార్మర్ కంపెనీలకు భారీ ఆర్డర్లు."
+    },
+
+    # 6. NEW HIGH-IMPACT SECTORS (SOLAR, RAILWAYS, EV, TELECOM, CDMO, RBI/SEBI)
+    {
+        "id": "SOLAR_GREEN_BOOM",
+        "name": "☀️ Solar, PM-KUSUM, Wind & Green Energy Orders",
+        "keywords": ["pm kusum", "rooftop solar", "surya ghar", "almm", "solar module", "wind turbine order", "green hydrogen", "bess", "battery storage", "mnre", "renewable energy order"],
+        "beneficiaries": ["SUZLON", "INOXWIND", "TATAPOWER", "IREDA", "SJVN", "NHPC", "KPIL", "NTPC"],
+        "victims": [],
+        "tag_buy": "☀️Green-Energy BUY",
+        "tag_sell": "",
+        "te_desc": "సోలార్ (PM-KUSUM / ALMM), విండ్ ఎనర్జీ లేదా గ్రీన్ హైడ్రోజన్ ఆర్డర్ల వల్ల రెన్యూవబుల్ ఎనర్జీ & ఫైనాన్సింగ్ స్టాక్స్ కి డైరెక్ట్ లాభం."
+    },
+    {
+        "id": "RAILWAY_KAVACH_BOOM",
+        "name": "🚆 Indian Railways, Kavach & Vande Bharat Orders",
+        "keywords": ["kavach", "vande bharat", "railway order", "wagon order", "metro rail", "railway capex", "locomotive order", "railways ministry", "signalling contract"],
+        "beneficiaries": ["RVNL", "IRCON", "RITES", "IRFC", "BEML", "KEC", "SIEMENS", "CGPOWER", "CONCOR"],
+        "victims": [],
+        "tag_buy": "🚆Railway-Order BUY",
+        "tag_sell": "",
+        "te_desc": "రైల్వే కవచ్ (Kavach), వందే భారత్ లేదా కొత్త వ్యాగన్/సిగ్నలింగ్ ఆర్డర్ల వల్ల రైల్వే PSU & EPC కంపెనీలకు భారీ ఆదాయం."
+    },
+    {
+        "id": "EV_LITHIUM_BATTERY",
+        "name": "🔋 EV Subsidy (PM E-DRIVE), Lithium & Battery Boom",
+        "keywords": ["pm e-drive", "fame subsidy", "electric bus", "e-bus order", "ev battery", "lithium cell", "charging station", "ev policy", "auto pli"],
+        "beneficiaries": ["OLECTRA", "EXIDEIND", "ARE&M", "TATAMOTORS", "M&M", "SONACOMS", "MOTHERSON", "KPITTECH", "UNOMINDA"],
+        "victims": [],
+        "tag_buy": "🔋EV-Battery BUY",
+        "tag_sell": "",
+        "te_desc": "ఎలక్ట్రిక్ బస్సులు, EV సబ్సిడీ లేదా లిథియం బ్యాటరీ పాలసీ వల్ల EV OEMs, బ్యాటరీ మరియు ఆటో యాన్సిలరీ స్టాక్స్ లో ర్యాలీ."
+    },
+    {
+        "id": "TELECOM_5G_DATACENTER",
+        "name": "📡 Telecom Tariff Hike, BharatNet & Data Centers",
+        "keywords": ["tariff hike", "arpu hike", "bharatnet", "optical fibre", "5g rollout", "data center", "agr relief", "spectrum auction", "telecom package"],
+        "beneficiaries": ["BHARTIARTL", "INDUSTOWER", "IDEA", "TEJASNET", "HFCL", "STLTECH", "TATACOMM", "RAILTEL"],
+        "victims": [],
+        "tag_buy": "📡Telecom-Infra BUY",
+        "tag_sell": "",
+        "te_desc": "టెలికాం టారిఫ్ పెంపు, భారత్‌నెట్ (BharatNet) ఆర్డర్లు లేదా డేటా సెంటర్ల విస్తరణ వల్ల టెలికాం & ఫైబర్ ఇన్‌ఫ్రా స్టాక్స్ కి లాభం."
+    },
+    {
+        "id": "US_BIOSECURE_CDMO",
+        "name": "🧬 US Biosecure Act & China+1 Pharma CDMO Shift",
+        "keywords": ["biosecure act", "wuxi", "cdmo", "contract manufacturing", "glp-1", "peptide", "china plus one pharma", "usfda zero observations", "eir from usfda"],
+        "beneficiaries": ["DIVISLAB", "SYNGENE", "LAURUSLABS", "NEULANDLAB", "JUBLPHARMA", "PIRAMALPHARM", "GRANULES", "SUNPHARMA"],
+        "victims": [],
+        "tag_buy": "🧬CDMO-Biosecure BUY",
+        "tag_sell": "",
+        "te_desc": "అమెరికా Biosecure Act (చైనా కంపెనీలపై నిషేధం) వల్ల భారత CDMO & API ఫార్మా కంపెనీలకు భారీ కాంట్రాక్టులు లభిస్తాయి."
+    },
+    {
+        "id": "RBI_SEBI_CRACKDOWN",
+        "name": "🏦 RBI NBFC Curb / SEBI F&O Tightening",
+        "keywords": ["rbi bars", "rbi ban", "gold loan curb", "nbfc penalty", "sebi f&o", "stt hike", "weekly expiry curb", "microfinance stress", "mfi delinquency", "rbi audit"],
+        "beneficiaries": [],
+        "victims": ["MANAPPURAM", "MUTHOOTFIN", "IIFL", "BAJFINANCE", "POONAWALLA", "CREDITACC", "SPANDANA", "BSE", "ANGELONE", "MCX"],
+        "tag_buy": "",
+        "tag_sell": "🏦Reg-Curb SELL",
+        "te_desc": "RBI లేదా SEBI కఠిన నిబంధనలు (NBFC/గోల్డ్ లోన్ ఆంక్షలు లేదా F&O రూల్స్) వల్ల సంబంధిత ఫైనాన్స్ & బ్రోకింగ్ స్టాక్స్ పై ఒత్తిడి."
+    },
+    {
+        "id": "CRUDE_OIL_WAR_SPIKE",
+        "name": "🛢️ Middle-East War & Crude Oil Surge",
+        "keywords": ["strait of hormuz", "iran attack", "opec cut", "brent crude surges", "oil jumps", "crude crosses", "israel strikes iran", "refinery hit"],
+        "beneficiaries": ["ONGC", "OIL", "HAL", "BDL", "BEL"],
+        "victims": ["INDIGO", "ASIANPAINT", "BERGEPAINT", "KANSAINER", "BPCL", "HINDPETRO", "IOC", "APOLLOTYRE", "CEATLTD", "MRF", "JKTYRE"],
+        "tag_buy": "🛢️Oil-Upstream BUY",
+        "tag_sell": "🩸Crude-Victim SELL",
+        "te_desc": "క్రూడ్ ఆయిల్ ధర ఎగబాకితే ఆయిల్ ఉత్పత్తి చేసే ONGC, OIL పెరుగుతాయి; ఏవియేషన్, పెయింట్స్, టైర్లు & OMC స్టాక్స్ పడతాయి."
     }
 ]
 
@@ -1522,6 +1594,7 @@ COMPETITOR_SYMPATHY_MAP = {
     "FINEORG": ["CLEAN", "VINATIORGA", "GALAXYSURF"],
     "TATACHEM": ["GUJALKALI", "EPIGRAL", "GNFC", "DCMSHRIRAM"],
     "UPL": ["PIIND", "SUMICHEM", "RALLIS", "DHANUKA"],
+    "PIIND": ["COROMANDEL", "SUMICHEM", "DHANUKA"],
     # Pharma APIs & Formulations
     "DIVISLAB": ["LAURUSLABS", "SYNGENE", "NEULANDLAB", "GRANULES"],
     "LAURUSLABS": ["DIVISLAB", "GRANULES", "NEULANDLAB"],
@@ -1531,40 +1604,73 @@ COMPETITOR_SYMPATHY_MAP = {
     "CIPLA": ["SUNPHARMA", "DRREDDY", "ALKEM"],
     "LUPIN": ["AUROPHARMA", "DRREDDY", "GLENMARK"],
     "AUROPHARMA": ["LUPIN", "BIOCON", "GRANULES"],
-    # Auto & EMS
+    "BIOCON": ["SYNGENE", "LAURUSLABS", "LUPIN"],
+    # Auto, EV & Tyres
     "TATAMOTORS": ["M&M", "MARUTI", "ASHOKLEY"],
-    "MARUTI": ["M&M", "TATAMOTORS", "HYUNDAI"],
+    "MARUTI": ["M&M", "TATAMOTORS", "EICHERMOT"],
+    "M&M": ["TATAMOTORS", "MARUTI", "ESCORTS"],
+    "BAJAJ-AUTO": ["TVSMOTOR", "HEROMOTOCO", "EICHERMOT"],
+    "TVSMOTOR": ["BAJAJ-AUTO", "HEROMOTOCO"],
+    "OLECTRA": ["ASHOKLEY", "JBMA", "TATAMOTORS"],
+    "EXIDEIND": ["ARE&M", "AMARAJABAT"],
+    "ARE&M": ["EXIDEIND"],
+    "APOLLOTYRE": ["CEATLTD", "JKTYRE", "MRF", "BALKRISIND"],
+    "CEATLTD": ["APOLLOTYRE", "JKTYRE", "MRF"],
+    # EMS, Cables, Pipes & Paints
     "DIXON": ["AMBER", "SYRMA", "KAYNES"],
     "SYRMA": ["DIXON", "AMBER"],
-    # Metals, Cement & Cables
+    "AMBER": ["VOLTAS", "DIXON", "SYRMA"],
+    "POLYCAB": ["KEI", "FINCABLES", "HAVELLS"],
+    "KEI": ["POLYCAB", "FINCABLES", "APARINDS"],
+    "ASIANPAINT": ["BERGEPAINT", "INDIGOPNTS", "KANSAINER", "AKZOINDIA"],
+    "BERGEPAINT": ["ASIANPAINT", "INDIGOPNTS", "KANSAINER"],
+    "ASTRAL": ["SUPREMEIND", "PRINCEPIPE", "FINPIPE"],
+    "SUPREMEIND": ["ASTRAL", "PRINCEPIPE", "FINPIPE"],
+    # Metals, Cement & Power
     "TATASTEEL": ["JSWSTEEL", "JINDALSTEL", "SAIL"],
     "JSWSTEEL": ["TATASTEEL", "JINDALSTEL"],
-    "ULTRACEMCO": ["AMBUJACEM", "SHREECEM", "DALBHARAT"],
-    "POLYCAB": ["KEI", "FINCABLES", "HAVELLS"],
-    # Banking / Cyber Outage -> Security / Rival Bank
-    "HDFCBANK": ["ICICIBANK", "SBIN", "TATACOMM", "NEWGEN"],
-    "ICICIBANK": ["HDFCBANK", "SBIN", "TATACOMM", "NEWGEN"],
-    "INDUSINDBK": ["AXISBANK", "KOTAKBANK", "TATACOMM"],
-    "KOTAKBANK": ["HDFCBANK", "ICICIBANK", "TATACOMM", "NEWGEN"],
+    "HINDALCO": ["NATIONALUM", "VEDL", "HINDCOPPER"],
+    "ULTRACEMCO": ["AMBUJACEM", "SHREECEM", "DALBHARAT", "ACC"],
+    "AMBUJACEM": ["ULTRACEMCO", "ACC", "SHREECEM"],
+    "SUZLON": ["INOXWIND", "TATAPOWER", "KPIL"],
+    "INOXWIND": ["SUZLON", "TATAPOWER"],
+    "RVNL": ["IRCON", "RITES", "BEML"],
+    "IRCON": ["RVNL", "RITES", "NCC"],
+    # Banking, NBFCs & Gold Loans
+    "HDFCBANK": ["ICICIBANK", "SBIN", "AXISBANK", "TATACOMM"],
+    "ICICIBANK": ["HDFCBANK", "SBIN", "AXISBANK"],
+    "INDUSINDBK": ["AXISBANK", "KOTAKBANK", "FEDERALBNK"],
+    "KOTAKBANK": ["HDFCBANK", "ICICIBANK", "AXISBANK"],
+    "MANAPPURAM": ["MUTHOOTFIN", "CHOLAFIN", "SBICARD"],
+    "MUTHOOTFIN": ["MANAPPURAM", "CHOLAFIN", "BAJFINANCE"],
+    "IIFL": ["MUTHOOTFIN", "MANAPPURAM", "CHOLAFIN"],
+    "BAJFINANCE": ["CHOLAFIN", "SHRIRAMFIN", "M&MFIN"],
+    # Telecom, Aviation & Diagnostics
+    "INDIGO": ["IRCTC", "CONCOR"],
+    "BHARTIARTL": ["INDUSTOWER", "TATACOMM"],
+    "IDEA": ["BHARTIARTL", "INDUSTOWER"],
+    "LALPATHLAB": ["METROPOLIS", "VIJAYA", "THYROCARE"],
+    "METROPOLIS": ["LALPATHLAB", "VIJAYA"],
 }
 
 _SEVERE_VICTIM_KW = (
     "fire", "blast", "explosion", "gas leak", "strike", "shutdown", "closure",
     "import alert", "warning letter", "form 483", "oai", "ed raid", "it raid",
-    "cbi", "ban", "cyber attack", "ransomware", "outage", "default", "fraud",
-    "penalty", "sebi ban", "plant halt", "recall"
+    "cbi", "ban", "rbi bars", "cyber attack", "ransomware", "outage", "default",
+    "fraud", "penalty", "sebi ban", "plant halt", "recall", "show cause", "blacklisted"
 )
 
 
 @st.cache_data(ttl=180, show_spinner=False)
 def fetch_domino_crisis_rss():
-    """Scans 24h Global & Indian Crisis/Supply-Chain/Disaster/Plant-Fire RSS feeds"""
+    """Scans 24h Global & Indian Crisis/Supply-Chain/Disaster/Plant-Fire/Sectoral RSS feeds"""
     now_utc = datetime.now(ZoneInfo("UTC"))
     q_list = [
-        '("factory fire" OR "boiler blast" OR "gas leak" OR "plant shutdown" OR "workers strike" OR "USFDA" OR "import alert") NSE OR India when:1d',
-        '("Apache" OR "Boeing" OR "Lockheed" OR "ammunition" OR "titanium" OR "anti-dumping duty" OR "DGTR" OR "Red Sea") India OR stock when:1d',
-        '("earthquake" OR "cyclone" OR "heatwave" OR "El Nino" OR "mine strike" OR "copper mine" OR "chip shortage" OR "coal shortage") when:1d',
-        '("export ban" OR "export duty" OR "rice export" OR "sugar export" OR "crop disease" OR "virus outbreak" OR "cyber attack") India when:1d'
+        '("factory fire" OR "boiler blast" OR "gas leak" OR "plant shutdown" OR "workers strike" OR "USFDA" OR "import alert" OR "form 483") NSE OR India when:1d',
+        '("Apache" OR "Boeing" OR "ammunition" OR "titanium" OR "anti-dumping duty" OR "DGTR" OR "Red Sea" OR "Biosecure") India OR stock when:1d',
+        '("earthquake" OR "cyclone" OR "heatwave" OR "El Nino" OR "mine strike" OR "copper mine" OR "chip shortage" OR "coal shortage" OR "Brent crude") when:1d',
+        '("export ban" OR "export duty" OR "rice export" OR "sugar export" OR "crop disease" OR "virus outbreak" OR "cyber attack" OR "RBI bars") India when:1d',
+        '("Kavach" OR "Vande Bharat" OR "PM KUSUM" OR "ALMM" OR "rooftop solar" OR "electric bus" OR "BharatNet" OR "tariff hike") India OR stock when:1d'
     ]
     raw_items = []
     seen_titles = set()
@@ -1598,7 +1704,7 @@ def fetch_domino_crisis_rss():
             pass
         return local_list
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
         for res in ex.map(_pull_q, q_list):
             for item in res:
                 k = item["title_en"][:40].lower()
@@ -1610,24 +1716,22 @@ def fetch_domino_crisis_rss():
     return raw_items
 
 
-def run_domino_crisis_engine(df_universe, processed_charts):
+def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=3.0, panic_drop_thresh=-2.2):
     """
-    Executes Points 1 to 6:
-      1. Matches Global & Domestic Crisis RSS against DOMINO_CRISIS_MATRIX
+    Executes Complete Domino Intelligence Engine:
+      1. Global & Domestic Crisis RSS against 22 DOMINO_CRISIS_MATRIX rules
       2. Victim-to-Winner Auto Switch: Direct Victim -> SELL & Competitor -> #1 BUY
-      3. Zero-Lag Pre-Guessing: 5-min 3x VolX drop without news -> '🚨 Hidden Trouble' + Competitor Watch
+      3. Live Macro Spikes: Crude Oil (CL=F), USD/INR (INR=X), Gold (GC=F), Copper (HG=F), NatGas (NG=F)
+      4. Zero-Lag Insider Panic Detector: 5-min 3x VolX drop without public news
     """
     if df_universe is None or df_universe.empty:
         return pd.DataFrame(), []
 
     df_clean = df_universe.drop_duplicates(subset=["T"], keep="first").copy()
-    
-    # 👇 'T' column miss avvakunda dict tayaru cheyadam:
     stk_lookup = {str(r["T"]).strip(): r.to_dict() for _, r in df_clean.iterrows()}
 
     crisis_rss = fetch_domino_crisis_rss()
 
-    # Also inspect live stock news from top volatile stocks
     volatile_mask = (df_clean["VolX"] >= 1.4) & (df_clean["Day_C"].abs() >= 1.0)
     vol_fts = df_clean[volatile_mask].sort_values("VolX", ascending=False)["Fetch_T"].head(35).tolist()
     stk_news_map = fetch_live_stock_news_batch(tuple(vol_fts), max_age_hours=24) if vol_fts else {}
@@ -1641,7 +1745,7 @@ def run_domino_crisis_engine(df_universe, processed_charts):
         day_c = float(s_row.get("Day_C", 0.0))
         vol_x = float(s_row.get("VolX", 1.0))
 
-        # Boost score when price & volume confirm the Domino direction
+        # Boost score when price & volume confirm the Domino direction (No upper limit cap!)
         score = base_score
         if side == "BUY" and day_c > 0:
             score += min(6, int(vol_x * 2 + day_c))
@@ -1662,7 +1766,7 @@ def run_domino_crisis_engine(df_universe, processed_charts):
             }
 
     # ---------------------------------------------------------
-    # STEP A: SCAN GLOBAL & DOMESTIC CRISIS RSS (POINTS 1 TO 5)
+    # STEP A: SCAN GLOBAL & DOMESTIC CRISIS RSS (22 SECTOR RULES)
     # ---------------------------------------------------------
     for item in crisis_rss:
         t_en = item["title_en"]
@@ -1670,7 +1774,6 @@ def run_domino_crisis_engine(df_universe, processed_charts):
         age_h = item["age_h"]
         lnk = item["link"]
 
-        # 1. Check if a specific NSE stock is a Direct Victim of Fire/Blast/Strike/Cyber/Ban
         ext_sym, is_nse = _extract_stock_from_headline(t_en)
         if is_nse and ext_sym in stk_lookup and any(vk in t_low for vk in _SEVERE_VICTIM_KW):
             _register_signal(
@@ -1678,7 +1781,6 @@ def run_domino_crisis_engine(df_universe, processed_charts):
                 f"🚨 <b>Direct Victim (Instant Short):</b> {ext_sym} లో ఊహించని సంక్షోభం/ప్రమాదం వార్త కారణంగా తక్షణ SELL ఒత్తిడి.",
                 lnk, age_h, base_score=96, priority_rank=1
             )
-            # 🔄 VICTIM-TO-WINNER AUTO SWITCH: Push direct competitors to #1 BUY!
             for comp_sym in COMPETITOR_SYMPATHY_MAP.get(ext_sym, []):
                 _register_signal(
                     comp_sym, "BUY", f"🏆Sympathy-Winner (#1 vs {ext_sym})",
@@ -1687,18 +1789,16 @@ def run_domino_crisis_engine(df_universe, processed_charts):
                     lnk, age_h, base_score=98, priority_rank=0
                 )
 
-        # 2. Match against the 16 Domino Crisis Matrix Rules
         for rule in DOMINO_CRISIS_MATRIX:
             if any(kw in t_low for kw in rule["keywords"]):
                 for b_sym in rule["beneficiaries"]:
                     if b_sym in stk_lookup:
                         b_row = stk_lookup[b_sym]
-                        # Show if stock is active or breaking out
                         if float(b_row.get("Day_C", 0)) >= -0.5 or float(b_row.get("VolX", 0)) >= 1.1:
                             _register_signal(
                                 b_sym, "BUY", rule["tag_buy"], t_en,
                                 f"🌍 <b>{rule['name']}:</b> {rule['te_desc']}",
-                                lnk, age_h, base_score=86, priority_rank=2
+                                lnk, age_h, base_score=87, priority_rank=2
                             )
                 for v_sym in rule["victims"]:
                     if v_sym in stk_lookup and v_sym != ext_sym:
@@ -1707,7 +1807,7 @@ def run_domino_crisis_engine(df_universe, processed_charts):
                             _register_signal(
                                 v_sym, "SELL", rule["tag_sell"], t_en,
                                 f"⚠️ <b>{rule['name']} (Victim):</b> {rule['te_desc']}",
-                                lnk, age_h, base_score=85, priority_rank=2
+                                lnk, age_h, base_score=86, priority_rank=2
                             )
 
     # ---------------------------------------------------------
@@ -1737,7 +1837,102 @@ def run_domino_crisis_engine(df_universe, processed_charts):
                 )
 
     # ---------------------------------------------------------
-    # STEP C: POINT 6 — ZERO-LAG PRE-GUESSING (3x VolX Insider Panic Detector)
+    # STEP C: 🛢️💵🥇 LIVE MACRO SPIKE AUTO-TRIGGER (CRUDE, USD/INR, GOLD, COPPER, NATGAS)
+    # ---------------------------------------------------------
+    def _macro_chg(sym_code):
+        df_m = processed_charts.get(sym_code, pd.DataFrame())
+        if df_m is None or df_m.empty:
+            store_m = _SS.get("5m_store", {})
+            if sym_code in store_m and not store_m[sym_code].empty:
+                df_m = _fix_ist_df(process_5m_data(store_m[sym_code]))
+        if df_m is not None and not df_m.empty and len(df_m) >= 3:
+            sess_id = (df_m.index.to_series().diff() > pd.Timedelta(minutes=120)).cumsum()
+            d_today = df_m[sess_id == sess_id.iloc[-1]]
+            if len(d_today) >= 2:
+                op_v = float(d_today["Open"].iloc[0])
+                cl_v = float(d_today["Close"].iloc[-1])
+                if op_v > 0:
+                    return ((cl_v - op_v) / op_v) * 100.0, cl_v
+        return 0.0, 0.0
+
+    crude_chg, crude_p = _macro_chg("CL=F")
+    usdinr_chg, usdinr_p = _macro_chg("INR=X")
+    gold_chg, gold_p = _macro_chg("GC=F")
+    copper_chg, _ = _macro_chg("HG=F")
+    natgas_chg, _ = _macro_chg("NG=F")
+
+    # 1. Crude Oil Spike (>= +1.8%) or Crash (<= -1.8%)
+    if crude_chg >= 1.8:
+        for b_s in ["ONGC", "OIL"]:
+            if b_s in stk_lookup and float(stk_lookup[b_s].get("P", 0)) >= float(stk_lookup[b_s].get("VWAP", 0)):
+                _register_signal(
+                    b_s, "BUY", f"🛢️Crude +{crude_chg:.1f}% BUY",
+                    f"Live Crude Oil Spike ({crude_chg:+.2f}% at ${crude_p:.2f}) boosts upstream realizations for {b_s}",
+                    f"🛢️ <b>Crude Oil Live Spike ({crude_chg:+.2f}%):</b> గ్లోబల్ క్రూడ్ ఆయిల్ వేగంగా పెరగడం వల్ల ఆయిల్ ఉత్పత్తి చేసే <b>{b_s}</b> కి లాభం.",
+                    "https://in.tradingview.com/chart/?symbol=NYMEX:CL1!", 0.2, base_score=90, priority_rank=1
+                )
+        for v_s in ["INDIGO", "ASIANPAINT", "BERGEPAINT", "BPCL", "HINDPETRO", "IOC", "APOLLOTYRE", "CEATLTD", "MRF"]:
+            if v_s in stk_lookup and float(stk_lookup[v_s].get("P", 0)) < float(stk_lookup[v_s].get("VWAP", 0)) and float(stk_lookup[v_s].get("Day_C", 0)) < 0:
+                _register_signal(
+                    v_s, "SELL", f"🩸Crude +{crude_chg:.1f}% Hit",
+                    f"Live Crude Oil Spike ({crude_chg:+.2f}%) increases raw material/ATF cost for {v_s}",
+                    f"🩸 <b>Crude Oil Spike Victim ({crude_chg:+.2f}%):</b> క్రూడ్ ఆయిల్ పెరుగుదల వల్ల ముడిసరుకు/ఇంధన ఖర్చు పెరిగి <b>{v_s}</b> మార్జిన్లపై ఒత్తిడి.",
+                    "https://in.tradingview.com/chart/?symbol=NYMEX:CL1!", 0.2, base_score=89, priority_rank=1
+                )
+    elif crude_chg <= -1.8:
+        for b_s in ["INDIGO", "ASIANPAINT", "BERGEPAINT", "BPCL", "HINDPETRO", "IOC", "APOLLOTYRE", "CEATLTD"]:
+            if b_s in stk_lookup and float(stk_lookup[b_s].get("P", 0)) >= float(stk_lookup[b_s].get("VWAP", 0)) and float(stk_lookup[b_s].get("Day_C", 0)) > 0:
+                _register_signal(
+                    b_s, "BUY", f"🛢️Crude {crude_chg:.1f}% Gain",
+                    f"Live Crude Oil Drop ({crude_chg:+.2f}%) expands operating margins for {b_s}",
+                    f"🟢 <b>Crude Oil Crash Beneficiary ({crude_chg:+.2f}%):</b> క్రూడ్ ఆయిల్ పతనం వల్ల ముడిసరుకు ఖర్చు తగ్గి <b>{b_s}</b> కి భారీ మార్జిన్ లాభం!",
+                    "https://in.tradingview.com/chart/?symbol=NYMEX:CL1!", 0.2, base_score=90, priority_rank=1
+                )
+
+    # 2. USD/INR Spike (>= +0.30% Rupee Depreciation -> IT & Pharma Exporters Gain)
+    if usdinr_chg >= 0.30:
+        for b_s in ["TCS", "INFY", "HCLTECH", "TECHM", "PERSISTENT", "COFORGE", "SUNPHARMA", "DRREDDY", "DIVISLAB"]:
+            if b_s in stk_lookup and float(stk_lookup[b_s].get("P", 0)) >= float(stk_lookup[b_s].get("VWAP", 0)) and float(stk_lookup[b_s].get("Day_C", 0)) > 0.4:
+                _register_signal(
+                    b_s, "BUY", f"💵USD/INR +{usdinr_chg:.2f}% BUY",
+                    f"Rupee Weakening (USD/INR {usdinr_chg:+.2f}% at ₹{usdinr_p:.2f}) boosts dollar export revenue for {b_s}",
+                    f"💵 <b>USD/INR Live Breakout (₹{usdinr_p:.2f}):</b> డాలర్ బలపడటం వల్ల ఐటీ & ఫార్మా ఎగుమతి ఆదాయం పెరిగి <b>{b_s}</b> లో ఇన్‌స్టిట్యూషననల్ బయింగ్.",
+                    "https://in.tradingview.com/chart/?symbol=FX_IDC:USDINR", 0.2, base_score=88, priority_rank=1
+                )
+
+    # 3. Gold (GC=F >= +1.2%), Copper (HG=F >= +1.5%), Natural Gas (NG=F >= +2.5%)
+    if gold_chg >= 1.2:
+        for b_s in ["MUTHOOTFIN", "MANAPPURAM", "TITAN", "KALYANKJIL"]:
+            if b_s in stk_lookup and float(stk_lookup[b_s].get("P", 0)) >= float(stk_lookup[b_s].get("VWAP", 0)) and float(stk_lookup[b_s].get("Day_C", 0)) > 0:
+                _register_signal(
+                    b_s, "BUY", f"🥇Gold +{gold_chg:.1f}% BUY",
+                    f"Live Gold Surge ({gold_chg:+.2f}%) boosts collateral & inventory value for {b_s}",
+                    f"🥇 <b>Gold Live Surge ({gold_chg:+.2f}%):</b> బంగారం ధర పెరుగుదల వల్ల గోల్డ్ లోన్ & జ్యువెలరీ కంపెనీ <b>{b_s}</b> కి లాభం.",
+                    "https://in.tradingview.com/chart/?symbol=COMEX:GC1!", 0.2, base_score=88, priority_rank=2
+                )
+
+    if copper_chg >= 1.5:
+        for b_s in ["HINDCOPPER", "HINDALCO", "VEDL", "NATIONALUM"]:
+            if b_s in stk_lookup and float(stk_lookup[b_s].get("P", 0)) >= float(stk_lookup[b_s].get("VWAP", 0)) and float(stk_lookup[b_s].get("Day_C", 0)) > 0:
+                _register_signal(
+                    b_s, "BUY", f"⛏️Copper +{copper_chg:.1f}% BUY",
+                    f"Global Copper Surge ({copper_chg:+.2f}%) lifts metal realization for {b_s}",
+                    f"⛏️ <b>Global Copper Surge ({copper_chg:+.2f}%):</b> కాపర్/మెటల్ ధరల పెరుగుదల వల్ల <b>{b_s}</b> లో బయింగ్ మొమెంటం.",
+                    "https://in.tradingview.com/chart/?symbol=COMEX:HG1!", 0.2, base_score=89, priority_rank=1
+                )
+
+    if natgas_chg >= 2.5:
+        for v_s in ["IGL", "MGL", "GUJGASLTD", "PETRONET"]:
+            if v_s in stk_lookup and float(stk_lookup[v_s].get("P", 0)) < float(stk_lookup[v_s].get("VWAP", 0)) and float(stk_lookup[v_s].get("Day_C", 0)) < 0:
+                _register_signal(
+                    v_s, "SELL", f"🔥NatGas +{natgas_chg:.1f}% Hit",
+                    f"Natural Gas Surge ({natgas_chg:+.2f}%) squeezes city gas distribution margins for {v_s}",
+                    f"🔥 <b>Natural Gas Spike ({natgas_chg:+.2f}%):</b> గ్యాస్ ధర పెరగడం వల్ల సిటీ గ్యాస్ కంపెనీ <b>{v_s}</b> మార్జిన్లపై నెగటివ్ ప్రభావం.",
+                    "https://in.tradingview.com/chart/?symbol=NYMEX:NG1!", 0.2, base_score=87, priority_rank=2
+                )
+
+    # ---------------------------------------------------------
+    # STEP D: POINT 6 — ZERO-LAG PRE-GUESSING (3x VolX Insider Panic Detector)
     # ---------------------------------------------------------
     for sym, s_row in stk_lookup.items():
         ft = s_row["Fetch_T"]
@@ -1746,17 +1941,16 @@ def run_domino_crisis_engine(df_universe, processed_charts):
         ltp = float(s_row.get("P", 0.0))
         vwap = float(s_row.get("VWAP", ltp))
 
-        # Check 5-min chart for sudden 3x volume spike & sharp red breakdown
         df_5m = processed_charts.get(ft, pd.DataFrame())
         sudden_5m_dump = False
         if not df_5m.empty and len(df_5m) >= 6 and "Volume" in df_5m.columns:
             v_avg = float(df_5m["Volume"].iloc[-20:-2].mean()) if len(df_5m) >= 20 else float(df_5m["Volume"].mean())
             v_last2 = float(df_5m["Volume"].iloc[-2:].max())
             p_drop_15m = ((float(df_5m["Close"].iloc[-1]) - float(df_5m["Open"].iloc[-3])) / max(float(df_5m["Open"].iloc[-3]), 1.0)) * 100.0
-            if v_avg > 0 and (v_last2 >= v_avg * 3.0) and p_drop_15m <= -1.4 and ltp < vwap:
+            if v_avg > 0 and (v_last2 >= v_avg * panic_vol_thresh) and p_drop_15m <= -1.4 and ltp < vwap:
                 sudden_5m_dump = True
 
-        is_insider_panic = ((vol_x >= 3.0 and day_c <= -2.2 and ltp < vwap) or sudden_5m_dump) and (ft not in stk_news_map)
+        is_insider_panic = ((vol_x >= panic_vol_thresh and day_c <= panic_drop_thresh and ltp < vwap) or sudden_5m_dump) and (ft not in stk_news_map)
         if is_insider_panic and sym not in domino_signals:
             _register_signal(
                 sym, "SELL", "🚨Hidden-Trouble (3x Vol Dump)",
@@ -1765,15 +1959,14 @@ def run_domino_crisis_engine(df_universe, processed_charts):
                 f"https://www.google.com/search?q={sym}+share+news&tbm=nws",
                 0.1, base_score=95, priority_rank=1
             )
-            # Pre-position into direct competitors if they are holding green above VWAP
             for comp_sym in COMPETITOR_SYMPATHY_MAP.get(sym, []):
                 if comp_sym in stk_lookup:
                     c_row = stk_lookup[comp_sym]
                     if float(c_row.get("P", 0)) >= float(c_row.get("VWAP", 0)) and float(c_row.get("Day_C", 0)) > 0:
                         _register_signal(
                             comp_sym, "BUY", f"⚡Pre-Guess Winner (vs {sym})",
-                            f"Pre-Guess Sympathy Buy: Rival {sym} showing 3x volume panic dump while {comp_sym} holds strong above VWAP",
-                            f"⚡ <b>Zero-Lag Sympathy Switch:</b> ప్రత్యర్థి స్టాక్ ({sym}) లో సడెన్ 3x వాల్యూమ్ క్రాష్ జరుగుతుండగా, <b>{comp_sym}</b> VWAP పైన స్ట్రాంగ్‌గా నిలబడింది!",
+                            f"Pre-Guess Sympathy Buy: Rival {sym} showing {vol_x:.1f}x volume panic dump while {comp_sym} holds strong above VWAP",
+                            f"⚡ <b>Zero-Lag Sympathy Switch:</b> ప్రత్యర్థి స్టాక్ ({sym}) లో సడెన్ వాల్యూమ్ క్రాష్ జరుగుతుండగా, <b>{comp_sym}</b> VWAP పైన స్ట్రాంగ్‌గా నిలబడింది!",
                             f"https://www.google.com/search?q={comp_sym}+share+news&tbm=nws",
                             0.1, base_score=93, priority_rank=1
                         )
@@ -1781,7 +1974,6 @@ def run_domino_crisis_engine(df_universe, processed_charts):
     if not domino_signals:
         return pd.DataFrame(), []
 
-    # Ensure 5m charts are loaded for all matched Domino stocks
     dom_fts = [
         stk_lookup[s]["Fetch_T"] for s in domino_signals
         if stk_lookup[s]["Fetch_T"] not in processed_charts or processed_charts[stk_lookup[s]["Fetch_T"]].empty
@@ -1807,12 +1999,11 @@ def run_domino_crisis_engine(df_universe, processed_charts):
     for sig in sorted_sigs:
         sym = sig["sym"]
         s_row = stk_lookup[sym].copy()
-        s_row["T"] = sym  # 👈 Ee okka line add cheyandi (Fixes KeyError: 'T')
+        s_row["T"] = sym
         ft = s_row["Fetch_T"]
         ltp = float(s_row["P"])
         day_c = float(s_row.get("Day_C", 0.0))
         vol_x = float(s_row.get("VolX", 1.0))
-        vwap = float(s_row.get("VWAP", ltp))
         atr_val = float(s_row.get("ATR", ltp * 0.02))
         is_buy = (sig["side"] == "BUY")
 
@@ -1822,7 +2013,6 @@ def run_domino_crisis_engine(df_universe, processed_charts):
 
         te_hl = _translate_to_telugu(sig["reason_en"])
 
-        # Top priority score (36..40) so Sympathy Winner sits at #1 place in BUY list!
         s_row["Strategy_Icon"] = f"🟢 {sig['tag']}" if is_buy else f"🔴 {sig['tag']}"
         s_row["AI_Prob"] = sig["score"]
         s_row["S"] = 40 if sig["priority_rank"] == 0 else (38 if sig["priority_rank"] == 1 else max(int(s_row.get("S", 12)), int(sig["score"] // 3)))
