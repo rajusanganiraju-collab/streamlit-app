@@ -2171,9 +2171,12 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=3.0
 
         df_5m = processed_charts.get(ft, pd.DataFrame())
         inline_chart = _build_inline_mini_chart_html(sym, s_row, df_5m, sig["tag"])
+        sw_sl = round((ltp - 2.8 * atr_val) if is_buy else (ltp + 2.8 * atr_val), 2)
+        sw_t1 = round((ltp + 5.5 * atr_val) if is_buy else (ltp - 5.5 * atr_val), 2)
+        sw_t2 = round((ltp + 9.0 * atr_val) if is_buy else (ltp - 9.0 * atr_val), 2)
         mkt_te = (
-            f"📊 Domino ట్రేడ్ లెవెల్స్: LTP ₹{ltp:.2f} ({day_c:+.2f}%) | Vol: {vol_x:.1f}x | "
-            f"🛑 SL: ₹{sl_v:.2f} | 🎯 T1: ₹{t1_v:.2f} | 🎯 T2: ₹{t2_v:.2f}"
+            f"⚡ Intraday: LTP ₹{ltp:.2f} ({day_c:+.2f}%) | Vol: {vol_x:.1f}x | 🛑 SL: ₹{sl_v:.2f} | 🎯 T1: ₹{t1_v:.2f} | 🎯 T2: ₹{t2_v:.2f}   ||   "
+            f"🌊 Swing (1-4 Wks): 🛑 Swing SL: ₹{sw_sl:.2f} | 🎯 Swing T1: ₹{sw_t1:.2f} | 🎯 T2: ₹{sw_t2:.2f}"
         )
 
         feed_records.append({
