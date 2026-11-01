@@ -4766,11 +4766,10 @@ def adaptive_live_engine(five_min_data, candidates, top_n=8, min_edge=60):
                     if ltp > orb_h or near_day_high:
                         b_score += 7.0
 
-                    # Pillar 5: Sweet-Spot Non-Exhaustion Guard (15)
-                    ext_atr = (ltp - e9_now) / atr_now
-                    if 54.0 <= rsi_now <= 76.0 and ext_atr <= 2.2:
+                    # Pillar 5: Strong RSI Momentum (15) — No upper RSI/ATR cap
+                    if rsi_now >= 54.0:
                         b_score += 15.0
-                    elif 48.0 <= rsi_now <= 82.0 and ext_atr <= 3.0:
+                    elif rsi_now >= 48.0:
                         b_score += 8.0
 
                     if b_score >= min_score:
@@ -4821,11 +4820,10 @@ def adaptive_live_engine(five_min_data, candidates, top_n=8, min_edge=60):
                     if ltp < orb_l or near_day_low:
                         s_score += 7.0
 
-                    # Pillar 5: Non-Exhaustion Guard (15)
-                    ext_atr = (e9_now - ltp) / atr_now
-                    if 24.0 <= rsi_now <= 46.0 and ext_atr <= 2.2:
+                    # Pillar 5: Strong Bearish RSI Momentum (15) — No lower RSI/ATR cap
+                    if rsi_now <= 46.0:
                         s_score += 15.0
-                    elif 18.0 <= rsi_now <= 52.0 and ext_atr <= 3.0:
+                    elif rsi_now <= 52.0:
                         s_score += 8.0
 
                     if s_score >= min_score:
