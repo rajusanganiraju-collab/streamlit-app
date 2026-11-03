@@ -1271,10 +1271,10 @@ def process_5m_data(df_raw):
                 vol_cum = df_5d.groupby('_sess_date')['Volume'].cumsum().replace(0, np.nan)
                 tpv_cum = df_5d.groupby('_sess_date')['_tp_vol'].cumsum()
                 df_5d['VWAP'] = (tpv_cum / vol_cum).fillna(df_5d['Typical_Price'])
-                df_5d.drop(columns=['_tp_vol', '_sess_date'], inplace=True, errors='ignore')
+                df_5d = df_5d.drop(columns=['_tp_vol', '_sess_date'], errors='ignore')
             else:
                 df_5d['VWAP'] = df_5d.groupby('_sess_date')['Typical_Price'].transform(lambda x: x.expanding().mean())
-                df_5d.drop(columns=['_sess_date'], inplace=True, errors='ignore')
+                df_5d = df_5d.drop(columns=['_sess_date'], errors='ignore')
             df_5d = df_5d.bfill().ffill()
             return df_5d
         return pd.DataFrame()
@@ -1744,8 +1744,8 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=3.0
 
     crisis_rss = fetch_domino_crisis_rss()
 
-    volatile_mask = (df_clean["VolX"] >= 1.4) & (df_clean["Day_C"].abs() >= 1.0)
-    vol_fts = df_clean[volatile_mask].sort_values("VolX", ascending=False)["Fetch_T"].head(35).tolist()
+    volatile_mask = (df_clean["VolX"] >= 2.0) & (df_clean["Day_C"].abs() >= 1.5)
+    vol_fts = df_clean[volatile_mask].sort_values("VolX", ascending=False)["Fetch_T"].head(12).tolist()
     stk_news_map = fetch_live_stock_news_batch(tuple(vol_fts), max_age_hours=24) if vol_fts else {}
 
     domino_signals = {}  # sym -> dict of signal metadata
@@ -2139,7 +2139,8 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=3.0
     sorted_sigs = sorted(
         domino_signals.values(),
         key=lambda x: (x["priority_rank"], -x["score"], x["age_h"])
-    )
+    )[:25]
+    _dom_tr_map = _translate_batch_to_telugu([s["reason_en"] for s in sorted_sigs])
 
     for sig in sorted_sigs:
         sym = sig["sym"]
@@ -2156,7 +2157,7 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=3.0
         t1_v = round((ltp + 1.5 * atr_val) if is_buy else (ltp - 1.5 * atr_val), 2)
         t2_v = round((ltp + 3.0 * atr_val) if is_buy else (ltp - 3.0 * atr_val), 2)
 
-        te_hl = _translate_to_telugu(sig["reason_en"])
+        te_hl = _dom_tr_map.get(sig["reason_en"], sig["reason_en"])
 
         s_row["Strategy_Icon"] = f"🟢 {sig['tag']}" if is_buy else f"🔴 {sig['tag']}"
         s_row["AI_Prob"] = sig["score"]
@@ -7311,14 +7312,16 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 _sess_id = (df_chart.index.to_series().diff() > pd.Timedelta(minutes=120)).cumsum()
                 df_chart = df_chart[_sess_id == _sess_id.iloc[-1]].copy()
 
-                if not df_chart.empty and float(row.get('P', 0)) > 0:
-                    _live_p = float(row['P'])
+                if not df_chart.empty:
                     _last_i = df_chart.index[-1]
-                    df_chart.at[_last_i, 'Close'] = _live_p
-                    if _live_p > float(df_chart.at[_last_i, 'High']):
-                        df_chart.at[_last_i, 'High'] = _live_p
-                    if _live_p < float(df_chart.at[_last_i, 'Low']) or float(df_chart.at[_last_i, 'Low']) <= 0:
-                        df_chart.at[_last_i, 'Low'] = _live_p
+                    _last_5m_c = float(df_chart.at[_last_i, 'Close'])
+                    _live_p = float(row.get('P', 0))
+                    if _live_p > 0 and _last_5m_c > 0 and (abs(_live_p - _last_5m_c) / _last_5m_c) <= 0.015:
+                        df_chart.at[_last_i, 'Close'] = _live_p
+                        if _live_p > float(df_chart.at[_last_i, 'High']):
+                            df_chart.at[_last_i, 'High'] = _live_p
+                        if _live_p < float(df_chart.at[_last_i, 'Low']) or float(df_chart.at[_last_i, 'Low']) <= 0:
+                            df_chart.at[_last_i, 'Low'] = _live_p
 
             _y_lows = [float(df_chart['Low'].min())]
             _y_highs = [float(df_chart['High'].max())]
