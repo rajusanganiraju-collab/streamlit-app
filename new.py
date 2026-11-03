@@ -9418,7 +9418,7 @@ def render_live_ui():
                     all_dfs.append(_df_news)
             # 2B. 🌍 DOMINO EFFECT & CRISIS MATRIX (Victim vs Winner + 3x Vol Insider Panic)
             elif strat == DOMINO_STRAT:
-                _df_domino, _ = run_domino_crisis_engine(df_all_stocks, processed_charts)
+                _df_domino, _ = run_domino_crisis_engine(df_filtered, processed_charts)
                 if not _df_domino.empty:
                     all_dfs.append(_df_domino)
 
