@@ -2044,40 +2044,57 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=3.0
 
     for sym_g, row_g in stk_lookup.items():
         vx_g = float(row_g.get("VolX", 0))
-        dc_g = float(row_g.get("Day_C", 0))
+        dc_g = float(row_g.get("Day_C", 0))   # Mee Open-to-LTP % alage untundi
         ltp_g = float(row_g.get("P", 0))
         op_g = float(row_g.get("O", 0))
         lo_g = float(row_g.get("L", 0))
         pl_g = float(row_g.get("Prev_L", lo_g))
         pc_g = float(row_g.get("Prev_C", ltp_g))
+        vwap_g = float(row_g.get("VWAP", ltp_g))
         bp_g = float(row_g.get("Bull_P", 50))
         brp_g = float(row_g.get("Bear_P", 50))
 
-        # 1. Harshad Mehta Bullish Silent Accumulation (High Vol, Flat Price, Strong Bull Power)
-        if vx_g >= 2.6 and (-0.3 <= dc_g <= 1.75) and bp_g >= 70:
+        # Ninnaటి Close (Prev_C) nundi entha % gap/change undi (10% crash pattukovadaniki)
+        prev_c_chg = ((ltp_g - pc_g) / pc_g * 100.0) if pc_g > 0 else dc_g
+
+        # 🔥 REAL 5-MIN BUYER VOLUME % CALCULATION (Green vs Red Candle Volume)
+        ft_g = row_g.get("Fetch_T", f"{sym_g}.NS")
+        df_5m_g = processed_charts.get(ft_g, pd.DataFrame())
+        real_buyer_pct = int(bp_g)
+        if not df_5m_g.empty and "Volume" in df_5m_g.columns:
+            sess_g = (df_5m_g.index.to_series().diff() > pd.Timedelta(minutes=120)).cumsum()
+            td_5m = df_5m_g[sess_g == sess_g.iloc[-1]]
+            tot_v = float(td_5m["Volume"].sum())
+            if tot_v > 0:
+                rng_5m = (td_5m["High"] - td_5m["Low"]).replace(0, np.nan)
+                clv_5m = ((td_5m["Close"] - td_5m["Low"]) / rng_5m).fillna(0.5)
+                real_buyer_pct = int(round(float((td_5m["Volume"] * clv_5m).sum() / tot_v) * 100))
+
+        # CASE 1: 🕵️ Nijamaina Harshad Mehta Silent Buy (Stock Crash Avvakudadu: prev_c_chg >= -1.0%)
+        if vx_g >= 2.5 and (-0.3 <= dc_g <= 1.75) and (prev_c_chg >= -1.0) and (ltp_g >= vwap_g) and real_buyer_pct >= 62:
             _register_signal(
-                sym_g, "BUY", f"🕵️Insider-Stealth ({vx_g:.1f}x Vol)",
-                f"Harshad Mehta Silent Accumulation: {sym_g} has {vx_g:.1f}x abnormal volume with {int(bp_g)}% Bull Power while price is still quiet ({dc_g:+.2f}%)",
-                f"🕵️ <b>Harshad Mehta Silent Insider Accumulation:</b> Public news rakamunde <b>{sym_g}</b> lo dhara peddaga peragakunda ({dc_g:+.2f}%) <b>{vx_g:.1f}x</b> bhari volume tho rahasya buying jarugutondi!",
-                f"https://in.tradingview.com/chart/?symbol=NSE:{sym_g}", 0.1, base_score=97, priority_rank=0
+                sym_g, "BUY", f"🕵️Insider-Stealth ({real_buyer_pct}% Buyers | {vx_g:.1f}x)",
+                f"Real Silent Accumulation: {sym_g} has {real_buyer_pct}% 5m buying volume on {vx_g:.1f}x RVOL (Open Chg: {dc_g:+.2f}%, Net Chg: {prev_c_chg:+.2f}%)",
+                f"🕵️ <b>Harshad Mehta Silent Accumulation:</b> 5-నిమిషాల చార్ట్‌లో నిజమైన బయ్యర్ వాల్యూమ్ <b>{real_buyer_pct}%</b> ఉంది (RVOL: {vx_g:.1f}x, నిన్నటి క్లోజ్ నుండి: {prev_c_chg:+.2f}%).",
+                f"https://in.tradingview.com/chart/?symbol=NSE:{sym_g}", 0.1, base_score=real_buyer_pct, priority_rank=0
             )
 
-        # 2. Stop-Loss Hunt Reversal Glitch (Sweeps Prev_L and reverses above VWAP)
-        if lo_g < (pl_g * 0.998) and ltp_g > pl_g and vx_g >= 1.5 and bp_g >= 68:
+        # CASE 2: 📈 Gap-Down Intraday Recovery (Like CUMMINSIND: Down >3% from Yesterday, but Recovering Above VWAP & Open)
+        elif prev_c_chg <= -3.0 and dc_g >= 0.0 and ltp_g > vwap_g and vx_g >= 2.5 and real_buyer_pct >= 55:
             _register_signal(
-                sym_g, "BUY", "🪤SL-Hunt Reversal BUY",
-                f"Stop-Loss Hunt Glitch: {sym_g} swept yesterday's low (₹{pl_g:.1f}) down to ₹{lo_g:.1f} and reversed above VWAP on {vx_g:.1f}x volume",
-                f"🪤 <b>Stop-Loss Hunt Glitch:</b> Ninnaటి Low (₹{pl_g:.1f}) kindaki velli retail traders SL kottesi, operators <b>{vx_g:.1f}x</b> volume tho VWAP paina strong reversal icharu!",
-                f"https://in.tradingview.com/chart/?symbol=NSE:{sym_g}", 0.1, base_score=95, priority_rank=0
+                sym_g, "BUY", f"📈GapDown-Recovery ({prev_c_chg:+.1f}% Crash ➔ +{dc_g:.1f}% Rec)",
+                f"Gap-Down Intraday Bounce: {sym_g} fell {prev_c_chg:+.1f}% from yesterday's close but recovered +{dc_g:.2f}% above Open & VWAP ({real_buyer_pct}% Intraday Buyers)",
+                f"⚠️📈 <b>Gap-Down Intraday Recovery (ఇంట్రాడే బౌన్స్ మాత్రమే):</b> నిన్నటి క్లోజ్ నుండి <b>{prev_c_chg:+.1f}%</b> పడిపోయింది, కానీ ఈరోజు ఓపెన్ నుండి <b>{dc_g:+.2f}%</b> (VWAP పైన, {real_buyer_pct}% బయ్యర్లతో) రికవర్ అవుతోంది. <b>స్వింగ్ హోల్డ్ చేయకండి, కేవలం VWAP స్టాప్-లాస్‌తో ఇంట్రాడే మాత్రమే చూడండి!</b>",
+                f"https://in.tradingview.com/chart/?symbol=NSE:{sym_g}", 0.1, base_score=real_buyer_pct, priority_rank=2
             )
 
-        # 3. Operator Gap-Up Pump & Dump Trap
-        if op_g >= (pc_g * 1.018) and ltp_g < (op_g * 0.985) and vx_g >= 1.6 and brp_g >= 72:
+        # CASE 3: 🚨 Heavy Volume Crash Below VWAP (True Dump)
+        elif prev_c_chg <= -3.0 and ltp_g < vwap_g and vx_g >= 2.5:
             _register_signal(
-                sym_g, "SELL", "⚠️Operator Pump-Dump SELL",
-                f"Operator Trap: {sym_g} gapped up to ₹{op_g:.1f} and dumped below VWAP with {int(brp_g)}% Bear Power",
-                f"⚠️ <b>Operator Pump & Dump Trap:</b> Positive news tho ₹{op_g:.1f} daggara Gap-Up ayyi, retail vallaki ammesi operators VWAP kindaki dump chestunnaru (AVOID BUY / SHORT)!",
-                f"https://in.tradingview.com/chart/?symbol=NSE:{sym_g}", 0.1, base_score=94, priority_rank=1
+                sym_g, "SELL", f"🚨Crash-Dump ({prev_c_chg:+.1f}% | {100-real_buyer_pct}% Sellers)",
+                f"Heavy Institutional Dump: {sym_g} down {prev_c_chg:+.1f}% vs Prev Close and trading below VWAP on {vx_g:.1f}x volume",
+                f"🚨 <b>Heavy Institutional Dump:</b> నిన్నటి క్లోజ్ నుండి <b>{prev_c_chg:+.1f}%</b> పడిపోయి, VWAP కింద <b>{100-real_buyer_pct}%</b> సెల్లింగ్ ప్రెషర్‌తో క్రాష్ అవుతోంది (SELL).",
+                f"https://in.tradingview.com/chart/?symbol=NSE:{sym_g}", 0.1, base_score=(100 - real_buyer_pct), priority_rank=0
             )
     # ---------------------------------------------------------
     # STEP D: POINT 6 — ZERO-LAG PRE-GUESSING (3x VolX Insider Panic Detector)
