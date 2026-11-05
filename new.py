@@ -6247,9 +6247,10 @@ if 'wl_sort_col' not in st.session_state:
 if 'wl_sort_asc' not in st.session_state:
     st.session_state.wl_sort_asc = False
 if 'selected_ai_strats' not in st.session_state:
-      st.session_state.selected_ai_strats = [
-      ADAPTIVE_STRAT,
-      'All Day Trading Moves 🚀',
+    st.session_state.selected_ai_strats = [
+        ADAPTIVE_STRAT,
+        "All Day Trading Moves 🚀"
+    ]
 if 'selected_sw_strats' not in st.session_state:
     st.session_state.selected_sw_strats = ["📈 Minervini Trend Template (VCP)"]
 
