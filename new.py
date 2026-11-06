@@ -880,17 +880,26 @@ def fetch_cached_5m_data(tkrs_list):
     _cache_5m_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "intraday_5m_cache.pkl")
     _bad_syms = globals().get('_SKIP_BAD_SYMS', {"PBFINTECH", "GUJGASLTD", "TVSHLDGS", "PEL", "LTIM", "JCHAC", "TIDEWATER"})
 
+    _today_close_ts = datetime.now(ZoneInfo("Asia/Kolkata")).replace(hour=15, minute=32, second=0, microsecond=0).timestamp()
+    if '5m_store' in _SS and _SS.get('5m_ts'):
+        _latest_mem_ts = max(_SS['5m_ts'].values()) if _SS['5m_ts'] else 0
+        if (time.time() >= _today_close_ts) and (_latest_mem_ts < _today_close_ts):
+            _SS.pop('5m_store', None)
+            _SS.pop('5m_ts', None)
+
     if '5m_store' not in _SS:
         _SS['5m_store'] = {}
         _SS['5m_ts'] = {}
         if os.path.exists(_cache_5m_file):
             try:
-                if (time.time() - os.path.getmtime(_cache_5m_file)) < _ttl:
+                _mtime_5m = os.path.getmtime(_cache_5m_file)
+                _now_t = time.time()
+                _stale_after_close = (_now_t >= _today_close_ts) and (_mtime_5m < _today_close_ts)
+                if ((_now_t - _mtime_5m) < _ttl) and (not _stale_after_close):
                     _saved = pd.read_pickle(_cache_5m_file)
                     if isinstance(_saved, dict) and _saved:
                         _SS['5m_store'] = {k: _sanitize_5m_df(v, k) for k, v in _saved.items()}
-                        _now_init = time.time()
-                        _SS['5m_ts'] = {k: _now_init for k in _SS['5m_store'] if not _SS['5m_store'][k].empty}
+                        _SS['5m_ts'] = {k: _mtime_5m for k in _SS['5m_store'] if not _SS['5m_store'][k].empty}
             except Exception:
                 pass
 
@@ -9218,11 +9227,8 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
 @st.cache_data(ttl=25, show_spinner=False)
 def fetch_fast_live_quotes(tkrs_tuple, market_open):
     try:
-        if market_open:
-            _core_set = set(list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + list(COMMODITY_MAP.keys()) + [f"{s}.NS" for s in (set(NIFTY_50 + FNO_STOCKS + MIDCAP_150) - _SKIP_BAD_SYMS)])
-            target_list = [t for t in tkrs_tuple if t in _core_set]
-        else:
-            target_list = list(INDICES_MAP.keys()) + list(COMMODITY_MAP.keys())
+        _core_set = set(list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + list(COMMODITY_MAP.keys()) + [f"{s}.NS" for s in (set(NIFTY_50 + FNO_STOCKS + MIDCAP_150 + SMALLCAP_250) - _SKIP_BAD_SYMS)])
+        target_list = [t for t in tkrs_tuple if t in _core_set]
         q_data = yf.download(target_list, period="7d", interval="1d", progress=False, group_by='ticker', threads=10, timeout=5)
         if q_data.empty:
             return {}
@@ -9535,7 +9541,8 @@ def render_live_ui():
         _target_df['VWAP'] = _target_df['Fetch_T'].map(_true_vwap_map).fillna(_target_df['VWAP'])
         _target_df['Intra_EMA10'] = _target_df['Fetch_T'].map(_intra_ema10_map).fillna(_target_df['VWAP'])
 
-        _has_5m = _target_df['Fetch_T'].isin(_5m_p_map.keys())
+        # Market Open lo unnappudu matrame 5m candle price vaadali; Market Close ayyaka Official Daily Close (_fast_quotes) vaadali
+        _has_5m = _target_df['Fetch_T'].isin(_5m_p_map.keys()) if _m_open_top else (_target_df['Fetch_T'].isin(_5m_p_map.keys()) & (~_target_df['Fetch_T'].isin(_fast_quotes.keys())))
         _target_df.loc[_has_5m, 'P'] = _target_df.loc[_has_5m, 'Fetch_T'].map(_5m_p_map)
         _target_df.loc[_has_5m, 'O'] = _target_df.loc[_has_5m, 'Fetch_T'].map(_5m_o_map)
         _target_df.loc[_has_5m, 'H'] = _target_df.loc[_has_5m, 'Fetch_T'].map(_5m_h_map)
