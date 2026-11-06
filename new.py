@@ -9504,7 +9504,8 @@ def render_live_ui():
     else: strict_allowed = set(NIFTY_50 + FNO_STOCKS)
 
     df_stocks = df_all_stocks[df_all_stocks['T'].isin(strict_allowed)].copy()
-    core_tkrs = tuple(sorted(list(set(df_indices['Fetch_T'].tolist() + df_sectors['Fetch_T'].tolist() + df_commodities['Fetch_T'].tolist() + df_stocks['Fetch_T'].tolist() + st.session_state.pinned_stocks))))
+    _port_tkrs = [f"{str(s).upper().strip()}.NS" for s in df_port_saved['Symbol'].tolist() if str(s).strip() != ""]
+    core_tkrs = tuple(sorted(list(set(df_indices['Fetch_T'].tolist() + df_sectors['Fetch_T'].tolist() + df_commodities['Fetch_T'].tolist() + df_stocks['Fetch_T'].tolist() + _port_tkrs + st.session_state.pinned_stocks))))
     processed_charts, nifty_intra_html, sniper_cached_res = _fast_5m_and_sniper_cache(core_tkrs)
 
     # 🔥 TRUE 5-MIN PRICE (P, O, H, L, Day_C) + VWAP & EMA_10 SYNC INTO DATAFRAMES
