@@ -989,11 +989,15 @@ _SKIP_BAD_SYMS = {"PBFINTECH", "GUJGASLTD", "TVSHLDGS", "PEL", "LTIM", "JCHAC", 
 
 @st.cache_data(ttl=900, show_spinner=False)
 def fetch_all_data():
-    # ⚡ FAST DISK CACHE: Okasari save ayyaka 18 gantala varaku 0.1 sec lone disk nundi load avtundi
     _cache_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "daily_base_cache.pkl")
     if os.path.exists(_cache_file):
         try:
-            if (time.time() - os.path.getmtime(_cache_file)) < 64800:  # 18 Hours valid
+            _mtime = os.path.getmtime(_cache_file)
+            _now_ts = time.time()
+            _today_close_ts = datetime.now(ZoneInfo("Asia/Kolkata")).replace(hour=15, minute=32, second=0, microsecond=0).timestamp()
+            _is_morning_stale = (_now_ts >= _today_close_ts) and (_mtime < _today_close_ts)
+
+            if ((_now_ts - _mtime) < 64800) and (not _is_morning_stale):
                 _cached_df = pd.read_pickle(_cache_file)
                 if not _cached_df.empty:
                     return _cached_df
@@ -9503,9 +9507,13 @@ def render_live_ui():
     core_tkrs = tuple(sorted(list(set(df_indices['Fetch_T'].tolist() + df_sectors['Fetch_T'].tolist() + df_commodities['Fetch_T'].tolist() + df_stocks['Fetch_T'].tolist() + st.session_state.pinned_stocks))))
     processed_charts, nifty_intra_html, sniper_cached_res = _fast_5m_and_sniper_cache(core_tkrs)
 
-    # 🔥 TRUE 5-MIN VWAP & 5-MIN EMA_10 SYNC INTO DATAFRAMES
-    _true_vwap_map = {}
-    _intra_ema10_map = {}
+    # 🔥 TRUE 5-MIN PRICE (P, O, H, L, Day_C) + VWAP & EMA_10 SYNC INTO DATAFRAMES
+    _true_vwap_map, _intra_ema10_map = {}, {}
+    _5m_p_map, _5m_o_map, _5m_h_map, _5m_l_map = {}, {}, {}, {}
+
+    with LIVE_PRICES_LOCK:
+        _ws_snap = dict(LIVE_PRICES_GLOBAL)
+
     for _sym_k, _df_5m in processed_charts.items():
         if _df_5m is not None and not _df_5m.empty:
             if 'VWAP' in _df_5m.columns and pd.notna(_df_5m['VWAP'].iloc[-1]) and float(_df_5m['VWAP'].iloc[-1]) > 0:
@@ -9513,9 +9521,38 @@ def render_live_ui():
             if 'EMA_10' in _df_5m.columns and pd.notna(_df_5m['EMA_10'].iloc[-1]) and float(_df_5m['EMA_10'].iloc[-1]) > 0:
                 _intra_ema10_map[_sym_k] = float(_df_5m['EMA_10'].iloc[-1])
 
-    for _target_df in (df_live, df_all_stocks, df_stocks):
+            _sess = (_df_5m.index.to_series().diff() > pd.Timedelta(minutes=120)).cumsum()
+            _td = _df_5m[_sess == _sess.iloc[-1]]
+            if not _td.empty:
+                _csym = str(_sym_k).replace(".NS", "")
+                _5m_p_map[_sym_k] = float(_ws_snap.get(_csym, _td['Close'].iloc[-1]))
+                _5m_o_map[_sym_k] = float(_td['Open'].iloc[0])
+                _5m_h_map[_sym_k] = max(float(_td['High'].max()), _5m_p_map[_sym_k])
+                _5m_l_map[_sym_k] = min(float(_td['Low'].min()), _5m_p_map[_sym_k])
+
+    for _target_df in (df_live, df_all_stocks, df_stocks, df_indices, df_sectors):
         _target_df['VWAP'] = _target_df['Fetch_T'].map(_true_vwap_map).fillna(_target_df['VWAP'])
         _target_df['Intra_EMA10'] = _target_df['Fetch_T'].map(_intra_ema10_map).fillna(_target_df['VWAP'])
+
+        _has_5m = _target_df['Fetch_T'].isin(_5m_p_map.keys())
+        _target_df.loc[_has_5m, 'P'] = _target_df.loc[_has_5m, 'Fetch_T'].map(_5m_p_map)
+        _target_df.loc[_has_5m, 'O'] = _target_df.loc[_has_5m, 'Fetch_T'].map(_5m_o_map)
+        _target_df.loc[_has_5m, 'H'] = _target_df.loc[_has_5m, 'Fetch_T'].map(_5m_h_map)
+        _target_df.loc[_has_5m, 'L'] = _target_df.loc[_has_5m, 'Fetch_T'].map(_5m_l_map)
+
+        _target_df['Day_C'] = np.where(
+            _target_df['O'] > 0,
+            ((_target_df['P'] - _target_df['O']) / _target_df['O']) * 100.0,
+            _target_df['Day_C']
+        )
+        _target_df['C'] = np.where(
+            _target_df['Prev_C'] > 0,
+            ((_target_df['P'] - _target_df['Prev_C']) / _target_df['Prev_C']) * 100.0,
+            _target_df['C']
+        )
+        _rng = (_target_df['H'] - _target_df['L']).replace(0, np.nan)
+        _target_df['Bull_P'] = (((_target_df['P'] - _target_df['L']) / _rng) * 100.0).fillna(_target_df['Bull_P'])
+        _target_df['Bear_P'] = (((_target_df['H'] - _target_df['P']) / _rng) * 100.0).fillna(_target_df['Bear_P'])
 
     df_lookup = df_live.drop_duplicates(subset=['Fetch_T'], keep='first').set_index('Fetch_T').to_dict('index')
     weekly_trends = {}
