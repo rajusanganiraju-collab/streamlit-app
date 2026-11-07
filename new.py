@@ -9562,6 +9562,53 @@ def render_live_ui():
     df_commodities = df_live[df_live['Is_Commodity']].copy()
     df_port_saved = load_portfolio().copy()
 
+    # 🔥 FIX: Chinna stocks / BSE stocks / kotha stocks Portfolio lo unte vatini automatic ga df_all_stocks loki add cheyadam
+    if not df_port_saved.empty:
+        _existing_syms = set(df_all_stocks['T'].astype(str).str.upper().str.strip())
+        _missing_port = [
+            (str(r['Symbol']).upper().strip(), float(r.get('Buy_Price', 0) or 0))
+            for _, r in df_port_saved.iterrows()
+            if str(r.get('Symbol', '')).strip() != "" and str(r['Symbol']).upper().strip() not in _existing_syms
+        ]
+        if _missing_port:
+            _extra_rows = []
+            for _msym, _mbp in _missing_port:
+                _mltp, _mop, _mhi, _mlo, _mpc = _mbp, _mbp, _mbp, _mbp, _mbp
+                for _sfx in (".NS", ".BO"):
+                    try:
+                        _mdf = yf.download(f"{_msym}{_sfx}", period="1mo", interval="1d", progress=False, timeout=8)
+                        if isinstance(_mdf.columns, pd.MultiIndex):
+                            _mdf.columns = _mdf.columns.get_level_values(0)
+                        _mdf = _mdf.dropna(subset=['Close'])
+                        if not _mdf.empty:
+                            _mltp = float(_mdf['Close'].iloc[-1])
+                            _mop = float(_mdf['Open'].iloc[-1]) if pd.notna(_mdf['Open'].iloc[-1]) else _mltp
+                            _mhi = float(_mdf['High'].iloc[-1]) if pd.notna(_mdf['High'].iloc[-1]) else _mltp
+                            _mlo = float(_mdf['Low'].iloc[-1]) if pd.notna(_mdf['Low'].iloc[-1]) else _mltp
+                            _mpc = float(_mdf['Close'].iloc[-2]) if len(_mdf) >= 2 else _mop
+                            break
+                    except Exception:
+                        pass
+                _mday_c = ((_mltp - _mop) / _mop * 100.0) if _mop > 0 else 0.0
+                _mnet_c = ((_mltp - _mpc) / _mpc * 100.0) if _mpc > 0 else 0.0
+                _extra_rows.append({
+                    "VCP_Contract": False, "VCP_Vol_Dry": False,
+                    "Fetch_T": f"{_msym}.NS", "T": _msym, "P": _mltp, "O": _mop, "H": _mhi, "L": _mlo, "Prev_C": _mpc,
+                    "Prev_H": _mhi, "Prev_L": _mlo, "W_EMA10": _mltp, "W_EMA50": _mltp,
+                    "D_EMA50": _mltp, "EMA20": _mltp, "SMA20": _mltp, "SMA50": _mltp, "SMA150": _mltp, "SMA200": _mltp,
+                    "High52W": _mhi, "Low52W": _mlo, "SMA200_20D": _mltp,
+                    "Day_C": _mday_c, "C": _mnet_c, "W_C": _mnet_c, "S": 10, "VolX": 1.0,
+                    "Is_Swing": False, "Is_W_Pullback": False, "VWAP": _mltp,
+                    "ATR": max(_mltp * 0.02, 1.0), "Narrow_CPR": False, "Bull_P": 50.0, "Bear_P": 50.0,
+                    "Is_Index": False, "Is_Sector": False, "Sector": "OTHER", "Is_Commodity": False,
+                    "SMA150_20D": _mltp, "Box_Top20": _mhi, "Box_Bot20": _mlo, "Pullback_52W": 0.0,
+                    "RSI2": 50.0, "RSI14": 50.0
+                })
+            if _extra_rows:
+                _df_extra = pd.DataFrame(_extra_rows)
+                df_live = pd.concat([df_live, _df_extra], ignore_index=True)
+                df_all_stocks = pd.concat([df_all_stocks, _df_extra], ignore_index=True)
+
     if watchlist_mode == "Swing Trading 📈": strict_allowed = set(NIFTY_50 + FNO_STOCKS + MIDCAP_150 + SMALLCAP_250)
     elif watchlist_mode == "🤖 AI Predictions (Mid Cap)": strict_allowed = set(MIDCAP_150)
     elif watchlist_mode == "🤖 AI Predictions (Small Cap)": strict_allowed = set(SMALLCAP_250)
@@ -10112,7 +10159,7 @@ def render_live_ui():
     else:
         df_stocks_display = df_filtered.copy()
         # 🔥 1) Filter out stale/old-date stocks (like old ICICIPRULI) & 2) Attach News Headlines for Mini-Chart Hover
-    if not df_stocks_display.empty and chart_timeframe == "Intraday (5m)" and "^NSEI" in processed_charts and not processed_charts["^NSEI"].empty:
+    if not df_stocks_display.empty and watchlist_mode != "My Portfolio 💼" and chart_timeframe == "Intraday (5m)" and "^NSEI" in processed_charts and not processed_charts["^NSEI"].empty:
         _mkt_latest_dt = processed_charts["^NSEI"].index.date[-1]
         _valid_today_fts = [
             ft for ft in df_stocks_display['Fetch_T']
@@ -10700,10 +10747,10 @@ def render_live_ui():
 
                         if submit_btn:
                             if new_sym:
-                                chk_data = yf.download(f"{new_sym}.NS", period="1d", progress=False)
+                                chk_data = yf.download(f"{new_sym}.NS", period="5d", progress=False)
                                 if chk_data.empty:
-                                    st.error(f"❌ '{new_sym}' not found in NSE!")
-                                else:
+                                    chk_data = yf.download(f"{new_sym}.BO", period="5d", progress=False)
+                                if True:
                                     new_date_str = new_date.strftime("%d-%b-%Y")
                                     df_port_saved = df_port_saved.copy()
                                     if new_sym in df_port_saved['Symbol'].values:
