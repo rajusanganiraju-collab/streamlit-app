@@ -9541,12 +9541,16 @@ def render_live_ui():
         _target_df['VWAP'] = _target_df['Fetch_T'].map(_true_vwap_map).fillna(_target_df['VWAP'])
         _target_df['Intra_EMA10'] = _target_df['Fetch_T'].map(_intra_ema10_map).fillna(_target_df['VWAP'])
 
-        # Market Open lo unnappudu matrame 5m candle price vaadali; Market Close ayyaka Official Daily Close (_fast_quotes) vaadali
         _has_5m = _target_df['Fetch_T'].isin(_5m_p_map.keys()) if _m_open_top else (_target_df['Fetch_T'].isin(_5m_p_map.keys()) & (~_target_df['Fetch_T'].isin(_fast_quotes.keys())))
-        _target_df.loc[_has_5m, 'P'] = _target_df.loc[_has_5m, 'Fetch_T'].map(_5m_p_map)
-        _target_df.loc[_has_5m, 'O'] = _target_df.loc[_has_5m, 'Fetch_T'].map(_5m_o_map)
-        _target_df.loc[_has_5m, 'H'] = _target_df.loc[_has_5m, 'Fetch_T'].map(_5m_h_map)
-        _target_df.loc[_has_5m, 'L'] = _target_df.loc[_has_5m, 'Fetch_T'].map(_5m_l_map)
+        if _has_5m.any():
+            _target_df['P'] = _target_df['P'].astype(float)
+            _target_df['O'] = _target_df['O'].astype(float)
+            _target_df['H'] = _target_df['H'].astype(float)
+            _target_df['L'] = _target_df['L'].astype(float)
+            _target_df.loc[_has_5m, 'P'] = _target_df.loc[_has_5m, 'Fetch_T'].map(_5m_p_map).astype(float)
+            _target_df.loc[_has_5m, 'O'] = _target_df.loc[_has_5m, 'Fetch_T'].map(_5m_o_map).astype(float)
+            _target_df.loc[_has_5m, 'H'] = _target_df.loc[_has_5m, 'Fetch_T'].map(_5m_h_map).astype(float)
+            _target_df.loc[_has_5m, 'L'] = _target_df.loc[_has_5m, 'Fetch_T'].map(_5m_l_map).astype(float)
 
         _target_df['Day_C'] = np.where(
             _target_df['O'] > 0,
