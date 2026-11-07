@@ -49,7 +49,7 @@ st.markdown("""
 # websocket thread rasina prices UI ki raavu. Anduke cache_resource lo pettali.
 # =========================================================
 @st.cache_resource
-def _shared_state(_v=4):
+def _shared_state(cache_ver=5):
     return {'prices': {}, 'lock': threading.Lock(), 'diag_lock': threading.Lock(),
             'diag': {'errors': {}, 'last_error': '', 'last_fetch': {}},
             'ws': {'status': 'not started', 'ticks': 0, 'last_tick': 0.0, 'error': '', 'symbols': 0, 'lib': ''},
