@@ -9209,37 +9209,110 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
 # --- 8. FAST CACHED ENGINE & LIVE UI RENDERING ---
 # =========================================================
 @st.cache_data(ttl=25, show_spinner=False)
-def fetch_fast_live_quotes(tkrs_tuple, market_open, _v=4):
+def fetch_fast_live_quotes(tkrs_tuple, market_open, cache_ver=5):
+    out = {}
+    minutes = get_minutes_passed()
+    headers = {"User-Agent": "Mozilla/5.0", "Content-Type": "application/json"}
+
+    # 1. NSE EQUITIES: Fetch all active NSE stocks in 1 bulk scan (avoids ticker syntax errors)
     try:
-        _port_set = {f"{str(s).upper().strip()}.NS" for s in load_portfolio()['Symbol'].tolist() if str(s).strip() != ""}
-        _core_set = set(list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + list(COMMODITY_MAP.keys()) + [f"{s}.NS" for s in (set(NIFTY_50 + FNO_STOCKS + MIDCAP_150) - _SKIP_BAD_SYMS)]) | _port_set
-        target_list = [t for t in tkrs_tuple if t in _core_set]
-        q_data = yf.download(target_list, period="5d", interval="1d", progress=False, group_by='ticker', threads=10, timeout=15)
-        if q_data.empty:
-            return {}
-        if isinstance(q_data.columns, pd.MultiIndex) and ('Close' in q_data.columns.levels[0] or 'Open' in q_data.columns.levels[0]):
-            q_data = q_data.swaplevel(axis=1)
-        out = {}
-        minutes = get_minutes_passed()
-        syms = q_data.columns.levels[0] if isinstance(q_data.columns, pd.MultiIndex) else []
-        for s in syms:
-            sdf = q_data[s].dropna(subset=['Close'])
-            if not sdf.empty:
-                ltp = float(sdf['Close'].iloc[-1])
-                op = float(sdf['Open'].iloc[-1])
-                hi = float(sdf['High'].iloc[-1])
-                lo = float(sdf['Low'].iloc[-1])
-                pc = float(sdf['Close'].iloc[-2]) if len(sdf) >= 2 else op
-                vx = None
-                if 'Volume' in sdf.columns and len(sdf) >= 6:
-                    avg_v5 = float(sdf['Volume'].iloc[-6:-1].mean())
-                    cur_v = float(sdf['Volume'].iloc[-1])
-                    if avg_v5 > 0 and cur_v > 0:
-                        vx = round(cur_v / ((avg_v5 / 375.0) * minutes), 1)
-                out[s] = (ltp, op, hi, lo, pc, vx)
-        return out
+        norm_to_yf = {}
+        for t in tkrs_tuple:
+            if str(t).endswith(".NS"):
+                raw_s = str(t)[:-3].upper().strip()
+                norm_to_yf[raw_s] = t
+                norm_to_yf[raw_s.replace("&", "_").replace("-", "_")] = t
+
+        eq_payload = {
+            "filter": [{"left": "exchange", "operation": "equal", "right": "NSE"}],
+            "options": {"lang": "en"},
+            "markets": ["india"],
+            "symbols": {"query": {"types": []}},
+            "columns": ["name", "close", "open", "high", "low", "change", "change_abs", "volume", "average_volume_10d_calc"],
+            "sort": {"sortBy": "volume", "sortOrder": "desc"},
+            "range": [0, 2500]
+        }
+        r_eq = requests.post("https://scanner.tradingview.com/india/scan", json=eq_payload, headers=headers, timeout=8)
+        if r_eq.status_code == 200:
+            for item in r_eq.json().get("data", []):
+                d = item.get("d", [])
+                if len(d) >= 7 and d[0] and d[1] is not None:
+                    name_tv = str(d[0]).upper().strip()
+                    yf_t = norm_to_yf.get(name_tv)
+                    if yf_t:
+                        ltp = float(d[1])
+                        op = float(d[2]) if d[2] is not None else ltp
+                        hi = float(d[3]) if d[3] is not None else ltp
+                        lo = float(d[4]) if d[4] is not None else ltp
+                        chg_pct = float(d[5]) if d[5] is not None else 0.0
+                        chg_abs = float(d[6]) if d[6] is not None else 0.0
+                        if chg_abs != 0:
+                            pc = round(ltp - chg_abs, 2)
+                        elif chg_pct != 0 and chg_pct != -100:
+                            pc = round(ltp / (1.0 + chg_pct / 100.0), 2)
+                        else:
+                            pc = op
+                        vx = None
+                        if len(d) >= 9 and d[7] and d[8] and float(d[8]) > 0 and float(d[7]) > 0:
+                            vx = round(float(d[7]) / ((float(d[8]) / 375.0) * minutes), 1)
+                        out[yf_t] = (ltp, op, hi, lo, pc, vx)
     except Exception:
-        return {}
+        pass
+
+    # 2. NSE INDICES: Fetch NIFTY, BANKNIFTY, INDIA VIX & Sectoral Indices
+    try:
+        idx_tv_map = {
+            "NSE:NIFTY": "^NSEI", "NSE:BANKNIFTY": "^NSEBANK", "NSE:INDIAVIX": "^INDIAVIX",
+            "NSE:CNXIT": "^CNXIT", "NSE:CNXAUTO": "^CNXAUTO", "NSE:CNXMETAL": "^CNXMETAL",
+            "NSE:CNXPHARMA": "^CNXPHARMA", "NSE:CNXFMCG": "^CNXFMCG",
+            "NSE:CNXENERGY": "^CNXENERGY", "NSE:CNXREALTY": "^CNXREALTY"
+        }
+        idx_payload = {
+            "symbols": {"tickers": list(idx_tv_map.keys()), "query": {"types": []}},
+            "columns": ["close", "open", "high", "low", "change", "change_abs"]
+        }
+        r_idx = requests.post("https://scanner.tradingview.com/india/scan", json=idx_payload, headers=headers, timeout=6)
+        if r_idx.status_code == 200:
+            for item in r_idx.json().get("data", []):
+                s_tv = item.get("s", "")
+                d = item.get("d", [])
+                yf_t = idx_tv_map.get(s_tv)
+                if yf_t and len(d) >= 6 and d[0] is not None:
+                    ltp = float(d[0])
+                    op = float(d[1]) if d[1] is not None else ltp
+                    hi = float(d[2]) if d[2] is not None else ltp
+                    lo = float(d[3]) if d[3] is not None else ltp
+                    chg_pct = float(d[4]) if d[4] is not None else 0.0
+                    chg_abs = float(d[5]) if d[5] is not None else 0.0
+                    pc = round(ltp - chg_abs, 2) if chg_abs != 0 else (round(ltp / (1.0 + chg_pct / 100.0), 2) if chg_pct != 0 else op)
+                    out[yf_t] = (ltp, op, hi, lo, pc, None)
+    except Exception:
+        pass
+
+    # 3. GLOBAL INDICES & COMMODITIES (SPX, DAX, USD/INR, GOLD, CRUDE): via yfinance
+    try:
+        global_list = [t for t in tkrs_tuple if t not in out and (t in INDICES_MAP or t in COMMODITY_MAP)]
+        if global_list:
+            q_data = yf.download(global_list, period="5d", interval="1d", progress=False, group_by='ticker', threads=5, timeout=10)
+            if not q_data.empty:
+                if len(global_list) == 1 and not isinstance(q_data.columns, pd.MultiIndex):
+                    q_data.columns = pd.MultiIndex.from_product([global_list, q_data.columns])
+                elif isinstance(q_data.columns, pd.MultiIndex) and ('Close' in q_data.columns.levels[0] or 'Open' in q_data.columns.levels[0]):
+                    q_data = q_data.swaplevel(axis=1)
+                syms = q_data.columns.levels[0] if isinstance(q_data.columns, pd.MultiIndex) else []
+                for s in syms:
+                    sdf = q_data[s].dropna(subset=['Close'])
+                    if not sdf.empty:
+                        ltp = float(sdf['Close'].iloc[-1])
+                        op = float(sdf['Open'].iloc[-1]) if pd.notna(sdf['Open'].iloc[-1]) else ltp
+                        hi = float(sdf['High'].iloc[-1]) if pd.notna(sdf['High'].iloc[-1]) else ltp
+                        lo = float(sdf['Low'].iloc[-1]) if pd.notna(sdf['Low'].iloc[-1]) else ltp
+                        pc = float(sdf['Close'].iloc[-2]) if len(sdf) >= 2 else op
+                        out[s] = (ltp, op, hi, lo, pc, None)
+    except Exception:
+        pass
+
+    return out
 
 
 @st.cache_data(ttl=30, show_spinner=False)
@@ -9499,9 +9572,9 @@ def render_live_ui():
     core_tkrs = tuple(sorted(list(set(df_indices['Fetch_T'].tolist() + df_sectors['Fetch_T'].tolist() + df_commodities['Fetch_T'].tolist() + df_stocks['Fetch_T'].tolist() + _port_tkrs + st.session_state.pinned_stocks))))
     processed_charts, nifty_intra_html, sniper_cached_res = _fast_5m_and_sniper_cache(core_tkrs)
 
-    # 🔥 TRUE 5-MIN PRICE (P, O, H, L, Day_C) + VWAP & EMA_10 SYNC INTO DATAFRAMES
+    # 🔥 TRUE 5-MIN PRICE (P, O, H, L, Prev_C, Day_C) + VWAP & EMA_10 SYNC INTO DATAFRAMES
     _true_vwap_map, _intra_ema10_map = {}, {}
-    _5m_p_map, _5m_o_map, _5m_h_map, _5m_l_map = {}, {}, {}, {}
+    _5m_p_map, _5m_o_map, _5m_h_map, _5m_l_map, _5m_pc_map = {}, {}, {}, {}, {}
 
     with LIVE_PRICES_LOCK:
         _ws_snap = dict(LIVE_PRICES_GLOBAL)
@@ -9514,23 +9587,26 @@ def render_live_ui():
                 _intra_ema10_map[_sym_k] = float(_df_5m['EMA_10'].iloc[-1])
 
             _sess = (_df_5m.index.to_series().diff() > pd.Timedelta(minutes=120)).cumsum()
-            _td = _df_5m[_sess == _sess.iloc[-1]]
+            _last_s = _sess.iloc[-1]
+            _td = _df_5m[_sess == _last_s]
+            _prev_td = _df_5m[_sess == (_last_s - 1)]
             if not _td.empty:
                 _csym = str(_sym_k).replace(".NS", "")
                 _5m_p_map[_sym_k] = float(_ws_snap.get(_csym, _td['Close'].iloc[-1]))
                 _5m_o_map[_sym_k] = float(_td['Open'].iloc[0])
                 _5m_h_map[_sym_k] = max(float(_td['High'].max()), _5m_p_map[_sym_k])
                 _5m_l_map[_sym_k] = min(float(_td['Low'].min()), _5m_p_map[_sym_k])
+                if not _prev_td.empty:
+                    _5m_pc_map[_sym_k] = float(_prev_td['Close'].iloc[-1])
 
     for _target_df in (df_live, df_all_stocks, df_stocks, df_indices, df_sectors):
         _target_df['VWAP'] = pd.to_numeric(_target_df['Fetch_T'].map(_true_vwap_map), errors='coerce').fillna(_target_df['VWAP']).astype(float)
         _target_df['Intra_EMA10'] = pd.to_numeric(_target_df['Fetch_T'].map(_intra_ema10_map), errors='coerce').fillna(_target_df['VWAP']).astype(float)
 
-        # Market OPEN lo unnappudu matrame 5m candle price vaadali; CLOSED lo unnappudu Official NSE 1D Closing Price (Zerodha LTP) unchali
-        if _m_open_top:
-            _has_5m = _target_df['Fetch_T'].isin(_5m_p_map.keys())
-            if _has_5m.any():
-                for _col, _mp in [('P', _5m_p_map), ('O', _5m_o_map), ('H', _5m_h_map), ('L', _5m_l_map)]:
+        _has_5m = _target_df['Fetch_T'].isin(_5m_p_map.keys()) if _m_open_top else (_target_df['Fetch_T'].isin(_5m_p_map.keys()) & (~_target_df['Fetch_T'].isin(_fast_quotes.keys())))
+        if _has_5m.any():
+            for _col, _mp in [('P', _5m_p_map), ('O', _5m_o_map), ('H', _5m_h_map), ('L', _5m_l_map), ('Prev_C', _5m_pc_map)]:
+                if _mp:
                     _target_df[_col] = _target_df[_col].astype(float)
                     _vals = pd.to_numeric(_target_df['Fetch_T'].map(_mp), errors='coerce')
                     _target_df.loc[_has_5m, _col] = _vals[_has_5m].fillna(_target_df.loc[_has_5m, _col]).astype(float)
