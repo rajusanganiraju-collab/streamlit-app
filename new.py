@@ -4065,7 +4065,7 @@ def _fetch_market_news_raw():
 
 
 def fetch_indian_and_global_market_news():
-    """Builds Top Scrolling Flash Ticker ONLY from Most Important Stock & Macro News (24h)"""
+    """Builds Top Scrolling Flash Ticker from Stock Catalysts + Indian & Global Macro News (24h)"""
     base_news = _fetch_market_news_raw()
     out = dict(base_news)
 
@@ -4074,16 +4074,32 @@ def fetch_indian_and_global_market_news():
     if stock_flashes:
         flash_parts.extend(stock_flashes[:5])
 
-    macro_pool = [
-        it for it in (out.get("india", []) + out.get("global", []))
-        if it.get("is_imp") and it.get("age_h", 99) <= 24.0
-    ]
+    # Include 24h Corporate Stock News (Q-Results, Orders, Approvals) even in Chart / Heat Map mode
+    for sp in out.get("stocks", [])[:5]:
+        stk_lbl = sp.get("stock", "NSE")
+        te_txt = _html.escape(sp.get("title", ""))
+        if not te_txt:
+            continue
+        if sp.get("bias", 0) > 0:
+            s_badge = f"<span style='color:#3fb950;font-weight:bold;'>[📈 {stk_lbl} • 🟢 పాజిటివ్]</span>"
+        elif sp.get("bias", 0) < 0:
+            s_badge = f"<span style='color:#ff5252;font-weight:bold;'>[📉 {stk_lbl} • 🔴 నెగటివ్]</span>"
+        else:
+            s_badge = f"<span style='color:#00BFFF;font-weight:bold;'>[🏢 {stk_lbl}]</span>"
+        flash_parts.append(
+            f"{s_badge} <b style='color:#ffd700;'>{te_txt}</b> "
+            f"<span style='color:#79c0ff;font-size:12px;'>({sp.get('age_h', 1.0):.1f}గం. క్రితం)</span>"
+        )
+
+    # Include Important Indian & Global Macro News (Fallback to latest if no 'is_imp' flagged)
+    all_macro = [it for it in (out.get("india", []) + out.get("global", [])) if it.get("age_h", 99) <= 24.0]
+    macro_pool = [it for it in all_macro if it.get("is_imp")] or all_macro
     macro_pool.sort(key=lambda x: x["age_h"])
-    for mp in macro_pool[:4]:
+
+    for mp in macro_pool[:5]:
         stk_lbl = (
             f" [{mp.get('stock', '')}]"
-            if mp.get("stock")
-            and mp.get("stock") not in ("🇮🇳 INDIA MKT", "🌍 GLOBAL", "NSE CORP")
+            if mp.get("stock") and mp.get("stock") not in ("🇮🇳 INDIA MKT", "🌍 GLOBAL", "NSE CORP")
             else ""
         )
         if mp["bias"] > 0:
@@ -4094,14 +4110,11 @@ def fetch_indian_and_global_market_news():
             imp_badge = f"<span style='color:#00BFFF;font-weight:bold;'>[🔥 IMPORTANT • 🇮🇳 మార్కెట్{stk_lbl}]</span>"
         te_txt = _html.escape(mp["title"])
         flash_parts.append(
-            f"{imp_badge} <b style='color:#ffd700;'>{te_txt}</b> <span"
-            f" style='color:#79c0ff;font-size:12px;'>({mp['age_h']:.1f}గం."
-            " క్రితం)</span>"
+            f"{imp_badge} <b style='color:#ffd700;'>{te_txt}</b> "
+            f"<span style='color:#79c0ff;font-size:12px;'>({mp['age_h']:.1f}గం. క్రితం)</span>"
         )
 
-    out["flash_ticker"] = " &nbsp;&nbsp;&nbsp;✦&nbsp;&nbsp;&nbsp; ".join(
-        flash_parts
-    )
+    out["flash_ticker"] = " &nbsp;&nbsp;&nbsp;✦&nbsp;&nbsp;&nbsp; ".join(flash_parts)
     return out
 
 
@@ -10277,7 +10290,6 @@ def render_live_ui():
     # 👉 LEFT 80% COLUMN: 1-LINE UNIFIED TOP BAR + MAX-SPACE CHARTS
     # ---------------------------------------------------------
     with col_main_80:
-        _now_str_top = now_ist().strftime('%d-%b %I:%M:%S %p')
         _run_ts = int(time.time() * 1000)
         _mkt_dir_text, _mkt_dir_bg, _mkt_dir_border = "NEUTRAL ⚖️", "#30363d", "#8b949e"
 
@@ -10306,28 +10318,32 @@ def render_live_ui():
                 else:
                     _mkt_dir_text, _mkt_dir_bg, _mkt_dir_border = f"🔴 SELL 📉 {_below_vwap}/{_tot_stocks} ({_sell_pct:.0f}%)", "#b52524", "#f85149"
 
-        _dir_box_html = f"<span style='background:{_mkt_dir_bg};border:1px solid {_mkt_dir_border};color:#ffffff;padding:3px 10px;border-radius:5px;font-weight:bold;font-size:13.5px;white-space:nowrap;'>{_mkt_dir_text}</span>"
         _status_border = "#238636" if _m_open_top else "#f85149"
         _status_title = "🟢 <b style='font-size:14px;'>LIVE</b>" if _m_open_top else "🔴 <b style='font-size:14px;'>CLOSED</b>"
 
-        _flash_str = (fetch_indian_and_global_market_news().get("flash_ticker", "")
-            if view_mode == "News 📰"
-            else ""
+        # ✅ ALWAYS FETCH SCROLLING NEWS IN ALL MODES (Heat Map, Chart, News)
+        _flash_str = fetch_indian_and_global_market_news().get("flash_ticker", "")
+        _flash_inner = (
+            f"📢 <b>తెలుగు మార్కెట్ వార్తలు:</b> {_flash_str} &nbsp;&nbsp;&nbsp;✦&nbsp;&nbsp;&nbsp; "
+            f"📢 <b>తెలుగు మార్కెట్ వార్తలు:</b> {_flash_str}"
+            if _flash_str else "📢 <b>తెలుగు మార్కెట్ వార్తలు:</b> 24 గంటల బ్రేకింగ్ న్యూస్ లోడ్ అవుతోంది..."
         )
-        _flash_html = f"<div class='flash-ticker-wrap'><div id='flash-ticker-el' class='flash-ticker-move'>📢 <b>తెలుగు మార్కెట్ వార్తలు:</b> {_flash_str} &nbsp;&nbsp;&nbsp;✦&nbsp;&nbsp;&nbsp; 📢 <b>తెలుగు మార్కెట్ వార్తలు:</b> {_flash_str}</div></div>" if _flash_str else ""
 
+        # ✅ 100% STATIC HTML CONTAINER: React/Streamlit will NEVER recreate or reset this DOM node on 30s refresh!
         _status_bar_html = (
-            f"<div style='display:flex;justify-content:space-between;align-items:center;flex-wrap:nowrap;gap:8px;"
-            f"background:#161b22;border:1.5px solid {_status_border};border-radius:6px;padding:0px 12px;"
-            f"height:38px;margin-bottom:4px;font-size:14px;overflow:hidden;white-space:nowrap;'>"
-            f"<div style='display:flex;align-items:center;gap:8px;flex-shrink:0;'>{_status_title}{_dir_box_html}</div>"
-            f"{_flash_html}"
-            f"<span id='live-cd-badge' data-ts='{_run_ts}' style='background:#21262d;border:1px solid #30363d;color:#00BFFF;"
-            f"padding:2px 8px;border-radius:4px;font-weight:bold;font-size:13px;font-family:monospace;flex-shrink:0;'>⏳ {_effective_refresh}s</span>"
-            f"</div>"
+            "<div id='pro-top-status-bar' style='display:flex;justify-content:space-between;align-items:center;flex-wrap:nowrap;gap:8px;"
+            "background:#161b22;border:1.5px solid #238636;border-radius:6px;padding:0px 12px;"
+            "height:38px;margin-bottom:4px;font-size:14px;overflow:hidden;white-space:nowrap;'>"
+            "<div style='display:flex;align-items:center;gap:8px;flex-shrink:0;'>"
+            "<span id='live-status-title'>🟢 <b style='font-size:14px;'>LIVE</b></span>"
+            "<span id='live-dir-badge' style='background:#30363d;border:1px solid #8b949e;color:#ffffff;padding:3px 10px;border-radius:5px;font-weight:bold;font-size:13.5px;white-space:nowrap;'>NEUTRAL ⚖️</span>"
+            "</div>"
+            "<div class='flash-ticker-wrap'><div id='flash-ticker-el' class='flash-ticker-move'></div></div>"
+            "<span id='live-cd-badge' style='background:#21262d;border:1px solid #30363d;color:#00BFFF;"
+            "padding:2px 8px;border-radius:4px;font-weight:bold;font-size:13px;font-family:monospace;flex-shrink:0;'>⏳ 30s</span>"
+            "</div>"
         )
 
-        # 🔥 ONE-LINE UNIFIED HEADER (Wider Status Bar so Telugu Flash News is clearly visible even in Grid Mode)
         if st.session_state.grid_layout_mode != "Off":
             tb_status, tb_mode, tb_qty, tb_back, tb_theme, tb_clear = st.columns([5.5, 1.1, 0.65, 0.75, 0.9, 0.7], gap="small")
             with tb_status:
@@ -10378,12 +10394,35 @@ def render_live_ui():
                 const parentWin = window.parent;
                 const parentDoc = parentWin.document;
 
+                // 1. Update Top Status Bar & Market Direction In-Place (Without resetting DOM!)
+                const topBar = parentDoc.getElementById('pro-top-status-bar');
+                if (topBar) topBar.style.borderColor = {json.dumps(_status_border)};
+                const stTitle = parentDoc.getElementById('live-status-title');
+                if (stTitle) stTitle.innerHTML = {json.dumps(_status_title)};
+                const dirBadge = parentDoc.getElementById('live-dir-badge');
+                if (dirBadge) {{
+                    dirBadge.innerHTML = {json.dumps(_mkt_dir_text)};
+                    dirBadge.style.background = {json.dumps(_mkt_dir_bg)};
+                    dirBadge.style.borderColor = {json.dumps(_mkt_dir_border)};
+                }}
+
+                // 2. Continuous Non-Stop News Scrolling (Never cuts or resets on 30s refresh!)
+                if (!parentWin._flashEpoch) parentWin._flashEpoch = Date.now();
+                const flashEl = parentDoc.getElementById('flash-ticker-el');
+                const newFlashHtml = {json.dumps(_flash_inner)};
+                if (flashEl) {{
+                    if (flashEl.getAttribute('data-news-len') !== String(newFlashHtml.length) || !flashEl.innerHTML) {{
+                        flashEl.innerHTML = newFlashHtml;
+                        flashEl.setAttribute('data-news-len', String(newFlashHtml.length));
+                        const elapsedSec = ((Date.now() - parentWin._flashEpoch) / 1000) % 95;
+                        flashEl.style.animationDelay = (-elapsedSec) + 's';
+                    }}
+                }}
+
                 parentWin._isRight20Hidden = !!parentWin._isRight20Hidden;
 
                 parentWin.applyRight20State = function(forceResize) {{
                     const hidden = !!parentWin._isRight20Hidden;
-
-                    // 1. Direct ga Right 20% Column & Left 80% Column ni pattukuni Hide / 100% Expand cheyadam
                     const marker = parentDoc.querySelector('.right-panel-marker');
                     const col20 = marker ? marker.closest('[data-testid="stColumn"], [data-testid="column"]') : null;
                     const rowBlock = col20 ? col20.parentElement : null;
@@ -10407,19 +10446,6 @@ def render_live_ui():
                         }}
                     }}
 
-                    // 2. Live Line lo unna 'Hide 20%' button ki click event jodinchatam
-                    const topBtn = parentDoc.getElementById('top-rp-btn');
-                    if (topBtn) {{
-                        topBtn.innerHTML = hidden ? '⏪ Show 20%' : '⏩ Hide 20%';
-                        topBtn.style.background = hidden ? '#238636' : '#1f6feb';
-                        topBtn.onclick = function(e) {{
-                            e.preventDefault();
-                            e.stopPropagation();
-                            parentWin.toggleRight20Panel();
-                        }};
-                    }}
-
-                    // 3. Right Edge lo unna floating 'HIDE / PANEL' button
                     let edgeTab = parentDoc.getElementById('rp-edge-toggle');
                     if (!edgeTab) {{
                         edgeTab = parentDoc.createElement('div');
@@ -10447,18 +10473,10 @@ def render_live_ui():
 
                 parentWin.applyRight20State(true);
 
-                // Streamlit prati sari update ayinappudu button click & hide state pookunda kapadutundi
                 if (parentWin._rpSyncInterval) clearInterval(parentWin._rpSyncInterval);
                 parentWin._rpSyncInterval = setInterval(() => parentWin.applyRight20State(false), 400);
 
-                // Keep Flash News scrolling smoothly without resetting on 30s Streamlit refresh!
-                if (!parentWin._flashEpoch) parentWin._flashEpoch = Date.now();
-                const flashEl = parentDoc.getElementById('flash-ticker-el');
-                if (flashEl) {{
-                    const elapsedSec = ((Date.now() - parentWin._flashEpoch) / 1000) % 95;
-                    flashEl.style.animationDelay = (-elapsedSec) + 's';
-                }}
-                // 3B. News Mode Mini-Charts Fullscreen (⛶) & Download PNG (📷) Handlers
+                // 3. News Mode Mini-Charts Fullscreen (⛶) & Download PNG (📷) Handlers
                 if (!parentWin._mcSvgListenerAdded) {{
                     parentWin._mcSvgListenerAdded = true;
                     parentDoc.addEventListener('click', function(e) {{
@@ -10502,6 +10520,7 @@ def render_live_ui():
                         }}
                     }}, true);
                 }}
+
                 // 4. Live Countdown Timer
                 if (parentWin._stCdInterval) clearInterval(parentWin._stCdInterval);
                 let secLeft = {_effective_refresh};
