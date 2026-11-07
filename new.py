@@ -49,7 +49,7 @@ st.markdown("""
 # websocket thread rasina prices UI ki raavu. Anduke cache_resource lo pettali.
 # =========================================================
 @st.cache_resource
-def _shared_state():
+def _shared_state(_v=4):
     return {'prices': {}, 'lock': threading.Lock(), 'diag_lock': threading.Lock(),
             'diag': {'errors': {}, 'last_error': '', 'last_fetch': {}},
             'ws': {'status': 'not started', 'ticks': 0, 'last_tick': 0.0, 'error': '', 'symbols': 0, 'lib': ''},
@@ -997,21 +997,18 @@ import os
 _SKIP_BAD_SYMS = {"PBFINTECH", "GUJGASLTD", "TVSHLDGS", "PEL", "LTIM", "JCHAC", "TIDEWATER"}
 
 @st.cache_data(ttl=900, show_spinner=False)
-def fetch_all_data():
-    # Паatha .pkl files valla stale data rakunda direct @st.cache_data (15 mins) matrame vaadutunnam
-
+def fetch_all_data(_v=4):
     port_df = load_portfolio()
     port_stocks = [str(sym).upper().strip() for sym in port_df['Symbol'].tolist() if str(sym).strip() != ""]
     base_stocks = NIFTY_50.copy() + FNO_STOCKS + MIDCAP_150 + SMALLCAP_250
     all_stocks = set(base_stocks + port_stocks) - _SKIP_BAD_SYMS
     tkrs = list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + list(COMMODITY_MAP.keys()) + [f"{t}.NS" for t in all_stocks if t]
     
-    chunk_size = 250
+    chunk_size = 200
     data_frames = []
     for i in range(0, len(tkrs), chunk_size):
         chunk = tkrs[i : i + chunk_size]
-        # timeout=5 valla ye okka stock daggara internet stuck avvadhu
-        temp_data = yf.download(chunk, period="15mo", progress=False, group_by='ticker', threads=10, timeout=5)
+        temp_data = yf.download(chunk, period="1y", interval="1d", progress=False, group_by='ticker', threads=10, timeout=15)
         if not temp_data.empty:
             if len(chunk) == 1 and not isinstance(temp_data.columns, pd.MultiIndex):
                 temp_data.columns = pd.MultiIndex.from_product([chunk, temp_data.columns])
@@ -9212,12 +9209,12 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
 # --- 8. FAST CACHED ENGINE & LIVE UI RENDERING ---
 # =========================================================
 @st.cache_data(ttl=25, show_spinner=False)
-def fetch_fast_live_quotes(tkrs_tuple, market_open):
+def fetch_fast_live_quotes(tkrs_tuple, market_open, _v=4):
     try:
         _port_set = {f"{str(s).upper().strip()}.NS" for s in load_portfolio()['Symbol'].tolist() if str(s).strip() != ""}
         _core_set = set(list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + list(COMMODITY_MAP.keys()) + [f"{s}.NS" for s in (set(NIFTY_50 + FNO_STOCKS + MIDCAP_150) - _SKIP_BAD_SYMS)]) | _port_set
         target_list = [t for t in tkrs_tuple if t in _core_set]
-        q_data = yf.download(target_list, period="7d", interval="1d", progress=False, group_by='ticker', threads=10, timeout=15)
+        q_data = yf.download(target_list, period="5d", interval="1d", progress=False, group_by='ticker', threads=10, timeout=15)
         if q_data.empty:
             return {}
         if isinstance(q_data.columns, pd.MultiIndex) and ('Close' in q_data.columns.levels[0] or 'Open' in q_data.columns.levels[0]):
