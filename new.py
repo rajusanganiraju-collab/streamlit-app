@@ -876,8 +876,8 @@ def fetch_cached_5m_data(tkrs_list):
     import os
     t0 = time.time()
     _m_open = is_market_open()
-    _ttl = 25 if _m_open else 64800
-    _cache_5m_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "intraday_5m_cache.pkl")
+    _ttl = 25 if _m_open else 1800
+    _cache_5m_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "intraday_5m_cache_v3.pkl")
     _bad_syms = globals().get('_SKIP_BAD_SYMS', {"PBFINTECH", "GUJGASLTD", "TVSHLDGS", "PEL", "LTIM", "JCHAC", "TIDEWATER"})
 
     _today_close_ts = datetime.now(ZoneInfo("Asia/Kolkata")).replace(hour=15, minute=32, second=0, microsecond=0).timestamp()
@@ -998,20 +998,7 @@ _SKIP_BAD_SYMS = {"PBFINTECH", "GUJGASLTD", "TVSHLDGS", "PEL", "LTIM", "JCHAC", 
 
 @st.cache_data(ttl=900, show_spinner=False)
 def fetch_all_data():
-    _cache_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "daily_base_cache.pkl")
-    if os.path.exists(_cache_file):
-        try:
-            _mtime = os.path.getmtime(_cache_file)
-            _now_ts = time.time()
-            _today_close_ts = datetime.now(ZoneInfo("Asia/Kolkata")).replace(hour=15, minute=32, second=0, microsecond=0).timestamp()
-            _is_morning_stale = (_now_ts >= _today_close_ts) and (_mtime < _today_close_ts)
-
-            if ((_now_ts - _mtime) < 64800) and (not _is_morning_stale):
-                _cached_df = pd.read_pickle(_cache_file)
-                if not _cached_df.empty:
-                    return _cached_df
-        except Exception:
-            pass
+    # Паatha .pkl files valla stale data rakunda direct @st.cache_data (15 mins) matrame vaadutunnam
 
     port_df = load_portfolio()
     port_stocks = [str(sym).upper().strip() for sym in port_df['Symbol'].tolist() if str(sym).strip() != ""]
@@ -9227,9 +9214,10 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
 @st.cache_data(ttl=25, show_spinner=False)
 def fetch_fast_live_quotes(tkrs_tuple, market_open):
     try:
-        _core_set = set(list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + list(COMMODITY_MAP.keys()) + [f"{s}.NS" for s in (set(NIFTY_50 + FNO_STOCKS + MIDCAP_150 + SMALLCAP_250) - _SKIP_BAD_SYMS)])
+        _port_set = {f"{str(s).upper().strip()}.NS" for s in load_portfolio()['Symbol'].tolist() if str(s).strip() != ""}
+        _core_set = set(list(INDICES_MAP.keys()) + list(SECTOR_INDICES_MAP.keys()) + list(COMMODITY_MAP.keys()) + [f"{s}.NS" for s in (set(NIFTY_50 + FNO_STOCKS + MIDCAP_150) - _SKIP_BAD_SYMS)]) | _port_set
         target_list = [t for t in tkrs_tuple if t in _core_set]
-        q_data = yf.download(target_list, period="7d", interval="1d", progress=False, group_by='ticker', threads=10, timeout=5)
+        q_data = yf.download(target_list, period="7d", interval="1d", progress=False, group_by='ticker', threads=10, timeout=15)
         if q_data.empty:
             return {}
         if isinstance(q_data.columns, pd.MultiIndex) and ('Close' in q_data.columns.levels[0] or 'Open' in q_data.columns.levels[0]):
@@ -9538,19 +9526,17 @@ def render_live_ui():
                 _5m_l_map[_sym_k] = min(float(_td['Low'].min()), _5m_p_map[_sym_k])
 
     for _target_df in (df_live, df_all_stocks, df_stocks, df_indices, df_sectors):
-        _target_df['VWAP'] = _target_df['Fetch_T'].map(_true_vwap_map).fillna(_target_df['VWAP'])
-        _target_df['Intra_EMA10'] = _target_df['Fetch_T'].map(_intra_ema10_map).fillna(_target_df['VWAP'])
+        _target_df['VWAP'] = pd.to_numeric(_target_df['Fetch_T'].map(_true_vwap_map), errors='coerce').fillna(_target_df['VWAP']).astype(float)
+        _target_df['Intra_EMA10'] = pd.to_numeric(_target_df['Fetch_T'].map(_intra_ema10_map), errors='coerce').fillna(_target_df['VWAP']).astype(float)
 
-        _has_5m = _target_df['Fetch_T'].isin(_5m_p_map.keys()) if _m_open_top else (_target_df['Fetch_T'].isin(_5m_p_map.keys()) & (~_target_df['Fetch_T'].isin(_fast_quotes.keys())))
-        if _has_5m.any():
-            _target_df['P'] = _target_df['P'].astype(float)
-            _target_df['O'] = _target_df['O'].astype(float)
-            _target_df['H'] = _target_df['H'].astype(float)
-            _target_df['L'] = _target_df['L'].astype(float)
-            _target_df.loc[_has_5m, 'P'] = _target_df.loc[_has_5m, 'Fetch_T'].map(_5m_p_map).astype(float)
-            _target_df.loc[_has_5m, 'O'] = _target_df.loc[_has_5m, 'Fetch_T'].map(_5m_o_map).astype(float)
-            _target_df.loc[_has_5m, 'H'] = _target_df.loc[_has_5m, 'Fetch_T'].map(_5m_h_map).astype(float)
-            _target_df.loc[_has_5m, 'L'] = _target_df.loc[_has_5m, 'Fetch_T'].map(_5m_l_map).astype(float)
+        # Market OPEN lo unnappudu matrame 5m candle price vaadali; CLOSED lo unnappudu Official NSE 1D Closing Price (Zerodha LTP) unchali
+        if _m_open_top:
+            _has_5m = _target_df['Fetch_T'].isin(_5m_p_map.keys())
+            if _has_5m.any():
+                for _col, _mp in [('P', _5m_p_map), ('O', _5m_o_map), ('H', _5m_h_map), ('L', _5m_l_map)]:
+                    _target_df[_col] = _target_df[_col].astype(float)
+                    _vals = pd.to_numeric(_target_df['Fetch_T'].map(_mp), errors='coerce')
+                    _target_df.loc[_has_5m, _col] = _vals[_has_5m].fillna(_target_df.loc[_has_5m, _col]).astype(float)
 
         _target_df['Day_C'] = np.where(
             _target_df['O'] > 0,
