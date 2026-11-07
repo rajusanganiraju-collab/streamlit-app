@@ -1723,15 +1723,13 @@ def fetch_domino_crisis_rss():
     return raw_items
 
 
-def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=3.0, panic_drop_thresh=-2.2, min_volx=1.2, min_move_pct=0.75):
+def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=2.5, panic_drop_thresh=-1.8, min_volx=1.0, min_move_pct=0.55):
     """
-    Executes Complete Domino Intelligence Engine (Strict Price + Vol + Buying/Selling Pressure):
-      1. Global & Domestic Crisis RSS against 23 DOMINO_CRISIS_MATRIX rules
-      2. Victim-to-Winner Auto Switch: Direct Victim -> SELL & Competitor -> #1 BUY
-      3. Live Macro Spikes: Crude Oil (CL=F), USD/INR (INR=X), Gold (GC=F), Copper (HG=F), NatGas (NG=F), SPX, DAX, Silver
-      4. Zero-Lag Insider Panic Detector: 5-min 3x VolX drop without public news
-      5. Strict Filter: Shows stocks ONLY when there is active Volume (VolX >= 1.2), 
-         real Price Move (Day_C >= 0.75% / <= -0.75%), VWAP + 10-EMA alignment, and High Buying/Selling Pressure (>= 55%).
+    Executes Complete Domino Intelligence Engine (Both Positive BUY & Negative SELL):
+      1. Separate Top 20 BUY & Top 20 SELL queues so BUY stocks never block SELL stocks
+      2. Dynamic Market Reaction: If a Domino stock has Selling Pressure below VWAP (LTP < VWAP & Day_C <= -0.55%),
+         it automatically registers as 🔴 SELL (even if it was in beneficiaries list)
+      3. Institutional Selling / Distribution Detector: Captures high seller-volume stocks below VWAP
     """
     if df_universe is None or df_universe.empty:
         return pd.DataFrame(), []
@@ -1741,8 +1739,8 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=3.0
 
     crisis_rss = fetch_domino_crisis_rss()
 
-    volatile_mask = (df_clean["VolX"] >= 2.0) & (df_clean["Day_C"].abs() >= 1.5)
-    vol_fts = df_clean[volatile_mask].sort_values("VolX", ascending=False)["Fetch_T"].head(12).tolist()
+    volatile_mask = (df_clean["VolX"] >= 1.5) & (df_clean["Day_C"].abs() >= 1.2)
+    vol_fts = df_clean[volatile_mask].sort_values("VolX", ascending=False)["Fetch_T"].head(15).tolist()
     stk_news_map = fetch_live_stock_news_batch(tuple(vol_fts), max_age_hours=24) if vol_fts else {}
 
     domino_signals = {}  # sym -> dict of signal metadata
@@ -1782,35 +1780,34 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=3.0
         net_c = float(s_row.get("C", 0.0))
         vol_x = float(s_row.get("VolX", 0.0))
 
-        # 1. VOLUME FILTER: Market lo buyers/sellers interest (volume) lekapothe chupinchaku
-        if vol_x < min_volx:
+        # 1. VOLUME FILTER: Active market participation check
+        if vol_x < min_volx and abs(day_c) < 1.2:
             return
 
         ltp_v, vwap_v, ema10_v, buyer_pct, bull_p, bear_p = _get_live_vwap_ema_and_pressure(sym)
         seller_pct = 100 - buyer_pct
 
-        # 2. STRICT BUY / SELL DIRECTION, PRICE MOVE & HIGH PRESSURE CHECK
+        # 2. BUY / SELL DIRECTION, VWAP & BUYING/SELLING PRESSURE CHECK
+        # (Fixes EMA_10 bottom-bounce trap so stocks below VWAP with negative Day_C always enter SELL)
         if side == "BUY":
-            # Stock price peragali + VWAP & 10-EMA paina undali + High Buying Pressure undali
-            has_up_move = (day_c >= min_move_pct) or (day_c >= 0.40 and net_c >= 1.0)
-            above_vwap_ema = (ltp_v > vwap_v) and (ltp_v >= ema10_v)
-            high_buy_pressure = (buyer_pct >= 55) or (bull_p >= 60.0)
-            if not (has_up_move and above_vwap_ema and high_buy_pressure):
+            has_up_move = (day_c >= min_move_pct) or (day_c >= 0.35 and net_c >= 0.85)
+            above_vwap = (ltp_v >= vwap_v) or (ltp_v >= ema10_v and day_c >= 1.2)
+            high_buy_pressure = (buyer_pct >= 52) or (bull_p >= 55.0) or (day_c >= 1.5)
+            if not (has_up_move and above_vwap and high_buy_pressure):
                 return
         else:
-            # Stock price padali + VWAP & 10-EMA kinda undali + High Selling Pressure undali
-            has_down_move = (day_c <= -min_move_pct) or (day_c <= -0.40 and net_c <= -1.0)
-            below_vwap_ema = (ltp_v < vwap_v) and (ltp_v <= ema10_v)
-            high_sell_pressure = (seller_pct >= 55) or (bear_p >= 60.0)
-            if not (has_down_move and below_vwap_ema and high_sell_pressure):
+            has_down_move = (day_c <= -min_move_pct) or (day_c <= -0.35 and net_c <= -0.85)
+            below_vwap = (ltp_v <= vwap_v) or (ltp_v <= ema10_v and day_c <= -1.2)
+            high_sell_pressure = (seller_pct >= 52) or (bear_p >= 55.0) or (day_c <= -1.2)
+            if not (has_down_move and below_vwap and high_sell_pressure):
                 return
 
         # 3. Score Boost with Volume, Price Momentum & Order-Flow Pressure
         score = base_score
         if side == "BUY":
-            score += min(10, int(vol_x * 2 + max(0.0, day_c) + max(0, (buyer_pct - 55) // 4)))
+            score += min(10, int(vol_x * 2 + max(0.0, day_c) + max(0, (buyer_pct - 52) // 4)))
         else:
-            score += min(10, int(vol_x * 2 + max(0.0, -day_c) + max(0, (seller_pct - 55) // 4)))
+            score += min(10, int(vol_x * 2 + max(0.0, -day_c) + max(0, (seller_pct - 52) // 4)))
 
         if sym not in domino_signals or (priority_rank, -score) < (domino_signals[sym]["priority_rank"], -domino_signals[sym]["score"]):
             domino_signals[sym] = {
@@ -1853,17 +1850,27 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=3.0
             if any(kw in t_low for kw in rule["keywords"]):
                 for b_sym in rule["beneficiaries"]:
                     if b_sym in stk_lookup:
-                        _register_signal(
-                            b_sym, "BUY", rule["tag_buy"], t_en,
-                            f"🌍 <b>{rule['name']}:</b> {rule['te_desc']}",
-                            lnk, age_h, base_score=87, priority_rank=2
-                        )
+                        b_day_c = float(stk_lookup[b_sym].get("Day_C", 0.0))
+                        # If stock is rising -> BUY; if stock is falling below VWAP on that news -> SELL (Sell-the-news / Bearish reaction)
+                        if b_day_c >= 0:
+                            _register_signal(
+                                b_sym, "BUY", rule["tag_buy"], t_en,
+                                f"🌍 <b>{rule['name']}:</b> {rule['te_desc']}",
+                                lnk, age_h, base_score=87, priority_rank=2
+                            )
+                        else:
+                            sell_tag = rule["tag_sell"] or rule["tag_buy"].replace("BUY", "SELL")
+                            _register_signal(
+                                b_sym, "SELL", sell_tag, t_en,
+                                f"🩸 <b>{rule['name']} (Selling Pressure):</b> వార్త ఉన్నప్పటికీ మార్కెట్‌లో సెల్లర్స్ ఆధిపత్యం వల్ల VWAP కింద బలహీనంగా ట్రేడ్ అవుతోంది.",
+                                lnk, age_h, base_score=86, priority_rank=2
+                            )
                 for v_sym in rule["victims"]:
                     if v_sym in stk_lookup and v_sym != ext_sym:
                         _register_signal(
-                            v_sym, "SELL", rule["tag_sell"], t_en,
+                            v_sym, "SELL", rule["tag_sell"] or "🩸Domino-Victim SELL", t_en,
                             f"⚠️ <b>{rule['name']} (Victim):</b> {rule['te_desc']}",
-                            lnk, age_h, base_score=86, priority_rank=2
+                            lnk, age_h, base_score=88, priority_rank=1
                         )
 
     # ---------------------------------------------------------
@@ -1877,11 +1884,12 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=3.0
         t_low = t_en.lower()
         age_h = float(n_info.get("age_h", 6.0))
         lnk = n_info.get("link", "")
+        bias = int(n_info.get("bias", 0))
 
-        if any(vk in t_low for vk in _SEVERE_VICTIM_KW):
+        if any(vk in t_low for vk in _SEVERE_VICTIM_KW) or (bias < 0 and float(stk_lookup.get(s_name, {}).get("Day_C", 0)) <= -0.75):
             _register_signal(
                 s_name, "SELL", "🩸Direct-Victim SELL", t_en,
-                f"🚨 <b>Direct Victim (Instant Short):</b> {s_name} లో నెగటివ్ బ్రేకింగ్ న్యూస్ వల్ల తక్షణ SELL.",
+                f"🚨 <b>Direct Victim (Instant Short):</b> {s_name} లో నెగటివ్ బ్రేకింగ్ న్యూస్ & సెల్లింగ్ ప్రెషర్ వల్ల తక్షణ SELL.",
                 lnk, age_h, base_score=96, priority_rank=1
             )
             for comp_sym in COMPETITOR_SYMPATHY_MAP.get(s_name, []):
@@ -2035,7 +2043,7 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=3.0
             )
 
     # ---------------------------------------------------------
-    # STEP C3: 🕵️ HARSHAD MEHTA STEALTH ACCUMULATION & TWIN MOMENTUM
+    # STEP C3: 🕵️ HARSHAD MEHTA ACCUMULATION, TWIN GLITCH & INSTITUTIONAL DUMP
     # ---------------------------------------------------------
     _TWIN_PAIRS = [
         ("PFC", "RECLTD"), ("BALRAMCHIN", "EIDPARRY"), ("HINDALCO", "NATIONALUM"),
@@ -2048,19 +2056,19 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=3.0
             r1, r2 = stk_lookup[s1], stk_lookup[s2]
             c1, c2 = float(r1.get("Day_C", 0)), float(r2.get("Day_C", 0))
             v1, v2 = float(r1.get("VolX", 1)), float(r2.get("VolX", 1))
-            if c1 >= 2.2 and v1 >= 1.5 and (0.75 <= c2 <= 1.6) and v2 >= 1.2:
+            if c1 >= 2.0 and v1 >= 1.4 and (0.55 <= c2 <= 1.5):
                 _register_signal(
-                    s2, "BUY", f"👯Twin-Follow BUY (vs {s1})",
-                    f"Twin Sister Momentum: {s1} surged +{c1:.2f}% ({v1:.1f}x Vol) and twin stock {s2} is breaking out (+{c2:.2f}%, {v2:.1f}x Vol)",
-                    f"👯 <b>Twin Sister Catch-Up Rally:</b> జత స్టాక్ <b>{s1}</b> (+{c1:.2f}%) తో పాటు <b>{s2}</b> (+{c2:.2f}%, Vol: {v2:.1f}x) లో కూడా బయింగ్ మొదలైంది!",
-                    f"https://in.tradingview.com/chart/?symbol=NSE:{s2}", 0.1, base_score=94, priority_rank=1
+                    s2, "BUY", f"👯Twin-Lag Glitch (vs {s1})",
+                    f"Twin Sister Lag Glitch: {s1} surged +{c1:.2f}% ({v1:.1f}x Vol) while twin stock {s2} is breaking out at {c2:+.2f}%",
+                    f"👯 <b>Twin Sister Lag Glitch (#1 Catch-Up BUY):</b> జత స్టాక్ <b>{s1}</b> ఇప్పటికే +{c1:.2f}% పెరిగింది, ఇప్పుడు <b>{s2}</b> ({c2:+.2f}%) లో కూడా బయింగ్ మొదలైంది!",
+                    f"https://in.tradingview.com/chart/?symbol=NSE:{s2}", 0.1, base_score=96, priority_rank=0
                 )
-            elif c2 >= 2.2 and v2 >= 1.5 and (0.75 <= c1 <= 1.6) and v1 >= 1.2:
+            elif c2 >= 2.0 and v2 >= 1.4 and (0.55 <= c1 <= 1.5):
                 _register_signal(
-                    s1, "BUY", f"👯Twin-Follow BUY (vs {s2})",
-                    f"Twin Sister Momentum: {s2} surged +{c2:.2f}% ({v2:.1f}x Vol) and twin stock {s1} is breaking out (+{c1:.2f}%, {v1:.1f}x Vol)",
-                    f"👯 <b>Twin Sister Catch-Up Rally:</b> జత స్టాక్ <b>{s2}</b> (+{c2:.2f}%) తో పాటు <b>{s1}</b> (+{c1:.2f}%, Vol: {v1:.1f}x) లో కూడా బయింగ్ మొదలైంది!",
-                    f"https://in.tradingview.com/chart/?symbol=NSE:{s1}", 0.1, base_score=94, priority_rank=1
+                    s1, "BUY", f"👯Twin-Lag Glitch (vs {s2})",
+                    f"Twin Sister Lag Glitch: {s2} surged +{c2:.2f}% ({v2:.1f}x Vol) while twin stock {s1} is breaking out at {c1:+.2f}%",
+                    f"👯 <b>Twin Sister Lag Glitch (#1 Catch-Up BUY):</b> జత స్టాక్ <b>{s2}</b> ఇప్పటికే +{c2:.2f}% పెరిగింది, ఇప్పుడు <b>{s1}</b> ({c1:+.2f}%) లో కూడా బయింగ్ మొదలైంది!",
+                    f"https://in.tradingview.com/chart/?symbol=NSE:{s1}", 0.1, base_score=96, priority_rank=0
                 )
 
     for sym_g, row_g in stk_lookup.items():
@@ -2070,34 +2078,35 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=3.0
         pc_g = float(row_g.get("Prev_C", ltp_g))
         prev_c_chg = ((ltp_g - pc_g) / pc_g * 100.0) if pc_g > 0 else dc_g
 
-        ltp_v, vwap_v, ema10_v, real_buyer_pct, _, _ = _get_live_vwap_ema_and_pressure(sym_g)
+        ltp_v, vwap_v, _, real_buyer_pct, _, bear_p_g = _get_live_vwap_ema_and_pressure(sym_g)
+        real_seller_pct = 100 - real_buyer_pct
 
-        # CASE 1: 🕵️ Harshad Mehta Institutional Accumulation (High Vol + Positive Breakout + >= 62% Buyers)
-        if vx_g >= 2.2 and (0.75 <= dc_g <= 2.5) and (prev_c_chg >= 0.5) and (ltp_v > vwap_v) and (ltp_v >= ema10_v) and real_buyer_pct >= 62:
+        # CASE 1: 🕵️ Harshad Mehta Silent Accumulation (BUY)
+        if vx_g >= 2.2 and (0.60 <= dc_g <= 2.2) and (prev_c_chg >= 0.0) and (ltp_v >= vwap_v) and real_buyer_pct >= 62:
             _register_signal(
                 sym_g, "BUY", f"🕵️Insider-Stealth ({real_buyer_pct}% Buyers | {vx_g:.1f}x)",
-                f"Institutional Accumulation: {sym_g} has {real_buyer_pct}% 5m buying volume on {vx_g:.1f}x RVOL (Day Chg: {dc_g:+.2f}%, Net Chg: {prev_c_chg:+.2f}%)",
-                f"🕵️ <b>Harshad Mehta Institutional Accumulation:</b> 5-నిమిషాల చార్ట్‌లో నిజమైన బయ్యర్ వాల్యూమ్ <b>{real_buyer_pct}%</b> ఉంది (RVOL: {vx_g:.1f}x, Day: {dc_g:+.2f}%).",
+                f"Silent Accumulation: {sym_g} has {real_buyer_pct}% 5m buying volume on {vx_g:.1f}x RVOL (Open Chg: {dc_g:+.2f}%, Net Chg: {prev_c_chg:+.2f}%)",
+                f"🕵️ <b>Harshad Mehta Silent Accumulation:</b> 5-నిమిషాల చార్ట్‌లో నిజమైన బయ్యర్ వాల్యూమ్ <b>{real_buyer_pct}%</b> ఉంది (RVOL: {vx_g:.1f}x, నిన్నటి క్లోజ్ నుండి: {prev_c_chg:+.2f}%).",
                 f"https://in.tradingview.com/chart/?symbol=NSE:{sym_g}", 0.1, base_score=real_buyer_pct, priority_rank=0
             )
 
-        # CASE 2: 🚨 Heavy Volume Crash Below VWAP & 10-EMA (True Dump)
-        elif prev_c_chg <= -2.5 and dc_g <= -1.0 and ltp_v < vwap_v and ltp_v <= ema10_v and vx_g >= 2.2 and (100 - real_buyer_pct) >= 60:
+        # CASE 2: 🚨 Active Institutional Selling / Dump Below VWAP (SELL)
+        elif (dc_g <= -1.0 or prev_c_chg <= -1.5) and (ltp_v < vwap_v) and vx_g >= 1.2 and (real_seller_pct >= 55 or bear_p_g >= 60):
             _register_signal(
-                sym_g, "SELL", f"🚨Crash-Dump ({prev_c_chg:+.1f}% | {100-real_buyer_pct}% Sellers)",
-                f"Heavy Institutional Dump: {sym_g} down {prev_c_chg:+.1f}% vs Prev Close and trading below VWAP on {vx_g:.1f}x volume",
-                f"🚨 <b>Heavy Institutional Dump:</b> నిన్నటి క్లోజ్ నుండి <b>{prev_c_chg:+.1f}%</b> పడిపోయి, VWAP కింద <b>{100-real_buyer_pct}%</b> సెల్లింగ్ ప్రెషర్‌తో క్రాష్ అవుతోంది (SELL).",
-                f"https://in.tradingview.com/chart/?symbol=NSE:{sym_g}", 0.1, base_score=(100 - real_buyer_pct), priority_rank=0
+                sym_g, "SELL", f"🚨Inst-Dump ({dc_g:+.1f}% | {real_seller_pct}% Sellers)",
+                f"Institutional Selling Pressure: {sym_g} down {dc_g:+.2f}% (Net {prev_c_chg:+.2f}%) below VWAP with {real_seller_pct}% seller volume ({vx_g:.1f}x RVOL)",
+                f"🚨 <b>Institutional Selling Pressure (SELL):</b> ఈరోజు ఓపెన్ నుండి <b>{dc_g:+.2f}%</b> పడిపోయి, VWAP కింద <b>{real_seller_pct}%</b> సెల్లింగ్ వాల్యూమ్‌తో ({vx_g:.1f}x RVOL) బలహీనంగా ఉంది.",
+                f"https://in.tradingview.com/chart/?symbol=NSE:{sym_g}", 0.1, base_score=max(82, real_seller_pct), priority_rank=1
             )
 
     # ---------------------------------------------------------
-    # STEP D: POINT 6 — ZERO-LAG PRE-GUESSING (3x VolX Insider Panic Detector)
+    # STEP D: POINT 6 — ZERO-LAG PRE-GUESSING (Insider Panic Detector)
     # ---------------------------------------------------------
     for sym, s_row in stk_lookup.items():
         ft = s_row["Fetch_T"]
         vol_x = float(s_row.get("VolX", 0.0))
         day_c = float(s_row.get("Day_C", 0.0))
-        ltp_v, vwap_v, ema10_v, _, _, _ = _get_live_vwap_ema_and_pressure(sym)
+        ltp_v, vwap_v, _, _, _, _ = _get_live_vwap_ema_and_pressure(sym)
 
         df_5m = processed_charts.get(ft, pd.DataFrame())
         sudden_5m_dump = False
@@ -2105,24 +2114,24 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=3.0
             v_avg = float(df_5m["Volume"].iloc[-20:-2].mean()) if len(df_5m) >= 20 else float(df_5m["Volume"].mean())
             v_last2 = float(df_5m["Volume"].iloc[-2:].max())
             p_drop_15m = ((float(df_5m["Close"].iloc[-1]) - float(df_5m["Open"].iloc[-3])) / max(float(df_5m["Open"].iloc[-3]), 1.0)) * 100.0
-            if v_avg > 0 and (v_last2 >= v_avg * panic_vol_thresh) and p_drop_15m <= -1.4 and ltp_v < vwap_v and ltp_v <= ema10_v:
+            if v_avg > 0 and (v_last2 >= v_avg * panic_vol_thresh) and p_drop_15m <= -1.2 and ltp_v < vwap_v:
                 sudden_5m_dump = True
 
         is_insider_panic = ((vol_x >= panic_vol_thresh and day_c <= panic_drop_thresh and ltp_v < vwap_v) or sudden_5m_dump) and (ft not in stk_news_map)
         if is_insider_panic and sym not in domino_signals:
             _register_signal(
-                sym, "SELL", "🚨Hidden-Trouble (3x Vol Dump)",
-                f"Zero-Lag Pre-Guess: {sym} crashing ({day_c:+.2f}%) on {vol_x:.1f}x Volume below VWAP without public news (Possible Insider Panic / Plant Trouble)",
-                f"🚨 <b>Zero-Lag Insider Panic Detector:</b> మీడియాలో వార్త రాకముందే <b>{sym}</b> లో <b>{vol_x:.1f}x</b> వాల్యూమ్‌తో సడెన్ క్రాష్ ({day_c:+.2f}%) కనిపిస్తోంది! లోకల్ ఇన్‌సైడర్ సెల్లింగ్ / ఫ్యాక్టరీ సమస్య అయ్యే అవకాశం.",
+                sym, "SELL", "🚨Hidden-Trouble (Vol Dump)",
+                f"Zero-Lag Pre-Guess: {sym} crashing ({day_c:+.2f}%) on {vol_x:.1f}x Volume below VWAP without public news",
+                f"🚨 <b>Zero-Lag Insider Panic Detector:</b> మీడియాలో వార్త రాకముందే <b>{sym}</b> లో <b>{vol_x:.1f}x</b> వాల్యూమ్‌తో సడెన్ క్రాష్ ({day_c:+.2f}%) కనిపిస్తోంది!",
                 f"https://www.google.com/search?q={sym}+share+news&tbm=nws",
-                0.1, base_score=95, priority_rank=1
+                0.1, base_score=95, priority_rank=0
             )
             for comp_sym in COMPETITOR_SYMPATHY_MAP.get(sym, []):
                 if comp_sym in stk_lookup:
                     _register_signal(
                         comp_sym, "BUY", f"⚡Pre-Guess Winner (vs {sym})",
-                        f"Pre-Guess Sympathy Buy: Rival {sym} showing {vol_x:.1f}x volume panic dump while {comp_sym} rallies with high buying pressure",
-                        f"⚡ <b>Zero-Lag Sympathy Switch:</b> ప్రత్యర్థి స్టాక్ ({sym}) లో సడెన్ వాల్యూమ్ క్రాష్ జరుగుతుండగా, <b>{comp_sym}</b> వాల్యూమ్ & బయింగ్ ప్రెషర్‌తో VWAP పైన స్ట్రాంగ్‌గా పెరుగుతోంది!",
+                        f"Pre-Guess Sympathy Buy: Rival {sym} showing {vol_x:.1f}x volume panic dump while {comp_sym} holds strong above VWAP",
+                        f"⚡ <b>Zero-Lag Sympathy Switch:</b> ప్రత్యర్థి స్టాక్ ({sym}) లో సడెన్ వాల్యూమ్ క్రాష్ జరుగుతుండగా, <b>{comp_sym}</b> VWAP పైన స్ట్రాంగ్‌గా పెరుగుతోంది!",
                         f"https://www.google.com/search?q={comp_sym}+share+news&tbm=nws",
                         0.1, base_score=93, priority_rank=1
                     )
@@ -2147,10 +2156,17 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=3.0
     out_rows = []
     feed_records = []
 
-    sorted_sigs = sorted(
-        domino_signals.values(),
+    # ✅ SEPARATE TOP 20 BUY & TOP 20 SELL QUEUES (So BUY signals never crowd out SELL signals!)
+    buy_sigs = sorted(
+        [s for s in domino_signals.values() if s["side"] == "BUY"],
         key=lambda x: (x["priority_rank"], -x["score"], x["age_h"])
-    )[:25]
+    )[:20]
+    sell_sigs = sorted(
+        [s for s in domino_signals.values() if s["side"] == "SELL"],
+        key=lambda x: (x["priority_rank"], -x["score"], x["age_h"])
+    )[:20]
+    sorted_sigs = buy_sigs + sell_sigs
+
     _dom_tr_map = _translate_batch_to_telugu([s["reason_en"] for s in sorted_sigs])
 
     for sig in sorted_sigs:
