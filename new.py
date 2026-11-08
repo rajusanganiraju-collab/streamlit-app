@@ -9690,7 +9690,104 @@ def render_live_ui():
     core_tkrs = tuple(sorted(list(set(df_indices['Fetch_T'].tolist() + df_sectors['Fetch_T'].tolist() + df_commodities['Fetch_T'].tolist() + df_stocks['Fetch_T'].tolist() + _port_tkrs + st.session_state.pinned_stocks))))
     processed_charts, nifty_intra_html, sniper_cached_res = _fast_5m_and_sniper_cache(core_tkrs)
 
-    'sell': sorted(_live_sell, key=lambda x: (-x['score'], x['exp']))[:12]
+    # 🔥 100% FREE LIVE DATA SYNC (TRADINGVIEW + YFINANCE)
+    _true_vwap_map, _intra_ema10_map = {}, {}
+    _5m_p_map, _5m_o_map, _5m_h_map, _5m_l_map, _5m_pc_map = {}, {}, {}, {}, {}
+    _today_dt = now_ist().date()
+    _nse_yf_today_count = 0
+
+    for _sym_k, _df_5m in list(processed_charts.items()):
+        _fq = _fast_quotes.get(_sym_k)
+        _is_nse_stk = str(_sym_k).endswith(".NS") or str(_sym_k) in ("^NSEI", "^NSEBANK")
+
+        if _df_5m is not None and not _df_5m.empty:
+            _has_today_5m = (_df_5m.index[-1].date() == _today_dt)
+            if _is_nse_stk and _has_today_5m:
+                _nse_yf_today_count += 1
+
+            if _fq is not None and float(_fq[0]) > 0:
+                _live_ltp = float(_fq[0])
+                _last_i = _df_5m.index[-1]
+                _df_5m.at[_last_i, 'Close'] = _live_ltp
+                if _live_ltp > float(_df_5m.at[_last_i, 'High']):
+                    _df_5m.at[_last_i, 'High'] = _live_ltp
+                if _live_ltp < float(_df_5m.at[_last_i, 'Low']) or float(_df_5m.at[_last_i, 'Low']) <= 0:
+                    _df_5m.at[_last_i, 'Low'] = _live_ltp
+                processed_charts[_sym_k] = _df_5m
+
+            _sess = (_df_5m.index.to_series().diff() > pd.Timedelta(minutes=120)).cumsum()
+            _last_s = _sess.iloc[-1]
+            _td = _df_5m[_sess == _last_s]
+            _prev_td = _df_5m[_sess == (_last_s - 1)]
+
+            if not _td.empty:
+                if 'VWAP' in _df_5m.columns and pd.notna(_df_5m['VWAP'].iloc[-1]) and float(_df_5m['VWAP'].iloc[-1]) > 0:
+                    _true_vwap_map[_sym_k] = float(_df_5m['VWAP'].iloc[-1])
+                if 'EMA_10' in _df_5m.columns and pd.notna(_df_5m['EMA_10'].iloc[-1]) and float(_df_5m['EMA_10'].iloc[-1]) > 0:
+                    _intra_ema10_map[_sym_k] = float(_df_5m['EMA_10'].iloc[-1])
+
+                if _has_today_5m:
+                    _5m_p_map[_sym_k] = float(_td['Close'].iloc[-1])
+                    _5m_o_map[_sym_k] = float(_td['Open'].iloc[0])
+                    _5m_h_map[_sym_k] = max(float(_td['High'].max()), _5m_p_map[_sym_k])
+                    _5m_l_map[_sym_k] = min(float(_td['Low'].min()), _5m_p_map[_sym_k])
+                    if not _prev_td.empty:
+                        _5m_pc_map[_sym_k] = float(_prev_td['Close'].iloc[-1])
+
+    for _target_df in (df_live, df_all_stocks, df_stocks, df_indices, df_sectors):
+        _fallback_vwap = (_target_df['H'] + _target_df['L'] + _target_df['P']) / 3.0
+        _target_df['VWAP'] = pd.to_numeric(_target_df['Fetch_T'].map(_true_vwap_map), errors='coerce').fillna(_fallback_vwap).astype(float)
+        _target_df['Intra_EMA10'] = pd.to_numeric(_target_df['Fetch_T'].map(_intra_ema10_map), errors='coerce').fillna(_target_df['VWAP']).astype(float)
+
+        _has_5m = _target_df['Fetch_T'].isin(_5m_p_map.keys()) & (~_target_df['Fetch_T'].isin(_fast_quotes.keys()))
+        if _has_5m.any():
+            for _col, _mp in [('P', _5m_p_map), ('O', _5m_o_map), ('H', _5m_h_map), ('L', _5m_l_map), ('Prev_C', _5m_pc_map)]:
+                if _mp:
+                    _target_df[_col] = _target_df[_col].astype(float)
+                    _vals = pd.to_numeric(_target_df['Fetch_T'].map(_mp), errors='coerce')
+                    _target_df.loc[_has_5m, _col] = _vals[_has_5m].fillna(_target_df.loc[_has_5m, _col]).astype(float)
+
+        _target_df['C'] = np.where(
+            _target_df['Prev_C'] > 0,
+            ((_target_df['P'] - _target_df['Prev_C']) / _target_df['Prev_C']) * 100.0,
+            _target_df['C']
+        )
+        _target_df['Day_C'] = np.where(
+            _target_df['Prev_C'] > 0,
+            _target_df['C'],
+            np.where(_target_df['O'] > 0, ((_target_df['P'] - _target_df['O']) / _target_df['O']) * 100.0, _target_df['Day_C'])
+        )
+        _rng = (_target_df['H'] - _target_df['L']).replace(0, np.nan)
+        _target_df['Bull_P'] = (((_target_df['P'] - _target_df['L']) / _rng) * 100.0).fillna(_target_df['Bull_P'])
+        _target_df['Bear_P'] = (((_target_df['H'] - _target_df['P']) / _rng) * 100.0).fillna(_target_df['Bear_P'])
+
+    # 🎯 నెగటివ్‌లో ఉన్న స్టాక్స్ BUY లోకి రాకుండా ఫిల్టర్
+    _live_chg_map = df_stocks.set_index('Fetch_T')['Day_C'].to_dict() if not df_stocks.empty else {}
+    _live_vwap_ok_b = {r['Fetch_T']: (float(r['P']) >= float(r['VWAP'])) for _, r in df_stocks.iterrows()} if not df_stocks.empty else {}
+    _live_vwap_ok_s = {r['Fetch_T']: (float(r['P']) <= float(r['VWAP'])) for _, r in df_stocks.iterrows()} if not df_stocks.empty else {}
+
+    if _nse_yf_today_count >= 5:
+        sniper_cached_res = {
+            'buy': [x for x in sniper_cached_res.get('buy', []) if _live_chg_map.get(x['sym'], 0) > 0 and _live_vwap_ok_b.get(x['sym'], False)],
+            'sell': [x for x in sniper_cached_res.get('sell', []) if _live_chg_map.get(x['sym'], 0) < 0 and _live_vwap_ok_s.get(x['sym'], False)]
+        }
+    else:
+        _live_buy, _live_sell = [], []
+        for _, _sr in df_stocks.iterrows():
+            _sp, _svw = float(_sr['P']), float(_sr['VWAP'])
+            _sdc, _svx = float(_sr['Day_C']), float(_sr['VolX'])
+            _sbp, _sbrp = float(_sr['Bull_P']), float(_sr['Bear_P'])
+            _satr = max(float(_sr.get('ATR', _sp * 0.01)), _sp * 0.003)
+            if _sp > _svw and _sdc > 0.25 and _sbp >= 55:
+                _sc = min(99, int(60 + min(15, _sbp * 0.18) + min(12, _sdc * 4.0) + min(12, _svx * 4.0)))
+                _live_buy.append({'sym': _sr['Fetch_T'], 'exp': round(_sdc, 2), 'atr': _satr, 'side': 'buy', 'score': _sc, 'tag': f"VWAP+CVD ({_sbp:.0f}%)"})
+            elif _sp < _svw and _sdc < -0.25 and _sbrp >= 55:
+                _sc = min(99, int(60 + min(15, _sbrp * 0.18) + min(12, abs(_sdc) * 4.0) + min(12, _svx * 4.0)))
+                _live_sell.append({'sym': _sr['Fetch_T'], 'exp': round(_sdc, 2), 'atr': _satr, 'side': 'sell', 'score': _sc, 'tag': f"VWAP-Rej ({_sbrp:.0f}%)"})
+        sniper_cached_res = {
+            'buy': sorted(_live_buy, key=lambda x: (-x['score'], -x['exp']))[:12],
+            'sell': sorted(_live_sell, key=lambda x: (-x['score'], x['exp']))[:12]
+        }
 
     df_lookup = df_live.drop_duplicates(subset=['Fetch_T'], keep='first').set_index('Fetch_T').to_dict('index')
     weekly_trends = {}
