@@ -821,21 +821,63 @@ def render_dhan_status():
             fetch_cached_5m_data.clear()
             st.rerun()
 
+# 📅 స్పెషల్ ట్రేడింగ్ రోజులు (Diwali Muhurat Trading / Budget Day / Special Live Sessions)
+# Format: "YYYY-MM-DD": (start_time, end_time)
+SPECIAL_TRADING_SESSIONS = {
+    "2026-11-08": (dt_time(9, 15), dt_time(19, 30)),  # 🪔 దీపావళి స్పెషల్ ట్రేడింగ్ / ముహూర్త ట్రేడింగ్
+}
+
 def now_ist():
     # 🔧 FIX: Streamlit Cloud server UTC లో run అవుతుంది — అన్ని time checks IST లోనే చేయాలి
     return datetime.now(ZoneInfo("Asia/Kolkata")).replace(tzinfo=None)
 
+def _get_active_session_window(n=None):
+    """ఈరోజు సాధారణ మార్కెట్టా లేక స్పెషల్ ట్రేడింగ్ రోజా అని చెక్ చేస్తుంది"""
+    if n is None:
+        n = now_ist()
+    d_str = n.strftime("%Y-%m-%d")
+    
+    # 1. స్పెషల్ ట్రేడింగ్ డే లిస్ట్‌లో ఉంటే ఆ టైమింగ్స్ తీసుకో
+    if d_str in SPECIAL_TRADING_SESSIONS:
+        return SPECIAL_TRADING_SESSIONS[d_str]
+    
+    # 2. శని/ఆదివారాల్లో ఒకవేళ Dhan WebSocket నుండి లైవ్ టిక్స్ వస్తుంటే ఆటోమేటిక్‌గా ఓపెన్ చేయి
+    ws_last = _SS.get('ws', {}).get('last_tick', 0.0)
+    if ws_last and (time.time() - ws_last) < 120:
+        return (dt_time(9, 0), dt_time(20, 0))
+    
+    # 3. సాధారణ సోమవారం - శుక్రవారం (Monday = 0 to Friday = 4)
+    if n.weekday() < 5:
+        return (dt_time(9, 15), dt_time(15, 30))
+        
+    return None
+
 def is_market_open():
     n = now_ist()
-    return n.weekday() < 5 and dt_time(9, 15) <= n.time() <= dt_time(15, 30)
+    win = _get_active_session_window(n)
+    if win is None:
+        return False
+    start_t, end_t = win
+    return start_t <= n.time() <= end_t
 
 def get_minutes_passed():
     now = now_ist()
-    if now.weekday() >= 5: return 375
-    if now.time() < dt_time(9, 15): return 1
-    if now.time() > dt_time(15, 30): return 375
-    open_time = now.replace(hour=9, minute=15, second=0)
-    return min(375, max(1, int((now - open_time).total_seconds() / 60)))
+    win = _get_active_session_window(now)
+    if win is None:
+        return 375
+    start_t, end_t = win
+    total_sess_mins = max(1, int((
+        datetime.combine(now.date(), end_t) - datetime.combine(now.date(), start_t)
+    ).total_seconds() / 60))
+    
+    if now.time() < start_t:
+        return 1
+    if now.time() > end_t:
+        return min(375, total_sess_mins)
+        
+    open_time = datetime.combine(now.date(), start_t)
+    passed = int((now - open_time).total_seconds() / 60)
+    return min(375, max(1, passed))
 
 # --- DHAN 5-MIN FETCH ---
 def fetch_single_dhan_5m(symbol, sec_id, cid, tok):
