@@ -9697,19 +9697,81 @@ def render_live_ui():
     with LIVE_PRICES_LOCK:
         _ws_snap = dict(LIVE_PRICES_GLOBAL)
 
-    for _sym_k, _df_5m in processed_charts.items():
-        if _df_5m is not None and not _df_5m.empty:
-            if 'VWAP' in _df_5m.columns and pd.notna(_df_5m['VWAP'].iloc[-1]) and float(_df_5m['VWAP'].iloc[-1]) > 0:
-                _true_vwap_map[_sym_k] = float(_df_5m['VWAP'].iloc[-1])
-            if 'EMA_10' in _df_5m.columns and pd.notna(_df_5m['EMA_10'].iloc[-1]) and float(_df_5m['EMA_10'].iloc[-1]) > 0:
-                _intra_ema10_map[_sym_k] = float(_df_5m['EMA_10'].iloc[-1])
+    _today_dt = now_ist().date()
+    _cur_ist = now_ist()
+    _end_limit = min(_cur_ist, datetime.combine(_today_dt, dt_time(15, 30)))
+    _now_5m_bucket = _end_limit.replace(minute=(_end_limit.minute // 5) * 5, second=0, microsecond=0)
+    _live_bars_store = _SS.setdefault('special_live_5m_bars_v2', {})
+    _any_yf_today = False
 
+    for _sym_k, _df_5m in list(processed_charts.items()):
+        _csym = str(_sym_k).replace(".NS", "")
+        _fq = _fast_quotes.get(_sym_k)  # (ltp, op, hi, lo, pc, vx) from TradingView
+        _has_today_yf = (_df_5m is not None and not _df_5m.empty and _df_5m.index[-1].date() == _today_dt)
+        if _has_today_yf:
+            _any_yf_today = True
+
+        # 🔧 FIX: ఆదివారం ముహూర్త ట్రేడింగ్ రోజున yfinance క్యాండిల్స్ ఇవ్వకపోతే TradingView లైవ్ డేటాతో 2:20 PM - 3:30 PM చార్ట్ తయారు చేయి
+        if (not _has_today_yf) and (_fq is not None):
+            _fq_ltp = float(_ws_snap.get(_csym, _fq[0]))
+            _fq_op = float(_fq[1]) if float(_fq[1]) > 0 else _fq_ltp
+            _fq_hi = max(float(_fq[2]), _fq_ltp, _fq_op)
+            _fq_lo = min(float(_fq[3]) if float(_fq[3]) > 0 else _fq_ltp, _fq_ltp, _fq_op)
+
+            if _fq_ltp > 0:
+                _sym_bars = _live_bars_store.setdefault(_sym_k, {})
+                if not _sym_bars:
+                    _sess_start = datetime.combine(_today_dt, dt_time(14, 20))
+                    _sess_end = max(_sess_start + pd.Timedelta(minutes=15), _now_5m_bucket)
+                    _idx_rng = pd.date_range(start=_sess_start, end=_sess_end, freq='5min')
+                    _n_pts = len(_idx_rng)
+                    # Open -> Low/High -> Current LTP క్రమంలో క్యాండిల్స్ నిర్మించు
+                    _mid1 = max(1, _n_pts // 3)
+                    _mid2 = max(_mid1 + 1, (2 * _n_pts) // 3)
+                    _p_first, _p_second = (_fq_lo, _fq_hi) if _fq_ltp >= _fq_op else (_fq_hi, _fq_lo)
+                    _wps_x = [0, _mid1, _mid2, max(_mid2 + 1, _n_pts - 1)]
+                    _wps_y = [_fq_op, _p_first, _p_second, _fq_ltp]
+                    _interp_c = np.interp(range(_n_pts), _wps_x, _wps_y)
+                    for _bi, _bts in enumerate(_idx_rng):
+                        _bo = _fq_op if _bi == 0 else float(_interp_c[_bi - 1])
+                        _bc = _fq_ltp if _bi == (_n_pts - 1) else float(_interp_c[_bi])
+                        _bh = min(_fq_hi, max(_bo, _bc) + (_fq_hi - _fq_lo) * 0.12)
+                        _bl = max(_fq_lo, min(_bo, _bc) - (_fq_hi - _fq_lo) * 0.12)
+                        if _bi == _mid1:
+                            if _fq_ltp >= _fq_op: _bl = _fq_lo
+                            else: _bh = _fq_hi
+                        if _bi == _mid2:
+                            if _fq_ltp >= _fq_op: _bh = _fq_hi
+                            else: _bl = _fq_lo
+                        _sym_bars[_bts] = {'Open': round(_bo, 2), 'High': round(_bh, 2), 'Low': round(_bl, 2), 'Close': round(_bc, 2), 'Volume': 100.0}
+                else:
+                    if _now_5m_bucket not in _sym_bars:
+                        _prev_c = list(_sym_bars.values())[-1]['Close']
+                        _sym_bars[_now_5m_bucket] = {'Open': _prev_c, 'High': _fq_ltp, 'Low': _fq_ltp, 'Close': _fq_ltp, 'Volume': 100.0}
+                    else:
+                        _b = _sym_bars[_now_5m_bucket]
+                        _b['High'] = max(_b['High'], _fq_ltp)
+                        _b['Low'] = min(_b['Low'], _fq_ltp)
+                        _b['Close'] = _fq_ltp
+
+                _df_synth = pd.DataFrame.from_dict(_sym_bars, orient='index').sort_index()
+                _df_synth.index.name = 'Date'
+                _combined = pd.concat([_df_5m, _df_synth]) if (_df_5m is not None and not _df_5m.empty) else _df_synth
+                _df_5m = _fix_ist_df(process_5m_data(_combined))
+                processed_charts[_sym_k] = _df_5m
+
+        if _df_5m is not None and not _df_5m.empty:
             _sess = (_df_5m.index.to_series().diff() > pd.Timedelta(minutes=120)).cumsum()
             _last_s = _sess.iloc[-1]
             _td = _df_5m[_sess == _last_s]
             _prev_td = _df_5m[_sess == (_last_s - 1)]
-            if not _td.empty:
-                _csym = str(_sym_k).replace(".NS", "")
+
+            if not _td.empty and _td.index[-1].date() == _today_dt:
+                if 'VWAP' in _df_5m.columns and pd.notna(_df_5m['VWAP'].iloc[-1]) and float(_df_5m['VWAP'].iloc[-1]) > 0:
+                    _true_vwap_map[_sym_k] = float(_df_5m['VWAP'].iloc[-1])
+                if 'EMA_10' in _df_5m.columns and pd.notna(_df_5m['EMA_10'].iloc[-1]) and float(_df_5m['EMA_10'].iloc[-1]) > 0:
+                    _intra_ema10_map[_sym_k] = float(_df_5m['EMA_10'].iloc[-1])
+
                 _5m_p_map[_sym_k] = float(_ws_snap.get(_csym, _td['Close'].iloc[-1]))
                 _5m_o_map[_sym_k] = float(_td['Open'].iloc[0])
                 _5m_h_map[_sym_k] = max(float(_td['High'].max()), _5m_p_map[_sym_k])
@@ -9718,10 +9780,12 @@ def render_live_ui():
                     _5m_pc_map[_sym_k] = float(_prev_td['Close'].iloc[-1])
 
     for _target_df in (df_live, df_all_stocks, df_stocks, df_indices, df_sectors):
-        _target_df['VWAP'] = pd.to_numeric(_target_df['Fetch_T'].map(_true_vwap_map), errors='coerce').fillna(_target_df['VWAP']).astype(float)
+        _fallback_vwap = (_target_df['H'] + _target_df['L'] + _target_df['P']) / 3.0
+        _target_df['VWAP'] = pd.to_numeric(_target_df['Fetch_T'].map(_true_vwap_map), errors='coerce').fillna(_fallback_vwap).astype(float)
         _target_df['Intra_EMA10'] = pd.to_numeric(_target_df['Fetch_T'].map(_intra_ema10_map), errors='coerce').fillna(_target_df['VWAP']).astype(float)
 
-        _has_5m = _target_df['Fetch_T'].isin(_5m_p_map.keys()) if _m_open_top else (_target_df['Fetch_T'].isin(_5m_p_map.keys()) & (~_target_df['Fetch_T'].isin(_fast_quotes.keys())))
+        # ✅ TradingView (_fast_quotes) లో లేని వాటికి మాత్రమే _5m_p_map వాడు (శుక్రవారం ధరలతో ఓవర్‌రైట్ చేయవద్దు!)
+        _has_5m = _target_df['Fetch_T'].isin(_5m_p_map.keys()) & (~_target_df['Fetch_T'].isin(_fast_quotes.keys()))
         if _has_5m.any():
             for _col, _mp in [('P', _5m_p_map), ('O', _5m_o_map), ('H', _5m_h_map), ('L', _5m_l_map), ('Prev_C', _5m_pc_map)]:
                 if _mp:
@@ -9742,6 +9806,25 @@ def render_live_ui():
         _rng = (_target_df['H'] - _target_df['L']).replace(0, np.nan)
         _target_df['Bull_P'] = (((_target_df['P'] - _target_df['L']) / _rng) * 100.0).fillna(_target_df['Bull_P'])
         _target_df['Bear_P'] = (((_target_df['H'] - _target_df['P']) / _rng) * 100.0).fillna(_target_df['Bear_P'])
+
+    # 🎯 స్పెషల్ ట్రేడింగ్ రోజున Sniper Engine ని ఈరోజు లైవ్ డేటాతో రీ-స్కాన్ చేయి (శుక్రవారం స్టాక్స్ రాకుండా)
+    if not _any_yf_today and not df_stocks.empty:
+        _live_buy, _live_sell = [], []
+        for _, _sr in df_stocks.iterrows():
+            _sp, _svw, _sem = float(_sr['P']), float(_sr['VWAP']), float(_sr['Intra_EMA10'])
+            _sdc, _svx = float(_sr['Day_C']), float(_sr['VolX'])
+            _sbp, _sbrp = float(_sr['Bull_P']), float(_sr['Bear_P'])
+            _satr = max(float(_sr.get('ATR', _sp * 0.01)), _sp * 0.003)
+            if _sp > _svw and _sdc > 0.25 and _sbp >= 55:
+                _sc = min(99, int(60 + min(15, _sbp * 0.18) + min(12, _sdc * 4.0) + min(12, _svx * 4.0)))
+                _live_buy.append({'sym': _sr['Fetch_T'], 'exp': round(_sdc, 2), 'atr': _satr, 'side': 'buy', 'score': _sc, 'tag': f"VWAP+CVD ({_sbp:.0f}%)"})
+            elif _sp < _svw and _sdc < -0.25 and _sbrp >= 55:
+                _sc = min(99, int(60 + min(15, _sbrp * 0.18) + min(12, abs(_sdc) * 4.0) + min(12, _svx * 4.0)))
+                _live_sell.append({'sym': _sr['Fetch_T'], 'exp': round(_sdc, 2), 'atr': _satr, 'side': 'sell', 'score': _sc, 'tag': f"VWAP-Rej ({_sbrp:.0f}%)"})
+        sniper_cached_res = {
+            'buy': sorted(_live_buy, key=lambda x: (-x['score'], -x['exp']))[:12],
+            'sell': sorted(_live_sell, key=lambda x: (-x['score'], x['exp']))[:12]
+        }
 
     df_lookup = df_live.drop_duplicates(subset=['Fetch_T'], keep='first').set_index('Fetch_T').to_dict('index')
     weekly_trends = {}
