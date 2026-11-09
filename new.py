@@ -116,17 +116,16 @@ def load_closed_trades():
         return pd.DataFrame(columns=['Buy_Date', 'Sell_Date', 'Symbol', 'Quantity', 'Buy_Price', 'Sell_Price', 'PnL_Rs', 'PnL_Pct'])
 
 def save_portfolio(df):
-    df_clean = df.dropna(how='all').reset_index(drop=True).fillna("")
-    payload = [df_clean.columns.values.tolist()] + df_clean.values.tolist()
     port_ws.clear()
-    port_ws.update(payload)
+    df = df.fillna("")
+    port_ws.update([df.columns.values.tolist()] + df.values.tolist())
     load_portfolio.clear()
 
 def save_closed_trades(df):
-    df_clean = df.dropna(how='all').reset_index(drop=True).fillna("")
-    payload = [df_clean.columns.values.tolist()] + df_clean.values.tolist()
+    df = df.dropna(how='all').reset_index(drop=True)
     trade_ws.clear()
-    trade_ws.update(payload)
+    df = df.fillna("")
+    trade_ws.update([df.columns.values.tolist()] + df.values.tolist())
     load_closed_trades.clear()
 
 # --- 4. AUTO RUN & STATE MANAGEMENT ---
@@ -650,15 +649,17 @@ def dhan_data_probe(cid, tok, sec_id):
     return out
 
 
-_DH_CID, _DH_TOK = _dhan_creds()
-_DH_HEALTH = dhan_health_check(_DH_CID, _DH_TOK) if (_DH_CID and _DH_TOK) else {'ok': False, 'msg': 'Disabled'}
-DHAN_USABLE = bool(_DH_HEALTH.get('ok', False))
-dhan = DHAN_USABLE
+DHAN_USABLE = False     # ⚡ False ఉన్నప్పుడు అసలు Dhan API / 20MB CSV డౌన్‌లోడ్ అవ్వదు
+dhan = False
 if DHAN_USABLE:
+    _DH_CID, _DH_TOK = _dhan_creds()
+    _DH_HEALTH = dhan_health_check(_DH_CID, _DH_TOK)
     sec_map = get_dhan_security_map()
     rev_sec_map = {str(v): k for k, v in sec_map.items()}
-    _DH_PROBE = dhan_data_probe(_DH_CID, _DH_TOK, sec_map.get("RELIANCE", "2885"))
+    _DH_PROBE = dhan_data_probe(_DH_CID, _DH_TOK, sec_map.get("RELIANCE", "2885")) if _DH_HEALTH['ok'] else {'ok': False, 'msg': 'skipped', 'n': 0, 'first': '', 'last': ''}
 else:
+    _DH_CID, _DH_TOK = "", ""
+    _DH_HEALTH = {'ok': False, 'msg': 'Disabled'}
     _DH_PROBE = {'ok': False, 'msg': 'Disabled', 'n': 0, 'first': '', 'last': ''}
     sec_map, rev_sec_map = {}, {}
 
@@ -821,63 +822,21 @@ def render_dhan_status():
             fetch_cached_5m_data.clear()
             st.rerun()
 
-# 📅 స్పెషల్ ట్రేడింగ్ రోజులు (Diwali Muhurat Trading / Budget Day / Special Live Sessions)
-# Format: "YYYY-MM-DD": (start_time, end_time)
-SPECIAL_TRADING_SESSIONS = {
-    "2026-11-08": (dt_time(9, 15), dt_time(19, 30)),  # 🪔 దీపావళి స్పెషల్ ట్రేడింగ్ / ముహూర్త ట్రేడింగ్
-}
-
 def now_ist():
     # 🔧 FIX: Streamlit Cloud server UTC లో run అవుతుంది — అన్ని time checks IST లోనే చేయాలి
     return datetime.now(ZoneInfo("Asia/Kolkata")).replace(tzinfo=None)
 
-def _get_active_session_window(n=None):
-    """ఈరోజు సాధారణ మార్కెట్టా లేక స్పెషల్ ట్రేడింగ్ రోజా అని చెక్ చేస్తుంది"""
-    if n is None:
-        n = now_ist()
-    d_str = n.strftime("%Y-%m-%d")
-    
-    # 1. స్పెషల్ ట్రేడింగ్ డే లిస్ట్‌లో ఉంటే ఆ టైమింగ్స్ తీసుకో
-    if d_str in SPECIAL_TRADING_SESSIONS:
-        return SPECIAL_TRADING_SESSIONS[d_str]
-    
-    # 2. శని/ఆదివారాల్లో ఒకవేళ Dhan WebSocket నుండి లైవ్ టిక్స్ వస్తుంటే ఆటోమేటిక్‌గా ఓపెన్ చేయి
-    ws_last = _SS.get('ws', {}).get('last_tick', 0.0)
-    if ws_last and (time.time() - ws_last) < 120:
-        return (dt_time(9, 0), dt_time(20, 0))
-    
-    # 3. సాధారణ సోమవారం - శుక్రవారం (Monday = 0 to Friday = 4)
-    if n.weekday() < 5:
-        return (dt_time(9, 15), dt_time(15, 30))
-        
-    return None
-
 def is_market_open():
     n = now_ist()
-    win = _get_active_session_window(n)
-    if win is None:
-        return False
-    start_t, end_t = win
-    return start_t <= n.time() <= end_t
+    return n.weekday() < 5 and dt_time(9, 15) <= n.time() <= dt_time(15, 30)
 
 def get_minutes_passed():
     now = now_ist()
-    win = _get_active_session_window(now)
-    if win is None:
-        return 375
-    start_t, end_t = win
-    total_sess_mins = max(1, int((
-        datetime.combine(now.date(), end_t) - datetime.combine(now.date(), start_t)
-    ).total_seconds() / 60))
-    
-    if now.time() < start_t:
-        return 1
-    if now.time() > end_t:
-        return min(375, total_sess_mins)
-        
-    open_time = datetime.combine(now.date(), start_t)
-    passed = int((now - open_time).total_seconds() / 60)
-    return min(375, max(1, passed))
+    if now.weekday() >= 5: return 375
+    if now.time() < dt_time(9, 15): return 1
+    if now.time() > dt_time(15, 30): return 375
+    open_time = now.replace(hour=9, minute=15, second=0)
+    return min(375, max(1, int((now - open_time).total_seconds() / 60)))
 
 # --- DHAN 5-MIN FETCH ---
 def fetch_single_dhan_5m(symbol, sec_id, cid, tok):
@@ -3256,24 +3215,21 @@ def fetch_pro_qresults_summary(sym, headline_en="", bias=0, day_c=0.0, vol_x=1.0
     )
 
 
-@st.cache_data(ttl=86400, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def _translate_to_telugu(text_en):
     clean_en = str(text_en or "").strip()
     if not clean_en:
         return ""
-    te_mem = _SS.setdefault('te_trans_cache', {})
-    if clean_en in te_mem:
-        return te_mem[clean_en]
     try:
         q_tr = urllib.parse.quote(clean_en[:900])
         tr_url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=te&dt=t&q={q_tr}"
-        r_tr = requests.get(tr_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=3.0)
+        r_tr = requests.get(
+            tr_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=3.0
+        )
         if r_tr.status_code == 200:
             j_tr = r_tr.json()
-            te_out = "".join(seg[0] for seg in j_tr[0] if seg and seg[0]).strip()
-            if te_out:
-                te_mem[clean_en] = te_out
-                return te_out
+            te_out = "".join(seg[0] for seg in j_tr[0] if seg and seg[0])
+            return te_out.strip() if te_out else clean_en
     except Exception:
         pass
     return clean_en
@@ -7617,7 +7573,7 @@ def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Intraday 
             with st.container():
                 render_chart(
                     row, chart_dict.get(row['Fetch_T'], pd.DataFrame()),
-                    show_pin=show_pin_option,
+                    show_pin=True,
                     key_suffix=key_prefix,
                     timeframe=timeframe, show_crosshair=show_crosshair, show_vol=show_vol
                 )
@@ -7625,7 +7581,6 @@ def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Intraday 
                     btn_lbl = "🔽 View Stocks" if st.session_state.active_sec != row['T'] else "🔼 Hide Stocks"
                     if st.button(btn_lbl, key=f"btn_sec_{row['Fetch_T']}", width="stretch"):
                         st.session_state.active_sec = None if st.session_state.active_sec == row['T'] else row['T']
-                        st.rerun(scope="fragment")
 def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intraday (5m)", show_crosshair=False, show_vol=False):
     display_sym = row['T']
     fetch_sym = row['Fetch_T']
@@ -9690,46 +9645,27 @@ def render_live_ui():
     core_tkrs = tuple(sorted(list(set(df_indices['Fetch_T'].tolist() + df_sectors['Fetch_T'].tolist() + df_commodities['Fetch_T'].tolist() + df_stocks['Fetch_T'].tolist() + _port_tkrs + st.session_state.pinned_stocks))))
     processed_charts, nifty_intra_html, sniper_cached_res = _fast_5m_and_sniper_cache(core_tkrs)
 
-    # 🔥 100% FREE LIVE DATA SYNC (NO DHAN PAID API NEEDED — TRADINGVIEW + YFINANCE)
+    # 🔥 TRUE 5-MIN PRICE (P, O, H, L, Prev_C, Day_C) + VWAP & EMA_10 SYNC INTO DATAFRAMES
     _true_vwap_map, _intra_ema10_map = {}, {}
     _5m_p_map, _5m_o_map, _5m_h_map, _5m_l_map, _5m_pc_map = {}, {}, {}, {}, {}
 
-    _today_dt = now_ist().date()
-    _nse_yf_today_count = 0
+    with LIVE_PRICES_LOCK:
+        _ws_snap = dict(LIVE_PRICES_GLOBAL)
 
-    for _sym_k, _df_5m in list(processed_charts.items()):
-        _csym = str(_sym_k).replace(".NS", "")
-        _fq = _fast_quotes.get(_sym_k)  # (ltp, op, hi, lo, pc, vx) from TradingView Free Scanner
-        _is_nse_stk = str(_sym_k).endswith(".NS") or str(_sym_k) in ("^NSEI", "^NSEBANK")
-
+    for _sym_k, _df_5m in processed_charts.items():
         if _df_5m is not None and not _df_5m.empty:
-            _has_today_5m = (_df_5m.index[-1].date() == _today_dt)
-            if _is_nse_stk and _has_today_5m:
-                _nse_yf_today_count += 1
-
-            # TradingView లైవ్ ధరను చివరి క్యాండిల్‌కి సింక్ చేయి (1.5% పరిమితి లేకుండా)
-            if _fq is not None and float(_fq[0]) > 0:
-                _live_ltp = float(_fq[0])
-                _last_i = _df_5m.index[-1]
-                _df_5m.at[_last_i, 'Close'] = _live_ltp
-                if _live_ltp > float(_df_5m.at[_last_i, 'High']):
-                    _df_5m.at[_last_i, 'High'] = _live_ltp
-                if _live_ltp < float(_df_5m.at[_last_i, 'Low']) or float(_df_5m.at[_last_i, 'Low']) <= 0:
-                    _df_5m.at[_last_i, 'Low'] = _live_ltp
-                processed_charts[_sym_k] = _df_5m
+            if 'VWAP' in _df_5m.columns and pd.notna(_df_5m['VWAP'].iloc[-1]) and float(_df_5m['VWAP'].iloc[-1]) > 0:
+                _true_vwap_map[_sym_k] = float(_df_5m['VWAP'].iloc[-1])
+            if 'EMA_10' in _df_5m.columns and pd.notna(_df_5m['EMA_10'].iloc[-1]) and float(_df_5m['EMA_10'].iloc[-1]) > 0:
+                _intra_ema10_map[_sym_k] = float(_df_5m['EMA_10'].iloc[-1])
 
             _sess = (_df_5m.index.to_series().diff() > pd.Timedelta(minutes=120)).cumsum()
             _last_s = _sess.iloc[-1]
             _td = _df_5m[_sess == _last_s]
             _prev_td = _df_5m[_sess == (_last_s - 1)]
-
-            if not _td.empty and _has_today_5m:
-                if 'VWAP' in _df_5m.columns and pd.notna(_df_5m['VWAP'].iloc[-1]) and float(_df_5m['VWAP'].iloc[-1]) > 0:
-                    _true_vwap_map[_sym_k] = float(_df_5m['VWAP'].iloc[-1])
-                if 'EMA_10' in _df_5m.columns and pd.notna(_df_5m['EMA_10'].iloc[-1]) and float(_df_5m['EMA_10'].iloc[-1]) > 0:
-                    _intra_ema10_map[_sym_k] = float(_df_5m['EMA_10'].iloc[-1])
-
-                _5m_p_map[_sym_k] = float(_td['Close'].iloc[-1])
+            if not _td.empty:
+                _csym = str(_sym_k).replace(".NS", "")
+                _5m_p_map[_sym_k] = float(_ws_snap.get(_csym, _td['Close'].iloc[-1]))
                 _5m_o_map[_sym_k] = float(_td['Open'].iloc[0])
                 _5m_h_map[_sym_k] = max(float(_td['High'].max()), _5m_p_map[_sym_k])
                 _5m_l_map[_sym_k] = min(float(_td['Low'].min()), _5m_p_map[_sym_k])
@@ -9737,12 +9673,10 @@ def render_live_ui():
                     _5m_pc_map[_sym_k] = float(_prev_td['Close'].iloc[-1])
 
     for _target_df in (df_live, df_all_stocks, df_stocks, df_indices, df_sectors):
-        _fallback_vwap = (_target_df['H'] + _target_df['L'] + _target_df['P']) / 3.0
-        _target_df['VWAP'] = pd.to_numeric(_target_df['Fetch_T'].map(_true_vwap_map), errors='coerce').fillna(_fallback_vwap).astype(float)
+        _target_df['VWAP'] = pd.to_numeric(_target_df['Fetch_T'].map(_true_vwap_map), errors='coerce').fillna(_target_df['VWAP']).astype(float)
         _target_df['Intra_EMA10'] = pd.to_numeric(_target_df['Fetch_T'].map(_intra_ema10_map), errors='coerce').fillna(_target_df['VWAP']).astype(float)
 
-        # TradingView (_fast_quotes) లో లేని స్టాక్స్‌కి మాత్రమే yfinance 5m ధరలు వాడు
-        _has_5m = _target_df['Fetch_T'].isin(_5m_p_map.keys()) & (~_target_df['Fetch_T'].isin(_fast_quotes.keys()))
+        _has_5m = _target_df['Fetch_T'].isin(_5m_p_map.keys()) if _m_open_top else (_target_df['Fetch_T'].isin(_5m_p_map.keys()) & (~_target_df['Fetch_T'].isin(_fast_quotes.keys())))
         if _has_5m.any():
             for _col, _mp in [('P', _5m_p_map), ('O', _5m_o_map), ('H', _5m_h_map), ('L', _5m_l_map), ('Prev_C', _5m_pc_map)]:
                 if _mp:
@@ -9750,48 +9684,19 @@ def render_live_ui():
                     _vals = pd.to_numeric(_target_df['Fetch_T'].map(_mp), errors='coerce')
                     _target_df.loc[_has_5m, _col] = _vals[_has_5m].fillna(_target_df.loc[_has_5m, _col]).astype(float)
 
-        # ✅ Zerodha లాగే Previous Close (Prev_C) నుండి % మార్పు లెక్కించడం
+        _target_df['Day_C'] = np.where(
+            _target_df['O'] > 0,
+            ((_target_df['P'] - _target_df['O']) / _target_df['O']) * 100.0,
+            _target_df['Day_C']
+        )
         _target_df['C'] = np.where(
             _target_df['Prev_C'] > 0,
             ((_target_df['P'] - _target_df['Prev_C']) / _target_df['Prev_C']) * 100.0,
             _target_df['C']
         )
-        _target_df['Day_C'] = np.where(
-            _target_df['Prev_C'] > 0,
-            _target_df['C'],
-            np.where(_target_df['O'] > 0, ((_target_df['P'] - _target_df['O']) / _target_df['O']) * 100.0, _target_df['Day_C'])
-        )
         _rng = (_target_df['H'] - _target_df['L']).replace(0, np.nan)
         _target_df['Bull_P'] = (((_target_df['P'] - _target_df['L']) / _rng) * 100.0).fillna(_target_df['Bull_P'])
         _target_df['Bear_P'] = (((_target_df['H'] - _target_df['P']) / _rng) * 100.0).fillna(_target_df['Bear_P'])
-
-    # 🎯 FIX: నెగటివ్‌లో ఉన్న స్టాక్స్ ఎప్పుడూ '🟢 POSITIVE / BUY' లోకి రాకుండా లైవ్ ఫిల్టర్ చేయి
-    _live_chg_map = df_stocks.set_index('Fetch_T')['Day_C'].to_dict() if not df_stocks.empty else {}
-    _live_vwap_ok_b = {r['Fetch_T']: (float(r['P']) >= float(r['VWAP'])) for _, r in df_stocks.iterrows()} if not df_stocks.empty else {}
-    _live_vwap_ok_s = {r['Fetch_T']: (float(r['P']) <= float(r['VWAP'])) for _, r in df_stocks.iterrows()} if not df_stocks.empty else {}
-
-    if _nse_yf_today_count >= 5:
-        sniper_cached_res = {
-            'buy': [x for x in sniper_cached_res.get('buy', []) if _live_chg_map.get(x['sym'], 0) > 0 and _live_vwap_ok_b.get(x['sym'], False)],
-            'sell': [x for x in sniper_cached_res.get('sell', []) if _live_chg_map.get(x['sym'], 0) < 0 and _live_vwap_ok_s.get(x['sym'], False)]
-        }
-    else:
-        _live_buy, _live_sell = [], []
-        for _, _sr in df_stocks.iterrows():
-            _sp, _svw = float(_sr['P']), float(_sr['VWAP'])
-            _sdc, _svx = float(_sr['Day_C']), float(_sr['VolX'])
-            _sbp, _sbrp = float(_sr['Bull_P']), float(_sr['Bear_P'])
-            _satr = max(float(_sr.get('ATR', _sp * 0.01)), _sp * 0.003)
-            if _sp > _svw and _sdc > 0.25 and _sbp >= 55:
-                _sc = min(99, int(60 + min(15, _sbp * 0.18) + min(12, _sdc * 4.0) + min(12, _svx * 4.0)))
-                _live_buy.append({'sym': _sr['Fetch_T'], 'exp': round(_sdc, 2), 'atr': _satr, 'side': 'buy', 'score': _sc, 'tag': f"VWAP+CVD ({_sbp:.0f}%)"})
-            elif _sp < _svw and _sdc < -0.25 and _sbrp >= 55:
-                _sc = min(99, int(60 + min(15, _sbrp * 0.18) + min(12, abs(_sdc) * 4.0) + min(12, _svx * 4.0)))
-                _live_sell.append({'sym': _sr['Fetch_T'], 'exp': round(_sdc, 2), 'atr': _satr, 'side': 'sell', 'score': _sc, 'tag': f"VWAP-Rej ({_sbrp:.0f}%)"})
-        sniper_cached_res = {
-            'buy': sorted(_live_buy, key=lambda x: (-x['score'], -x['exp']))[:12],
-            'sell': sorted(_live_sell, key=lambda x: (-x['score'], x['exp']))[:12]
-        }
 
     df_lookup = df_live.drop_duplicates(subset=['Fetch_T'], keep='first').set_index('Fetch_T').to_dict('index')
     weekly_trends = {}
@@ -10219,66 +10124,7 @@ def render_live_ui():
         else:
             df_filtered = pd.DataFrame(columns=df_filtered.columns)
 
-    # =========================================================
-    # 🔥 MARKET DIRECTION (ULTRA BUY vs ULTRA SELL) & UNIFIED SORTING
-    # =========================================================
-    _mkt_dir_text, _mkt_dir_bg, _mkt_dir_border = "NEUTRAL ⚖️", "#30363d", "#8b949e"
-    _is_mkt_bearish = False  # False = Positive/BUY Top | True = Negative/SELL Top
-
-    _unique_universe = set(NIFTY_50).union(set(FNO_STOCKS))
-    _df_mkt = df_live[(~df_live['Is_Index']) & (~df_live['Is_Sector']) & (~df_live['Is_Commodity']) & (df_live['T'].isin(_unique_universe))].drop_duplicates(subset=['T'], keep='first')
-    _tot_stocks = len(_df_mkt)
-    if _tot_stocks > 0:
-        _above_vwap = int((_df_mkt['P'] > _df_mkt['VWAP']).sum())
-        _below_vwap = int((_df_mkt['P'] < _df_mkt['VWAP']).sum())
-        _buy_pct = (_above_vwap / _tot_stocks) * 100.0
-        _sell_pct = (_below_vwap / _tot_stocks) * 100.0
-        if 47.0 <= _buy_pct <= 53.0 or _above_vwap == _below_vwap:
-            _mkt_dir_text, _mkt_dir_bg, _mkt_dir_border = f"⚖️ NEUTRAL {_above_vwap}/{_tot_stocks} ({_buy_pct:.0f}%)", "#484f58", "#8b949e"
-            _is_mkt_bearish = False
-        elif _above_vwap > _below_vwap:
-            _is_mkt_bearish = False  # 🟢 ULTRA BUY / STRONG BUY / BUY -> Positive Stocks on Top
-            if _buy_pct >= 75.0:
-                _mkt_dir_text, _mkt_dir_bg, _mkt_dir_border = f"🚀 ULTRA BUY {_above_vwap}/{_tot_stocks} ({_buy_pct:.0f}%)", "#009624", "#00e676"
-            elif _buy_pct >= 65.0:
-                _mkt_dir_text, _mkt_dir_bg, _mkt_dir_border = f"🔥 STRONG BUY {_above_vwap}/{_tot_stocks} ({_buy_pct:.0f}%)", "#238636", "#3fb950"
-            else:
-                _mkt_dir_text, _mkt_dir_bg, _mkt_dir_border = f"🟢 BUY 📈 {_above_vwap}/{_tot_stocks} ({_buy_pct:.0f}%)", "#1e5f29", "#2ea043"
-        else:
-            _is_mkt_bearish = True   # 🔴 ULTRA SELL / STRONG SELL / SELL -> Negative Stocks on Top
-            if _sell_pct >= 75.0:
-                _mkt_dir_text, _mkt_dir_bg, _mkt_dir_border = f"💀 ULTRA SELL {_below_vwap}/{_tot_stocks} ({_sell_pct:.0f}%)", "#b71c1c", "#ff1744"
-            elif _sell_pct >= 65.0:
-                _mkt_dir_text, _mkt_dir_bg, _mkt_dir_border = f"🩸 STRONG SELL {_below_vwap}/{_tot_stocks} ({_sell_pct:.0f}%)", "#c62828", "#ff5252"
-            else:
-                _mkt_dir_text, _mkt_dir_bg, _mkt_dir_border = f"🔴 SELL 📉 {_below_vwap}/{_tot_stocks} ({_sell_pct:.0f}%)", "#b52524", "#f85149"
-
-    _SS['is_mkt_bearish'] = _is_mkt_bearish
-
-    # 🔥 AUTO SL / TARGET HIT EXECUTION FOR PAPER TRADING (Suggestion 3)
-    if _SS.get('chart_trades'):
-        _live_p_lu = df_live.drop_duplicates(subset=['Fetch_T']).set_index('Fetch_T')[['P', 'H', 'L']].to_dict('index')
-        for _tr_sym, _tr_info in list(_SS['chart_trades'].items()):
-            if "Paper" not in str(_tr_info.get('mode', 'Paper')):
-                continue
-            _q_row = _live_p_lu.get(_tr_sym)
-            if not _q_row:
-                continue
-            _cur_p = float(_q_row['P'])
-            _sl_p = float(_tr_info.get('sl', 0) or 0)
-            _tg_p = float(_tr_info.get('target', 0) or 0)
-            _side_p = str(_tr_info.get('side', 'BUY')).upper()
-            if _side_p == "BUY":
-                if _sl_p > 0 and _cur_p <= _sl_p:
-                    _exec_chart_trade(_tr_sym, "EXIT", _sl_p, 0, 0)
-                elif _tg_p > 0 and _cur_p >= _tg_p:
-                    _exec_chart_trade(_tr_sym, "EXIT", _tg_p, 0, 0)
-            else:
-                if _sl_p > 0 and _cur_p >= _sl_p:
-                    _exec_chart_trade(_tr_sym, "EXIT", _sl_p, 0, 0)
-                elif _tg_p > 0 and _cur_p <= _tg_p:
-                    _exec_chart_trade(_tr_sym, "EXIT", _tg_p, 0, 0)
-
+    # 🔥 UNIFIED SORTING: Watchlist Table & Charts 100% Same Order
     if not df_filtered.empty:
         df_filtered = df_filtered.copy()
         df_filtered['Chg_Pts'] = np.where(
@@ -10319,6 +10165,7 @@ def render_live_ui():
             elif sort_mode == "Score: Low to High ⬆️":
                 df_sorted_base = df_filtered.sort_values(by=_tie_cols, ascending=_tie_asc)
             else:
+                # Default for ALL Strategies: Strictly HIGH SCORE to LOW SCORE (35 -> 13)
                 df_sorted_base = df_filtered.sort_values(by=_tie_cols, ascending=_tie_desc)
 
         if scol is not None:
@@ -10329,11 +10176,7 @@ def render_live_ui():
             else:
                 _sell_mask = df_sorted_base[sort_key] < 0
 
-            # ✅ ULTRA SELL / SELL ఉంటే Negative పైన, ULTRA BUY / BUY ఉంటే Positive పైన
-            if _is_mkt_bearish:
-                df_stocks_display = pd.concat([df_sorted_base[_sell_mask], df_sorted_base[~_sell_mask]], ignore_index=True)
-            else:
-                df_stocks_display = pd.concat([df_sorted_base[~_sell_mask], df_sorted_base[_sell_mask]], ignore_index=True)
+            df_stocks_display = pd.concat([df_sorted_base[~_sell_mask], df_sorted_base[_sell_mask]], ignore_index=True)
 
         if search_stock != "-- None --" and search_stock in df_stocks_display['T'].values:
             _srch_row = df_stocks_display[df_stocks_display['T'] == search_stock]
@@ -10939,7 +10782,7 @@ def render_live_ui():
                                 chk_data = yf.download(f"{new_sym}.NS", period="5d", progress=False)
                                 if chk_data.empty:
                                     chk_data = yf.download(f"{new_sym}.BO", period="5d", progress=False)
-                                if not chk_data.empty or new_sym in all_names:
+                                if True:
                                     new_date_str = new_date.strftime("%d-%b-%Y")
                                     df_port_saved = df_port_saved.copy()
                                     if new_sym in df_port_saved['Symbol'].values:
@@ -10964,8 +10807,6 @@ def render_live_ui():
                                     load_portfolio.clear()
                                     time.sleep(1)
                                     st.rerun()
-                                else:
-                                    st.error(f"❌ '{new_sym}' అనే స్టాక్ NSE/BSE లో దొరకలేదు. సరైన సింబల్ ఇవ్వండి!")
                             else:
                                 st.warning("Type a symbol first!")
 
@@ -11064,14 +10905,7 @@ def render_live_ui():
                             df_buy = df_stocks_display[df_stocks_display[sort_key] >= 0]
                             df_sell = df_stocks_display[df_stocks_display[sort_key] < 0]
 
-                        _hm_sections = (
-                            [(df_sell, f"🔴 NEGATIVE / SELL ({watchlist_mode})", "#f85149"),
-                             (df_buy, f"🟢 POSITIVE / BUY ({watchlist_mode})", "#3fb950")]
-                            if _is_mkt_bearish else
-                            [(df_buy, f"🟢 POSITIVE / BUY ({watchlist_mode})", "#3fb950"),
-                             (df_sell, f"🔴 NEGATIVE / SELL ({watchlist_mode})", "#f85149")]
-                        )
-                        for df_sec, title, col in _hm_sections:
+                        for df_sec, title, col in [(df_buy, f"🟢 POSITIVE / BUY ({watchlist_mode})", "#3fb950"), (df_sell, f"🔴 NEGATIVE / SELL ({watchlist_mode})", "#f85149")]:
                             if not df_sec.empty:
                                 st.markdown(f"<div style='font-size:15px; font-weight:bold; margin: 10px 0 4px 0; color:{col};'>{title}</div>", unsafe_allow_html=True)
                                 html_stk = '<div class="heatmap-grid">'
@@ -11150,22 +10984,13 @@ def render_live_ui():
                             df_buy_chart = unpinned_df[unpinned_df[sort_key] >= 0].head(32)
                             df_sell_chart = unpinned_df[unpinned_df[sort_key] < 0].head(32)
 
-                        _chart_sections = (
-                            [
-                                (df_sell_chart, f"🔴 NEGATIVE / SELL ({watchlist_mode})", "#f85149", "main_sell", "6px"),
-                                (df_buy_chart, f"🟢 POSITIVE / BUY ({watchlist_mode})", "#3fb950", "main_buy", "14px")
-                            ]
-                            if _is_mkt_bearish else
-                            [
-                                (df_buy_chart, f"🟢 POSITIVE / BUY ({watchlist_mode})", "#3fb950", "main_buy", "6px"),
-                                (df_sell_chart, f"🔴 NEGATIVE / SELL ({watchlist_mode})", "#f85149", "main_sell", "14px")
-                            ]
-                        )
+                        if not df_buy_chart.empty:
+                            st.markdown(f"<div style='font-size:15px; font-weight:bold; margin:6px 0 4px 0; color:#3fb950;'>🟢 POSITIVE / BUY ({watchlist_mode})</div>", unsafe_allow_html=True)
+                            render_chart_grid(df_buy_chart, True, "main_buy", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
 
-                        for _df_c, _title_c, _col_c, _key_c, _mtop in _chart_sections:
-                            if not _df_c.empty:
-                                st.markdown(f"<div style='font-size:15px; font-weight:bold; margin:{_mtop} 0 4px 0; color:{_col_c};'>{_title_c}</div>", unsafe_allow_html=True)
-                                render_chart_grid(_df_c, True, _key_c, chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
+                        if not df_sell_chart.empty:
+                            st.markdown(f"<div style='font-size:15px; font-weight:bold; margin:14px 0 4px 0; color:#f85149;'>🔴 NEGATIVE / SELL ({watchlist_mode})</div>", unsafe_allow_html=True)
+                            render_chart_grid(df_sell_chart, True, "main_sell", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
                     elif df_stocks_display.empty:
                         st.info("ℹ️ No stocks matched this strategy's strict criteria at the moment. (ఏ స్టాక్స్ ఈ కండిషన్స్ ని మ్యాచ్ చేయలేదు)")
 
