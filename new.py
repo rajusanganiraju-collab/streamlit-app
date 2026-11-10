@@ -994,10 +994,24 @@ def fetch_historical_charts_data(tkrs, timeframe):
 import os
 
 # CMD lo HTTP Error 404 istunna symbols ni automatic ga skip chese list
-_SKIP_BAD_SYMS = {"PBFINTECH", "GUJGASLTD", "TVSHLDGS", "PEL", "LTIM", "JCHAC", "TIDEWATER"}
+_SKIP_BAD_SYMS = {
+    "PBFINTECH", "GUJGASLTD", "TVSHLDGS", "PEL", "LTIM", "JCHAC", "TIDEWATER",
+    "SEQUENT", "SEAMEC", "TATAMOTORS", "INFIBEAM", "AKZOINDIA"
+}
 
 @st.cache_data(ttl=900, show_spinner=False)
 def fetch_all_data(_v=4):
+    # ⚡ FAST STARTUP FIX: ఆల్రెడీ సేవ్ అయిన క్యాష్ ఫైల్ ఉంటే 1 సెకనులో లోడ్ చేస్తుంది
+    _cache_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "daily_base_cache.pkl")
+    if os.path.exists(_cache_file):
+        try:
+            # ఫైల్ 6 గంటల లోపుదైతే మళ్ళీ 550 స్టాక్స్ డౌన్‌లోడ్ చేయకుండా డైరెక్ట్‌గా తీసుకుంటుంది
+            if (time.time() - os.path.getmtime(_cache_file)) < 21600:
+                _cached_df = pd.read_pickle(_cache_file)
+                if isinstance(_cached_df, pd.DataFrame) and not _cached_df.empty:
+                    return _cached_df
+        except Exception:
+            pass
     port_df = load_portfolio()
     port_stocks = [str(sym).upper().strip() for sym in port_df['Symbol'].tolist() if str(sym).strip() != ""]
     base_stocks = NIFTY_50.copy() + FNO_STOCKS + MIDCAP_150 + SMALLCAP_250
