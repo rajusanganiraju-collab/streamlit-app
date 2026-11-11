@@ -10289,6 +10289,7 @@ def render_live_ui():
             df_filtered = pd.DataFrame(columns=df_filtered.columns)
 
     # 🔥 UNIFIED SORTING: Watchlist Table & Charts 100% Same Order
+    _mkt_side = "BUY"
     if not df_filtered.empty:
         df_filtered = df_filtered.copy()
         df_filtered['Chg_Pts'] = np.where(
