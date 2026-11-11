@@ -24,13 +24,62 @@ def _get_gemini_api_key():
     except Exception:
         return ""
 
+@st.cache_data(ttl=86400, show_spinner=False)
+def _get_working_gemini_model(api_key):
+    """మీ API Key కి సపోర్ట్ చేసే లేటెస్ట్ ఫాస్ట్ Gemini మోడల్‌ని ఆటోమేటిక్‌గా గుర్తిస్తుంది"""
+    try:
+        r = requests.get(f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}", timeout=8)
+        if r.status_code == 200:
+            models = r.json().get("models", [])
+            valid = [
+                m["name"].replace("models/", "") for m in models
+                if "generateContent" in m.get("supportedGenerationMethods", [])
+                and "gemini" in m.get("name", "").lower()
+                and not any(x in m.get("name", "").lower() for x in ("vision", "embedding", "imagen", "tts", "audio"))
+            ]
+            # Flash మోడల్స్‌కి మొదటి ప్రాధాన్యత (ఫాస్ట్ రెస్పాన్స్ కోసం)
+            for pref in ("gemini-flash-latest", "gemini-3.0-flash", "gemini-2.5-flash", "gemini-2.0-flash"):
+                for v in valid:
+                    if pref in v:
+                        return v
+            flash_list = [v for v in valid if "flash" in v]
+            if flash_list:
+                return flash_list[-1]
+            if valid:
+                return valid[-1]
+    except Exception:
+        pass
+    return "gemini-flash-latest"
+
+def _call_gemini_api(prompt, json_mode=False):
+    api_key = _get_gemini_api_key()
+    if not api_key:
+        return False, "⚠️ .streamlit/secrets.toml లో [gemini] api_key కనిపించలేదు!"
+
+    model_name = _get_working_gemini_model(api_key)
+    gen_cfg = {"temperature": 0.1 if json_mode else 0.2}
+    if json_mode:
+        gen_cfg["responseMimeType"] = "application/json"
+
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": gen_cfg
+    }
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+    try:
+        r = requests.post(url, json=payload, timeout=15)
+        if r.status_code == 200:
+            txt = r.json()["candidates"][0]["content"]["parts"][0]["text"]
+            return True, txt.strip()
+        # ఒకవేళ క్యాష్ అయిన మోడల్ పనిచేయకపోతే క్యాష్ క్లియర్ చేసి మళ్ళీ ట్రై చేస్తుంది
+        _get_working_gemini_model.clear()
+        return False, f"⚠️ AI API Error ({r.status_code}): {r.text[:120]}"
+    except Exception as e:
+        return False, f"⚠️ Network Error: {str(e)[:80]}"
+
 @st.cache_data(ttl=300, show_spinner=False)
 def gemini_stock_sniper_verdict(sym, ltp, day_c, vwap, ema10, rvol, bull_p, atr, strat_tag, news_hl=""):
     """స్టాక్ యొక్క 5m VWAP, Volume, Order-Flow మరియు News విశ్లేషించి తెలుగులో ట్రేడ్ ప్లాన్ ఇస్తుంది"""
-    api_key = _get_gemini_api_key()
-    if not api_key:
-        return "⚠️ .streamlit/secrets.toml లో [gemini] api_key కనిపించలేదు!"
-
     prompt = (
         f"You are an elite NSE Intraday & Swing Quant Trader. Analyze this live stock setup and reply in crisp Telugu (3 short bullet points only):\n"
         f"Stock: {sym} | LTP: ₹{ltp:.2f} ({day_c:+.2f}%) | 5m VWAP: ₹{vwap:.2f} | 5m EMA10: ₹{ema10:.2f}\n"
@@ -41,27 +90,32 @@ def gemini_stock_sniper_verdict(sym, ltp, day_c, vwap, ema10, rvol, bull_p, atr,
         f"2. ⚡ ట్రేడ్ లెవెల్స్: (ఎంట్రీ, స్టాప్-లాస్ SL మరియు టార్గెట్ T1/T2)\n"
         f"3. ⚠️ రిస్క్ అలర్ట్: (ఏ ధర కంటే కింద/పైన ట్రేడ్ అవాయిడ్ చేయాలి?)"
     )
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.2}
-    }
-    try:
-        r = requests.post(url, json=payload, timeout=12)
-        if r.status_code == 200:
-            j = r.json()
-            txt = j["candidates"][0]["content"]["parts"][0]["text"]
-            return txt.strip().replace("\n", "<br>")
-        return f"⚠️ AI API Error ({r.status_code}): {r.text[:100]}"
-    except Exception as e:
-        return f"⚠️ Network Error: {str(e)[:80]}"
+    ok, res = _call_gemini_api(prompt, json_mode=False)
+    return res.replace("\n", "<br>") if ok else res
 
 @st.cache_data(ttl=600, show_spinner=False)
 def gemini_batch_domino_news(headlines_tuple):
     """బ్రేకింగ్ న్యూస్ హెడ్‌లైన్స్ చదివి ఏ స్టాక్ పెరుగుతుందో (Winner), ఏది పడుతుందో (Victim) JSON లో ఇస్తుంది"""
-    api_key = _get_gemini_api_key()
-    if not api_key or not headlines_tuple:
+    if not headlines_tuple:
         return []
+    joined_news = "\n".join([f"{i}. {h}" for i, h in enumerate(headlines_tuple[:10])])
+    prompt = (
+        "You are an Indian Stock Market (NSE) Domino-Effect & Supply-Chain Analyst.\n"
+        "Read these news headlines and return ONLY a valid JSON array of objects for headlines that impact NSE stocks.\n"
+        "Each object must have:\n"
+        '- "idx": integer index of the headline (0 to 9)\n'
+        '- "winners": array of uppercase NSE stock symbols (e.g. ["HAL", "BEL"]) that benefit\n'
+        '- "victims": array of uppercase NSE stock symbols (e.g. ["INDIGO", "ASIANPAINT"]) that get hurt\n'
+        '- "te_rule": 1-sentence Telugu explanation of why Winner rises and Victim falls.\n\n'
+        f"Headlines:\n{joined_news}"
+    )
+    ok, res = _call_gemini_api(prompt, json_mode=True)
+    if ok:
+        try:
+            return json.loads(res)
+        except Exception:
+            pass
+    return []
 
     joined_news = "\n".join([f"{i}. {h}" for i, h in enumerate(headlines_tuple[:10])])
     prompt = (
