@@ -9505,6 +9505,7 @@ def render_live_ui():
                 ai_strat_options = [
                     ADAPTIVE_STRAT,
                     "All Day Trading Moves 🚀",
+                    "🔬 CVD Flip Reversal (Before VWAP)",
                     NEWS_STRAT,
                     DOMINO_STRAT,
                     "🔥 First Hour Vol Breakout (ORB+VWAP)",
@@ -9969,6 +9970,7 @@ def render_live_ui():
         ai_strats_to_run = list(move_type_filter) if isinstance(move_type_filter, list) else [move_type_filter]
         if "All Day Trading Moves 🚀" in ai_strats_to_run:
             for _core_s in [
+                "🔬 CVD Flip Reversal (Before VWAP)",
                 "🔥 First Hour Vol Breakout (ORB+VWAP)",
                 "💥 Inside Bar Vol Breakout (NR7)",
                 "🧲 Intraday Dip & Support Bounce",
@@ -10012,6 +10014,68 @@ def render_live_ui():
                 if not _df_domino.empty:
                     all_dfs.append(_df_domino)
 
+            # 2C. 🔬 CVD FLIP REVERSAL (BEFORE VWAP CROSS — BALKRISIND 12:15 PM SETUP)
+            elif strat == "🔬 CVD Flip Reversal (Before VWAP)":
+                cvd_flip_rows = []
+                for idx_c, r_c in df_filtered.iterrows():
+                    ft_c = r_c['Fetch_T']
+                    df_h5 = processed_charts.get(ft_c, pd.DataFrame())
+                    if df_h5 is None or df_h5.empty or len(df_h5) < 8 or 'VWAP' not in df_h5.columns:
+                        continue
+                    _sess_c = (df_h5.index.to_series().diff() > pd.Timedelta(minutes=120)).cumsum()
+                    td_c = df_h5[_sess_c == _sess_c.iloc[-1]]
+                    if len(td_c) < 6:
+                        continue
+
+                    run_cvd = 0.0
+                    prev_st = None
+                    cvd_arr, abv_arr, del_arr = [], [], []
+                    for _, br in td_c.iterrows():
+                        o_b, h_b, l_b, c_b = float(br['Open']), float(br['High']), float(br['Low']), float(br['Close'])
+                        v_b = float(br.get('Volume', 0) or 0)
+                        vw_b = float(br.get('VWAP', c_b) or c_b)
+                        st_now = bool(c_b >= vw_b)
+                        if prev_st != st_now:
+                            run_cvd = 0.0
+                            prev_st = st_now
+                        rng_b = max(h_b - l_b, 0.001)
+                        body_b = (c_b - o_b) / rng_b
+                        wick_b = ((c_b - l_b) - (h_b - c_b)) / rng_b
+                        clv_b = max(0.05, min(0.95, 0.50 + 0.50 * (0.60 * body_b + 0.40 * wick_b)))
+                        b_vol = round(v_b * clv_b)
+                        s_vol = round(v_b - b_vol)
+                        d_vol = b_vol - s_vol
+                        run_cvd += d_vol
+                        cvd_arr.append(run_cvd)
+                        abv_arr.append(st_now)
+                        del_arr.append(d_vol)
+
+                    cur_cvd = cvd_arr[-1]
+                    cur_abv = abv_arr[-1]
+                    vwap_dist_pct = abs(float(r_c['P']) - float(r_c['VWAP'])) / max(float(r_c['VWAP']), 1.0) * 100.0
+
+                    # 🩸 CASE 1: TOP REVERSAL SHORT (Price still ABOVE VWAP after morning uptrend, but CVD flipped RED < 0!)
+                    if cur_abv and sum(abv_arr[-6:]) >= 5 and max(cvd_arr[:-1]) > 0 and cur_cvd < 0:
+                        rc_copy = r_c.copy()
+                        cvd_k = round(cur_cvd / 1000.0, 1)
+                        rc_copy['Strategy_Icon'] = "🩸 CVD-Flip TOP SELL"
+                        rc_copy['AlphaTag'] = f"🚨Pre-VWAP CVD:{cvd_k}K (+{vwap_dist_pct:.1f}% abv VWAP)"
+                        rc_copy['S'] = 36
+                        rc_copy['AI_Prob'] = 96
+                        cvd_flip_rows.append(rc_copy)
+
+                    # 🚀 CASE 2: BOTTOM REVERSAL BUY (Price still BELOW VWAP after morning downtrend, but CVD flipped GREEN > 0!)
+                    elif (not cur_abv) and sum(1 for x in abv_arr[-6:] if not x) >= 5 and min(cvd_arr[:-1]) < 0 and cur_cvd > 0:
+                        rc_copy = r_c.copy()
+                        cvd_k = round(cur_cvd / 1000.0, 1)
+                        rc_copy['Strategy_Icon'] = "🚀 CVD-Flip BOT BUY"
+                        rc_copy['AlphaTag'] = f"🚨Pre-VWAP CVD:+{cvd_k}K (-{vwap_dist_pct:.1f}% blw VWAP)"
+                        rc_copy['S'] = 36
+                        rc_copy['AI_Prob'] = 96
+                        cvd_flip_rows.append(rc_copy)
+
+                if cvd_flip_rows:
+                    all_dfs.append(pd.DataFrame(cvd_flip_rows))
             # 3. 🔥 FIRST HOUR VOL BREAKOUT (ORB + VWAP)
             elif strat == "🔥 First Hour Vol Breakout (ORB+VWAP)":
                 orb_vol = df_filtered['VolX'] >= 1.5
