@@ -7447,35 +7447,49 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 if 'SMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_10'], mode='lines', line=dict(color='#FFD700', width=1.3), showlegend=False, hoverinfo='skip'), **rc)
                 if 'SMA_40' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_40'], mode='lines', line=dict(color='#FF4500', width=1.6), showlegend=False, hoverinfo='skip'), **rc)
             else:
-                tag_pos = max(0, int(n_bars * 0.60))
+                # 🔥 NEWS CHART STYLE SMOOTH EMA_10 & VWAP LINE (TODAY'S SESSION)
+                df_chart['EMA_10'] = df_chart['Close'].ewm(span=10, adjust=False).mean()
+                tag_pos = max(0, int(n_bars * 0.56))
                 tag_idx = x_idx[tag_pos]
-                last_close = float(df_chart['Close'].iloc[-1])
                 has_vwap = 'VWAP' in df_chart.columns
                 has_ema = 'EMA_10' in df_chart.columns
-                last_vwap = float(df_chart['VWAP'].iloc[-1]) if has_vwap else 0
-                last_ema = float(df_chart['EMA_10'].iloc[-1]) if has_ema else 0
-                tag_y_vwap = float(df_chart['VWAP'].iloc[tag_pos]) if has_vwap else 0
-                tag_y_ema = float(df_chart['EMA_10'].iloc[tag_pos]) if has_ema else 0
+                last_vwap = float(df_chart['VWAP'].iloc[-1]) if has_vwap else 0.0
+                last_ema = float(df_chart['EMA_10'].iloc[-1]) if has_ema else 0.0
+                tag_y_vwap = float(df_chart['VWAP'].iloc[tag_pos]) if has_vwap else 0.0
+                tag_y_ema = float(df_chart['EMA_10'].iloc[tag_pos]) if has_ema else 0.0
 
-                v_anchor = "bottom" if last_close <= last_vwap else "top"
-                e_anchor = "bottom" if last_close <= last_ema else "top"
-                v_shift = 5 if v_anchor == "bottom" else -5
-                e_shift = 5 if e_anchor == "bottom" else -5
-
-                if has_vwap and has_ema and abs(tag_y_vwap - tag_y_ema) / (tag_y_vwap + 0.001) < 0.008:
+                # News చార్ట్‌లో లాగా V: మరియు E: ట్యాగ్స్ కరెక్ట్‌గా లైన్ మీదే కూర్చునేలా (దగ్గరగా ఉంటే మాత్రమే ±6.5px జరుపుతుంది)
+                v_shift, e_shift = 0, 0
+                if has_vwap and has_ema and abs(tag_y_vwap - tag_y_ema) / max(max_val - min_val, 0.001) < 0.10:
                     if tag_y_vwap >= tag_y_ema:
-                        v_anchor, v_shift = "bottom", 5
-                        e_anchor, e_shift = "top", -5
+                        v_shift, e_shift = 6, -6
                     else:
-                        v_anchor, v_shift = "top", -5
-                        e_anchor, e_shift = "bottom", 5
+                        v_shift, e_shift = -6, 6
 
                 if has_vwap:
-                    fig.add_trace(go.Scatter(x=x_idx, y=df_chart['VWAP'], mode='lines', line=dict(color='#FFD700', width=1.4, dash='dot'), showlegend=False, hoverinfo='skip'), **rc)
-                    fig.add_annotation(x=tag_idx, y=tag_y_vwap, text=f"V:{last_vwap:.1f}", showarrow=False, xanchor="right", yanchor=v_anchor, yshift=v_shift, font=dict(color="#161b22", size=8.5, family="monospace", weight="bold"), bgcolor="#FFD700", borderpad=1, **rc)
+                    fig.add_trace(go.Scatter(
+                        x=x_idx, y=df_chart['VWAP'], mode='lines',
+                        line=dict(color='#FFD700', width=1.5, dash='3px,3px', shape='spline', smoothing=0.8),
+                        showlegend=False, hoverinfo='skip'
+                    ), **rc)
+                    fig.add_annotation(
+                        x=tag_idx, y=tag_y_vwap, text=f"V:{last_vwap:.1f}",
+                        showarrow=False, xanchor="left", yanchor="middle", yshift=v_shift,
+                        font=dict(color="#161b22", size=8.5, family="monospace", weight="bold"),
+                        bgcolor="#FFD700", borderpad=1.5, **rc
+                    )
                 if has_ema:
-                    fig.add_trace(go.Scatter(x=x_idx, y=df_chart['EMA_10'], mode='lines', line=dict(color='#00BFFF', width=1.4, dash='dash'), showlegend=False, hoverinfo='skip'), **rc)
-                    fig.add_annotation(x=tag_idx, y=tag_y_ema, text=f"E:{last_ema:.1f}", showarrow=False, xanchor="right", yanchor=e_anchor, yshift=e_shift, font=dict(color="#161b22", size=8.5, family="monospace", weight="bold"), bgcolor="#00BFFF", borderpad=1, **rc)
+                    fig.add_trace(go.Scatter(
+                        x=x_idx, y=df_chart['EMA_10'], mode='lines',
+                        line=dict(color='#00BFFF', width=1.5, dash='5px,3px', shape='spline', smoothing=0.8),
+                        showlegend=False, hoverinfo='skip'
+                    ), **rc)
+                    fig.add_annotation(
+                        x=tag_idx, y=tag_y_ema, text=f"E:{last_ema:.1f}",
+                        showarrow=False, xanchor="left", yanchor="middle", yshift=e_shift,
+                        font=dict(color="#161b22", size=8.5, family="monospace", weight="bold"),
+                        bgcolor="#00BFFF", borderpad=1.5, **rc
+                    )
 
             if show_vol and 'Volume' in df_chart.columns:
                 vol_colors = [
