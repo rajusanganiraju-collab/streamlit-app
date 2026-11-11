@@ -8094,6 +8094,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     vol_sma20_s = df_p['Volume'].fillna(0).rolling(20, min_periods=1).mean() if 'Volume' in df_p.columns else pd.Series(1.0, index=df_p.index)
     running_cvd = 0.0
     prev_day_date = None
+    prev_vwap_state = None
     seen_ts = set()
 
     for idx_i, (dt_idx, r) in enumerate(df_p.iterrows()):
@@ -8108,29 +8109,29 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         spd_candles_js.append({'time': ts, 'open': o, 'high': h, 'low': l, 'close': c, 'color': sc, 'wickColor': sc, 'borderColor': sc})
         vol_js.append({'time': ts, 'value': v, 'color': 'rgba(20, 184, 166, 0.45)' if c >= o else 'rgba(239, 68, 68, 0.45)'})
 
-        # 🔬 ORDER FLOW: WICK-REJECTION DELTA & 5-CANDLE CVD TREND
+        # 🔬 ORDER FLOW: VWAP CROSS RESET TO 0 + GREEN UNTIL MINUS (< 0)
         cur_day_date = pd.Timestamp(dt_idx).date()
-        if prev_day_date != cur_day_date:
+        vwap_val = float(r.get('VWAP', c)) if pd.notna(r.get('VWAP', c)) else c
+        is_above_vwap = bool(c >= vwap_val)
+
+        # 🔥 కొత్త రోజు మొదలైనా లేదా ధర VWAP పైకి/కిందకి రివర్స్ అయినా CVD మళ్ళీ 0 నుండి కొత్తగా మొదలవుతుంది!
+        if (prev_day_date != cur_day_date) or (prev_vwap_state != is_above_vwap):
             running_cvd = 0.0
-            cvd_ema5 = 0.0
             prev_day_date = cur_day_date
+            prev_vwap_state = is_above_vwap
 
         rng_hl = max(h - l, 0.001)
-        # 75% వెయిటేజ్ క్యాండిల్ High-Low లో ఎక్కడ క్లోజ్ అయ్యింది (Wick Rejection) అనేదానికే ఇస్తుంది
-        wick_loc = ((c - l) - (h - c)) / rng_hl
         body_loc = (c - o) / rng_hl
-        clv_ratio = max(0.05, min(0.95, 0.50 + 0.50 * (0.75 * wick_loc + 0.25 * body_loc)))
+        wick_loc = ((c - l) - (h - c)) / rng_hl
+        clv_ratio = max(0.05, min(0.95, 0.50 + 0.50 * (0.60 * body_loc + 0.40 * wick_loc)))
         buy_v = round(v * clv_ratio)
         sell_v = round(v - buy_v)
         delta_v = buy_v - sell_v
+
         running_cvd += delta_v
 
-        # 🔥 5-Candle CVD EMA (ఒక్క క్యాండిల్ గ్రీన్ పడినా CVD కలర్ మారిపోకుండా అసలు ట్రెండ్ చూపిస్తుంది)
-        if idx_i == 0 or running_cvd == delta_v:
-            cvd_ema5 = running_cvd
-        else:
-            cvd_ema5 = (running_cvd * (2.0 / 6.0)) + (cvd_ema5 * (4.0 / 6.0))
-        is_cvd_uptrend = bool(running_cvd >= cvd_ema5)
+        # 🔥 CVD మైనస్ (< 0) అయ్యే వరకు GREEN (True), మైనస్ అయితేనే RED (False)
+        is_cvd_positive = bool(running_cvd >= 0)
 
         top_p = round(h - rng_hl * 0.18, 2)
         mid_p = round((h + l) / 2.0, 2)
@@ -8141,7 +8142,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         of_footprint_js.append({
             'time': ts, 'o': o, 'h': h, 'l': l, 'c': c, 'v': round(v),
             'buy': int(buy_v), 'sell': int(sell_v),
-            'delta': int(delta_v), 'cvd': int(running_cvd), 'cvd_up': is_cvd_uptrend,
+            'delta': int(delta_v), 'cvd': int(running_cvd), 'cvd_up': is_cvd_positive,
             'anchor': is_anchor, 'poc': round((o + c + mid_p) / 3.0, 2),
             'lvls': [
                 {'p': top_p, 's': int(sell_v * 0.42), 'b': int(buy_v * 0.25)},
@@ -8757,7 +8758,9 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                     if (visCount <= 40) {{
                         const dCol = item.delta >= 0 ? '#4ade80' : '#f87171';
                         // 🔥 CVD కలర్ ఇప్పుడు క్యాండిల్ కలర్‌ని కాకుండా 5-క్యాండిల్స్ CVD ట్రెండ్‌ని చూపిస్తుంది!
-                        const cvdCol = item.cvd_up ? '#38bdf8' : '#f87171';
+                        const dCol = item.delta >= 0 ? '#4ade80' : '#f87171';
+                        // 🔥 CVD మైనస్ (< 0) అయ్యే వరకు GREEN (#4ade80), మైనస్ అయితేనే RED (#f87171)
+                        const cvdCol = item.cvd >= 0 ? '#4ade80' : '#f87171';
                         svgHtml += `<text x="${{cx}}" y="${{tblTop + 12}}" fill="${{dCol}}" font-size="8.5" font-family="monospace" font-weight="bold" text-anchor="middle">${{fmtK(item.delta)}}</text>`;
                         svgHtml += `<text x="${{cx}}" y="${{tblTop + 29}}" fill="${{cvdCol}}" font-size="8.5" font-family="monospace" font-weight="bold" text-anchor="middle">${{fmtK(item.cvd)}}</text>`;
 
@@ -9256,8 +9259,8 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             const vStr = v > 0 ? (v >= 1000000 ? '&nbsp;Vol <b>'+(v/1000000).toFixed(2)+'M</b>' : '&nbsp;Vol <b>'+(v/1000).toFixed(1)+'K</b>') : '';
             const tStr = fmtIST(bar.time);
             const ofBar = ofMap[bar.time];
-            const ofCvdCol = (ofBar && !ofBar.cvd_up) ? '#f87171' : '#38bdf8';
-            const ofCvdArr = (ofBar && !ofBar.cvd_up) ? '↓' : '↑';
+            const ofCvdCol = (ofBar && ofBar.cvd < 0) ? '#f87171' : '#4ade80';
+            const ofCvdArr = (ofBar && ofBar.cvd < 0) ? '↓' : '↑';
             const ofStr = ofBar ? ` &nbsp;|&nbsp; <span style="color:#4ade80;">Buy:<b>${{(ofBar.buy/1000).toFixed(1)}}K</b></span> <span style="color:#f87171;">Sell:<b>${{(ofBar.sell/1000).toFixed(1)}}K</b></span> <span style="color:${{ofBar.delta>=0?'#4ade80':'#f87171'}};">Δ:<b>${{ofBar.delta>=0?'+':''}}${{(ofBar.delta/1000).toFixed(1)}}K</b></span> <span style="color:${{ofCvdCol}};">CVD:<b>${{(ofBar.cvd/1000).toFixed(1)}}K${{ofCvdArr}}</b></span>` : '';
         ohlcBox.innerHTML = `🕒 <b>${{tStr}}</b> &nbsp; O<b>${{bar.open}}</b> H<b>${{bar.high}}</b> L<b>${{bar.low}}</b> C<b>${{bar.close}}</b> <span style="color:${{col}};font-weight:bold;">${{chg>=0?'+'+chg:chg}} (${{pct>=0?'+'+pct:pct}}%)</span> ${{vStr}}${{ofStr}}`;
         }}
