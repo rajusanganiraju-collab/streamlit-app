@@ -8108,23 +8108,30 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         spd_candles_js.append({'time': ts, 'open': o, 'high': h, 'low': l, 'close': c, 'color': sc, 'wickColor': sc, 'borderColor': sc})
         vol_js.append({'time': ts, 'value': v, 'color': 'rgba(20, 184, 166, 0.45)' if c >= o else 'rgba(239, 68, 68, 0.45)'})
 
-        # 🔬 ORDER FLOW: BUY vs SELL SPLIT, DELTA, CUMULATIVE DELTA (CVD) & 3x ANCHOR ZONES
+        # 🔬 ORDER FLOW: WICK-REJECTION DELTA & 5-CANDLE CVD TREND
         cur_day_date = pd.Timestamp(dt_idx).date()
         if prev_day_date != cur_day_date:
             running_cvd = 0.0
+            cvd_ema5 = 0.0
             prev_day_date = cur_day_date
 
         rng_hl = max(h - l, 0.001)
-        # True Institutional Body + Wick Order-Flow Split (Unbiased)
-        body_pressure = (c - o) / rng_hl
-        wick_pressure = ((c - l) - (h - c)) / rng_hl
-        clv_ratio = max(0.05, min(0.95, 0.50 + 0.50 * (0.60 * body_pressure + 0.40 * wick_pressure)))
+        # 75% వెయిటేజ్ క్యాండిల్ High-Low లో ఎక్కడ క్లోజ్ అయ్యింది (Wick Rejection) అనేదానికే ఇస్తుంది
+        wick_loc = ((c - l) - (h - c)) / rng_hl
+        body_loc = (c - o) / rng_hl
+        clv_ratio = max(0.05, min(0.95, 0.50 + 0.50 * (0.75 * wick_loc + 0.25 * body_loc)))
         buy_v = round(v * clv_ratio)
         sell_v = round(v - buy_v)
         delta_v = buy_v - sell_v
         running_cvd += delta_v
 
-        # 3-Level Price Footprint inside the candle (Top Wick, Mid Body, Bottom Wick)
+        # 🔥 5-Candle CVD EMA (ఒక్క క్యాండిల్ గ్రీన్ పడినా CVD కలర్ మారిపోకుండా అసలు ట్రెండ్ చూపిస్తుంది)
+        if idx_i == 0 or running_cvd == delta_v:
+            cvd_ema5 = running_cvd
+        else:
+            cvd_ema5 = (running_cvd * (2.0 / 6.0)) + (cvd_ema5 * (4.0 / 6.0))
+        is_cvd_uptrend = bool(running_cvd >= cvd_ema5)
+
         top_p = round(h - rng_hl * 0.18, 2)
         mid_p = round((h + l) / 2.0, 2)
         bot_p = round(l + rng_hl * 0.18, 2)
@@ -8134,7 +8141,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         of_footprint_js.append({
             'time': ts, 'o': o, 'h': h, 'l': l, 'c': c, 'v': round(v),
             'buy': int(buy_v), 'sell': int(sell_v),
-            'delta': int(delta_v), 'cvd': int(running_cvd),
+            'delta': int(delta_v), 'cvd': int(running_cvd), 'cvd_up': is_cvd_uptrend,
             'anchor': is_anchor, 'poc': round((o + c + mid_p) / 3.0, 2),
             'lvls': [
                 {'p': top_p, 's': int(sell_v * 0.42), 'b': int(buy_v * 0.25)},
@@ -8748,11 +8755,9 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
 
                     // 3. Delta & Cumulative Delta Values per Candle (When <= 40 candles visible)
                     if (visCount <= 40) {{
-                        const prevCvd = i > 0 ? ofData[i - 1].cvd : 0;
-                        const isCvdFalling = item.cvd < prevCvd;
                         const dCol = item.delta >= 0 ? '#4ade80' : '#f87171';
-                        // 🔥 CVD తగ్గుతుంటే (5.3L -> 4.9L -> 4.0L) వెంటనే RED కలర్, పెరుగుతుంటే మాత్రమే GREEN/BLUE కలర్!
-                        const cvdCol = isCvdFalling ? '#f87171' : (item.cvd >= 0 ? '#38bdf8' : '#fb7185');
+                        // 🔥 CVD కలర్ ఇప్పుడు క్యాండిల్ కలర్‌ని కాకుండా 5-క్యాండిల్స్ CVD ట్రెండ్‌ని చూపిస్తుంది!
+                        const cvdCol = item.cvd_up ? '#38bdf8' : '#f87171';
                         svgHtml += `<text x="${{cx}}" y="${{tblTop + 12}}" fill="${{dCol}}" font-size="8.5" font-family="monospace" font-weight="bold" text-anchor="middle">${{fmtK(item.delta)}}</text>`;
                         svgHtml += `<text x="${{cx}}" y="${{tblTop + 29}}" fill="${{cvdCol}}" font-size="8.5" font-family="monospace" font-weight="bold" text-anchor="middle">${{fmtK(item.cvd)}}</text>`;
 
@@ -9251,8 +9256,8 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             const vStr = v > 0 ? (v >= 1000000 ? '&nbsp;Vol <b>'+(v/1000000).toFixed(2)+'M</b>' : '&nbsp;Vol <b>'+(v/1000).toFixed(1)+'K</b>') : '';
             const tStr = fmtIST(bar.time);
             const ofBar = ofMap[bar.time];
-            const ofCvdCol = (ofBar && ofBar.delta < 0) ? '#f87171' : '#38bdf8';
-            const ofCvdArr = (ofBar && ofBar.delta < 0) ? '↓' : '↑';
+            const ofCvdCol = (ofBar && !ofBar.cvd_up) ? '#f87171' : '#38bdf8';
+            const ofCvdArr = (ofBar && !ofBar.cvd_up) ? '↓' : '↑';
             const ofStr = ofBar ? ` &nbsp;|&nbsp; <span style="color:#4ade80;">Buy:<b>${{(ofBar.buy/1000).toFixed(1)}}K</b></span> <span style="color:#f87171;">Sell:<b>${{(ofBar.sell/1000).toFixed(1)}}K</b></span> <span style="color:${{ofBar.delta>=0?'#4ade80':'#f87171'}};">Δ:<b>${{ofBar.delta>=0?'+':''}}${{(ofBar.delta/1000).toFixed(1)}}K</b></span> <span style="color:${{ofCvdCol}};">CVD:<b>${{(ofBar.cvd/1000).toFixed(1)}}K${{ofCvdArr}}</b></span>` : '';
         ohlcBox.innerHTML = `🕒 <b>${{tStr}}</b> &nbsp; O<b>${{bar.open}}</b> H<b>${{bar.high}}</b> L<b>${{bar.low}}</b> C<b>${{bar.close}}</b> <span style="color:${{col}};font-weight:bold;">${{chg>=0?'+'+chg:chg}} (${{pct>=0?'+'+pct:pct}}%)</span> ${{vStr}}${{ofStr}}`;
         }}
