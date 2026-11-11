@@ -3022,10 +3022,59 @@ def _detect_5m_cvd_flips(df_5m):
                 bear_flips.append(idx_i)  # 🔻 CVD Red Flip (Candle పైన)
 
     return bull_flips, bear_flips
+def _detect_5m_cvd_flips(df_5m):
+    """5m డేటాలో కనీసం 3 క్యాండిల్స్ ఒకే వైపు ఉండి ఫ్లిప్ అయిన నిజమైన Bull (❇️) & Bear (🔻) క్యాండిల్స్ మాత్రమే ఇస్తుంది"""
+    bull_flips, bear_flips = [], []
+    if df_5m is None or df_5m.empty or len(df_5m) < 4:
+        return bull_flips, bear_flips
+
+    running_cvd = 0.0
+    prev_day = None
+    prev_vwap_state = None
+    wave_cvds = []
+
+    for idx_i, (dt_idx, r) in enumerate(df_5m.iterrows()):
+        o = float(r.get('Open', 0) or 0)
+        h = float(r.get('High', 0) or 0)
+        l = float(r.get('Low', 0) or 0)
+        c = float(r.get('Close', 0) or 0)
+        v = float(r.get('Volume', 0) or 0)
+        vwap_v = float(r.get('VWAP', c) or c)
+
+        cur_day = pd.Timestamp(dt_idx).date()
+        is_above_vwap = bool(c >= vwap_v)
+        is_reset = (prev_day != cur_day) or (prev_vwap_state != is_above_vwap)
+
+        if is_reset:
+            running_cvd = 0.0
+            wave_cvds = []
+            prev_day = cur_day
+            prev_vwap_state = is_above_vwap
+
+        rng_hl = max(h - l, 0.001)
+        body_loc = (c - o) / rng_hl
+        wick_loc = ((c - l) - (h - c)) / rng_hl
+        clv_ratio = max(0.05, min(0.95, 0.50 + 0.50 * (0.60 * body_loc + 0.40 * wick_loc)))
+        buy_v = round(v * clv_ratio)
+        sell_v = round(v - buy_v)
+        delta_v = buy_v - sell_v
+        running_cvd += delta_v
+
+        if len(wave_cvds) >= 3:
+            if wave_cvds[-1] < 0 and wave_cvds[-2] < 0 and wave_cvds[-3] < 0 and running_cvd > 0:
+                bull_flips.append(idx_i)  # ❇️ True Green Flip (Candle కింద)
+            elif wave_cvds[-1] > 0 and wave_cvds[-2] > 0 and wave_cvds[-3] > 0 and running_cvd < 0:
+                bear_flips.append(idx_i)  # 🔻 True Red Flip (Candle పైన)
+
+        wave_cvds.append(running_cvd)
+
+    return bull_flips, bear_flips
+
+
 def _build_inline_mini_chart_html(
     stk_sym, stock_row=None, df_5m=None, cat_label=""
 ):
-    """Renders the 5m Mini-Chart (Candles + VWAP V: + EMA10 E: + Vol) ALWAYS OPEN inline inside the table cell!"""
+    """Renders the 5m Mini-Chart (Candles + VWAP V: + EMA10 E: + CVD Flip Emojis + Vol) ALWAYS OPEN inline inside the table cell!"""
     clean_sym = str(stk_sym).replace(".NS", "").strip()
     ft = f"{clean_sym}.NS"
 
@@ -3100,8 +3149,8 @@ def _build_inline_mini_chart_html(
         float(d["High"].max()), float(d["VWAP"].max()), float(d["EMA_10"].max())
     )
     y_rng = max(y_max - y_min, ltp * 0.002)
-    y_low = y_min - y_rng * 0.10
-    y_high = y_max + y_rng * 0.12
+    y_low = y_min - y_rng * 0.14
+    y_high = y_max + y_rng * 0.14
 
     W, H_svg = 345, 165
     p_top, p_bot = 6, 126
@@ -3155,10 +3204,12 @@ def _build_inline_mini_chart_html(
         b_h = max(1.5, abs(yc - yo))
 
         svg_elems.append(
-            f"<line x1='{cx}' y1='{yh}' x2='{cx}' y2='{yl}' stroke='{c_col}' stroke-width='1.1'/>"
+            f"<line x1='{cx}' y1='{yh}' x2='{cx}' y2='{yl}' stroke='{c_col}'"
+            " stroke-width='1.1'/>"
         )
         svg_elems.append(
-            f"<rect x='{round(cx - bar_w/2, 1)}' y='{b_top}' width='{round(bar_w, 1)}' height='{b_h}' fill='{c_col}'/>"
+            f"<rect x='{round(cx - bar_w/2, 1)}' y='{b_top}'"
+            f" width='{round(bar_w, 1)}' height='{b_h}' fill='{c_col}'/>"
         )
 
         # 🎯 Mini-Chart CVD Flip Emojis (❇️ Candle కింద / 🔻 Candle పైన)
@@ -3180,11 +3231,14 @@ def _build_inline_mini_chart_html(
                 else (
                     "#FF0000"
                     if c_col == "#FF0000"
-                    else ("rgba(46,160,67,0.45)" if is_bull else "rgba(218,54,51,0.45)")
+                    else (
+                        "rgba(46,160,67,0.45)" if is_bull else "rgba(218,54,51,0.45)"
+                    )
                 )
             )
             svg_elems.append(
-                f"<rect x='{round(cx - bar_w/2, 1)}' y='{vy}' width='{round(bar_w, 1)}' height='{round(vh, 1)}' fill='{v_col}'/>"
+                f"<rect x='{round(cx - bar_w/2, 1)}' y='{vy}'"
+                f" width='{round(bar_w, 1)}' height='{round(vh, 1)}' fill='{v_col}'/>"
             )
 
         vwap_pts.append(f"{cx},{py(vw_v)}")
