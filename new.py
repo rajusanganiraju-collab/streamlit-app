@@ -4041,18 +4041,106 @@ def _build_strategy_news_feed_records(df_strat_stocks, processed_charts):
     return records
 
 
+@st.cache_data(ttl=600, show_spinner=False)
+def gemini_batch_news_card_verdicts(items_tuple):
+    """News & Strategy కార్డుల్లోని స్టాక్స్ అన్నింటికీ ఒకేసారి Gemini AI తెలుగు ట్రేడ్ సలహా ఇస్తుంది"""
+    if not items_tuple:
+        return {}
+    out_map = {}
+
+    # ఒక్కో బ్యాచ్‌లో 10 స్టాక్స్ చొప్పున పంపడం వల్ల ఫాస్ట్‌గా సమాధానం వస్తుంది
+    for i in range(0, min(len(items_tuple), 20), 10):
+        chunk = items_tuple[i : i + 10]
+        lines = []
+        for idx, (stk, sig, cat, ltp, day_c, vol_x, hl_te, qres_txt, mkt_te) in enumerate(chunk):
+            lines.append(
+                f"{idx}. Stock: {stk} | Signal: {sig} ({cat}) | LTP: ₹{ltp:.2f} ({day_c:+.2f}%) | Vol: {vol_x:.1f}x\n"
+                f"   News: {hl_te[:140]}\n"
+                f"   Q-Results: {qres_txt[:180] if qres_txt else 'N/A'}\n"
+                f"   Levels: {mkt_te[:180]}"
+            )
+        prompt = (
+            "You are an elite NSE Intraday & Swing Quant Analyst. Analyze each stock below by combining its "
+            "5m VWAP/EMA position, Volume (RVOL), Q-Results (Beat/Miss), and News.\n"
+            "Return ONLY a valid JSON object where the key is the exact Stock symbol (e.g. \"RECLTD\") and the value is a "
+            "crisp 2-line Telugu trade verdict covering:\n"
+            "1) 🎯 ట్రెండ్ & రిజల్ట్ ఇంపాక్ట్ (నిజమైన ఇన్‌స్టిట్యూషనల్ మూవ్ ఆ లేక ట్రాప్ ఆ? Q-Results/News కి ప్రైస్ ఎలా రియాక్ట్ అవుతోంది?)\n"
+            "2) ⚡ యాక్షన్ ప్లాన్ (ఏ ధర వద్ద ఎంట్రీ/హోల్డ్ చేయాలి & ఏ లెవెల్ కింద/పైన అవాయిడ్ చేయాలి?)\n\n"
+            + "\n".join(lines)
+        )
+        ok, res = _call_gemini_api(prompt, json_mode=True)
+        if ok:
+            try:
+                parsed = json.loads(res)
+                if isinstance(parsed, dict):
+                    for k, v in parsed.items():
+                        out_map[str(k).upper().strip()] = str(v).strip().replace("\n", "<br>")
+            except Exception:
+                pass
+    return out_map
+
+
+def _fallback_quant_verdict_te(r, qres_plain):
+    """ఒకవేళ API బిజీగా ఉన్నా లేదా 20వ స్టాక్ దాటినా ఖాళీగా రాకుండా ఇన్‌స్టంట్ క్వాంట్ సలహా ఇస్తుంది"""
+    is_buy = "BUY" in str(r.get("Signal", ""))
+    vol_x = float(r.get("VolX", 1.0))
+    day_c = float(r.get("Day%", 0.0))
+    has_miss = "MISS" in qres_plain or "BELOW" in qres_plain
+    has_beat = "BEAT" in qres_plain
+
+    if is_buy:
+        if has_miss:
+            t_msg = f"Q-Results అంచనాలను మిస్ అయినప్పటికీ, మార్కెట్ దాన్ని పట్టించుకోకుండా {vol_x:.1f}x భారీ వాల్యూమ్‌తో VWAP పైన బుల్లిష్‌గా ట్రేడ్ అవుతోంది (Strong Absorption)."
+        elif has_beat:
+            t_msg = f"బలమైన Q-Results (BEAT) + {vol_x:.1f}x ఇన్‌స్టిట్యూషనల్ వాల్యూమ్‌తో స్టాక్ VWAP & 10-EMA పైన పక్కా బ్రేక్అవుట్ మూవ్‌లో ఉంది."
+        else:
+            t_msg = f"సాధారణం కంటే {vol_x:.1f}x రెట్ల వాల్యూమ్‌తో ({day_c:+.2f}%) బయ్యర్ల ఆధిపత్యంలో VWAP పైన స్ట్రాంగ్‌గా ట్రేడ్ అవుతోంది."
+        act_msg = "పైన ఇచ్చిన SL (స్టాప్-లాస్) ఖచ్చితంగా మెయింటైన్ చేస్తూ VWAP పైన ఉన్నంతవరకు BUY / HOLD కొనసాగించవచ్చు."
+    else:
+        if has_beat:
+            t_msg = f"Q-Results బాగున్నప్పటికీ పై లెవెల్స్‌లో ప్రాఫిట్ బుకింగ్ (Sell-on-News) వల్ల {vol_x:.1f}x వాల్యూమ్‌తో VWAP కింద బలహీనంగా ఉంది."
+        else:
+            t_msg = f"సెల్లర్స్ ఆధిపత్యం ({day_c:+.2f}%, Vol: {vol_x:.1f}x) వల్ల స్టాక్ VWAP మరియు 10-EMA కింద బేరిష్ ప్రెషర్‌లో ఉంది."
+        act_msg = "ధర తిరిగి VWAP పైన నిలబడే వరకు కొత్తగా BUY చేయవద్దు; పైన ఇచ్చిన SL తో మాత్రమే షార్ట్/సెల్ ప్లాన్ చేయండి."
+
+    return f"🎯 <b>ట్రెండ్ క్వాలిటీ:</b> {t_msg}<br>⚡ <b>వ్యూహం:</b> {act_msg}"
+
+
 def render_news_catalyst_banner(feed_records, banner_title=None):
-    """Renders Left 30% Default-Open Mini-Chart + Right 70% Full Telugu News, Q-Results & Technical Levels"""
+    """Renders Left 30% Default-Open Mini-Chart + Right 70% Full Telugu News, Q-Results, Technical Levels & Gemini AI Advice"""
     if not feed_records:
         return ""
-    rows_html = ""
-    seen = set()
+
+    # 1. Prepare batch input for Gemini AI
+    dedup_records = []
+    seen_prep = set()
+    batch_items = []
     for r in feed_records:
         stk = r["Stock"]
-        if stk in seen:
+        if stk in seen_prep:
             continue
-        seen.add(stk)
+        seen_prep.add(stk)
+        dedup_records.append(r)
+        qres_plain = _re.sub(r"<[^>]+>", " ", str(r.get("QRes_HTML", "") or "")).strip()
+        qres_plain = _re.sub(r"\s+", " ", qres_plain)
+        batch_items.append((
+            stk,
+            str(r.get("Signal", "")),
+            str(r.get("Catalyst", "")),
+            float(r.get("LTP", 0.0)),
+            float(r.get("Day%", 0.0)),
+            float(r.get("VolX", 1.0)),
+            str(r.get("Headline_TE", "")),
+            qres_plain,
+            str(r.get("Mkt_TE", ""))
+        ))
 
+    ai_batch_map = gemini_batch_news_card_verdicts(tuple(batch_items))
+    manual_ai_store = st.session_state.get("ai_verdict_store", {})
+
+    rows_html = ""
+    for r in dedup_records:
+        stk = r["Stock"]
         imp_badge_html = (
             "<span class='pro-pill-imp'>🔥 MOST IMPORTANT</span>"
             if r.get("Is_Imp")
@@ -4065,6 +4153,7 @@ def render_news_catalyst_banner(feed_records, banner_title=None):
         safe_mkt = _html.escape(r.get("Mkt_TE", ""))
         safe_en = _html.escape(r.get("Headline_EN", ""))
         qres_block = r.get("QRes_HTML", "")
+        qres_plain = _re.sub(r"<[^>]+>", " ", str(qres_block or ""))
 
         dtl_block = (
             f"<div class='pro-news-dtl'>🔹 <b>ముఖ్యాంశాలు:</b> {safe_dtl}</div>"
@@ -4072,6 +4161,22 @@ def render_news_catalyst_banner(feed_records, banner_title=None):
             else ""
         )
         mkt_block = f"<div class='pro-news-mkt'>{safe_mkt}</div>"
+
+        # 🧠 Gemini AI Advice Block (Uses Manual Store -> Batch Gemini AI -> Quant Fallback)
+        ai_verdict_html = (
+            manual_ai_store.get(stk)
+            or ai_batch_map.get(stk.upper())
+            or _fallback_quant_verdict_te(r, qres_plain)
+        )
+        ai_block = (
+            f"<div style='font-size:12.5px; color:#f1f5f9; margin-top:6px; "
+            f"background:linear-gradient(90deg, rgba(30,27,75,0.85) 0%, rgba(15,23,42,0.9) 100%); "
+            f"border:1px solid #4c1d95; border-left:3px solid #a855f7; "
+            f"padding:7px 10px; border-radius:0 6px 6px 0; line-height:1.55;'>"
+            f"<span style='color:#c084fc; font-weight:800; font-size:12.5px;'>🧠 Gemini AI ట్రేడ్ సలహా ({stk}):</span><br>"
+            f"{ai_verdict_html}</div>"
+        )
+
         chart_box = r.get("Inline_Chart") or _build_inline_mini_chart_html(stk)
 
         rows_html += (
@@ -4085,7 +4190,7 @@ def render_news_catalyst_banner(feed_records, banner_title=None):
             f" {r['VolX']:.1f}x</span>"
             f"<span class='pro-meta-chip' style='color:#ffd700;'>Score: {r['Score']}</span>"
             f"<span class='pro-time-badge'>🕒 {r['Age']}</span></div><div class='pro-news-hl'>📰"
-            f" {safe_te}</div>{qres_block}{dtl_block}{mkt_block}</div><div"
+            f" {safe_te}</div>{qres_block}{dtl_block}{mkt_block}{ai_block}</div><div"
             f" style='margin-top:8px;text-align:right;'><a href='{r['Link']}'"
             " target='_blank'"
             " style='color:#58a6ff;font-size:12px;text-decoration:none;font-weight:700;'>🔗"
@@ -4102,10 +4207,10 @@ def render_news_catalyst_banner(feed_records, banner_title=None):
         f" 100%);border-left:4px solid #38bdf8;'><span>{hdr_text}</span><span"
         " style='font-size:12px;color:#79c0ff;background:#161b22;padding:2px"
         " 9px;border-radius:12px;border:1px solid"
-        f" #30363d;'>{len(seen)} స్టాక్స్</span></div><table"
+        f" #30363d;'>{len(dedup_records)} స్టాక్స్</span></div><table"
         " class='pro-news-table'><thead><tr><th style='width:30%;'>📈 లైవ్ మినీ"
         " చార్ట్ (5m INTRADAY + VWAP + EMA)</th><th style='width:70%;'>📢"
-        " సిగ్నల్, Q-Results డేటా, ట్రేడ్ లెవెల్స్ & తెలుగు బ్రేకింగ్ న్యూస్"
+        " సిగ్నల్, Q-Results డేటా, ట్రేడ్ లెవెల్స్ & 🧠 GEMINI AI తెలుగు సలహా"
         "</th></tr></thead><tbody>"
         + rows_html
         + "</tbody></table></div>"
