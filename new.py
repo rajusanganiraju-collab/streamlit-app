@@ -8806,44 +8806,51 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                         }}
                     }}
 
-                    if (visCount <= 40) {{
+                    if (visCount <= 65) {{
                         const dCol = item.delta >= 0 ? '#4ade80' : '#f87171';
                         const cvdCol = item.cvd >= 0 ? '#4ade80' : '#f87171';
-                        svgHtml += `<text x="${{cx}}" y="${{tblTop + 12}}" fill="${{dCol}}" font-size="8.5" font-family="monospace" font-weight="bold" text-anchor="middle">${{fmtK(item.delta)}}</text>`;
-                        svgHtml += `<text x="${{cx}}" y="${{tblTop + 29}}" fill="${{cvdCol}}" font-size="8.5" font-family="monospace" font-weight="bold" text-anchor="middle">${{fmtK(item.cvd)}}</text>`;
+                        const fSize = visCount > 42 ? '7.2' : '8.5';
+                        svgHtml += `<text x="${{cx}}" y="${{tblTop + 12}}" fill="${{dCol}}" font-size="${{fSize}}" font-family="monospace" font-weight="bold" text-anchor="middle">${{fmtK(item.delta)}}</text>`;
+                        svgHtml += `<text x="${{cx}}" y="${{tblTop + 29}}" fill="${{cvdCol}}" font-size="${{fSize}}" font-family="monospace" font-weight="bold" text-anchor="middle">${{fmtK(item.cvd)}}</text>`;
 
                         if ((item.c > item.o && item.delta < 0) || (item.c < item.o && item.delta > 0)) {{
                             const yHigh = candleSeries.priceToCoordinate(item.h);
                             if (yHigh !== null) {{
-                                svgHtml += `<circle cx="${{cx}}" cy="${{Math.max(12, yHigh - 8)}}" r="4" fill="#facc15" stroke="#000" stroke-width="1"/>`;
-                                svgHtml += `<text x="${{cx}}" y="${{Math.max(10, yHigh - 14)}}" fill="#facc15" font-size="8" font-family="monospace" font-weight="bold" text-anchor="middle">TRAP</text>`;
+                                svgHtml += `<circle cx="${{cx}}" cy="${{Math.max(12, yHigh - 8)}}" r="3.5" fill="#facc15" stroke="#000" stroke-width="1"/>`;
+                                svgHtml += `<text x="${{cx}}" y="${{Math.max(10, yHigh - 14)}}" fill="#facc15" font-size="7.5" font-family="monospace" font-weight="bold" text-anchor="middle">TRAP</text>`;
                             }}
                         }}
                     }}
-                    // 🚨 PRE-VWAP CVD FLIP DETECTOR (Green Flip -> Candle కింద | Red Flip -> Candle పైన)
-                        const prevIt = i > 0 ? ofData[i - 1] : null;
-                        if (prevIt && !item.reset) {{
-                            // 🟢 CVD GREEN FLIP: క్యాండిల్ కింద (Below Low) గ్రీన్ యారో & బ్యాడ్జ్
-                            if (prevIt.cvd < 0 && item.cvd > 0 && item.cvd_up === true) {{
-                                const yLow = candleSeries.priceToCoordinate(item.l);
-                                if (yLow !== null) {{
-                                    const boxY = Math.min(tblTop - 15, yLow + 10);
-                                    svgHtml += `<polygon points="${{cx}},${{yLow + 2}} ${{cx - 5}},${{yLow + 9}} ${{cx + 5}},${{yLow + 9}}" fill="#22c55e" stroke="#ffd700" stroke-width="0.8"/>`;
-                                    svgHtml += `<rect x="${{cx - 25}}" y="${{boxY}}" width="50" height="12" rx="3" fill="#16a34a" stroke="#ffd700" stroke-width="1"/>`;
-                                    svgHtml += `<text x="${{cx}}" y="${{boxY + 9}}" fill="#ffffff" font-size="8" font-family="monospace" font-weight="bold" text-anchor="middle">▲CVD-FLIP</text>`;
-                                }}
-                            }}
-                            // 🔴 CVD RED FLIP: క్యాండిల్ పైన (Above High) రెడ్ యారో & బ్యాడ్జ్
-                            else if (prevIt.cvd > 0 && item.cvd < 0 && item.cvd_up === false) {{
-                                const yHigh = candleSeries.priceToCoordinate(item.h);
-                                if (yHigh !== null) {{
-                                    const boxY = Math.max(4, yHigh - 22);
-                                    svgHtml += `<polygon points="${{cx}},${{yHigh - 2}} ${{cx - 5}},${{yHigh - 9}} ${{cx + 5}},${{yHigh - 9}}" fill="#ef4444" stroke="#ffd700" stroke-width="0.8"/>`;
-                                    svgHtml += `<rect x="${{cx - 25}}" y="${{boxY}}" width="50" height="12" rx="3" fill="#dc2626" stroke="#ffd700" stroke-width="1"/>`;
-                                    svgHtml += `<text x="${{cx}}" y="${{boxY + 9}}" fill="#ffffff" font-size="8" font-family="monospace" font-weight="bold" text-anchor="middle">▼CVD-FLIP</text>`;
-                                }}
+
+                    // 🚨 PRE-VWAP TRUE CVD FLIP DETECTOR (No Fake Noise + No TRAP Overlap)
+                    const prev1 = i > 0 ? ofData[i - 1] : null;
+                    const prev2 = i > 1 ? ofData[i - 2] : null;
+                    const prev3 = i > 2 ? ofData[i - 3] : null;
+                    const hasTrap = (item.c > item.o && item.delta < 0) || (item.c < item.o && item.delta > 0);
+
+                    if (prev1 && prev2 && prev3 && !item.reset && !prev1.reset && !prev2.reset) {{
+                        // 🟢 CVD GREEN FLIP: కనీసం 3 క్యాండిల్స్ మైనస్‌లో ఉండి ఇప్పుడు గ్రీన్ (> 0) అవ్వాలి -> క్యాండిల్ కింద వస్తుంది
+                        if (prev1.cvd < 0 && prev2.cvd < 0 && prev3.cvd < 0 && item.cvd > 0 && item.cvd_up === true) {{
+                            const yLow = candleSeries.priceToCoordinate(item.l);
+                            if (yLow !== null) {{
+                                const boxY = Math.min(tblTop - 15, yLow + 10);
+                                svgHtml += `<polygon points="${{cx}},${{yLow + 2}} ${{cx - 5}},${{yLow + 9}} ${{cx + 5}},${{yLow + 9}}" fill="#22c55e" stroke="#ffd700" stroke-width="0.8"/>`;
+                                svgHtml += `<rect x="${{cx - 25}}" y="${{boxY}}" width="50" height="12" rx="3" fill="#16a34a" stroke="#ffd700" stroke-width="1"/>`;
+                                svgHtml += `<text x="${{cx}}" y="${{boxY + 9}}" fill="#ffffff" font-size="8" font-family="monospace" font-weight="bold" text-anchor="middle">▲CVD-FLIP</text>`;
                             }}
                         }}
+                        // 🔴 CVD RED FLIP: కనీసం 3 క్యాండిల్స్ ప్లస్‌లో ఉండి ఇప్పుడు రెడ్ (< 0) అవ్వాలి -> క్యాండిల్ పైన (TRAP ఉంటే ఇంకా పైన) వస్తుంది
+                        else if (prev1.cvd > 0 && prev2.cvd > 0 && prev3.cvd > 0 && item.cvd < 0 && item.cvd_up === false) {{
+                            const yHigh = candleSeries.priceToCoordinate(item.h);
+                            if (yHigh !== null) {{
+                                const tipOffset = hasTrap ? 24 : 2;
+                                const boxY = Math.max(4, yHigh - (hasTrap ? 44 : 22));
+                                svgHtml += `<polygon points="${{cx}},${{yHigh - tipOffset}} ${{cx - 5}},${{yHigh - tipOffset - 7}} ${{cx + 5}},${{yHigh - tipOffset - 7}}" fill="#ef4444" stroke="#ffd700" stroke-width="0.8"/>`;
+                                svgHtml += `<rect x="${{cx - 25}}" y="${{boxY}}" width="50" height="12" rx="3" fill="#dc2626" stroke="#ffd700" stroke-width="1"/>`;
+                                svgHtml += `<text x="${{cx}}" y="${{boxY + 9}}" fill="#ffffff" font-size="8" font-family="monospace" font-weight="bold" text-anchor="middle">▼CVD-FLIP</text>`;
+                            }}
+                        }}
+                    }}
                     if (visCount <= 22 && item.lvls) {{
                         item.lvls.forEach(lv => {{
                             const py = candleSeries.priceToCoordinate(lv.p);
