@@ -2977,15 +2977,17 @@ _COMPANY_TO_NSE = {
 
 
 def _detect_5m_cvd_flips(df_5m):
-    """5m డేటాలో VWAP-Reset CVD లెక్కించి, Green Flip (Bull) మరియు Red Flip (Bear) క్యాండిల్ ఇండెక్స్‌లను ఇస్తుంది"""
+    """5m డేటాలో VWAP-Reset CVD ఫ్లిప్స్ + Morning Pre-VWAP Reversals గుర్తించి (3-bar cooldown తో) ఇండెక్స్‌లను ఇస్తుంది"""
     bull_flips, bear_flips = [], []
     if df_5m is None or df_5m.empty or len(df_5m) < 2:
         return bull_flips, bear_flips
 
     running_cvd = 0.0
     prev_cvd = 0.0
+    prev_delta = 0.0
     prev_day = None
     prev_vwap_state = None
+    last_flip_idx = -10
 
     for idx_i, (dt_idx, r) in enumerate(df_5m.iterrows()):
         o = float(r.get('Open', 0) or 0)
@@ -3015,61 +3017,19 @@ def _detect_5m_cvd_flips(df_5m):
         prev_cvd = running_cvd
         running_cvd += delta_v
 
-        if not is_reset and idx_i > 0:
-            if prev_cvd < 0 and running_cvd > 0:
-                bull_flips.append(idx_i)  # ❇️ CVD Green Flip (Candle కింద)
-            elif prev_cvd > 0 and running_cvd < 0:
-                bear_flips.append(idx_i)  # 🔻 CVD Red Flip (Candle పైన)
+        if idx_i > 0 and (idx_i - last_flip_idx) >= 3:
+            # ❇️ Bullish CVD Green Flip (Candle కింద)
+            if (not is_reset and prev_cvd < 0 and running_cvd > 0) or (not is_above_vwap and prev_delta < 0 and delta_v > 0 and running_cvd > 0 and c > o):
+                bull_flips.append(idx_i)
+                last_flip_idx = idx_i
+            # 🔻 Bearish CVD Red Flip (Candle పైన)
+            elif (not is_reset and prev_cvd > 0 and running_cvd < 0) or (is_above_vwap and prev_delta > 0 and delta_v < 0 and running_cvd < 0 and c < o):
+                bear_flips.append(idx_i)
+                last_flip_idx = idx_i
+
+        prev_delta = delta_v
 
     return bull_flips, bear_flips
-def _detect_5m_cvd_flips(df_5m):
-    """5m డేటాలో కనీసం 3 క్యాండిల్స్ ఒకే వైపు ఉండి ఫ్లిప్ అయిన నిజమైన Bull (❇️) & Bear (🔻) క్యాండిల్స్ మాత్రమే ఇస్తుంది"""
-    bull_flips, bear_flips = [], []
-    if df_5m is None or df_5m.empty or len(df_5m) < 4:
-        return bull_flips, bear_flips
-
-    running_cvd = 0.0
-    prev_day = None
-    prev_vwap_state = None
-    wave_cvds = []
-
-    for idx_i, (dt_idx, r) in enumerate(df_5m.iterrows()):
-        o = float(r.get('Open', 0) or 0)
-        h = float(r.get('High', 0) or 0)
-        l = float(r.get('Low', 0) or 0)
-        c = float(r.get('Close', 0) or 0)
-        v = float(r.get('Volume', 0) or 0)
-        vwap_v = float(r.get('VWAP', c) or c)
-
-        cur_day = pd.Timestamp(dt_idx).date()
-        is_above_vwap = bool(c >= vwap_v)
-        is_reset = (prev_day != cur_day) or (prev_vwap_state != is_above_vwap)
-
-        if is_reset:
-            running_cvd = 0.0
-            wave_cvds = []
-            prev_day = cur_day
-            prev_vwap_state = is_above_vwap
-
-        rng_hl = max(h - l, 0.001)
-        body_loc = (c - o) / rng_hl
-        wick_loc = ((c - l) - (h - c)) / rng_hl
-        clv_ratio = max(0.05, min(0.95, 0.50 + 0.50 * (0.60 * body_loc + 0.40 * wick_loc)))
-        buy_v = round(v * clv_ratio)
-        sell_v = round(v - buy_v)
-        delta_v = buy_v - sell_v
-        running_cvd += delta_v
-
-        if len(wave_cvds) >= 3:
-            if wave_cvds[-1] < 0 and wave_cvds[-2] < 0 and wave_cvds[-3] < 0 and running_cvd > 0:
-                bull_flips.append(idx_i)  # ❇️ True Green Flip (Candle కింద)
-            elif wave_cvds[-1] > 0 and wave_cvds[-2] > 0 and wave_cvds[-3] > 0 and running_cvd < 0:
-                bear_flips.append(idx_i)  # 🔻 True Red Flip (Candle పైన)
-
-        wave_cvds.append(running_cvd)
-
-    return bull_flips, bear_flips
-
 
 def _build_inline_mini_chart_html(
     stk_sym, stock_row=None, df_5m=None, cat_label=""
@@ -8845,6 +8805,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 svgHtml += `<line x1="0" y1="${{tblTop + 17}}" x2="${{rect.width - 55}}" y2="${{tblTop + 17}}" stroke="#1e293b" stroke-width="1"/>`;
                 svgHtml += `<text x="4" y="${{tblTop + 29}}" fill="#38bdf8" font-size="9" font-family="monospace" font-weight="bold">∑ CVD</text>`;
 
+                let lastFlipBarIdx = -10;
                 for (let i = startIdx; i <= endIdx; i++) {{
                     const item = ofData[i];
                     if (!item) continue;
@@ -8860,10 +8821,11 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                         }}
                     }}
 
-                    if (visCount <= 65) {{
+                    // 95 క్యాండిల్స్ వరకు కింద DELTA & CVD నంబర్లు ఎప్పుడూ కనిపిస్తాయి
+                    if (visCount <= 95) {{
                         const dCol = item.delta >= 0 ? '#4ade80' : '#f87171';
                         const cvdCol = item.cvd >= 0 ? '#4ade80' : '#f87171';
-                        const fSize = visCount > 42 ? '7.2' : '8.5';
+                        const fSize = visCount > 55 ? '6.8' : (visCount > 40 ? '7.5' : '8.5');
                         svgHtml += `<text x="${{cx}}" y="${{tblTop + 12}}" fill="${{dCol}}" font-size="${{fSize}}" font-family="monospace" font-weight="bold" text-anchor="middle">${{fmtK(item.delta)}}</text>`;
                         svgHtml += `<text x="${{cx}}" y="${{tblTop + 29}}" fill="${{cvdCol}}" font-size="${{fSize}}" font-family="monospace" font-weight="bold" text-anchor="middle">${{fmtK(item.cvd)}}</text>`;
 
@@ -8872,6 +8834,39 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                             if (yHigh !== null) {{
                                 svgHtml += `<circle cx="${{cx}}" cy="${{Math.max(12, yHigh - 8)}}" r="3.5" fill="#facc15" stroke="#000" stroke-width="1"/>`;
                                 svgHtml += `<text x="${{cx}}" y="${{Math.max(10, yHigh - 14)}}" fill="#facc15" font-size="7.5" font-family="monospace" font-weight="bold" text-anchor="middle">TRAP</text>`;
+                            }}
+                        }}
+                    }}
+
+                    // 🚨 CVD FLIP DETECTOR (With 3-Bar Cooldown so badges never overlap)
+                    const prev1 = i > 0 ? ofData[i - 1] : null;
+                    const hasTrap = (item.c > item.o && item.delta < 0) || (item.c < item.o && item.delta > 0);
+
+                    if (prev1 && (i - lastFlipBarIdx) >= 3) {{
+                        const isGreenFlip = (!item.reset && prev1.cvd < 0 && item.cvd > 0) || (prev1.delta < 0 && item.delta > 0 && item.cvd > 0 && item.c > item.o && prev1.cvd <= 0);
+                        const isRedFlip = (!item.reset && prev1.cvd > 0 && item.cvd < 0) || (prev1.delta > 0 && item.delta < 0 && item.cvd < 0 && item.c < item.o && prev1.cvd >= 0);
+
+                        // 🟢 CVD GREEN FLIP: క్యాండిల్ కింద (Below Low) గ్రీన్ యారో & బ్యాడ్జ్
+                        if (isGreenFlip && item.cvd_up === true) {{
+                            const yLow = candleSeries.priceToCoordinate(item.l);
+                            if (yLow !== null) {{
+                                const boxY = Math.min(tblTop - 15, yLow + 10);
+                                svgHtml += `<polygon points="${{cx}},${{yLow + 2}} ${{cx - 5}},${{yLow + 9}} ${{cx + 5}},${{yLow + 9}}" fill="#22c55e" stroke="#ffd700" stroke-width="0.8"/>`;
+                                svgHtml += `<rect x="${{cx - 25}}" y="${{boxY}}" width="50" height="12" rx="3" fill="#16a34a" stroke="#ffd700" stroke-width="1"/>`;
+                                svgHtml += `<text x="${{cx}}" y="${{boxY + 9}}" fill="#ffffff" font-size="8" font-family="monospace" font-weight="bold" text-anchor="middle">▲CVD-FLIP</text>`;
+                                lastFlipBarIdx = i;
+                            }}
+                        }}
+                        // 🔴 CVD RED FLIP: క్యాండిల్ పైన (Above High) రెడ్ యారో & బ్యాడ్జ్
+                        else if (isRedFlip && item.cvd_up === false) {{
+                            const yHigh = candleSeries.priceToCoordinate(item.h);
+                            if (yHigh !== null) {{
+                                const tipOffset = hasTrap ? 24 : 2;
+                                const boxY = Math.max(4, yHigh - (hasTrap ? 44 : 22));
+                                svgHtml += `<polygon points="${{cx}},${{yHigh - tipOffset}} ${{cx - 5}},${{yHigh - tipOffset - 7}} ${{cx + 5}},${{yHigh - tipOffset - 7}}" fill="#ef4444" stroke="#ffd700" stroke-width="0.8"/>`;
+                                svgHtml += `<rect x="${{cx - 25}}" y="${{boxY}}" width="50" height="12" rx="3" fill="#dc2626" stroke="#ffd700" stroke-width="1"/>`;
+                                svgHtml += `<text x="${{cx}}" y="${{boxY + 9}}" fill="#ffffff" font-size="8" font-family="monospace" font-weight="bold" text-anchor="middle">▼CVD-FLIP</text>`;
+                                lastFlipBarIdx = i;
                             }}
                         }}
                     }}
@@ -10169,31 +10164,38 @@ def render_live_ui():
                 if not _df_domino.empty:
                     all_dfs.append(_df_domino)
 
-            # 2C. 🔬 CVD FLIP REVERSAL (BEFORE VWAP CROSS — TRUE CURRENT WAVE SCANNER)
+            # 2C. 🔬 CVD FLIP REVERSAL (LIVE PRE-VWAP + INTRADAY TRIGGERED CVD FLIPS)
             elif strat == "🔬 CVD Flip Reversal (Before VWAP)":
                 cvd_flip_rows = []
                 for idx_c, r_c in df_filtered.iterrows():
                     ft_c = r_c['Fetch_T']
                     df_h5 = processed_charts.get(ft_c, pd.DataFrame())
-                    if df_h5 is None or df_h5.empty or len(df_h5) < 8 or 'VWAP' not in df_h5.columns:
+                    if df_h5 is None or df_h5.empty or len(df_h5) < 6 or 'VWAP' not in df_h5.columns:
                         continue
                     _sess_c = (df_h5.index.to_series().diff() > pd.Timedelta(minutes=120)).cumsum()
                     td_c = df_h5[_sess_c == _sess_c.iloc[-1]]
-                    if len(td_c) < 6:
+                    if len(td_c) < 4:
                         continue
 
                     run_cvd = 0.0
                     prev_st = None
+                    prev_del = 0.0
                     wave_cvd_arr = []
-                    for _, br in td_c.iterrows():
+                    had_top_sell_flip = False
+                    had_bot_buy_flip = False
+                    last_flip_time = ""
+
+                    for dt_b, br in td_c.iterrows():
                         o_b, h_b, l_b, c_b = float(br['Open']), float(br['High']), float(br['Low']), float(br['Close'])
                         v_b = float(br.get('Volume', 0) or 0)
                         vw_b = float(br.get('VWAP', c_b) or c_b)
                         st_now = bool(c_b >= vw_b)
-                        if prev_st != st_now:
+                        is_rst = (prev_st != st_now)
+                        if is_rst:
                             run_cvd = 0.0
                             wave_cvd_arr = []
                             prev_st = st_now
+
                         rng_b = max(h_b - l_b, 0.001)
                         body_b = (c_b - o_b) / rng_b
                         wick_b = ((c_b - l_b) - (h_b - c_b)) / rng_b
@@ -10201,35 +10203,60 @@ def render_live_ui():
                         b_vol = round(v_b * clv_b)
                         s_vol = round(v_b - b_vol)
                         d_vol = b_vol - s_vol
+
+                        prev_c_val = run_cvd
                         run_cvd += d_vol
                         wave_cvd_arr.append(run_cvd)
 
-                    # ప్రస్తుత VWAP వేవ్‌లో కనీసం 4 క్యాండిల్స్ (20 నిమిషాలు) ఒకే వైపు ఉండాలి
-                    if len(wave_cvd_arr) < 4:
-                        continue
+                        # VWAP పైన ఉన్నప్పుడే CVD Red (< 0) ఫ్లిప్ అయిందా?
+                        if st_now and ((not is_rst and prev_c_val > 0 and run_cvd < 0) or (prev_del > 0 and d_vol < 0 and run_cvd < 0 and c_b < o_b)):
+                            had_top_sell_flip = True
+                            last_flip_time = pd.Timestamp(dt_b).strftime("%I:%M %p")
+                        # VWAP కింద ఉన్నప్పుడే CVD Green (> 0) ఫ్లిప్ అయిందా?
+                        elif (not st_now) and ((not is_rst and prev_c_val < 0 and run_cvd > 0) or (prev_del < 0 and d_vol > 0 and run_cvd > 0 and c_b > o_b)):
+                            had_bot_buy_flip = True
+                            last_flip_time = pd.Timestamp(dt_b).strftime("%I:%M %p")
 
-                    cur_cvd = wave_cvd_arr[-1]
-                    prev_wave_cvds = wave_cvd_arr[:-1]
+                        prev_del = d_vol
+
+                    cur_cvd = wave_cvd_arr[-1] if wave_cvd_arr else 0.0
+                    cvd_k = round(cur_cvd / 1000.0, 1)
                     vwap_dist_pct = abs(float(r_c['P']) - float(r_c['VWAP'])) / max(float(r_c['VWAP']), 1.0) * 100.0
 
-                    # 🔻 CASE 1: TOP REVERSAL SHORT (ధర VWAP పైనే ఉంది + ఈ వేవ్‌లో కనీసం 3 క్యాండిల్స్ CVD > 0 ఉండి ఇప్పుడు CVD < 0 అయింది)
-                    if prev_st is True and sum(1 for x in prev_wave_cvds if x > 0) >= 3 and cur_cvd < 0 and (wave_cvd_arr[-2] > 0 or (len(wave_cvd_arr) >= 3 and wave_cvd_arr[-3] > 0)):
+                    # 🔻 1. LIVE PRE-VWAP TOP SELL (ధర ఇంకా VWAP పైనే ఉండి CVD మైనస్‌లోకి మారింది - #1 Priority)
+                    if prev_st is True and len(wave_cvd_arr) >= 2 and max(wave_cvd_arr[:-1]) > 0 and cur_cvd < 0:
                         rc_copy = r_c.copy()
-                        cvd_k = round(cur_cvd / 1000.0, 1)
                         rc_copy['Strategy_Icon'] = "🔻 CVD-Flip TOP SELL"
-                        rc_copy['AlphaTag'] = f"🔻Pre-VWAP CVD:{cvd_k}K (+{vwap_dist_pct:.1f}% abv VWAP)"
-                        rc_copy['S'] = 36
-                        rc_copy['AI_Prob'] = 96
+                        rc_copy['AlphaTag'] = f"🔻Live Pre-VWAP CVD:{cvd_k}K (+{vwap_dist_pct:.1f}% abv VWAP)"
+                        rc_copy['S'] = 38
+                        rc_copy['AI_Prob'] = 98
                         cvd_flip_rows.append(rc_copy)
 
-                    # 💠 CASE 2: BOTTOM REVERSAL BUY (ధర VWAP కిందే ఉంది + ఈ వేవ్‌లో కనీసం 3 క్యాండిల్స్ CVD < 0 ఉండి ఇప్పుడు CVD > 0 అయింది)
-                    elif prev_st is False and sum(1 for x in prev_wave_cvds if x < 0) >= 3 and cur_cvd > 0 and (wave_cvd_arr[-2] < 0 or (len(wave_cvd_arr) >= 3 and wave_cvd_arr[-3] < 0)):
+                    # 💠 2. LIVE PRE-VWAP BOT BUY (ధర ఇంకా VWAP కిందే ఉండి CVD ప్లస్‌లోకి మారింది - #1 Priority)
+                    elif prev_st is False and len(wave_cvd_arr) >= 2 and min(wave_cvd_arr[:-1]) < 0 and cur_cvd > 0:
                         rc_copy = r_c.copy()
-                        cvd_k = round(cur_cvd / 1000.0, 1)
                         rc_copy['Strategy_Icon'] = "💠 CVD-Flip BOT BUY"
-                        rc_copy['AlphaTag'] = f"❇️Pre-VWAP CVD:+{cvd_k}K (-{vwap_dist_pct:.1f}% blw VWAP)"
-                        rc_copy['S'] = 36
-                        rc_copy['AI_Prob'] = 96
+                        rc_copy['AlphaTag'] = f"❇️Live Pre-VWAP CVD:+{cvd_k}K (-{vwap_dist_pct:.1f}% blw VWAP)"
+                        rc_copy['S'] = 38
+                        rc_copy['AI_Prob'] = 98
+                        cvd_flip_rows.append(rc_copy)
+
+                    # 🔻 3. CONFIRMED INTRADAY CVD-FLIP BREAKDOWN (ఈరోజు VWAP పైన CVD ఫ్లిప్ ఇచ్చాక VWAP బ్రేక్ చేసి పడుతున్న స్టాక్స్ - ఉదా: ADANIPORTS, ADANIENSOL, BPCL)
+                    elif had_top_sell_flip and prev_st is False and cur_cvd < 0 and float(r_c['Day_C']) <= -0.8:
+                        rc_copy = r_c.copy()
+                        rc_copy['Strategy_Icon'] = "🔻 CVD-Flip SELL"
+                        rc_copy['AlphaTag'] = f"🔻CVD-Flip @{last_flip_time} | CVD:{cvd_k}K"
+                        rc_copy['S'] = 34
+                        rc_copy['AI_Prob'] = 93
+                        cvd_flip_rows.append(rc_copy)
+
+                    # 💠 4. CONFIRMED INTRADAY CVD-FLIP BREAKOUT (ఈరోజు VWAP కింద CVD ఫ్లిప్ ఇచ్చాక VWAP బ్రేక్ చేసి పెరుగుతున్న స్టాక్స్)
+                    elif had_bot_buy_flip and prev_st is True and cur_cvd > 0 and float(r_c['Day_C']) >= 0.8:
+                        rc_copy = r_c.copy()
+                        rc_copy['Strategy_Icon'] = "💠 CVD-Flip BUY"
+                        rc_copy['AlphaTag'] = f"❇️CVD-Flip @{last_flip_time} | CVD:+{cvd_k}K"
+                        rc_copy['S'] = 34
+                        rc_copy['AI_Prob'] = 93
                         cvd_flip_rows.append(rc_copy)
 
                 if cvd_flip_rows:
