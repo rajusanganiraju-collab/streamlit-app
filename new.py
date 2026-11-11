@@ -15,6 +15,79 @@ from datetime import datetime, time as dt_time
 from zoneinfo import ZoneInfo
 import html as _html
 
+# =========================================================
+# 🧠 GEMINI AI ANALYST & SMART DOMINO ENGINE (ZERO-PIP REST API)
+# =========================================================
+def _get_gemini_api_key():
+    try:
+        return str(st.secrets["gemini"]["api_key"]).strip().strip('"').strip("'")
+    except Exception:
+        return ""
+
+@st.cache_data(ttl=300, show_spinner=False)
+def gemini_stock_sniper_verdict(sym, ltp, day_c, vwap, ema10, rvol, bull_p, atr, strat_tag, news_hl=""):
+    """స్టాక్ యొక్క 5m VWAP, Volume, Order-Flow మరియు News విశ్లేషించి తెలుగులో ట్రేడ్ ప్లాన్ ఇస్తుంది"""
+    api_key = _get_gemini_api_key()
+    if not api_key:
+        return "⚠️ .streamlit/secrets.toml లో [gemini] api_key కనిపించలేదు!"
+
+    prompt = (
+        f"You are an elite NSE Intraday & Swing Quant Trader. Analyze this live stock setup and reply in crisp Telugu (3 short bullet points only):\n"
+        f"Stock: {sym} | LTP: ₹{ltp:.2f} ({day_c:+.2f}%) | 5m VWAP: ₹{vwap:.2f} | 5m EMA10: ₹{ema10:.2f}\n"
+        f"Relative Volume (RVOL): {rvol:.1f}x | Buyer Power: {bull_p:.0f}% | ATR: ₹{atr:.2f}\n"
+        f"Scanner Signal: {strat_tag} | Latest News: {news_hl or 'No major news'}\n\n"
+        f"Give exact Telugu output in 3 points:\n"
+        f"1. 🎯 ట్రెండ్ క్వాలిటీ: (ఇది నిజమైన ఇన్‌స్టిట్యూషనల్ మూవ్ ఆ లేక ట్రాప్ ఆ?)\n"
+        f"2. ⚡ ట్రేడ్ లెవెల్స్: (ఎంట్రీ, స్టాప్-లాస్ SL మరియు టార్గెట్ T1/T2)\n"
+        f"3. ⚠️ రిస్క్ అలర్ట్: (ఏ ధర కంటే కింద/పైన ట్రేడ్ అవాయిడ్ చేయాలి?)"
+    )
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.2}
+    }
+    try:
+        r = requests.post(url, json=payload, timeout=12)
+        if r.status_code == 200:
+            j = r.json()
+            txt = j["candidates"][0]["content"]["parts"][0]["text"]
+            return txt.strip().replace("\n", "<br>")
+        return f"⚠️ AI API Error ({r.status_code}): {r.text[:100]}"
+    except Exception as e:
+        return f"⚠️ Network Error: {str(e)[:80]}"
+
+@st.cache_data(ttl=600, show_spinner=False)
+def gemini_batch_domino_news(headlines_tuple):
+    """బ్రేకింగ్ న్యూస్ హెడ్‌లైన్స్ చదివి ఏ స్టాక్ పెరుగుతుందో (Winner), ఏది పడుతుందో (Victim) JSON లో ఇస్తుంది"""
+    api_key = _get_gemini_api_key()
+    if not api_key or not headlines_tuple:
+        return []
+
+    joined_news = "\n".join([f"{i}. {h}" for i, h in enumerate(headlines_tuple[:10])])
+    prompt = (
+        "You are an Indian Stock Market (NSE) Domino-Effect & Supply-Chain Analyst.\n"
+        "Read these news headlines and return ONLY a valid JSON array of objects for headlines that impact NSE stocks.\n"
+        "Each object must have:\n"
+        '- "idx": integer index of the headline (0 to 9)\n'
+        '- "winners": array of uppercase NSE stock symbols (e.g. ["HAL", "BEL"]) that benefit\n'
+        '- "victims": array of uppercase NSE stock symbols (e.g. ["INDIGO", "ASIANPAINT"]) that get hurt\n'
+        '- "te_rule": 1-sentence Telugu explanation of why Winner rises and Victim falls.\n\n'
+        f"Headlines:\n{joined_news}"
+    )
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.1, "responseMimeType": "application/json"}
+    }
+    try:
+        r = requests.post(url, json=payload, timeout=12)
+        if r.status_code == 200:
+            txt = r.json()["candidates"][0]["content"]["parts"][0]["text"]
+            return json.loads(txt)
+    except Exception:
+        pass
+    return []
+
 try:
     from dhanhq import marketfeed
 except Exception:
@@ -1841,6 +1914,36 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=2.5
                 "score": min(99, max(75, int(score))),
                 "priority_rank": priority_rank
             }
+
+    # ---------------------------------------------------------
+    # STEP A0: 🧠 GEMINI AI SMART DOMINO SCANNER (TRUE CONTEXT)
+    # ---------------------------------------------------------
+    if crisis_rss:
+        _top_hls = tuple([it["title_en"] for it in crisis_rss[:10]])
+        _ai_dom_list = gemini_batch_domino_news(_top_hls)
+        if isinstance(_ai_dom_list, list):
+            for _ai_it in _ai_dom_list:
+                try:
+                    _idx = int(_ai_it.get("idx", -1))
+                    if 0 <= _idx < len(crisis_rss):
+                        _src = crisis_rss[_idx]
+                        _te_r = str(_ai_it.get("te_rule", "AI Domino Analysis"))
+                        for _w_sym in (_ai_it.get("winners") or []):
+                            _w_clean = str(_w_sym).upper().strip()
+                            _register_signal(
+                                _w_clean, "BUY", "🧠AI-Domino BUY", _src["title_en"],
+                                f"🧠 <b>Gemini AI Domino Winner:</b> {_te_r}",
+                                _src["link"], _src["age_h"], base_score=94, priority_rank=0
+                            )
+                        for _v_sym in (_ai_it.get("victims") or []):
+                            _v_clean = str(_v_sym).upper().strip()
+                            _register_signal(
+                                _v_clean, "SELL", "🧠AI-Domino SELL", _src["title_en"],
+                                f"🧠 <b>Gemini AI Domino Victim:</b> {_te_r}",
+                                _src["link"], _src["age_h"], base_score=94, priority_rank=0
+                            )
+                except Exception:
+                    pass
 
     # ---------------------------------------------------------
     # STEP A: SCAN GLOBAL & DOMESTIC CRISIS RSS (23 SECTOR RULES)
@@ -9724,6 +9827,25 @@ def render_live_ui():
                 f"</div>",
                 unsafe_allow_html=True
             )
+            if 'ai_verdict_store' not in st.session_state:
+                st.session_state.ai_verdict_store = {}
+            _cur_sym = str(insp_row['T'])
+            if st.button(f"🧠 Ask Gemini AI ({_cur_sym})", key=f"ask_ai_{_cur_sym}", use_container_width=True):
+                with st.spinner(f"🔍 {_cur_sym} చార్ట్ & ఆర్డర్-ఫ్లో విశ్లేషిస్తోంది..."):
+                    st.session_state.ai_verdict_store[_cur_sym] = gemini_stock_sniper_verdict(
+                        _cur_sym, i_p, i_pct, float(insp_row.get('VWAP', i_p)),
+                        float(insp_row.get('Intra_EMA10', i_p)), i_vx,
+                        float(insp_row.get('Bull_P', 50)), float(insp_row.get('ATR', i_p * 0.02)),
+                        i_strat, str(insp_row.get('News_Headline', ''))
+                    )
+            if _cur_sym in st.session_state.ai_verdict_store:
+                st.markdown(
+                    f"<div style='background:#0f172a; border:1px solid #38bdf8; border-radius:6px; "
+                    f"padding:7px 9px; margin-top:4px; font-size:11.5px; color:#f8fafc; line-height:1.5;'>"
+                    f"<b style='color:#38bdf8;'>🧠 Gemini AI ({_cur_sym}):</b><br>"
+                    f"{st.session_state.ai_verdict_store[_cur_sym]}</div>",
+                    unsafe_allow_html=True
+                )
 
     # ---------------------------------------------------------
     # 👉 LEFT 80% COLUMN: 1-LINE UNIFIED TOP BAR + MAX-SPACE CHARTS
