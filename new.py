@@ -8090,6 +8090,10 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
 
     candles_js, spd_candles_js, vol_js, vwap_js, ema10_js, ema20_js, kal_js, st_js, bb_u_js, bb_d_js = [], [], [], [], [], [], [], [], [], []
     p_fast_js, p_slow_js, p_up_js, p_lo_js, p_mid_js, mtf20_js, mtf100_js, mtf200_js, dyn_ema_js, markers_js = [], [], [], [], [], [], [], [], [], []
+    of_footprint_js = []
+    vol_sma20_s = df_p['Volume'].fillna(0).rolling(20, min_periods=1).mean() if 'Volume' in df_p.columns else pd.Series(1.0, index=df_p.index)
+    running_cvd = 0.0
+    prev_day_date = None
     seen_ts = set()
 
     for idx_i, (dt_idx, r) in enumerate(df_p.iterrows()):
@@ -8103,6 +8107,38 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         sc = pine_res['spd_col'][idx_i]
         spd_candles_js.append({'time': ts, 'open': o, 'high': h, 'low': l, 'close': c, 'color': sc, 'wickColor': sc, 'borderColor': sc})
         vol_js.append({'time': ts, 'value': v, 'color': 'rgba(20, 184, 166, 0.45)' if c >= o else 'rgba(239, 68, 68, 0.45)'})
+
+        # 🔬 ORDER FLOW: BUY vs SELL SPLIT, DELTA, CUMULATIVE DELTA (CVD) & 3x ANCHOR ZONES
+        cur_day_date = pd.Timestamp(dt_idx).date()
+        if prev_day_date != cur_day_date:
+            running_cvd = 0.0
+            prev_day_date = cur_day_date
+
+        rng_hl = max(h - l, 0.001)
+        clv_ratio = max(0.08, min(0.92, ((c - l) / rng_hl) * 0.75 + (0.20 if c >= o else 0.05)))
+        buy_v = round(v * clv_ratio)
+        sell_v = round(v - buy_v)
+        delta_v = buy_v - sell_v
+        running_cvd += delta_v
+
+        # 3-Level Price Footprint inside the candle (Top Wick, Mid Body, Bottom Wick)
+        top_p = round(h - rng_hl * 0.18, 2)
+        mid_p = round((h + l) / 2.0, 2)
+        bot_p = round(l + rng_hl * 0.18, 2)
+        vsma_v = float(vol_sma20_s.iloc[idx_i]) if float(vol_sma20_s.iloc[idx_i]) > 0 else 1.0
+        is_anchor = bool(v >= vsma_v * 2.2)
+
+        of_footprint_js.append({
+            'time': ts, 'o': o, 'h': h, 'l': l, 'c': c, 'v': round(v),
+            'buy': int(buy_v), 'sell': int(sell_v),
+            'delta': int(delta_v), 'cvd': int(running_cvd),
+            'anchor': is_anchor, 'poc': round((o + c + mid_p) / 3.0, 2),
+            'lvls': [
+                {'p': top_p, 's': int(sell_v * 0.42), 'b': int(buy_v * 0.25)},
+                {'p': mid_p, 's': int(sell_v * 0.36), 'b': int(buy_v * 0.45)},
+                {'p': bot_p, 's': int(sell_v * 0.22), 'b': int(buy_v * 0.30)}
+            ]
+        })
 
         if pd.notna(r.get('VWAP')): vwap_js.append({'time': ts, 'value': round(float(r['VWAP']), 2)})
         if pd.notna(r.get('EMA10')): ema10_js.append({'time': ts, 'value': round(float(r['EMA10']), 2)})
@@ -8308,6 +8344,9 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                     <label class="ind-row"><input type="checkbox" id="chk_pine_rib" onchange="toggleInd('pine_rib')"> <span>Swing Ribbon + Breakout</span></label>
                     <label class="ind-row"><input type="checkbox" id="chk_pine_big" onchange="toggleInd('pine_big')"> <span>Big Trader Arrows + MTF EMA</span></label>
                     <label class="ind-row"><input type="checkbox" id="chk_pine_tsa" onchange="toggleInd('pine_tsa')"> <span>Trend Speed + Wave Table</span></label>
+                    <hr style="border:0; border-top:1px solid #374151; margin:4px 0;">
+                    <div class="ind-sec-lbl" style="color:#f59e0b;">🔬 Order Flow & Footprint</div>
+                    <label class="ind-row"><input type="checkbox" id="chk_order_flow" onchange="toggleInd('order_flow')"> <b style="color:#fbbf24;">📊 Volume Footprint + CVD</b></label>
                 </div>
                 <span class="close-btn" onclick="triggerStBtn('{close_token}')" title="Close {disp_sym}">✖</span>
             </div>
@@ -8408,6 +8447,8 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         const mtf200Data = {json.dumps(mtf200_js)};
         const dynEmaData = {json.dumps(dyn_ema_js)};
         const bigMarkers = {json.dumps(markers_js)};
+        const ofData = {json.dumps(of_footprint_js)};
+        const ofMap = Object.fromEntries(ofData.map(x => [x.time, x]));
         const activePos = {pos_js};
 
         const candleMap = Object.fromEntries(cData.map(b => [b.time, b]));
@@ -8663,6 +8704,72 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 }}
             }});
 
+            // 🔬 RENDER ORDER FLOW VOLUME FOOTPRINT, 3x ANCHOR ZONES & DELTA/CVD BAR
+            if (typeof state !== 'undefined' && state.order_flow && ofData.length > 0) {{
+                const fmtK = (n) => {{
+                    const a = Math.abs(n);
+                    const s = n < 0 ? '-' : '';
+                    return s + (a >= 100000 ? (a/100000).toFixed(1)+'L' : (a >= 1000 ? (a/1000).toFixed(1)+'K' : String(Math.round(a))));
+                }};
+                const visRange = chart.timeScale().getVisibleLogicalRange();
+                const startIdx = visRange ? Math.max(0, Math.floor(visRange.from)) : Math.max(0, ofData.length - 35);
+                const endIdx = visRange ? Math.min(ofData.length - 1, Math.ceil(visRange.to)) : ofData.length - 1;
+                const visCount = Math.max(1, endIdx - startIdx + 1);
+
+                // 1. Bottom Delta & Cumulative Delta (CVD) Table Header
+                const tblTop = rect.height - 58;
+                svgHtml += `<rect x="0" y="${{tblTop}}" width="${{rect.width - 55}}" height="34" fill="rgba(11,14,20,0.92)" stroke="#334155" stroke-width="1"/>`;
+                svgHtml += `<text x="4" y="${{tblTop + 12}}" fill="#94a3b8" font-size="9" font-family="monospace" font-weight="bold">Δ DELTA</text>`;
+                svgHtml += `<line x1="0" y1="${{tblTop + 17}}" x2="${{rect.width - 55}}" y2="${{tblTop + 17}}" stroke="#1e293b" stroke-width="1"/>`;
+                svgHtml += `<text x="4" y="${{tblTop + 29}}" fill="#38bdf8" font-size="9" font-family="monospace" font-weight="bold">∑ CVD</text>`;
+
+                for (let i = startIdx; i <= endIdx; i++) {{
+                    const item = ofData[i];
+                    if (!item) continue;
+                    const cx = chart.timeScale().timeToCoordinate(item.time);
+                    if (cx === null || cx < 48 || cx > rect.width - 58) continue;
+
+                    // 2. 3x High-Volume Anchor / Imbalance Zone (Support/Resistance Box)
+                    if (item.anchor) {{
+                        const pyPoc = candleSeries.priceToCoordinate(item.poc);
+                        if (pyPoc !== null) {{
+                            const aCol = item.delta >= 0 ? 'rgba(34,197,94,0.18)' : 'rgba(239,68,68,0.18)';
+                            const bCol = item.delta >= 0 ? '#22c55e' : '#ef4444';
+                            svgHtml += `<rect x="${{cx}}" y="${{pyPoc - 5}}" width="${{Math.max(40, rect.width - cx - 58)}}" height="10" fill="${{aCol}}" stroke="${{bCol}}" stroke-width="0.8" stroke-dasharray="3,2"/>`;
+                        }}
+                    }}
+
+                    // 3. Delta & Cumulative Delta Values per Candle (When <= 40 candles visible)
+                    if (visCount <= 40) {{
+                        const dCol = item.delta >= 0 ? '#4ade80' : '#f87171';
+                        const cvdCol = item.cvd >= 0 ? '#38bdf8' : '#fb7185';
+                        svgHtml += `<text x="${{cx}}" y="${{tblTop + 12}}" fill="${{dCol}}" font-size="8.5" font-family="monospace" font-weight="bold" text-anchor="middle">${{fmtK(item.delta)}}</text>`;
+                        svgHtml += `<text x="${{cx}}" y="${{tblTop + 29}}" fill="${{cvdCol}}" font-size="8.5" font-family="monospace" font-weight="bold" text-anchor="middle">${{fmtK(item.cvd)}}</text>`;
+
+                        // Divergence Warning Dot (Green candle with negative delta OR Red candle with positive delta)
+                        if ((item.c > item.o && item.delta < 0) || (item.c < item.o && item.delta > 0)) {{
+                            const yHigh = candleSeries.priceToCoordinate(item.h);
+                            if (yHigh !== null) {{
+                                svgHtml += `<circle cx="${{cx}}" cy="${{Math.max(12, yHigh - 8)}}" r="4" fill="#facc15" stroke="#000" stroke-width="1"/>`;
+                                svgHtml += `<text x="${{cx}}" y="${{Math.max(10, yHigh - 14)}}" fill="#facc15" font-size="8" font-family="monospace" font-weight="bold" text-anchor="middle">TRAP</text>`;
+                            }}
+                        }}
+                    }}
+
+                    // 4. Skeleton X-Ray Footprint (Left Sell vs Right Buy) when Zoomed In (<= 22 candles)
+                    if (visCount <= 22 && item.lvls) {{
+                        item.lvls.forEach(lv => {{
+                            const py = candleSeries.priceToCoordinate(lv.p);
+                            if (py !== null && py > 20 && py < tblTop - 6) {{
+                                svgHtml += `<rect x="${{cx - 28}}" y="${{py - 6}}" width="26" height="11" rx="2" fill="rgba(220,38,38,0.78)"/>`;
+                                svgHtml += `<text x="${{cx - 15}}" y="${{py + 2.5}}" fill="#fff" font-size="8" font-family="monospace" font-weight="bold" text-anchor="middle">${{fmtK(lv.s)}}</text>`;
+                                svgHtml += `<rect x="${{cx + 2}}" y="${{py - 6}}" width="26" height="11" rx="2" fill="rgba(22,163,74,0.78)"/>`;
+                                svgHtml += `<text x="${{cx + 15}}" y="${{py + 2.5}}" fill="#fff" font-size="8" font-family="monospace" font-weight="bold" text-anchor="middle">${{fmtK(lv.b)}}</text>`;
+                            }}
+                        }});
+                    }}
+                }}
+            }}
             drawSvg.innerHTML = svgHtml;
             if (fibCntEl) fibCntEl.innerText = `(${{fibCount}})`;
         }}
@@ -9065,7 +9172,8 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             st: {'true' if 'ST(7,3)' in active_inds else 'false'},
             pine_rib: false,
             pine_big: false,
-            pine_tsa: false
+            pine_tsa: false,
+            order_flow: false
         }};
         const state = Object.assign({{}}, defaultState, window.parent._savedIndState || {{}});
 
@@ -9095,7 +9203,11 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             candleSeries.setData(state.pine_tsa ? spdCandles : cData);
             wTbl.style.display = state.pine_tsa ? 'block' : 'none';
 
-            ['ema','sr','piv','vwap','bb','kal','st','pine_rib','pine_big','pine_tsa'].forEach(k => {{
+            ['ema','sr','piv','vwap','bb','kal','st','pine_rib','pine_big','pine_tsa','order_flow'].forEach(k => {{
+            const el = document.getElementById('chk_' + k);
+            if (el) el.checked = !!state[k];
+            }});
+            renderAllDrawings();(k => {{
                 const el = document.getElementById('chk_' + k);
                 if (el) el.checked = !!state[k];
             }});
@@ -9128,7 +9240,9 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             const v = volLookup[bar.time] || 0;
             const vStr = v > 0 ? (v >= 1000000 ? '&nbsp;Vol <b>'+(v/1000000).toFixed(2)+'M</b>' : '&nbsp;Vol <b>'+(v/1000).toFixed(1)+'K</b>') : '';
             const tStr = fmtIST(bar.time);
-            ohlcBox.innerHTML = `🕒 <b>${{tStr}}</b> &nbsp; O<b>${{bar.open}}</b> H<b>${{bar.high}}</b> L<b>${{bar.low}}</b> C<b>${{bar.close}}</b> <span style="color:${{col}};font-weight:bold;">${{chg>=0?'+'+chg:chg}} (${{pct>=0?'+'+pct:pct}}%)</span> ${{vStr}}`;
+            const ofBar = ofMap[bar.time];
+        const ofStr = ofBar ? ` &nbsp;|&nbsp; <span style="color:#4ade80;">Buy:<b>${{(ofBar.buy/1000).toFixed(1)}}K</b></span> <span style="color:#f87171;">Sell:<b>${{(ofBar.sell/1000).toFixed(1)}}K</b></span> <span style="color:${{ofBar.delta>=0?'#4ade80':'#f87171'}};">Δ:<b>${{ofBar.delta>=0?'+':''}}${{(ofBar.delta/1000).toFixed(1)}}K</b></span> <span style="color:#38bdf8;">CVD:<b>${{(ofBar.cvd/1000).toFixed(1)}}K</b></span>` : '';
+        ohlcBox.innerHTML = `🕒 <b>${{tStr}}</b> &nbsp; O<b>${{bar.open}}</b> H<b>${{bar.high}}</b> L<b>${{bar.low}}</b> C<b>${{bar.close}}</b> <span style="color:${{col}};font-weight:bold;">${{chg>=0?'+'+chg:chg}} (${{pct>=0?'+'+pct:pct}}%)</span> ${{vStr}}${{ofStr}}`;
         }}
         if (cData.length > 0) updateLegend(cData[cData.length - 1]);
         chart.subscribeCrosshairMove(param => {{
