@@ -25,39 +25,44 @@ def _get_gemini_api_key():
         return ""
 
 @st.cache_data(ttl=86400, show_spinner=False)
-def _get_working_gemini_model(api_key):
-    """మీ API Key కి సపోర్ట్ చేసే లేటెస్ట్ ఫాస్ట్ Gemini మోడల్‌ని ఆటోమేటిక్‌గా గుర్తిస్తుంది"""
+def _get_working_gemini_models(api_key):
+    """మీ API Key లో ఉన్న అత్యంత వేగవంతమైన (Flash-Lite & Flash) మోడల్స్ లిస్ట్ తెస్తుంది"""
+    fast_models = []
     try:
-        r = requests.get(f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}", timeout=8)
+        r = requests.get(f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}", timeout=10)
         if r.status_code == 200:
             models = r.json().get("models", [])
             valid = [
                 m["name"].replace("models/", "") for m in models
                 if "generateContent" in m.get("supportedGenerationMethods", [])
                 and "gemini" in m.get("name", "").lower()
-                and not any(x in m.get("name", "").lower() for x in ("vision", "embedding", "imagen", "tts", "audio"))
+                and not any(x in m.get("name", "").lower() for x in ("vision", "embedding", "imagen", "tts", "audio", "robotics", "computer-use"))
             ]
-            # Flash మోడల్స్‌కి మొదటి ప్రాధాన్యత (ఫాస్ట్ రెస్పాన్స్ కోసం)
-            for pref in ("gemini-flash-latest", "gemini-3.0-flash", "gemini-2.5-flash", "gemini-2.0-flash"):
+            # ⚡ 2-3 సెకన్లలో సమాధానం ఇచ్చే Lite & Flash మోడల్స్‌కి మొదటి ప్రాధాన్యత
+            for pref in ("gemini-2.5-flash-lite", "gemini-flash-lite-latest", "gemini-2.0-flash-lite", "gemini-2.0-flash", "gemini-flash-latest", "gemini-3-flash"):
                 for v in valid:
-                    if pref in v:
-                        return v
-            flash_list = [v for v in valid if "flash" in v]
-            if flash_list:
-                return flash_list[-1]
-            if valid:
-                return valid[-1]
+                    if pref in v and v not in fast_models:
+                        fast_models.append(v)
+            for v in valid:
+                if "flash" in v and v not in fast_models:
+                    fast_models.append(v)
+            for v in valid:
+                if v not in fast_models:
+                    fast_models.append(v)
     except Exception:
         pass
-    return "gemini-flash-latest"
+    return fast_models if fast_models else ["gemini-flash-lite-latest", "gemini-flash-latest"]
 
 def _call_gemini_api(prompt, json_mode=False):
     api_key = _get_gemini_api_key()
     if not api_key:
         return False, "⚠️ .streamlit/secrets.toml లో [gemini] api_key కనిపించలేదు!"
 
-    model_name = _get_working_gemini_model(api_key)
-    gen_cfg = {"temperature": 0.1 if json_mode else 0.2}
+    candidate_models = _get_working_gemini_models(api_key)
+    gen_cfg = {
+        "temperature": 0.1 if json_mode else 0.2,
+        "maxOutputTokens": 600
+    }
     if json_mode:
         gen_cfg["responseMimeType"] = "application/json"
 
@@ -65,17 +70,28 @@ def _call_gemini_api(prompt, json_mode=False):
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": gen_cfg
     }
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
-    try:
-        r = requests.post(url, json=payload, timeout=15)
-        if r.status_code == 200:
-            txt = r.json()["candidates"][0]["content"]["parts"][0]["text"]
-            return True, txt.strip()
-        # ఒకవేళ క్యాష్ అయిన మోడల్ పనిచేయకపోతే క్యాష్ క్లియర్ చేసి మళ్ళీ ట్రై చేస్తుంది
-        _get_working_gemini_model.clear()
-        return False, f"⚠️ AI API Error ({r.status_code}): {r.text[:120]}"
-    except Exception as e:
-        return False, f"⚠️ Network Error: {str(e)[:80]}"
+
+    last_err = ""
+    # మొదటి మోడల్ స్లోగా ఉన్నా వెంటనే రెండో ఫాస్ట్ మోడల్‌తో ట్రై చేస్తుంది
+    for model_name in candidate_models[:3]:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+        try:
+            r = requests.post(url, json=payload, timeout=45)
+            if r.status_code == 200:
+                j = r.json()
+                candidates = j.get("candidates", [])
+                if candidates and "content" in candidates[0]:
+                    parts = candidates[0]["content"].get("parts", [])
+                    txt = "".join(p.get("text", "") for p in parts if "text" in p)
+                    if txt.strip():
+                        return True, txt.strip()
+            last_err = f"HTTP {r.status_code}: {r.text[:100]}"
+        except Exception as e:
+            last_err = f"{type(e).__name__}: {str(e)[:80]}"
+            continue
+
+    _get_working_gemini_models.clear()
+    return False, f"⚠️ AI Error: {last_err}"
 
 @st.cache_data(ttl=300, show_spinner=False)
 def gemini_stock_sniper_verdict(sym, ltp, day_c, vwap, ema10, rvol, bull_p, atr, strat_tag, news_hl=""):
