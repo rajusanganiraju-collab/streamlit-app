@@ -7960,7 +7960,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     if current_grid_syms is None:
         current_grid_syms = []
 
-    # Check if JS sent updated Entry (LIMIT) / SL / TGT via query_params
     if "upd_sltg" in st.query_params:
         try:
             _parts = str(st.query_params["upd_sltg"]).split("|")
@@ -8018,7 +8017,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         st.info(f"No valid candles for {disp_sym}")
         return
 
-    # 🔥 Sync Live LTP (ltp_v) into the Last Candle every 30s so Candle & Indicators move live!
     if ltp_v > 0:
         _last_idx = df_p.index[-1]
         df_p.at[_last_idx, 'Close'] = ltp_v
@@ -8114,7 +8112,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         vwap_val = float(r.get('VWAP', c)) if pd.notna(r.get('VWAP', c)) else c
         is_above_vwap = bool(c >= vwap_val)
 
-        # 🔥 కొత్త రోజు మొదలైనా లేదా ధర VWAP పైకి/కిందకి రివర్స్ అయినా CVD మళ్ళీ 0 నుండి కొత్తగా మొదలవుతుంది!
         if (prev_day_date != cur_day_date) or (prev_vwap_state != is_above_vwap):
             running_cvd = 0.0
             prev_day_date = cur_day_date
@@ -8127,10 +8124,8 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         buy_v = round(v * clv_ratio)
         sell_v = round(v - buy_v)
         delta_v = buy_v - sell_v
-
         running_cvd += delta_v
 
-        # 🔥 CVD మైనస్ (< 0) అయ్యే వరకు GREEN (True), మైనస్ అయితేనే RED (False)
         is_cvd_positive = bool(running_cvd >= 0)
 
         top_p = round(h - rng_hl * 0.18, 2)
@@ -8214,7 +8209,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             .draw-menu {{ top: 52px !important; left: 4px !important; right: auto !important; }}
             .ind-menu {{ top: 52px !important; right: 4px !important; }}
         }}
-            
         .ind-bar {{ display: flex; gap: 4px; flex-wrap: nowrap; align-items: center; position: relative; }}
         .tr-btn {{
             padding: 1px 6px; border-radius: 3px; font-size: 9.5px; font-weight: 800; cursor: pointer;
@@ -8228,7 +8222,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         .sell-b:hover {{ background: #b91c1c; transform: scale(1.04); }}
         .exit-b {{ background: #eab308; color: #111827; border: 1px solid #facc15; }}
         .exit-b:hover {{ background: #ca8a04; color: #fff; }}
-
         .ind-drop-btn {{
             background: #1e293b; color: #38bdf8; border: 1px solid #334155; border-radius: 4px;
             padding: 1px 7px; font-size: 10px; font-weight: bold; cursor: pointer; white-space: nowrap;
@@ -8260,7 +8253,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         }}
         .draw-clear:hover {{ color: #dc2626; }}
         .ind-sec-lbl {{ font-size: 9px; color: #9ca3af; font-weight: bold; margin: 4px 0 2px 2px; text-transform: uppercase; letter-spacing: 0.5px; }}
-
         .close-btn {{
             background: #dc2626; color: #ffffff; border: 1px solid #ef4444; border-radius: 3px;
             padding: 0px 5px; font-size: 10px; font-weight: bold; cursor: pointer;
@@ -8326,7 +8318,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 {exit_btn_html}
             </div>
             <div class="ind-bar">
-                <!-- ✏️ Drawing Tools Menu -->
                 <span id="draw_btn_{chart_dom_id}" class="ind-drop-btn" onclick="toggleDrawMenu(event)" title="Drawing Tools">✏️ Draw ▾</span>
                 <div id="draw_menu_{chart_dom_id}" class="draw-menu" onclick="event.stopPropagation()">
                     <div id="ditem_hline" class="draw-item" onclick="selectDrawTool('hline')"><span>Horizontal Line</span><span style="color:#64748b;font-size:10px;">━</span></div>
@@ -8338,7 +8329,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                     <div class="draw-clear" onclick="clearAllDrawings()">Clear all</div>
                 </div>
 
-                <!-- 📊 Select Indicator Menu -->
                 <span class="ind-drop-btn" onclick="toggleIndMenu(event)">📊 Select Indicator ▾</span>
                 <div id="ind_menu_{chart_dom_id}" class="ind-menu" onclick="event.stopPropagation()">
                     <div class="ind-sec-lbl">Default Indicators (Active)</div>
@@ -8357,7 +8347,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                     <label class="ind-row"><input type="checkbox" id="chk_pine_tsa" onchange="toggleInd('pine_tsa')"> <span>Trend Speed + Wave Table</span></label>
                     <hr style="border:0; border-top:1px solid #374151; margin:4px 0;">
                     <div class="ind-sec-lbl" style="color:#f59e0b;">🔬 Order Flow & Footprint</div>
-                    <label class="ind-row"><input type="checkbox" id="chk_order_flow" onchange="toggleInd('order_flow')"> <b style="color:#fbbf24;">📊 Volume Footprint + CVD</b></label>
+                    <label class="ind-row"><input type="checkbox" id="chk_order_flow" checked onchange="toggleInd('order_flow')"> <b style="color:#fbbf24;">📊 Volume Footprint + CVD</b></label>
                 </div>
                 <span class="close-btn" onclick="triggerStBtn('{close_token}')" title="Close {disp_sym}">✖</span>
             </div>
@@ -8367,13 +8357,11 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             <div id="ohlc_{chart_dom_id}" class="ohlc-overlay">Move cursor to inspect OHLCV</div>
             <div id="draw_badge_{chart_dom_id}" class="draw-status-badge" onclick="cancelDrawTool()" title="Click to exit drawing mode"></div>
 
-            <!-- Pine Script v6 Wave Dominance Table -->
             <div id="wtbl_{chart_dom_id}" class="wave-tbl">
                 <div>Wave Avg: <b style="color:{wtbl['col']};">{wtbl['rat_avg']}</b> | Max: <b>{wtbl['rat_max']}</b></div>
                 <div>Dominance: <b style="color:{wtbl['col']};">{wtbl['dom']}</b></div>
             </div>
 
-            <!-- Floating Entry (BUY/SELL) + SL + TGT Editor Box -->
             <div id="sltg_bar_{chart_dom_id}" class="sltg-box">
                 <span id="ent_lbl_{chart_dom_id}" style="color:#38bdf8;font-weight:bold;">{ent_lbl_html}</span>
                 <input id="inp_ent_{chart_dom_id}" class="sltg-inp" type="number" step="0.5" onchange="onManualSLTG('ENT')" oninput="onManualSLTG('ENT')">
@@ -8385,10 +8373,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 <span class="save-sltg-btn" onclick="saveSLTGToSheet()" title="Save Entry (Limit), SL & Target to Google Sheets & Dhan">💾 Save</span>
             </div>
 
-            <!-- Hover Tooltip for Entry / SL / Target Percentage & Amount -->
             <div id="line_tip_{chart_dom_id}" class="line-hover-tip"></div>
-
-            <!-- SVG Overlay & Full-Height Chart Container -->
             <svg id="draw_svg_{chart_dom_id}"></svg>
             <div id="{chart_dom_id}" style="width: 100%; height: 100%;"></div>
         </div>
@@ -8499,7 +8484,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 vertLine: {{ width: 1, color: '#6b7280', style: LightweightCharts.LineStyle.Dashed, labelBackgroundColor: '#111827' }},
                 horzLine: {{ width: 1, color: '#6b7280', style: LightweightCharts.LineStyle.Dashed, labelBackgroundColor: '#111827' }}
             }},
-            rightPriceScale: {{ borderColor: '#cbd5e1', scaleMargins: {{ top: 0.08, bottom: 0.22 }} }},
+            rightPriceScale: {{ borderColor: '#cbd5e1', scaleMargins: {{ top: 0.08, bottom: 0.24 }} }},
             timeScale: {{
                 borderColor: '#cbd5e1', timeVisible: true, secondsVisible: false,
                 rightOffset: 3, barSpacing: {bar_sp},
@@ -8534,7 +8519,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             scaleMargins: {{ top: 0.82, bottom: 0.0 }}
         }});
         volSeries.setData(vData);
-        // Default ga Last 1 Day (75 candles) matrame chupinchu; Zoom-Out / Scroll cheste 5 Days kanipistayi
         if ("{timeframe}" === "Intraday (5m)" && cData.length > 75) {{
             chart.timeScale().setVisibleLogicalRange({{
                 from: cData.length - 75,
@@ -8544,9 +8528,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             chart.timeScale().fitContent();
         }}
 
-        // =========================================================
-        // ✏️ INTERACTIVE DRAWING ENGINE
-        // =========================================================
         let currentTool = null;
         let pendingPt = null;
         let isFreeDrawing = false;
@@ -8715,12 +8696,11 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 }}
             }});
 
-            // 🔬 RENDER ORDER FLOW VOLUME FOOTPRINT, 3x ANCHOR ZONES & DELTA/CVD BAR
+            // 🔬 RENDER ORDER FLOW VOLUME FOOTPRINT, 3x ANCHOR ZONES & VWAP-RESET DELTA/CVD BAR
             if (typeof state !== 'undefined' && state.order_flow && ofData.length > 0) {{
                 const fmtK = (n) => {{
                     const a = Math.abs(n);
                     const s = n < 0 ? '-' : '';
-                    // 🔥 Delta & CVD రెండూ 'K' (Thousands) లోనే చూపిస్తుంది (10 లక్షలు దాటితేనే 'M' లోకి మారుతుంది)
                     if (a >= 1000000) return s + (a / 1000000).toFixed(2) + 'M';
                     if (a >= 10000) return s + Math.round(a / 1000) + 'K';
                     if (a >= 1000) return s + (a / 1000).toFixed(1) + 'K';
@@ -8731,7 +8711,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 const endIdx = visRange ? Math.min(ofData.length - 1, Math.ceil(visRange.to)) : ofData.length - 1;
                 const visCount = Math.max(1, endIdx - startIdx + 1);
 
-                // 1. Bottom Delta & Cumulative Delta (CVD) Table Header
                 const tblTop = rect.height - 58;
                 svgHtml += `<rect x="0" y="${{tblTop}}" width="${{rect.width - 55}}" height="34" fill="rgba(11,14,20,0.92)" stroke="#334155" stroke-width="1"/>`;
                 svgHtml += `<text x="4" y="${{tblTop + 12}}" fill="#94a3b8" font-size="9" font-family="monospace" font-weight="bold">Δ DELTA</text>`;
@@ -8744,7 +8723,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                     const cx = chart.timeScale().timeToCoordinate(item.time);
                     if (cx === null || cx < 48 || cx > rect.width - 58) continue;
 
-                    // 2. 3x High-Volume Anchor / Imbalance Zone (Support/Resistance Box)
                     if (item.anchor) {{
                         const pyPoc = candleSeries.priceToCoordinate(item.poc);
                         if (pyPoc !== null) {{
@@ -8754,17 +8732,12 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                         }}
                     }}
 
-                    // 3. Delta & Cumulative Delta Values per Candle (When <= 40 candles visible)
                     if (visCount <= 40) {{
                         const dCol = item.delta >= 0 ? '#4ade80' : '#f87171';
-                        // 🔥 CVD కలర్ ఇప్పుడు క్యాండిల్ కలర్‌ని కాకుండా 5-క్యాండిల్స్ CVD ట్రెండ్‌ని చూపిస్తుంది!
-                        const dCol = item.delta >= 0 ? '#4ade80' : '#f87171';
-                        // 🔥 CVD మైనస్ (< 0) అయ్యే వరకు GREEN (#4ade80), మైనస్ అయితేనే RED (#f87171)
                         const cvdCol = item.cvd >= 0 ? '#4ade80' : '#f87171';
                         svgHtml += `<text x="${{cx}}" y="${{tblTop + 12}}" fill="${{dCol}}" font-size="8.5" font-family="monospace" font-weight="bold" text-anchor="middle">${{fmtK(item.delta)}}</text>`;
                         svgHtml += `<text x="${{cx}}" y="${{tblTop + 29}}" fill="${{cvdCol}}" font-size="8.5" font-family="monospace" font-weight="bold" text-anchor="middle">${{fmtK(item.cvd)}}</text>`;
 
-                        // Divergence Warning Dot (Green candle with negative delta OR Red candle with positive delta)
                         if ((item.c > item.o && item.delta < 0) || (item.c < item.o && item.delta > 0)) {{
                             const yHigh = candleSeries.priceToCoordinate(item.h);
                             if (yHigh !== null) {{
@@ -8774,7 +8747,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                         }}
                     }}
 
-                    // 4. Skeleton X-Ray Footprint (Left Sell vs Right Buy) when Zoomed In (<= 22 candles)
                     if (visCount <= 22 && item.lvls) {{
                         item.lvls.forEach(lv => {{
                             const py = candleSeries.priceToCoordinate(lv.p);
@@ -8788,14 +8760,140 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                     }}
                 }}
             }}
+
             drawSvg.innerHTML = svgHtml;
             if (fibCntEl) fibCntEl.innerText = `(${{fibCount}})`;
         }}
 
+        const vwapSeries = chart.addLineSeries({{ color: '#eab308', lineWidth: 2, title: 'VWAP', visible: {'true' if 'VWAP' in active_inds else 'false'} }});
+        vwapSeries.setData(vwapData);
+
+        const ema10Series = chart.addLineSeries({{ color: '#00BFFF', lineWidth: 2, lineStyle: 2, title: 'E', priceLineVisible: false, visible: {'true' if 'EMAs' in active_inds else 'false'} }});
+        ema10Series.setData(ema10Data);
+        const ema20Series = chart.addLineSeries({{ color: '#9333ea', lineWidth: 1, lineStyle: 2, priceLineVisible: false, visible: false }});
+        ema20Series.setData(ema20Data);
+
+        const kalSeries = chart.addLineSeries({{ color: '#0d9488', lineWidth: 2, priceLineVisible: false, visible: {'true' if 'Kalman' in active_inds else 'false'} }});
+        kalSeries.setData(kalData);
+
+        const stSeries = chart.addLineSeries({{ color: '#16a34a', lineWidth: 2, lineStyle: 1, priceLineVisible: false, visible: {'true' if 'ST(7,3)' in active_inds else 'false'} }});
+        stSeries.setData(stData);
+
+        const bbUpSeries = chart.addLineSeries({{ color: 'rgba(37,99,235,0.4)', lineWidth: 1, priceLineVisible: false, visible: {'true' if 'BB' in active_inds else 'false'} }});
+        bbUpSeries.setData(bbUpData);
+        const bbDnSeries = chart.addLineSeries({{ color: 'rgba(37,99,235,0.4)', lineWidth: 1, priceLineVisible: false, visible: {'true' if 'BB' in active_inds else 'false'} }});
+        bbDnSeries.setData(bbDnData);
+
+        const pineFastSeries = chart.addLineSeries({{ lineWidth: 2, priceLineVisible: false, visible: false, title: 'FastWMA' }});
+        pineFastSeries.setData(pFastData);
+        const pineSlowSeries = chart.addLineSeries({{ color: '#64748b', lineWidth: 1, priceLineVisible: false, visible: false }});
+        pineSlowSeries.setData(pSlowData);
+        const pineUpBand = chart.addLineSeries({{ color: '#f97316', lineWidth: 1, lineStyle: 2, priceLineVisible: false, visible: false }});
+        pineUpBand.setData(pUpData);
+        const pineLoBand = chart.addLineSeries({{ color: '#f97316', lineWidth: 1, lineStyle: 2, priceLineVisible: false, visible: false }});
+        pineLoBand.setData(pLoData);
+        const pineMidBand = chart.addLineSeries({{ lineWidth: 3, priceLineVisible: false, visible: false }});
+        pineMidBand.setData(pMidData);
+
+        const pineMtf20 = chart.addLineSeries({{ color: '#f97316', lineWidth: 2, priceLineVisible: false, visible: false, title: 'EMA20' }});
+        pineMtf20.setData(mtf20Data);
+        const pineMtf100 = chart.addLineSeries({{ color: '#3b82f6', lineWidth: 2, priceLineVisible: false, visible: false, title: 'EMA100' }});
+        pineMtf100.setData(mtf100Data);
+        const pineMtf200 = chart.addLineSeries({{ color: '#a855f7', lineWidth: 2, priceLineVisible: false, visible: false, title: 'EMA200' }});
+        pineMtf200.setData(mtf200Data);
+
+        const pineDynSeries = chart.addLineSeries({{ lineWidth: 2, priceLineVisible: false, visible: false, title: 'DynTrend' }});
+        pineDynSeries.setData(dynEmaData);
+
+        let srLines = [];
+        let pivLines = [];
+        function drawSR(show) {{
+            srLines.forEach(l => candleSeries.removePriceLine(l));
+            srLines = [];
+            if (show) {{
+                srLines.push(candleSeries.createPriceLine({{ price: {sr_high}, color: '#16a34a', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'Res' }}));
+                srLines.push(candleSeries.createPriceLine({{ price: {sr_low}, color: '#dc2626', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'Sup' }}));
+            }}
+        }}
+        function drawPiv(show) {{
+            pivLines.forEach(l => candleSeries.removePriceLine(l));
+            pivLines = [];
+            if (show) {{
+                pivLines.push(candleSeries.createPriceLine({{ price: {piv}, color: '#d97706', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'P' }}));
+                pivLines.push(candleSeries.createPriceLine({{ price: {r1}, color: '#16a34a', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'R1' }}));
+                pivLines.push(candleSeries.createPriceLine({{ price: {s1}, color: '#dc2626', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'S1' }}));
+            }}
+        }}
+
+        const defaultState = {{
+            ema: {'true' if 'EMAs' in active_inds else 'false'},
+            sr: {'true' if 'S&R' in active_inds else 'false'},
+            piv: {'true' if 'Pivots(R1,S1)' in active_inds else 'false'},
+            vwap: {'true' if 'VWAP' in active_inds else 'false'},
+            bb: {'true' if 'BB' in active_inds else 'false'},
+            kal: {'true' if 'Kalman' in active_inds else 'false'},
+            st: {'true' if 'ST(7,3)' in active_inds else 'false'},
+            pine_rib: false,
+            pine_big: false,
+            pine_tsa: false,
+            order_flow: true
+        }};
+        const state = Object.assign({{}}, defaultState, window.parent._savedIndState || {{}});
+
+        function applyAllIndStates() {{
+            vwapSeries.applyOptions({{ visible: state.vwap }});
+            ema10Series.applyOptions({{ visible: state.ema }});
+            ema20Series.applyOptions({{ visible: false }});
+            kalSeries.applyOptions({{ visible: state.kal }});
+            stSeries.applyOptions({{ visible: state.st }});
+            bbUpSeries.applyOptions({{ visible: state.bb }});
+            bbDnSeries.applyOptions({{ visible: state.bb }});
+            drawSR(state.sr);
+            drawPiv(state.piv);
+
+            pineFastSeries.applyOptions({{ visible: state.pine_rib }});
+            pineSlowSeries.applyOptions({{ visible: state.pine_rib }});
+            pineUpBand.applyOptions({{ visible: state.pine_rib }});
+            pineLoBand.applyOptions({{ visible: state.pine_rib }});
+            pineMidBand.applyOptions({{ visible: state.pine_rib }});
+
+            pineMtf20.applyOptions({{ visible: state.pine_big }});
+            pineMtf100.applyOptions({{ visible: state.pine_big }});
+            pineMtf200.applyOptions({{ visible: state.pine_big }});
+            candleSeries.setMarkers(state.pine_big ? bigMarkers : []);
+
+            pineDynSeries.applyOptions({{ visible: state.pine_tsa }});
+            candleSeries.setData(state.pine_tsa ? spdCandles : cData);
+            wTbl.style.display = state.pine_tsa ? 'block' : 'none';
+
+            ['ema','sr','piv','vwap','bb','kal','st','pine_rib','pine_big','pine_tsa','order_flow'].forEach(k => {{
+                const el = document.getElementById('chk_' + k);
+                if (el) el.checked = !!state[k];
+            }});
+            const allEl = document.getElementById('chk_pine_all');
+            if (allEl) allEl.checked = (state.pine_rib && state.pine_big && state.pine_tsa);
+            renderAllDrawings();
+        }}
+
         rebuildHPriceLines();
+        applyAllIndStates();
         setTimeout(() => renderAllDrawings(), 80);
         chart.timeScale().subscribeVisibleLogicalRangeChange(() => renderAllDrawings());
         chart.timeScale().subscribeVisibleTimeRangeChange(() => renderAllDrawings());
+
+        window.toggleInd = function(k) {{
+            state[k] = !state[k];
+            window.parent._savedIndState = Object.assign({{}}, state);
+            applyAllIndStates();
+        }};
+
+        window.togglePineAll = function(on) {{
+            state.pine_rib = on;
+            state.pine_big = on;
+            state.pine_tsa = on;
+            window.parent._savedIndState = Object.assign({{}}, state);
+            applyAllIndStates();
+        }};
 
         container.addEventListener('mousedown', (e) => {{
             if (!currentTool) return;
@@ -8852,9 +8950,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             }}
         }});
 
-        // =========================================================
-        // 🔥 DRAGGABLE BUY/SELL ENTRY LINE (AUTO LIMIT ORDER) + SL & TGT LINES
-        // =========================================================
         let entryLineObj = null, slLineObj = null, tgLineObj = null;
         let curEnt = 0, curSL = 0, curTG = 0, curOType = 'MARKET', draggingMode = null;
 
@@ -8959,12 +9054,8 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                         title: fmtEntTitle(curEnt, curOType)
                     }});
                 }}
-                if (!isNaN(vSL) && vSL > 0) {{
-                    curSL = vSL;
-                }}
-                if (!isNaN(vTG) && vTG > 0) {{
-                    curTG = vTG;
-                }}
+                if (!isNaN(vSL) && vSL > 0) curSL = vSL;
+                if (!isNaN(vTG) && vTG > 0) curTG = vTG;
                 slLineObj.applyOptions({{ price: curSL, title: fmtSLTitle(curSL) }});
                 tgLineObj.applyOptions({{ price: curTG, title: fmtTGTitle(curTG) }});
                 window.parent._customSLTG[activePos.sym] = {{ entry: curEnt, sl: curSL, tg: curTG, orderType: curOType }};
@@ -9118,137 +9209,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             }}
         }});
 
-        // Default Indicators
-        const vwapSeries = chart.addLineSeries({{ color: '#eab308', lineWidth: 2, title: 'VWAP', visible: {'true' if 'VWAP' in active_inds else 'false'} }});
-        vwapSeries.setData(vwapData);
-
-        const ema10Series = chart.addLineSeries({{ color: '#2563eb', lineWidth: 1, priceLineVisible: false, visible: {'true' if 'EMAs' in active_inds else 'false'} }});
-        ema10Series.setData(ema10Data);
-        const ema20Series = chart.addLineSeries({{ color: '#9333ea', lineWidth: 1, lineStyle: 2, priceLineVisible: false, visible: {'true' if 'EMAs' in active_inds else 'false'} }});
-        ema20Series.setData(ema20Data);
-
-        const kalSeries = chart.addLineSeries({{ color: '#0d9488', lineWidth: 2, priceLineVisible: false, visible: {'true' if 'Kalman' in active_inds else 'false'} }});
-        kalSeries.setData(kalData);
-
-        const stSeries = chart.addLineSeries({{ color: '#16a34a', lineWidth: 2, lineStyle: 1, priceLineVisible: false, visible: {'true' if 'ST(7,3)' in active_inds else 'false'} }});
-        stSeries.setData(stData);
-
-        const bbUpSeries = chart.addLineSeries({{ color: 'rgba(37,99,235,0.4)', lineWidth: 1, priceLineVisible: false, visible: {'true' if 'BB' in active_inds else 'false'} }});
-        bbUpSeries.setData(bbUpData);
-        const bbDnSeries = chart.addLineSeries({{ color: 'rgba(37,99,235,0.4)', lineWidth: 1, priceLineVisible: false, visible: {'true' if 'BB' in active_inds else 'false'} }});
-        bbDnSeries.setData(bbDnData);
-
-        // 🌲 Pine Script v6 Indicator Series
-        const pineFastSeries = chart.addLineSeries({{ lineWidth: 2, priceLineVisible: false, visible: false, title: 'FastWMA' }});
-        pineFastSeries.setData(pFastData);
-        const pineSlowSeries = chart.addLineSeries({{ color: '#64748b', lineWidth: 1, priceLineVisible: false, visible: false }});
-        pineSlowSeries.setData(pSlowData);
-        const pineUpBand = chart.addLineSeries({{ color: '#f97316', lineWidth: 1, lineStyle: 2, priceLineVisible: false, visible: false }});
-        pineUpBand.setData(pUpData);
-        const pineLoBand = chart.addLineSeries({{ color: '#f97316', lineWidth: 1, lineStyle: 2, priceLineVisible: false, visible: false }});
-        pineLoBand.setData(pLoData);
-        const pineMidBand = chart.addLineSeries({{ lineWidth: 3, priceLineVisible: false, visible: false }});
-        pineMidBand.setData(pMidData);
-
-        const pineMtf20 = chart.addLineSeries({{ color: '#f97316', lineWidth: 2, priceLineVisible: false, visible: false, title: 'EMA20' }});
-        pineMtf20.setData(mtf20Data);
-        const pineMtf100 = chart.addLineSeries({{ color: '#3b82f6', lineWidth: 2, priceLineVisible: false, visible: false, title: 'EMA100' }});
-        pineMtf100.setData(mtf100Data);
-        const pineMtf200 = chart.addLineSeries({{ color: '#a855f7', lineWidth: 2, priceLineVisible: false, visible: false, title: 'EMA200' }});
-        pineMtf200.setData(mtf200Data);
-
-        const pineDynSeries = chart.addLineSeries({{ lineWidth: 2, priceLineVisible: false, visible: false, title: 'DynTrend' }});
-        pineDynSeries.setData(dynEmaData);
-
-        let srLines = [];
-        let pivLines = [];
-        function drawSR(show) {{
-            srLines.forEach(l => candleSeries.removePriceLine(l));
-            srLines = [];
-            if (show) {{
-                srLines.push(candleSeries.createPriceLine({{ price: {sr_high}, color: '#16a34a', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'Res' }}));
-                srLines.push(candleSeries.createPriceLine({{ price: {sr_low}, color: '#dc2626', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'Sup' }}));
-            }}
-        }}
-        function drawPiv(show) {{
-            pivLines.forEach(l => candleSeries.removePriceLine(l));
-            pivLines = [];
-            if (show) {{
-                pivLines.push(candleSeries.createPriceLine({{ price: {piv}, color: '#d97706', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'P' }}));
-                pivLines.push(candleSeries.createPriceLine({{ price: {r1}, color: '#16a34a', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'R1' }}));
-                pivLines.push(candleSeries.createPriceLine({{ price: {s1}, color: '#dc2626', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'S1' }}));
-            }}
-        }}
-
-        const defaultState = {{
-            ema: {'true' if 'EMAs' in active_inds else 'false'},
-            sr: {'true' if 'S&R' in active_inds else 'false'},
-            piv: {'true' if 'Pivots(R1,S1)' in active_inds else 'false'},
-            vwap: {'true' if 'VWAP' in active_inds else 'false'},
-            bb: {'true' if 'BB' in active_inds else 'false'},
-            kal: {'true' if 'Kalman' in active_inds else 'false'},
-            st: {'true' if 'ST(7,3)' in active_inds else 'false'},
-            pine_rib: false,
-            pine_big: false,
-            pine_tsa: false,
-            order_flow: false
-        }};
-        const state = Object.assign({{}}, defaultState, window.parent._savedIndState || {{}});
-
-        function applyAllIndStates() {{
-            vwapSeries.applyOptions({{ visible: state.vwap }});
-            ema10Series.applyOptions({{ visible: state.ema }});
-            ema20Series.applyOptions({{ visible: state.ema }});
-            kalSeries.applyOptions({{ visible: state.kal }});
-            stSeries.applyOptions({{ visible: state.st }});
-            bbUpSeries.applyOptions({{ visible: state.bb }});
-            bbDnSeries.applyOptions({{ visible: state.bb }});
-            drawSR(state.sr);
-            drawPiv(state.piv);
-
-            pineFastSeries.applyOptions({{ visible: state.pine_rib }});
-            pineSlowSeries.applyOptions({{ visible: state.pine_rib }});
-            pineUpBand.applyOptions({{ visible: state.pine_rib }});
-            pineLoBand.applyOptions({{ visible: state.pine_rib }});
-            pineMidBand.applyOptions({{ visible: state.pine_rib }});
-
-            pineMtf20.applyOptions({{ visible: state.pine_big }});
-            pineMtf100.applyOptions({{ visible: state.pine_big }});
-            pineMtf200.applyOptions({{ visible: state.pine_big }});
-            candleSeries.setMarkers(state.pine_big ? bigMarkers : []);
-
-            pineDynSeries.applyOptions({{ visible: state.pine_tsa }});
-            candleSeries.setData(state.pine_tsa ? spdCandles : cData);
-            wTbl.style.display = state.pine_tsa ? 'block' : 'none';
-
-            ['ema','sr','piv','vwap','bb','kal','st','pine_rib','pine_big','pine_tsa','order_flow'].forEach(k => {{
-            const el = document.getElementById('chk_' + k);
-            if (el) el.checked = !!state[k];
-            }});
-            renderAllDrawings();(k => {{
-                const el = document.getElementById('chk_' + k);
-                if (el) el.checked = !!state[k];
-            }});
-            const allEl = document.getElementById('chk_pine_all');
-            if (allEl) allEl.checked = (state.pine_rib && state.pine_big && state.pine_tsa);
-        }}
-
-        applyAllIndStates();
-
-        window.toggleInd = function(k) {{
-            state[k] = !state[k];
-            window.parent._savedIndState = Object.assign({{}}, state);
-            applyAllIndStates();
-        }};
-
-        window.togglePineAll = function(on) {{
-            state.pine_rib = on;
-            state.pine_big = on;
-            state.pine_tsa = on;
-            window.parent._savedIndState = Object.assign({{}}, state);
-            applyAllIndStates();
-        }};
-
         const volLookup = Object.fromEntries(vData.map(x => [x.time, x.value]));
         function updateLegend(bar) {{
             if (!bar) return;
@@ -9262,7 +9222,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             const ofCvdCol = (ofBar && ofBar.cvd < 0) ? '#f87171' : '#4ade80';
             const ofCvdArr = (ofBar && ofBar.cvd < 0) ? '↓' : '↑';
             const ofStr = ofBar ? ` &nbsp;|&nbsp; <span style="color:#4ade80;">Buy:<b>${{(ofBar.buy/1000).toFixed(1)}}K</b></span> <span style="color:#f87171;">Sell:<b>${{(ofBar.sell/1000).toFixed(1)}}K</b></span> <span style="color:${{ofBar.delta>=0?'#4ade80':'#f87171'}};">Δ:<b>${{ofBar.delta>=0?'+':''}}${{(ofBar.delta/1000).toFixed(1)}}K</b></span> <span style="color:${{ofCvdCol}};">CVD:<b>${{(ofBar.cvd/1000).toFixed(1)}}K${{ofCvdArr}}</b></span>` : '';
-        ohlcBox.innerHTML = `🕒 <b>${{tStr}}</b> &nbsp; O<b>${{bar.open}}</b> H<b>${{bar.high}}</b> L<b>${{bar.low}}</b> C<b>${{bar.close}}</b> <span style="color:${{col}};font-weight:bold;">${{chg>=0?'+'+chg:chg}} (${{pct>=0?'+'+pct:pct}}%)</span> ${{vStr}}${{ofStr}}`;
+            ohlcBox.innerHTML = `🕒 <b>${{tStr}}</b> &nbsp; O<b>${{bar.open}}</b> H<b>${{bar.high}}</b> L<b>${{bar.low}}</b> C<b>${{bar.close}}</b> <span style="color:${{col}};font-weight:bold;">${{chg>=0?'+'+chg:chg}} (${{pct>=0?'+'+pct:pct}}%)</span> ${{vStr}}${{ofStr}}`;
         }}
         if (cData.length > 0) updateLegend(cData[cData.length - 1]);
         chart.subscribeCrosshairMove(param => {{
@@ -9274,7 +9234,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             }}
         }});
 
-        // 📱 MOBILE TOUCH SUPPORT (Finger Drag for BUY/SL/TGT Lines & Drawing Tools)
         container.addEventListener('touchstart', (e) => {{
             if (!e.touches || e.touches.length === 0) return;
             const touch = e.touches[0];
@@ -9318,6 +9277,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 clientX: touch ? touch.clientX : 0, clientY: touch ? touch.clientY : 0, bubbles: true
             }}));
         }}, {{ passive: false }});
+
         const stageEl = container.parentElement || container;
         let _initialScrollDone = false;
         function syncChartSize() {{
