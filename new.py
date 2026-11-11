@@ -1016,11 +1016,12 @@ def _sanitize_5m_df(df_in, tkr=None):
     return d
 
 def fetch_cached_5m_data(tkrs_list):
-    import os
+    import os, tempfile
     t0 = time.time()
     _m_open = is_market_open()
-    _ttl = 25 if _m_open else 1800
-    _cache_5m_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "intraday_5m_cache_v3.pkl")
+    # ⚡ LOCALHOST SPEED FIX: 5m candles 120s cache (LTP matram prati 30s ki TradingView nundi live update avutundi)
+    _ttl = 120 if _m_open else 3600
+    _cache_5m_file = os.path.join(tempfile.gettempdir(), "intraday_5m_cache_v3.pkl")
     _bad_syms = globals().get('_SKIP_BAD_SYMS', {"PBFINTECH", "GUJGASLTD", "TVSHLDGS", "PEL", "LTIM", "JCHAC", "TIDEWATER"})
 
     _today_close_ts = datetime.now(ZoneInfo("Asia/Kolkata")).replace(hour=15, minute=32, second=0, microsecond=0).timestamp()
@@ -1144,8 +1145,8 @@ _SKIP_BAD_SYMS = {
 
 @st.cache_data(ttl=900, show_spinner=False)
 def fetch_all_data(_v=4):
-    # ⚡ FAST STARTUP FIX: ఆల్రెడీ సేవ్ అయిన క్యాష్ ఫైల్ ఉంటే 1 సెకనులో లోడ్ చేస్తుంది
-    _cache_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "daily_base_cache.pkl")
+    import tempfile
+    _cache_file = os.path.join(tempfile.gettempdir(), "daily_base_cache.pkl")
     if os.path.exists(_cache_file):
         try:
             # ఫైల్ 6 గంటల లోపుదైతే మళ్ళీ 550 స్టాక్స్ డౌన్‌లోడ్ చేయకుండా డైరెక్ట్‌గా తీసుకుంటుంది
@@ -1377,7 +1378,7 @@ def fetch_all_data(_v=4):
         except: continue
     _final_df = pd.DataFrame(results)
     if not _final_df.empty:
-        try: _final_df.to_pickle("daily_base_cache.pkl")
+        try: _final_df.to_pickle(_cache_file)
         except Exception: pass
     return _final_df
 
