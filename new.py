@@ -8115,7 +8115,10 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             prev_day_date = cur_day_date
 
         rng_hl = max(h - l, 0.001)
-        clv_ratio = max(0.08, min(0.92, ((c - l) / rng_hl) * 0.75 + (0.20 if c >= o else 0.05)))
+        # True Institutional Body + Wick Order-Flow Split (Unbiased)
+        body_pressure = (c - o) / rng_hl
+        wick_pressure = ((c - l) - (h - c)) / rng_hl
+        clv_ratio = max(0.05, min(0.95, 0.50 + 0.50 * (0.60 * body_pressure + 0.40 * wick_pressure)))
         buy_v = round(v * clv_ratio)
         sell_v = round(v - buy_v)
         delta_v = buy_v - sell_v
