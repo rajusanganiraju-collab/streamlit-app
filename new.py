@@ -9773,6 +9773,81 @@ def render_live_ui():
         df_filtered = df_all_stocks[df_all_stocks['Fetch_T'].isin(pp_tickers)].copy()
     elif watchlist_mode == "Commodity 🛢️":
         df_filtered = df_commodities.copy()
+    elif watchlist_mode == "Fundamentals 🏢":
+        _p_syms = df_port_saved['Symbol'].tolist() if not df_port_saved.empty else []
+        _df_f50 = fetch_fundamentals_data(fund_filter, _p_syms)
+        if not _df_f50.empty:
+            _f50_fts = _df_f50['Fetch_T'].tolist()
+            # 2500 స్టాక్స్ నుండి వచ్చిన కొత్త స్టాక్స్‌కి 5-నిమిషాల చార్ట్ డేటా లేకపోతే వెంటనే తెస్తుంది
+            _miss_5m = [ft for ft in _f50_fts if ft not in processed_charts or processed_charts[ft].empty]
+            if _miss_5m:
+                _ex_5m = fetch_cached_5m_data(_miss_5m)
+                if not _ex_5m.empty:
+                    for _mft in _miss_5m:
+                        try:
+                            _raw_c = _ex_5m[_mft] if isinstance(_ex_5m.columns, pd.MultiIndex) else _ex_5m
+                            processed_charts[_mft] = _fix_ist_df(process_5m_data(_raw_c))
+                        except Exception:
+                            pass
+
+            _existing_map = df_all_stocks.drop_duplicates(subset=['T']).set_index('T').to_dict('index')
+            _f_rows = []
+            for _, _fr in _df_f50.iterrows():
+                _sym = str(_fr['Symbol']).strip()
+                _ft = f"{_sym}.NS"
+                _ltp = float(_fr['LTP'])
+                _dc = float(_fr['Day_C'])
+                _iscore = int(_fr['Inst_Score'])
+                _gtag = str(_fr['Grade_Tag'])
+                _h52 = float(_fr['52W High'])
+                _l52 = float(_fr['52W Low'])
+
+                _df5 = processed_charts.get(_ft, pd.DataFrame())
+                _vwap_v = float(_df5['VWAP'].iloc[-1]) if (not _df5.empty and 'VWAP' in _df5.columns) else _ltp
+                _ema10_v = float(_df5['EMA_10'].iloc[-1]) if (not _df5.empty and 'EMA_10' in _df5.columns) else _ltp
+
+                if _sym in _existing_map:
+                    _base_r = dict(_existing_map[_sym])
+                else:
+                    _op_v = round(_ltp / (1.0 + _dc / 100.0), 2) if _dc != 0 else _ltp
+                    _hi_v = float(_df5['High'].tail(75).max()) if not _df5.empty else max(_ltp, _op_v)
+                    _lo_v = float(_df5['Low'].tail(75).min()) if not _df5.empty else min(_ltp, _op_v)
+                    _base_r = {
+                        "VCP_Contract": False, "VCP_Vol_Dry": False,
+                        "Fetch_T": _ft, "T": _sym, "P": _ltp, "O": _op_v, "H": _hi_v, "L": _lo_v, "Prev_C": _op_v,
+                        "Prev_H": _hi_v, "Prev_L": _lo_v, "W_EMA10": _ltp, "W_EMA50": _ltp,
+                        "D_EMA50": _ltp, "EMA20": _ltp, "SMA20": _ltp, "SMA50": _ltp, "SMA150": _ltp, "SMA200": _ltp,
+                        "High52W": _h52, "Low52W": _l52, "SMA200_20D": _ltp,
+                        "Day_C": _dc, "C": _dc, "W_C": _dc, "VolX": 1.2,
+                        "Is_Swing": True, "Is_W_Pullback": False, "VWAP": _vwap_v, "Intra_EMA10": _ema10_v,
+                        "ATR": max(_ltp * 0.02, 1.0), "Narrow_CPR": False, "Bull_P": 60.0 if _dc >= 0 else 40.0, "Bear_P": 40.0 if _dc >= 0 else 60.0,
+                        "Is_Index": False, "Is_Sector": False, "Sector": str(_fr['Sector']), "Is_Commodity": False,
+                        "SMA150_20D": _ltp, "Box_Top20": _h52, "Box_Bot20": _l52,
+                        "Pullback_52W": float(_fr['Dist_52H']), "RSI2": 50.0, "RSI14": 55.0
+                    }
+
+                _base_r["T"] = _sym
+                _base_r["Fetch_T"] = _ft
+                _base_r["P"] = _ltp
+                _base_r["Day_C"] = _dc
+                _base_r["S"] = _iscore
+                _base_r["AI_Prob"] = _iscore
+                _base_r["Sector"] = str(_fr['Sector'])
+                _base_r["VWAP"] = _vwap_v
+                _base_r["Intra_EMA10"] = _ema10_v
+                _base_r["Strategy_Icon"] = f"🟢 {_gtag}" if _dc >= 0 else f"🔴 {_gtag}"
+                _base_r["AlphaTag"] = f"🏛️Inst:{_iscore} | ROE:{_fr['ROE %']:.0f}% | PE:{_fr['P/E Ratio']:.1f}"
+                _f_rows.append(_base_r)
+                df_lookup[_ft] = _base_r
+
+            df_filtered = pd.DataFrame(_f_rows)
+            # కొత్త స్టాక్స్‌ని df_live & df_all_stocks లోకి కలపడం (Grid, Inspector & News కోసం)
+            _new_only = df_filtered[~df_filtered['T'].isin(set(df_all_stocks['T']))]
+            if not _new_only.empty:
+                df_all_stocks = pd.concat([df_all_stocks, _new_only], ignore_index=True)
+                df_live = pd.concat([df_live, _new_only], ignore_index=True)
+        else:
+            df_filtered = pd.DataFrame(columns=df_stocks.columns)
     elif watchlist_mode == "F&O + Top 200 Heatmap 🗺️":
         df_filtered = df_all_stocks[df_all_stocks['T'].isin(set(NIFTY_50 + FNO_STOCKS))].copy()
     elif watchlist_mode == "Day Trading Stocks 🚀":
@@ -10624,7 +10699,7 @@ def render_live_ui():
             else:
                 if view_mode == "News 📰":
                     render_market_news_hub(df_all_stocks, processed_charts)
-                elif watchlist_mode == "Fundamentals 🏢":
+                elif watchlist_mode == "Fundamentals 🏢" and view_mode == "Heat Map":
                     st.markdown(
                         f"<div style='font-size:15.5px; font-weight:bold; margin-bottom:6px; color:#ffd700;'>"
                         f"🏛️ Institutional Core Fundamentals — Top 50 Filtered from 2,500+ NSE Stocks ({fund_filter})</div>",
