@@ -514,7 +514,10 @@ FNO_STOCKS = [
     "POWERGRID", "PRESTIGE", "PVRINOX", "RAMCOCEM", "RBLBANK", "RECLTD", "RELIANCE", "SAIL", "SBICARD", "SBILIFE",
     "SBIN", "SHREECEM", "SHRIRAMFIN", "SIEMENS", "SRF", "SUNPHARMA", "SUNTV", "SYNGENE", "TATACHEM", "TATACOMM",
     "TATACONSUM", "TATAMOTORS", "TATAPOWER", "TATASTEEL", "TCS", "TECHM", "TITAN", "TORNTPHARM", "TRENT", "TVSMOTOR",
-    "UBL", "ULTRACEMCO", "UPL", "VEDL", "VOLTAS", "WIPRO", "ZEEL", "ETERNAL", "ZYDUSLIFE"
+    "UBL", "ULTRACEMCO", "UPL", "VEDL", "VOLTAS", "WIPRO", "ZEEL", "ETERNAL", "ZYDUSLIFE",
+    "COCHINSHIP", "IREDA", "KALYANKJIL", "KPITTECH", "LODHA", "MAXHEALTH", "MAZDOCK",
+    "NHPC", "OIL", "PAYTM", "PBFINTECH", "PHOENIXLTD", "POONAWALLA", "RVNL", "SJVN",
+    "SONACOMS", "SUPREMEIND", "TATAELXSI", "TORNTPOWER", "UNIONBANK", "YESBANK"
 ]
 
 MIDCAP_150 = [
@@ -1144,9 +1147,9 @@ _SKIP_BAD_SYMS = {
 }
 
 @st.cache_data(ttl=900, show_spinner=False)
-def fetch_all_data(_v=4):
+def fetch_all_data(_v=5):
     import tempfile
-    _cache_file = os.path.join(tempfile.gettempdir(), "daily_base_cache.pkl")
+    _cache_file = os.path.join(tempfile.gettempdir(), "daily_base_cache_v5.pkl")
     if os.path.exists(_cache_file):
         try:
             # ఫైల్ 6 గంటల లోపుదైతే మళ్ళీ 550 స్టాక్స్ డౌన్‌లోడ్ చేయకుండా డైరెక్ట్‌గా తీసుకుంటుంది
@@ -1887,6 +1890,49 @@ def fetch_domino_crisis_rss():
     return raw_items
 
 
+@st.cache_data(ttl=120, show_spinner=False)
+def fetch_nse_oi_spurts():
+    """NSE India (oi-spurts) నుండి లైవ్ % Change in Open Interest డేటాని తెస్తుంది"""
+    oi_map = {}
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://www.nseindia.com/market-data/oi-spurts",
+        "X-Requested-With": "XMLHttpRequest"
+    }
+    try:
+        sess = requests.Session()
+        sess.get("https://www.nseindia.com/market-data/oi-spurts", headers=headers, timeout=5)
+        r = sess.get("https://www.nseindia.com/api/live-analysis-oi-spurts-underlyings", headers=headers, timeout=6)
+        if r.status_code == 200:
+            data = r.json().get("data", [])
+            for item in data:
+                sym = str(item.get("symbol", "")).upper().strip()
+                if not sym or sym in ("NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY"):
+                    continue
+                cur_oi = float(item.get("latestOI") or item.get("currentOI") or 0)
+                prev_oi = float(item.get("prevOI") or 0)
+                chg_oi = float(item.get("changeInOI") or (cur_oi - prev_oi))
+                if item.get("avgInOI") is not None:
+                    pct_oi = float(item.get("avgInOI"))
+                elif prev_oi > 0:
+                    pct_oi = ((cur_oi - prev_oi) / prev_oi) * 100.0
+                else:
+                    pct_oi = 0.0
+                fut_vol = int(float(item.get("volume") or 0))
+                oi_map[sym] = {
+                    "pct_oi": round(pct_oi, 2),
+                    "chg_oi": int(chg_oi),
+                    "cur_oi": int(cur_oi),
+                    "prev_oi": int(prev_oi),
+                    "fut_vol": fut_vol
+                }
+    except Exception:
+        pass
+    return oi_map
+
+
 def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=2.5, panic_drop_thresh=-1.8, min_volx=1.0, min_move_pct=0.55):
     """
     Executes Complete Domino Intelligence Engine (Both Positive BUY & Negative SELL):
@@ -2291,6 +2337,51 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=2.5
                 f"Institutional Selling Pressure: {sym_g} down {dc_g:+.2f}% (Net {prev_c_chg:+.2f}%) below VWAP with {real_seller_pct}% seller volume ({vx_g:.1f}x RVOL)",
                 f"🚨 <b>Institutional Selling Pressure (SELL):</b> ఈరోజు ఓపెన్ నుండి <b>{dc_g:+.2f}%</b> పడిపోయి, VWAP కింద <b>{real_seller_pct}%</b> సెల్లింగ్ వాల్యూమ్‌తో ({vx_g:.1f}x RVOL) బలహీనంగా ఉంది.",
                 f"https://in.tradingview.com/chart/?symbol=NSE:{sym_g}", 0.1, base_score=max(82, real_seller_pct), priority_rank=1
+            )
+
+    # ---------------------------------------------------------
+    # STEP C4: 🔥 LIVE NSE OPEN INTEREST (OI SPURTS) + VWAP + VOLUME RADAR
+    # ---------------------------------------------------------
+    oi_spurts_map = fetch_nse_oi_spurts()
+    for oi_sym, oi_info in oi_spurts_map.items():
+        if oi_sym not in stk_lookup:
+            continue
+        pct_oi = float(oi_info.get("pct_oi", 0.0))
+        if pct_oi < 20.0:  # కనీసం 20% కంటే ఎక్కువ OI పెరిగి ఉండాలి (60%+ అయితే #1 Mega Priority)
+            continue
+
+        s_row_oi = stk_lookup[oi_sym]
+        vx_oi = float(s_row_oi.get("VolX", 0.0))
+        dc_oi = float(s_row_oi.get("Day_C", 0.0))
+        nc_oi = float(s_row_oi.get("C", 0.0))
+        cur_oi_v = oi_info.get("cur_oi", 0)
+        prev_oi_v = oi_info.get("prev_oi", 0)
+
+        ltp_v, vwap_v, ema10_v, real_buyer_pct, bull_p_oi, bear_p_oi = _get_live_vwap_ema_and_pressure(oi_sym)
+        real_seller_pct = 100 - real_buyer_pct
+
+        is_mega_oi = (pct_oi >= 50.0)  # COROMANDEL (+235%), COCHINSHIP (+71%) లాంటివి
+        p_rank = 0 if is_mega_oi else 1
+        b_score = 98 if pct_oi >= 60.0 else (95 if pct_oi >= 40.0 else 91)
+
+        # 🟢 CASE 1: LONG BUILDUP (High OI Spurt + Price Above VWAP + High Buyer Volume)
+        if (ltp_v >= vwap_v) and (dc_oi >= 0.40 or nc_oi >= 0.75) and (vx_oi >= 1.1 or pct_oi >= 50.0) and (real_buyer_pct >= 52 or bull_p_oi >= 55):
+            oi_tag = f"🔥OI-Explosion +{pct_oi:.0f}% BUY" if is_mega_oi else f"⚡OI-Buildup +{pct_oi:.0f}% BUY"
+            _register_signal(
+                oi_sym, "BUY", oi_tag,
+                f"NSE OI Spurt Long Buildup: {oi_sym} Open Interest surged +{pct_oi:.1f}% ({prev_oi_v:,} -> {cur_oi_v:,} contracts) above VWAP with {real_buyer_pct}% buyer volume ({vx_oi:.1f}x RVOL)",
+                f"🔥 <b>NSE Open Interest (OI) Long Buildup (+{pct_oi:.1f}% OI):</b> ఫ్యూచర్స్ & ఆప్షన్స్‌లో ఓపెన్ ఇంట్రెస్ట్ <b>+{pct_oi:.1f}%</b> ({prev_oi_v:,} నుండి {cur_oi_v:,} కాంట్రాక్టులకు) పెరిగి, VWAP పైన <b>{real_buyer_pct}%</b> బయ్యర్ వాల్యూమ్‌తో ({vx_oi:.1f}x RVOL) భారీ ఇన్‌స్టిట్యూషనల్ బయింగ్ జరుగుతోంది!",
+                "https://www.nseindia.com/market-data/oi-spurts", 0.1, base_score=b_score, priority_rank=p_rank
+            )
+
+        # 🔴 CASE 2: SHORT BUILDUP (High OI Spurt + Price Below VWAP + High Seller Volume)
+        elif (ltp_v < vwap_v) and (dc_oi <= -0.40 or nc_oi <= -0.75) and (vx_oi >= 1.1 or pct_oi >= 50.0) and (real_seller_pct >= 52 or bear_p_oi >= 55):
+            oi_tag = f"🩸OI-Short +{pct_oi:.0f}% SELL" if is_mega_oi else f"📉OI-Short +{pct_oi:.0f}% SELL"
+            _register_signal(
+                oi_sym, "SELL", oi_tag,
+                f"NSE OI Spurt Short Buildup: {oi_sym} Open Interest surged +{pct_oi:.1f}% ({prev_oi_v:,} -> {cur_oi_v:,} contracts) below VWAP with {real_seller_pct}% seller volume ({vx_oi:.1f}x RVOL)",
+                f"🩸 <b>NSE Open Interest (OI) Short Buildup (+{pct_oi:.1f}% OI):</b> ఓపెన్ ఇంట్రెస్ట్ <b>+{pct_oi:.1f}%</b> పెరిగి, స్టాక్ VWAP కింద <b>{real_seller_pct}%</b> సెల్లింగ్ వాల్యూమ్‌తో ({vx_oi:.1f}x RVOL) బలమైన షార్ట్ బిల్డప్ (Short Buildup) లో ఉంది!",
+                "https://www.nseindia.com/market-data/oi-spurts", 0.1, base_score=b_score, priority_rank=p_rank
             )
 
     # ---------------------------------------------------------
