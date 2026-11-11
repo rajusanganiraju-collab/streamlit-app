@@ -10115,7 +10115,7 @@ def render_live_ui():
                 if not _df_domino.empty:
                     all_dfs.append(_df_domino)
 
-            # 2C. 🔬 CVD FLIP REVERSAL (BEFORE VWAP CROSS — BALKRISIND 12:15 PM SETUP)
+            # 2C. 🔬 CVD FLIP REVERSAL (BEFORE VWAP CROSS — TRUE CURRENT WAVE SCANNER)
             elif strat == "🔬 CVD Flip Reversal (Before VWAP)":
                 cvd_flip_rows = []
                 for idx_c, r_c in df_filtered.iterrows():
@@ -10130,7 +10130,7 @@ def render_live_ui():
 
                     run_cvd = 0.0
                     prev_st = None
-                    cvd_arr, abv_arr, del_arr = [], [], []
+                    wave_cvd_arr = []
                     for _, br in td_c.iterrows():
                         o_b, h_b, l_b, c_b = float(br['Open']), float(br['High']), float(br['Low']), float(br['Close'])
                         v_b = float(br.get('Volume', 0) or 0)
@@ -10138,6 +10138,7 @@ def render_live_ui():
                         st_now = bool(c_b >= vw_b)
                         if prev_st != st_now:
                             run_cvd = 0.0
+                            wave_cvd_arr = []
                             prev_st = st_now
                         rng_b = max(h_b - l_b, 0.001)
                         body_b = (c_b - o_b) / rng_b
@@ -10147,16 +10148,18 @@ def render_live_ui():
                         s_vol = round(v_b - b_vol)
                         d_vol = b_vol - s_vol
                         run_cvd += d_vol
-                        cvd_arr.append(run_cvd)
-                        abv_arr.append(st_now)
-                        del_arr.append(d_vol)
+                        wave_cvd_arr.append(run_cvd)
 
-                    cur_cvd = cvd_arr[-1]
-                    cur_abv = abv_arr[-1]
+                    # ప్రస్తుత VWAP వేవ్‌లో కనీసం 4 క్యాండిల్స్ (20 నిమిషాలు) ఒకే వైపు ఉండాలి
+                    if len(wave_cvd_arr) < 4:
+                        continue
+
+                    cur_cvd = wave_cvd_arr[-1]
+                    prev_wave_cvds = wave_cvd_arr[:-1]
                     vwap_dist_pct = abs(float(r_c['P']) - float(r_c['VWAP'])) / max(float(r_c['VWAP']), 1.0) * 100.0
 
-                    # 🔻 CASE 1: TOP REVERSAL SHORT (Price still ABOVE VWAP after morning uptrend, but CVD flipped RED < 0!)
-                    if cur_abv and sum(abv_arr[-6:]) >= 5 and max(cvd_arr[:-1]) > 0 and cur_cvd < 0:
+                    # 🔻 CASE 1: TOP REVERSAL SHORT (ధర VWAP పైనే ఉంది + ఈ వేవ్‌లో కనీసం 3 క్యాండిల్స్ CVD > 0 ఉండి ఇప్పుడు CVD < 0 అయింది)
+                    if prev_st is True and sum(1 for x in prev_wave_cvds if x > 0) >= 3 and cur_cvd < 0 and (wave_cvd_arr[-2] > 0 or (len(wave_cvd_arr) >= 3 and wave_cvd_arr[-3] > 0)):
                         rc_copy = r_c.copy()
                         cvd_k = round(cur_cvd / 1000.0, 1)
                         rc_copy['Strategy_Icon'] = "🔻 CVD-Flip TOP SELL"
@@ -10165,8 +10168,8 @@ def render_live_ui():
                         rc_copy['AI_Prob'] = 96
                         cvd_flip_rows.append(rc_copy)
 
-                    # 💠 CASE 2: BOTTOM REVERSAL BUY (Price still BELOW VWAP after morning downtrend, but CVD flipped GREEN > 0!)
-                    elif (not cur_abv) and sum(1 for x in abv_arr[-6:] if not x) >= 5 and min(cvd_arr[:-1]) < 0 and cur_cvd > 0:
+                    # 💠 CASE 2: BOTTOM REVERSAL BUY (ధర VWAP కిందే ఉంది + ఈ వేవ్‌లో కనీసం 3 క్యాండిల్స్ CVD < 0 ఉండి ఇప్పుడు CVD > 0 అయింది)
+                    elif prev_st is False and sum(1 for x in prev_wave_cvds if x < 0) >= 3 and cur_cvd > 0 and (wave_cvd_arr[-2] < 0 or (len(wave_cvd_arr) >= 3 and wave_cvd_arr[-3] < 0)):
                         rc_copy = r_c.copy()
                         cvd_k = round(cur_cvd / 1000.0, 1)
                         rc_copy['Strategy_Icon'] = "💠 CVD-Flip BOT BUY"
