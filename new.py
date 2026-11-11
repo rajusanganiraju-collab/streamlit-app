@@ -25,33 +25,39 @@ def _get_gemini_api_key():
         return ""
 
 @st.cache_data(ttl=86400, show_spinner=False)
-def _get_working_gemini_models(api_key):
-    """మీ API Key లో ఉన్న అత్యంత వేగవంతమైన (Flash-Lite & Flash) మోడల్స్ లిస్ట్ తెస్తుంది"""
-    fast_models = []
+def fetch_fundamentals_data(symbols_list):
+    """⚡ Market Lens Style 1-Second Bulk Fundamentals Scanner (No slow yfinance loops)"""
+    headers = {"User-Agent": "Mozilla/5.0", "Content-Type": "application/json"}
+    tickers_tv = [f"NSE:{str(s).replace('.NS', '').strip()}" for s in symbols_list if str(s).strip()]
+    payload = {
+        "symbols": {"tickers": tickers_tv, "query": {"types": []}},
+        "columns": [
+            "name", "sector", "market_cap_basic", "price_earnings_ttm",
+            "return_on_equity", "debt_to_equity", "dividends_yield_current",
+            "price_52_week_high", "price_52_week_low"
+        ]
+    }
+    fund_data = []
     try:
-        r = requests.get(f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}", timeout=10)
+        r = requests.post("https://scanner.tradingview.com/india/scan", json=payload, headers=headers, timeout=8)
         if r.status_code == 200:
-            models = r.json().get("models", [])
-            valid = [
-                m["name"].replace("models/", "") for m in models
-                if "generateContent" in m.get("supportedGenerationMethods", [])
-                and "gemini" in m.get("name", "").lower()
-                and not any(x in m.get("name", "").lower() for x in ("vision", "embedding", "imagen", "tts", "audio", "robotics", "computer-use"))
-            ]
-            # ⚡ 2-3 సెకన్లలో సమాధానం ఇచ్చే Lite & Flash మోడల్స్‌కి మొదటి ప్రాధాన్యత
-            for pref in ("gemini-2.5-flash-lite", "gemini-flash-lite-latest", "gemini-2.0-flash-lite", "gemini-2.0-flash", "gemini-flash-latest", "gemini-3-flash"):
-                for v in valid:
-                    if pref in v and v not in fast_models:
-                        fast_models.append(v)
-            for v in valid:
-                if "flash" in v and v not in fast_models:
-                    fast_models.append(v)
-            for v in valid:
-                if v not in fast_models:
-                    fast_models.append(v)
+            for item in r.json().get("data", []):
+                d = item.get("d", [])
+                if len(d) >= 9 and d[0]:
+                    fund_data.append({
+                        "Fetch_T": f"{d[0]}.NS",
+                        "Sector": d[1] or "N/A",
+                        "Market_Cap (Cr)": round(float(d[2]) / 1e7, 2) if d[2] else 0.0,
+                        "P/E Ratio": round(float(d[3]), 2) if d[3] else 0.0,
+                        "ROE %": round(float(d[4]), 2) if d[4] else 0.0,
+                        "Debt/Equity": round(float(d[5]), 2) if d[5] else 0.0,
+                        "Div Yield %": round(float(d[6]), 2) if d[6] else 0.0,
+                        "52W High": round(float(d[7]), 2) if d[7] else 0.0,
+                        "52W Low": round(float(d[8]), 2) if d[8] else 0.0
+                    })
     except Exception:
         pass
-    return fast_models if fast_models else ["gemini-flash-lite-latest", "gemini-flash-latest"]
+    return pd.DataFrame(fund_data)
 
 def _call_gemini_api(prompt, json_mode=False):
     api_key = _get_gemini_api_key()
