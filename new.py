@@ -25,39 +25,32 @@ def _get_gemini_api_key():
         return ""
 
 @st.cache_data(ttl=86400, show_spinner=False)
-def fetch_fundamentals_data(symbols_list):
-    """⚡ Market Lens Style 1-Second Bulk Fundamentals Scanner (No slow yfinance loops)"""
-    headers = {"User-Agent": "Mozilla/5.0", "Content-Type": "application/json"}
-    tickers_tv = [f"NSE:{str(s).replace('.NS', '').strip()}" for s in symbols_list if str(s).strip()]
-    payload = {
-        "symbols": {"tickers": tickers_tv, "query": {"types": []}},
-        "columns": [
-            "name", "sector", "market_cap_basic", "price_earnings_ttm",
-            "return_on_equity", "debt_to_equity", "dividends_yield_current",
-            "price_52_week_high", "price_52_week_low"
-        ]
-    }
-    fund_data = []
+def _get_working_gemini_models(api_key):
+    """మీ API Key లో ఉన్న అత్యంత వేగవంతమైన (Flash-Lite & Flash) మోడల్స్ లిస్ట్ తెస్తుంది"""
+    fast_models = []
     try:
-        r = requests.post("https://scanner.tradingview.com/india/scan", json=payload, headers=headers, timeout=8)
+        r = requests.get(f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}", timeout=10)
         if r.status_code == 200:
-            for item in r.json().get("data", []):
-                d = item.get("d", [])
-                if len(d) >= 9 and d[0]:
-                    fund_data.append({
-                        "Fetch_T": f"{d[0]}.NS",
-                        "Sector": d[1] or "N/A",
-                        "Market_Cap (Cr)": round(float(d[2]) / 1e7, 2) if d[2] else 0.0,
-                        "P/E Ratio": round(float(d[3]), 2) if d[3] else 0.0,
-                        "ROE %": round(float(d[4]), 2) if d[4] else 0.0,
-                        "Debt/Equity": round(float(d[5]), 2) if d[5] else 0.0,
-                        "Div Yield %": round(float(d[6]), 2) if d[6] else 0.0,
-                        "52W High": round(float(d[7]), 2) if d[7] else 0.0,
-                        "52W Low": round(float(d[8]), 2) if d[8] else 0.0
-                    })
+            models = r.json().get("models", [])
+            valid = [
+                m["name"].replace("models/", "") for m in models
+                if "generateContent" in m.get("supportedGenerationMethods", [])
+                and "gemini" in m.get("name", "").lower()
+                and not any(x in m.get("name", "").lower() for x in ("vision", "embedding", "imagen", "tts", "audio", "robotics", "computer-use"))
+            ]
+            for pref in ("gemini-2.5-flash-lite", "gemini-flash-lite-latest", "gemini-2.0-flash-lite", "gemini-2.0-flash", "gemini-flash-latest", "gemini-3-flash"):
+                for v in valid:
+                    if pref in v and v not in fast_models:
+                        fast_models.append(v)
+            for v in valid:
+                if "flash" in v and v not in fast_models:
+                    fast_models.append(v)
+            for v in valid:
+                if v not in fast_models:
+                    fast_models.append(v)
     except Exception:
         pass
-    return pd.DataFrame(fund_data)
+    return fast_models if fast_models else ["gemini-flash-lite-latest", "gemini-flash-latest"]
 
 def _call_gemini_api(prompt, json_mode=False):
     api_key = _get_gemini_api_key()
@@ -78,7 +71,6 @@ def _call_gemini_api(prompt, json_mode=False):
     }
 
     last_err = ""
-    # మొదటి మోడల్ స్లోగా ఉన్నా వెంటనే రెండో ఫాస్ట్ మోడల్‌తో ట్రై చేస్తుంది
     for model_name in candidate_models[:3]:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
         try:
@@ -511,31 +503,17 @@ NIFTY_50_SECTORS = {
     "TELECOM & MEDIA": ["BHARTIARTL", "INDUSTOWER", "IDEA", "SUNTV", "ZEEL", "PVRINOX"]
 }
 
-NIFTY_50 = [stock for sector in NIFTY_50_SECTORS.values() for stock in sector]
-
-FNO_STOCKS = [
-    "AARTIIND", "ABB", "ABBOTINDIA", "ABCAPITAL", "ABFRL", "ACC", "ADANIENSOL", "ADANIENT", "ADANIPORTS",
-    "ALKEM", "AMBUJACEM", "ANGELONE", "APOLLOHOSP", "APOLLOTYRE", "ASHOKLEY", "ASIANPAINT", "ASTRAL", "ATUL",
-    "AUBANK", "AUROPHARMA", "AXISBANK", "BAJAJ-AUTO", "BAJAJFINSV", "BAJFINANCE", "BALKRISIND", "BALRAMCHIN",
-    "BANDHANBNK", "BANKBARODA", "BATAINDIA", "BEL", "BERGEPAINT", "BHARATFORG", "BHARTIARTL", "BHEL", "BIOCON",
-    "BOSCHLTD", "BPCL", "BRITANNIA", "BSE", "CANBK", "CANFINHOME", "CDSL", "CHAMBLFERT", "CHOLAFIN", "CIPLA",
-    "COALINDIA", "COFORGE", "COLPAL", "CONCOR", "COROMANDEL", "CROMPTON", "CUB", "CUMMINSIND", "DABUR", "DALBHARAT",
-    "DEEPAKNTR", "DIVISLAB", "DIXON", "DLF", "DRREDDY", "EICHERMOT", "ESCORTS", "EXIDEIND", "FEDERALBNK", "GAIL",
-    "GLENMARK", "GMRAIRPORT", "GNFC", "GODREJCP", "GODREJPROP", "GRANULES", "GRASIM", "GUJGASLTD", "HAL", "HAVELLS",
-    "HCLTECH", "HDFCAMC", "HDFCBANK", "HDFCLIFE", "HEROMOTOCO", "HINDALCO", "HINDCOPPER", "HINDPETRO", "HINDUNILVR",
-    "HUDCO", "ICICIBANK", "ICICIGI", "ICICILIFE", "IDEA", "IDFCFIRSTB", "IEX", "IGL", "INDHOTEL", "INDIACEM",
-    "INDIAMART", "INDIGO", "INDUSINDBK", "INDUSTOWER", "INFY", "IOC", "IPCALAB", "IRCTC", "IRFC", "ITC", "JINDALSTEL",
-    "JSWSTEEL", "JUBLFOOD", "KOTAKBANK", "LALPATHLAB", "LAURUSLABS", "LICHSGFIN", "LT", "LTIM", "LTTS", "LUPIN",
-    "M&M", "M&MFIN", "MANAPPURAM", "MARICO", "MARUTI", "MCX", "METROPOLIS", "MFSL", "MGL", "MOTHERSON", "MPHASIS",
-    "MRF", "MUTHOOTFIN", "NATIONALUM", "NAUKRI", "NAVINFLUOR", "NCC", "NESTLEIND", "NMDC", "NTPC", "OBEROIRLTY",
-    "OFSS", "ONGC", "PAGEIND", "PEL", "PERSISTENT", "PETRONET", "PFC", "PIDILITIND", "PIIND", "PNB", "POLYCAB",
-    "POWERGRID", "PRESTIGE", "PVRINOX", "RAMCOCEM", "RBLBANK", "RECLTD", "RELIANCE", "SAIL", "SBICARD", "SBILIFE",
-    "SBIN", "SHREECEM", "SHRIRAMFIN", "SIEMENS", "SRF", "SUNPHARMA", "SUNTV", "SYNGENE", "TATACHEM", "TATACOMM",
-    "TATACONSUM", "TATAMOTORS", "TATAPOWER", "TATASTEEL", "TCS", "TECHM", "TITAN", "TORNTPHARM", "TRENT", "TVSMOTOR",
-    "UBL", "ULTRACEMCO", "UPL", "VEDL", "VOLTAS", "WIPRO", "ZEEL", "ETERNAL", "ZYDUSLIFE",
-    "COCHINSHIP", "IREDA", "KALYANKJIL", "KPITTECH", "LODHA", "MAXHEALTH", "MAZDOCK",
-    "NHPC", "OIL", "PAYTM", "PBFINTECH", "PHOENIXLTD", "POONAWALLA", "RVNL", "SJVN",
-    "SONACOMS", "SUPREMEIND", "TATAELXSI", "TORNTPOWER", "UNIONBANK", "YESBANK"
+NIFTY_50 = [
+    "ADANIENT", "ADANIPORTS", "APOLLOHOSP", "ASIANPAINT", "AXISBANK",
+    "BAJAJ-AUTO", "BAJFINANCE", "BAJAJFINSV", "BEL", "BPCL",
+    "BHARTIARTL", "BRITANNIA", "CIPLA", "COALINDIA", "DRREDDY",
+    "EICHERMOT", "ETERNAL", "GRASIM", "HCLTECH", "HDFCBANK",
+    "HDFCLIFE", "HEROMOTOCO", "HINDALCO", "HINDUNILVR", "ICICIBANK",
+    "ITC", "INDUSINDBK", "INFY", "JSWSTEEL", "KOTAKBANK",
+    "LT", "M&M", "MARUTI", "NTPC", "NESTLEIND",
+    "ONGC", "POWERGRID", "RELIANCE", "SBILIFE", "SHRIRAMFIN",
+    "SBIN", "SUNPHARMA", "TCS", "TATACONSUM", "TATAMOTORS",
+    "TATASTEEL", "TECHM", "TITAN", "TRENT", "ULTRACEMCO", "WIPRO"
 ]
 
 MIDCAP_150 = [
@@ -9371,47 +9349,56 @@ def fetch_fast_live_quotes(tkrs_tuple, market_open, cache_ver=7):
     except Exception:
         pass
 
-    # 2. ⚡ YAHOO FINANCE REAL-TIME OVERWRITE (No 15-Min Delay & Zero Firewall Blocks on GitHub/Localhost)
+    # 2. NSE INDICES (NIFTY, BANKNIFTY, VIX & SECTORS)
     try:
-        _bad_syms = globals().get('_SKIP_BAD_SYMS', set())
-        clean_tkrs = [t for t in dict.fromkeys(tkrs_tuple) if str(t).replace(".NS", "") not in _bad_syms]
-        chunk_sz = 200
-        for i in range(0, len(clean_tkrs), chunk_sz):
-            chunk = clean_tkrs[i : i + chunk_sz]
-            q_data = yf.download(chunk, period="5d", interval="1d", progress=False, group_by='ticker', threads=10, timeout=8)
-            if q_data is None or q_data.empty:
-                continue
-            if len(chunk) == 1 and not isinstance(q_data.columns, pd.MultiIndex):
-                q_data.columns = pd.MultiIndex.from_product([chunk, q_data.columns])
-            elif isinstance(q_data.columns, pd.MultiIndex) and ('Close' in q_data.columns.levels[0] or 'Open' in q_data.columns.levels[0]):
-                q_data = q_data.swaplevel(axis=1)
+        idx_tv_map = {
+            "NSE:NIFTY": "^NSEI", "NSE:BANKNIFTY": "^NSEBANK", "NSE:INDIAVIX": "^INDIAVIX",
+            "NSE:CNXIT": "^CNXIT", "NSE:CNXAUTO": "^CNXAUTO", "NSE:CNXMETAL": "^CNXMETAL",
+            "NSE:CNXPHARMA": "^CNXPHARMA", "NSE:CNXFMCG": "^CNXFMCG",
+            "NSE:CNXENERGY": "^CNXENERGY", "NSE:CNXREALTY": "^CNXREALTY"
+        }
+        idx_payload = {
+            "symbols": {"tickers": list(idx_tv_map.keys()), "query": {"types": []}},
+            "columns": ["close", "open", "high", "low", "change", "change_abs"]
+        }
+        r_idx = requests.post("https://scanner.tradingview.com/india/scan", json=idx_payload, headers=headers, timeout=5)
+        if r_idx.status_code == 200:
+            for item in r_idx.json().get("data", []):
+                s_tv = item.get("s", "")
+                d = item.get("d", [])
+                yf_t = idx_tv_map.get(s_tv)
+                if yf_t and len(d) >= 6 and d[0] is not None:
+                    ltp = float(d[0])
+                    op = float(d[1]) if d[1] is not None else ltp
+                    hi = float(d[2]) if d[2] is not None else ltp
+                    lo = float(d[3]) if d[3] is not None else ltp
+                    chg_pct = float(d[4]) if d[4] is not None else 0.0
+                    chg_abs = float(d[5]) if d[5] is not None else 0.0
+                    pc = round(ltp - chg_abs, 2) if chg_abs != 0 else (round(ltp / (1.0 + chg_pct / 100.0), 2) if chg_pct != 0 else op)
+                    out[yf_t] = (ltp, op, hi, lo, pc, None)
+    except Exception:
+        pass
 
-            syms_fetched = q_data.columns.levels[0] if isinstance(q_data.columns, pd.MultiIndex) else []
-            for s in syms_fetched:
-                try:
+    # 3. GLOBAL INDICES & COMMODITIES (SPX, DAX, USD/INR, GOLD, CRUDE): via yfinance (Only 11 tickers -> 0.5s!)
+    try:
+        global_list = [t for t in tkrs_tuple if t not in out and (t in INDICES_MAP or t in COMMODITY_MAP)]
+        if global_list:
+            q_data = yf.download(global_list, period="5d", interval="1d", progress=False, group_by='ticker', threads=5, timeout=6)
+            if q_data is not None and not q_data.empty:
+                if len(global_list) == 1 and not isinstance(q_data.columns, pd.MultiIndex):
+                    q_data.columns = pd.MultiIndex.from_product([global_list, q_data.columns])
+                elif isinstance(q_data.columns, pd.MultiIndex) and ('Close' in q_data.columns.levels[0] or 'Open' in q_data.columns.levels[0]):
+                    q_data = q_data.swaplevel(axis=1)
+                syms = q_data.columns.levels[0] if isinstance(q_data.columns, pd.MultiIndex) else []
+                for s in syms:
                     sdf = q_data[s].dropna(subset=['Close'])
-                    if sdf.empty:
-                        continue
-                    ltp = float(sdf['Close'].iloc[-1])
-                    if ltp <= 0:
-                        continue
-                    op = float(sdf['Open'].iloc[-1]) if pd.notna(sdf['Open'].iloc[-1]) and float(sdf['Open'].iloc[-1]) > 0 else ltp
-                    hi = max(float(sdf['High'].iloc[-1]) if pd.notna(sdf['High'].iloc[-1]) else ltp, ltp)
-                    lo = min(float(sdf['Low'].iloc[-1]) if pd.notna(sdf['Low'].iloc[-1]) and float(sdf['Low'].iloc[-1]) > 0 else ltp, ltp)
-                    pc = float(sdf['Close'].iloc[-2]) if len(sdf) >= 2 and pd.notna(sdf['Close'].iloc[-2]) else out.get(s, (ltp, op, hi, lo, op, None))[4]
-
-                    vx = out.get(s, (0, 0, 0, 0, 0, None))[5]
-                    if 'Volume' in sdf.columns and pd.notna(sdf['Volume'].iloc[-1]):
-                        curr_v = float(sdf['Volume'].iloc[-1])
-                        avg_v = avg_vol_map.get(s, 0.0)
-                        if avg_v <= 0 and len(sdf) >= 3:
-                            avg_v = float(sdf['Volume'].iloc[:-1].mean())
-                        if curr_v > 0 and avg_v > 0:
-                            vx = round(curr_v / ((avg_v / 375.0) * minutes), 1)
-
-                    out[s] = (ltp, op, hi, lo, pc, vx)
-                except Exception:
-                    continue
+                    if not sdf.empty:
+                        ltp = float(sdf['Close'].iloc[-1])
+                        op = float(sdf['Open'].iloc[-1]) if pd.notna(sdf['Open'].iloc[-1]) else ltp
+                        hi = float(sdf['High'].iloc[-1]) if pd.notna(sdf['High'].iloc[-1]) else ltp
+                        lo = float(sdf['Low'].iloc[-1]) if pd.notna(sdf['Low'].iloc[-1]) else ltp
+                        pc = float(sdf['Close'].iloc[-2]) if len(sdf) >= 2 else op
+                        out[s] = (ltp, op, hi, lo, pc, None)
     except Exception:
         pass
 
