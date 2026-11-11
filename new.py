@@ -8712,7 +8712,11 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 const fmtK = (n) => {{
                     const a = Math.abs(n);
                     const s = n < 0 ? '-' : '';
-                    return s + (a >= 100000 ? (a/100000).toFixed(1)+'L' : (a >= 1000 ? (a/1000).toFixed(1)+'K' : String(Math.round(a))));
+                    // 🔥 Delta & CVD రెండూ 'K' (Thousands) లోనే చూపిస్తుంది (10 లక్షలు దాటితేనే 'M' లోకి మారుతుంది)
+                    if (a >= 1000000) return s + (a / 1000000).toFixed(2) + 'M';
+                    if (a >= 10000) return s + Math.round(a / 1000) + 'K';
+                    if (a >= 1000) return s + (a / 1000).toFixed(1) + 'K';
+                    return s + String(Math.round(a));
                 }};
                 const visRange = chart.timeScale().getVisibleLogicalRange();
                 const startIdx = visRange ? Math.max(0, Math.floor(visRange.from)) : Math.max(0, ofData.length - 35);
