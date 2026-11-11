@@ -9313,20 +9313,35 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
 # --- 8. FAST CACHED ENGINE & LIVE UI RENDERING ---
 # =========================================================
 @st.cache_data(ttl=25, show_spinner=False)
-def fetch_fast_live_quotes(tkrs_tuple, market_open, cache_ver=5):
+@st.cache_resource(show_spinner=False)
+def _get_nse_live_session():
+    """NSE India కుక్కీలను మెయింటైన్ చేసే పెర్సిస్టెంట్ సెషన్"""
+    s = requests.Session()
+    s.headers.update({
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://www.nseindia.com/market-data/live-equity-market"
+    })
+    return {"sess": s, "ts": 0.0}
+
+
+@st.cache_data(ttl=25, show_spinner=False)
+def fetch_fast_live_quotes(tkrs_tuple, market_open, cache_ver=6):
     out = {}
+    avg_vol_map = {}
     minutes = get_minutes_passed()
     headers = {"User-Agent": "Mozilla/5.0", "Content-Type": "application/json"}
 
-    # 1. NSE EQUITIES: Fetch all active NSE stocks in 1 bulk scan (avoids ticker syntax errors)
-    try:
-        norm_to_yf = {}
-        for t in tkrs_tuple:
-            if str(t).endswith(".NS"):
-                raw_s = str(t)[:-3].upper().strip()
-                norm_to_yf[raw_s] = t
-                norm_to_yf[raw_s.replace("&", "_").replace("-", "_")] = t
+    norm_to_yf = {}
+    for t in tkrs_tuple:
+        if str(t).endswith(".NS"):
+            raw_s = str(t)[:-3].upper().strip()
+            norm_to_yf[raw_s] = t
+            norm_to_yf[raw_s.replace("&", "_").replace("-", "_")] = t
 
+    # 1. BASE SCAN (TradingView): 2500 స్టాక్స్ యొక్క 10-Day Avg Volume & ఫాల్‌బ్యాక్ డేటా కోసం
+    try:
         eq_payload = {
             "filter": [{"left": "exchange", "operation": "equal", "right": "NSE"}],
             "options": {"lang": "en"},
@@ -9336,7 +9351,7 @@ def fetch_fast_live_quotes(tkrs_tuple, market_open, cache_ver=5):
             "sort": {"sortBy": "volume", "sortOrder": "desc"},
             "range": [0, 2500]
         }
-        r_eq = requests.post("https://scanner.tradingview.com/india/scan", json=eq_payload, headers=headers, timeout=8)
+        r_eq = requests.post("https://scanner.tradingview.com/india/scan", json=eq_payload, headers=headers, timeout=6)
         if r_eq.status_code == 200:
             for item in r_eq.json().get("data", []):
                 d = item.get("d", [])
@@ -9357,39 +9372,78 @@ def fetch_fast_live_quotes(tkrs_tuple, market_open, cache_ver=5):
                         else:
                             pc = op
                         vx = None
-                        if len(d) >= 9 and d[7] and d[8] and float(d[8]) > 0 and float(d[7]) > 0:
-                            vx = round(float(d[7]) / ((float(d[8]) / 375.0) * minutes), 1)
+                        if len(d) >= 9 and d[8] and float(d[8]) > 0:
+                            avg_vol_map[yf_t] = float(d[8])
+                            if d[7] and float(d[7]) > 0:
+                                vx = round(float(d[7]) / ((float(d[8]) / 375.0) * minutes), 1)
                         out[yf_t] = (ltp, op, hi, lo, pc, vx)
     except Exception:
         pass
 
-    # 2. NSE INDICES: Fetch NIFTY, BANKNIFTY, INDIA VIX & Sectoral Indices
+    # 2. ⚡ ZERO-DELAY NSE INDIA DIRECT REAL-TIME FEED (Overwrites 15m delayed prices with 0s Live NSE Prices)
     try:
-        idx_tv_map = {
-            "NSE:NIFTY": "^NSEI", "NSE:BANKNIFTY": "^NSEBANK", "NSE:INDIAVIX": "^INDIAVIX",
-            "NSE:CNXIT": "^CNXIT", "NSE:CNXAUTO": "^CNXAUTO", "NSE:CNXMETAL": "^CNXMETAL",
-            "NSE:CNXPHARMA": "^CNXPHARMA", "NSE:CNXFMCG": "^CNXFMCG",
-            "NSE:CNXENERGY": "^CNXENERGY", "NSE:CNXREALTY": "^CNXREALTY"
+        nse_obj = _get_nse_live_session()
+        sess = nse_obj["sess"]
+        if (time.time() - nse_obj["ts"]) > 240:
+            sess.get("https://www.nseindia.com", timeout=4)
+            nse_obj["ts"] = time.time()
+
+        # 2A. NSE All Indices (Real-Time NIFTY, BANKNIFTY, INDIA VIX & Sectoral Indices)
+        nse_idx_map = {
+            "NIFTY 50": "^NSEI",
+            "NIFTY BANK": "^NSEBANK",
+            "INDIA VIX": "^INDIAVIX",
+            "NIFTY IT": "^CNXIT",
+            "NIFTY AUTO": "^CNXAUTO",
+            "NIFTY METAL": "^CNXMETAL",
+            "NIFTY PHARMA": "^CNXPHARMA",
+            "NIFTY FMCG": "^CNXFMCG",
+            "NIFTY ENERGY": "^CNXENERGY",
+            "NIFTY REALTY": "^CNXREALTY"
         }
-        idx_payload = {
-            "symbols": {"tickers": list(idx_tv_map.keys()), "query": {"types": []}},
-            "columns": ["close", "open", "high", "low", "change", "change_abs"]
-        }
-        r_idx = requests.post("https://scanner.tradingview.com/india/scan", json=idx_payload, headers=headers, timeout=6)
-        if r_idx.status_code == 200:
-            for item in r_idx.json().get("data", []):
-                s_tv = item.get("s", "")
-                d = item.get("d", [])
-                yf_t = idx_tv_map.get(s_tv)
-                if yf_t and len(d) >= 6 and d[0] is not None:
-                    ltp = float(d[0])
-                    op = float(d[1]) if d[1] is not None else ltp
-                    hi = float(d[2]) if d[2] is not None else ltp
-                    lo = float(d[3]) if d[3] is not None else ltp
-                    chg_pct = float(d[4]) if d[4] is not None else 0.0
-                    chg_abs = float(d[5]) if d[5] is not None else 0.0
-                    pc = round(ltp - chg_abs, 2) if chg_abs != 0 else (round(ltp / (1.0 + chg_pct / 100.0), 2) if chg_pct != 0 else op)
-                    out[yf_t] = (ltp, op, hi, lo, pc, None)
+        r_all_idx = sess.get("https://www.nseindia.com/api/allIndices", timeout=4)
+        if r_all_idx.status_code == 200:
+            for idx_it in r_all_idx.json().get("data", []):
+                idx_name = str(idx_it.get("index", "")).upper().strip()
+                yf_idx = nse_idx_map.get(idx_name)
+                if yf_idx and idx_it.get("last") is not None:
+                    ltp = float(idx_it.get("last") or 0)
+                    op = float(idx_it.get("open") or ltp)
+                    hi = float(idx_it.get("high") or ltp)
+                    lo = float(idx_it.get("low") or ltp)
+                    pc = float(idx_it.get("previousClose") or op)
+                    if ltp > 0:
+                        out[yf_idx] = (ltp, op, hi, lo, pc, None)
+
+        # 2B. NSE Live Equities (NIFTY 500 + SECURITIES IN F&O — 100% Real-Time LTP, OHLC & Volume)
+        for nse_url in (
+            "https://www.nseindia.com/api/equity-stockIndices?index=SECURITIES%20IN%20F%26O",
+            "https://www.nseindia.com/api/equity-stockIndices?index=NIFTY%20500"
+        ):
+            r_nse = sess.get(nse_url, timeout=5)
+            if r_nse.status_code == 200:
+                for item in r_nse.json().get("data", []):
+                    sym = str(item.get("symbol", "")).upper().strip()
+                    yf_t = norm_to_yf.get(sym)
+                    if not yf_t or item.get("lastPrice") is None:
+                        continue
+                    ltp = float(item.get("lastPrice") or 0)
+                    if ltp <= 0:
+                        continue
+                    op = float(item.get("open") or ltp)
+                    hi = max(float(item.get("dayHigh") or ltp), ltp)
+                    lo = min(float(item.get("dayLow") or ltp), ltp) if float(item.get("dayLow") or 0) > 0 else ltp
+                    pc = float(item.get("previousClose") or op)
+                    live_vol = float(item.get("totalTradedVolume") or 0)
+
+                    old_vx = out.get(yf_t, (0, 0, 0, 0, 0, None))[5]
+                    avg_10d = avg_vol_map.get(yf_t, 0)
+                    if live_vol > 0 and avg_10d > 0:
+                        vx = round(live_vol / ((avg_10d / 375.0) * minutes), 1)
+                    else:
+                        vx = old_vx
+
+                    out[yf_t] = (ltp, op, hi, lo, pc, vx)
     except Exception:
         pass
 
