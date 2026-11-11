@@ -8749,6 +8749,15 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                             }}
                         }}
                     }}
+                    // 🚨 PRE-VWAP CVD FLIP DETECTOR (Highlights exact candle like BALKRISIND 12:15 PM)
+                        const prevIt = i > 0 ? ofData[i - 1] : null;
+                        if (prevIt && ((prevIt.cvd > 0 && item.cvd < 0 && item.cvd_up === false) || (prevIt.cvd < 0 && item.cvd > 0 && item.cvd_up === true))) {{
+                            const yPos = candleSeries.priceToCoordinate(item.h);
+                            if (yPos !== null) {{
+                                svgHtml += `<rect x="${{cx - 24}}" y="${{Math.max(4, yPos - 28)}}" width="48" height="12" rx="3" fill="#dc2626" stroke="#ffd700" stroke-width="1"/>`;
+                                svgHtml += `<text x="${{cx}}" y="${{Math.max(13, yPos - 19)}}" fill="#ffffff" font-size="8" font-family="monospace" font-weight="bold" text-anchor="middle">🚨CVD-FLIP</text>`;
+                            }}
+                        }}
 
                     if (visCount <= 22 && item.lvls) {{
                         item.lvls.forEach(lv => {{
