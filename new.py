@@ -9885,15 +9885,30 @@ def render_live_ui():
                 # Default for ALL Strategies: Strictly HIGH SCORE to LOW SCORE (35 -> 13)
                 df_sorted_base = df_filtered.sort_values(by=_tie_cols, ascending=_tie_desc)
 
+        if "AI Predictions" in watchlist_mode or watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆", "Day Trading Stocks 🚀"]:
+            _sell_mask = df_sorted_base['Strategy_Icon'].astype(str).str.contains('🔴|SELL|DOWN|Stage 4|🩸|52WL', na=False)
+        else:
+            _sell_mask = df_sorted_base[sort_key] < 0
+
+        # 🔥 LIVE పక్కన ఉన్న BUY / SELL సిగ్నల్ గుర్తించడం
+        _univ_set = set(NIFTY_50).union(set(FNO_STOCKS))
+        _df_m_chk = df_live[(~df_live['Is_Index']) & (~df_live['Is_Sector']) & (~df_live['Is_Commodity']) & (df_live['T'].isin(_univ_set))].drop_duplicates(subset=['T'], keep='first')
+        _tot_m = len(_df_m_chk)
+        _mkt_side = "BUY"
+        if _tot_m > 0:
+            _abv_vw = int((_df_m_chk['P'] > _df_m_chk['VWAP']).sum())
+            _blw_vw = int((_df_m_chk['P'] < _df_m_chk['VWAP']).sum())
+            if _blw_vw > _abv_vw:
+                _mkt_side = "SELL"
+
         if scol is not None:
             df_stocks_display = df_sorted_base.reset_index(drop=True)
         else:
-            if "AI Predictions" in watchlist_mode or watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆", "Day Trading Stocks 🚀"]:
-                _sell_mask = df_sorted_base['Strategy_Icon'].astype(str).str.contains('🔴|SELL|DOWN|Stage 4|🩸|52WL', na=False)
+            # SELL సిగ్నల్ ఉంటే SELL స్టాక్స్ పైన + BUY స్టాక్స్ కింద; BUY సిగ్నల్ ఉంటే BUY పైన + SELL కింద
+            if _mkt_side == "SELL":
+                df_stocks_display = pd.concat([df_sorted_base[_sell_mask], df_sorted_base[~_sell_mask]], ignore_index=True)
             else:
-                _sell_mask = df_sorted_base[sort_key] < 0
-
-            df_stocks_display = pd.concat([df_sorted_base[~_sell_mask], df_sorted_base[_sell_mask]], ignore_index=True)
+                df_stocks_display = pd.concat([df_sorted_base[~_sell_mask], df_sorted_base[_sell_mask]], ignore_index=True)
 
         if search_stock != "-- None --" and search_stock in df_stocks_display['T'].values:
             _srch_row = df_stocks_display[df_stocks_display['T'] == search_stock]
@@ -10720,13 +10735,23 @@ def render_live_ui():
                             df_buy_chart = unpinned_df[unpinned_df[sort_key] >= 0].head(32)
                             df_sell_chart = unpinned_df[unpinned_df[sort_key] < 0].head(32)
 
-                        if not df_buy_chart.empty:
-                            st.markdown(f"<div style='font-size:15px; font-weight:bold; margin:6px 0 4px 0; color:#3fb950;'>🟢 POSITIVE / BUY ({watchlist_mode})</div>", unsafe_allow_html=True)
-                            render_chart_grid(df_buy_chart, True, "main_buy", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
+                        # 🔥 LIVE పక్కన SELL ఉంటే SELL చార్ట్స్ పైన & BUY చార్ట్స్ కింద; BUY ఉంటే BUY చార్ట్స్ పైన & SELL చార్ట్స్ కింద
+                        if _mkt_side == "SELL":
+                            _chart_sections = [
+                                (df_sell_chart, f"🔴 NEGATIVE / SELL ({watchlist_mode})", "#f85149", "main_sell"),
+                                (df_buy_chart, f"🟢 POSITIVE / BUY ({watchlist_mode})", "#3fb950", "main_buy")
+                            ]
+                        else:
+                            _chart_sections = [
+                                (df_buy_chart, f"🟢 POSITIVE / BUY ({watchlist_mode})", "#3fb950", "main_buy"),
+                                (df_sell_chart, f"🔴 NEGATIVE / SELL ({watchlist_mode})", "#f85149", "main_sell")
+                            ]
 
-                        if not df_sell_chart.empty:
-                            st.markdown(f"<div style='font-size:15px; font-weight:bold; margin:14px 0 4px 0; color:#f85149;'>🔴 NEGATIVE / SELL ({watchlist_mode})</div>", unsafe_allow_html=True)
-                            render_chart_grid(df_sell_chart, True, "main_sell", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
+                        for _sec_idx, (_df_c_sec, _sec_title, _sec_col, _sec_key) in enumerate(_chart_sections):
+                            if not _df_c_sec.empty:
+                                _top_m = "6px" if _sec_idx == 0 else "14px"
+                                st.markdown(f"<div style='font-size:15px; font-weight:bold; margin:{_top_m} 0 4px 0; color:{_sec_col};'>{_sec_title}</div>", unsafe_allow_html=True)
+                                render_chart_grid(_df_c_sec, True, _sec_key, chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
                     elif df_stocks_display.empty:
                         st.info("ℹ️ No stocks matched this strategy's strict criteria at the moment. (ఏ స్టాక్స్ ఈ కండిషన్స్ ని మ్యాచ్ చేయలేదు)")
 
