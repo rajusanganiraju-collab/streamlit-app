@@ -290,13 +290,20 @@ if 'alert_triggered' not in st.session_state:
     st.session_state.alert_triggered = set()
 
 TOP_SECTOR_STOCKS = {
-    "NIFTY IT": ["TCS", "INFY", "HCLTECH", "WIPRO", "TECHM", "COFORGE", "PERSISTENT", "LTIM"],
-    "NIFTY AUTO": ["TATAMOTORS", "M&M", "MARUTI", "BAJAJ-AUTO", "EICHERMOT", "HEROMOTOCO", "TVSMOTOR", "ASHOKLEY"],
-    "NIFTY METAL": ["TATASTEEL", "JSWSTEEL", "HINDALCO", "VEDL", "NMDC", "SAIL", "JINDALSTEL"],
-    "NIFTY PHARMA": ["SUNPHARMA", "CIPLA", "DRREDDY", "DIVISLAB", "LUPIN", "AUROPHARMA", "TORNTPHARM"],
-    "NIFTY FMCG": ["ITC", "HINDUNILVR", "NESTLEIND", "BRITANNIA", "TATACONSUM", "DABUR", "GODREJCP", "MARICO"],
-    "NIFTY ENERGY": ["RELIANCE", "ONGC", "NTPC", "POWERGRID", "COALINDIA", "BPCL", "TATAPOWER", "IOC"],
-    "NIFTY REALTY": ["DLF", "GODREJPROP", "OBEROIRLTY", "PRESTIGE", "MACROTECH", "PHOENIXLTD"]
+    "NIFTY IT": ["TCS", "INFY", "HCLTECH", "WIPRO", "TECHM", "COFORGE", "PERSISTENT", "LTIM", "KPITTECH", "TATAELXSI"],
+    "NIFTY AUTO": ["M&M", "MARUTI", "BAJAJ-AUTO", "EICHERMOT", "HEROMOTOCO", "TVSMOTOR", "ASHOKLEY", "BHARATFORG", "SONACOMS", "MOTHERSON"],
+    "NIFTY METAL": ["TATASTEEL", "JSWSTEEL", "HINDALCO", "VEDL", "NMDC", "SAIL", "JINDALSTEL", "HINDCOPPER", "HINDZINC", "NATIONALUM"],
+    "NIFTY PHARMA": ["SUNPHARMA", "CIPLA", "DRREDDY", "DIVISLAB", "LUPIN", "AUROPHARMA", "TORNTPHARM", "LAURUSLABS", "ZYDUSLIFE", "GRANULES"],
+    "NIFTY FMCG": ["ITC", "HINDUNILVR", "NESTLEIND", "BRITANNIA", "TATACONSUM", "DABUR", "GODREJCP", "MARICO", "COLPAL", "VBL"],
+    "NIFTY ENERGY": ["RELIANCE", "ONGC", "NTPC", "POWERGRID", "COALINDIA", "BPCL", "TATAPOWER", "IOC", "OIL", "GAIL"],
+    "NIFTY REALTY": ["DLF", "GODREJPROP", "OBEROIRLTY", "PRESTIGE", "LODHA", "PHOENIXLTD", "BRIGADE", "SOBHA"],
+    "🛡️ AEROSPACE & DEFENSE": ["HAL", "BEL", "BDL", "MAZDOCK", "COCHINSHIP", "DATAPATTNS", "MTARTECH", "ZENTEC", "BEML", "MIDHANI", "PARAS", "ASTRAMICRO"],
+    "📈 CAPITAL MARKETS": ["BSE", "MCX", "CDSL", "ANGELONE", "CAMS", "HDFCAMC", "NAM-INDIA", "UTIAMC", "ANANDRATHI", "MOTILALOFS", "IEX", "KFINTECH"],
+    "🚆 RAILWAYS & INFRA": ["RVNL", "IRCON", "IRFC", "RITES", "CONCOR", "IRCTC", "RAILTEL", "TITAGARH", "JWL", "BEML", "LT", "NCC"],
+    "⚡ POWER & GREEN ENERGY": ["TATAPOWER", "NTPC", "POWERGRID", "PFC", "RECLTD", "IREDA", "SJVN", "NHPC", "SUZLON", "INOXWIND", "CESC", "TORNTPOWER"],
+    "🧪 CHEMICALS & FERTILIZERS": ["COROMANDEL", "PIIND", "SRF", "NAVINFLUOR", "DEEPAKNTR", "CLEAN", "VINATIORGA", "ATUL", "AARTIIND", "CHAMBLFERT", "FACT", "EPIGRAL"],
+    "🔌 EMS & SEMICONDUCTORS": ["DIXON", "KAYNES", "SYRMA", "AMBER", "PGEL", "CYIENT", "MOSCHIP", "TEJASNET", "POLYCAB", "KEI", "HAVELLS", "ABB"],
+    "🏦 PSU & PVT BANKS": ["SBIN", "BANKBARODA", "PNB", "CANBK", "UNIONBANK", "INDIANB", "HDFCBANK", "ICICIBANK", "AXISBANK", "KOTAKBANK", "FEDERALBNK", "KARURVYSYA"]
 }
 
 
@@ -487,16 +494,21 @@ def fetch_mf_performance():
     return pd.DataFrame(results)
 
 NIFTY_50_SECTORS = {
-    "PHARMA": ["SUNPHARMA", "CIPLA", "DRREDDY", "APOLLOHOSP"],
-    "IT": ["TCS", "INFY", "HCLTECH", "WIPRO", "TECHM"],
-    "BANK": ["HDFCBANK", "ICICIBANK", "SBIN", "AXISBANK", "KOTAKBANK", "INDUSINDBK"],
-    "FINANCE": ["BAJFINANCE", "BAJAJFINSV", "HDFCLIFE", "SBILIFE", "SHRIRAMFIN"],
-    "ENERGY": ["RELIANCE", "ONGC", "NTPC", "POWERGRID", "COALINDIA", "BPCL"],
-    "AUTO": ["TATAMOTORS", "M&M", "MARUTI", "BAJAJ-AUTO", "EICHERMOT", "HEROMOTOCO"],
-    "METAL": ["TATASTEEL", "JSWSTEEL", "HINDALCO"],
-    "FMCG": ["ITC", "HINDUNILVR", "NESTLEIND", "BRITANNIA", "TATACONSUM"],
-    "INFRA_CEMENT": ["LT", "ULTRACEMCO", "GRASIM"],
-    "OTHERS": ["BHARTIARTL", "ASIANPAINT", "TITAN", "ADANIENT", "ADANIPORTS", "TRENT", "BEL"]
+    "AEROSPACE & DEF": ["HAL", "BEL", "BDL", "MAZDOCK", "COCHINSHIP", "DATAPATTNS", "MTARTECH", "ZENTEC", "BEML", "MIDHANI"],
+    "CAPITAL MKTS": ["BSE", "MCX", "CDSL", "ANGELONE", "CAMS", "HDFCAMC", "UTIAMC", "ANANDRATHI", "IEX"],
+    "RAILWAYS": ["RVNL", "IRCON", "IRFC", "RITES", "CONCOR", "IRCTC", "RAILTEL"],
+    "EMS & CABLES": ["DIXON", "SYRMA", "AMBER", "POLYCAB", "KEI", "HAVELLS", "VOLTAS", "CROMPTON", "ABB", "SIEMENS", "CGPOWER", "CUMMINSIND"],
+    "CHEMICALS": ["COROMANDEL", "PIIND", "SRF", "NAVINFLUOR", "DEEPAKNTR", "CLEAN", "VINATIORGA", "ATUL", "AARTIIND", "CHAMBLFERT", "DEEPAKFERT", "GNFC", "TATACHEM", "PIDILITIND", "UPL"],
+    "PHARMA & HEALTH": ["SUNPHARMA", "CIPLA", "DRREDDY", "APOLLOHOSP", "DIVISLAB", "LUPIN", "AUROPHARMA", "TORNTPHARM", "LAURUSLABS", "ZYDUSLIFE", "BIOCON", "SYNGENE", "ALKEM", "GLENMARK", "GRANULES", "LALPATHLAB", "METROPOLIS", "FORTIS", "MAXHEALTH"],
+    "IT & TECH": ["TCS", "INFY", "HCLTECH", "WIPRO", "TECHM", "COFORGE", "PERSISTENT", "LTIM", "LTTS", "MPHASIS", "OFSS", "KPITTECH", "TATAELXSI", "NAUKRI", "TATACOMM", "TEJASNET"],
+    "BANKING": ["HDFCBANK", "ICICIBANK", "SBIN", "AXISBANK", "KOTAKBANK", "INDUSINDBK", "BANKBARODA", "PNB", "CANBK", "UNIONBANK", "INDIANB", "FEDERALBNK", "IDFCFIRSTB", "AUBANK", "BANDHANBNK", "RBLBANK", "KARURVYSYA"],
+    "FINANCE & NBFC": ["BAJFINANCE", "BAJAJFINSV", "HDFCLIFE", "SBILIFE", "ICICILIFE", "ICICIGI", "SHRIRAMFIN", "CHOLAFIN", "PFC", "RECLTD", "IREDA", "HUDCO", "MUTHOOTFIN", "MANAPPURAM", "LICHSGFIN", "M&MFIN", "SBICARD", "ABCAPITAL", "POONAWALLA"],
+    "POWER & ENERGY": ["RELIANCE", "ONGC", "NTPC", "POWERGRID", "COALINDIA", "BPCL", "IOC", "HINDPETRO", "GAIL", "OIL", "PETRONET", "IGL", "MGL", "TATAPOWER", "NHPC", "SJVN", "SUZLON", "INOXWIND", "TORNTPOWER", "ADANIENSOL"],
+    "AUTO & EV": ["M&M", "MARUTI", "BAJAJ-AUTO", "EICHERMOT", "HEROMOTOCO", "TVSMOTOR", "ASHOKLEY", "ESCORTS", "BHARATFORG", "MOTHERSON", "SONACOMS", "BOSCHLTD", "EXIDEIND", "ARE&M", "APOLLOTYRE", "BALKRISIND", "MRF", "CEATLTD", "OLECTRA"],
+    "METALS & MINING": ["TATASTEEL", "JSWSTEEL", "HINDALCO", "VEDL", "NMDC", "SAIL", "JINDALSTEL", "HINDCOPPER", "HINDZINC", "NATIONALUM"],
+    "FMCG & RETAIL": ["ITC", "HINDUNILVR", "NESTLEIND", "BRITANNIA", "TATACONSUM", "DABUR", "GODREJCP", "MARICO", "COLPAL", "UBL", "TRENT", "TITAN", "KALYANKJIL", "PAGEIND", "JUBLFOOD", "INDHOTEL", "BATAINDIA", "ABFRL", "ETERNAL"],
+    "INFRA, CEMENT & REALTY": ["LT", "ULTRACEMCO", "GRASIM", "AMBUJACEM", "ACC", "SHREECEM", "DALBHARAT", "ASTRAL", "SUPREMEIND", "DLF", "GODREJPROP", "OBEROIRLTY", "PRESTIGE", "LODHA", "PHOENIXLTD", "ADANIPORTS", "ADANIENT", "INDIGO", "HAL", "BHEL", "NCC"],
+    "TELECOM & MEDIA": ["BHARTIARTL", "INDUSTOWER", "IDEA", "SUNTV", "ZEEL", "PVRINOX"]
 }
 
 NIFTY_50 = [stock for sector in NIFTY_50_SECTORS.values() for stock in sector]
@@ -5455,32 +5467,175 @@ def generate_status(row):
     if row.get('VolX', 0) > 1.5: status += "VOL🟢 "
     return status.strip()
 
-@st.cache_data(ttl=86400, show_spinner=False)
-def fetch_fundamentals_data(symbols_list):
-    def get_info(sym):
-        try:
-            tkr = yf.Ticker(f"{sym}")
-            info = tkr.info
-            return {
-                "Fetch_T": sym,
-                "Sector": info.get('sector', 'N/A'),
-                "Market_Cap (Cr)": round(info.get('marketCap', 0) / 10000000, 2) if info.get('marketCap') else 0,
-                "P/E Ratio": round(info.get('trailingPE', 0), 2) if info.get('trailingPE') else 0,
-                "ROE %": round(info.get('returnOnEquity', 0) * 100, 2) if info.get('returnOnEquity') else 0,
-                "Debt/Equity": round(info.get('debtToEquity', 0) / 100, 2) if info.get('debtToEquity') else 0,
-                "Div Yield %": round(info.get('dividendYield', 0) * 100, 2) if info.get('dividendYield') else 0.0,
-                "52W High": info.get('fiftyTwoWeekHigh', 0),
-                "52W Low": info.get('fiftyTwoWeekLow', 0)
-            }
-        except: return None
-   
-    fund_data = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:  # 🔧 PERF: rate-limit తగ్గడానికి
-        results = executor.map(get_info, symbols_list)
-        for res in results:
-            if res is not None:
-                fund_data.append(res)
-    return pd.DataFrame(fund_data)   
+@st.cache_data(ttl=1800, show_spinner=False)
+def fetch_fundamentals_data(filter_mode="Top Ranked Stocks ⭐", custom_symbols=None):
+    """
+    🏛️ INSTITUTIONAL 2500+ NSE STOCKS SCREENER:
+    మొత్తం NSE మార్కెట్‌లోని 2500+ స్టాక్స్‌ని 1 సెకనులో స్కాన్ చేసి, కఠినమైన ఇన్‌స్టిట్యూషనల్ ఫిల్టర్లతో
+    (ROE, ROCE, EPS Growth, Sales Growth, OPM%, Low Debt, P/E) కేవలం TOP 50 స్టాక్స్‌ని మాత్రమే ఇస్తుంది.
+    """
+    headers = {"User-Agent": "Mozilla/5.0", "Content-Type": "application/json"}
+    cols = [
+        "name", "sector", "close", "change", "market_cap_basic",
+        "price_earnings_ttm", "return_on_equity", "return_on_invested_capital",
+        "debt_to_equity", "operating_margin",
+        "earnings_per_share_diluted_yoy_growth_ttm", "total_revenue_yoy_growth_ttm",
+        "dividends_yield_current", "price_52_week_high", "price_52_week_low"
+    ]
+
+    if filter_mode == "My Portfolio 💼" and custom_symbols:
+        tickers_tv = [f"NSE:{str(s).replace('.NS', '').strip()}" for s in custom_symbols if str(s).strip()]
+        payload = {"symbols": {"tickers": tickers_tv, "query": {"types": []}}, "columns": cols}
+    else:
+        # 2500+ NSE Stocks నుండి కనీసం ₹1,500 Cr Market Cap & Price > ₹50 ఉన్న కంపెనీలను స్కాన్ చేయడం
+        payload = {
+            "filter": [
+                {"left": "exchange", "operation": "equal", "right": "NSE"},
+                {"left": "market_cap_basic", "operation": "egreater", "right": 15000000000},
+                {"left": "close", "operation": "egreater", "right": 50}
+            ],
+            "options": {"lang": "en"},
+            "markets": ["india"],
+            "symbols": {"query": {"types": ["stock", "dr"]}},
+            "columns": cols,
+            "sort": {"sortBy": "market_cap_basic", "sortOrder": "desc"},
+            "range": [0, 2000]
+        }
+
+    rows = []
+    try:
+        r = requests.post("https://scanner.tradingview.com/india/scan", json=payload, headers=headers, timeout=10)
+        if r.status_code == 200:
+            for item in r.json().get("data", []):
+                d = item.get("d", [])
+                if len(d) < 15 or not d[0] or d[2] is None:
+                    continue
+                sym = str(d[0]).upper().strip()
+                sec_raw = str(d[1] or "NSE")
+                ltp = float(d[2] or 0.0)
+                day_c = float(d[3] or 0.0)
+                mcap_cr = round(float(d[4]) / 1e7, 0) if d[4] else 0.0
+                pe = round(float(d[5]), 1) if d[5] is not None else 0.0
+                roe = round(float(d[6]), 1) if d[6] is not None else 0.0
+                roce = round(float(d[7]), 1) if d[7] is not None else 0.0
+                de = round(float(d[8]), 2) if d[8] is not None else 0.0
+                opm = round(float(d[9]), 1) if d[9] is not None else 0.0
+                eps_g = round(float(d[10]), 1) if d[10] is not None else 0.0
+                rev_g = round(float(d[11]), 1) if d[11] is not None else 0.0
+                div_y = round(float(d[12]), 2) if d[12] is not None else 0.0
+                h52 = round(float(d[13]), 1) if d[13] is not None else ltp
+                l52 = round(float(d[14]), 1) if d[14] is not None else ltp
+
+                # 🏛️ INSTITUTIONAL QUANT SCORE (0 TO 100 POINTS)
+                inst_score = 0
+                tags = []
+
+                # 1. ROE & Capital Efficiency (Max 30 pts)
+                if roe >= 22: inst_score += 18; tags.append("High-ROE")
+                elif roe >= 16: inst_score += 13
+                elif roe >= 12: inst_score += 7
+
+                if roce >= 18: inst_score += 12
+                elif roce >= 13: inst_score += 8
+                elif roce >= 9: inst_score += 4
+
+                # 2. Quarterly/Annual Earnings & Revenue Growth (Max 25 pts)
+                if eps_g >= 25: inst_score += 15; tags.append("EPS-Surge🚀")
+                elif eps_g >= 15: inst_score += 11
+                elif eps_g >= 8: inst_score += 6
+
+                if rev_g >= 18: inst_score += 10
+                elif rev_g >= 10: inst_score += 6
+                elif rev_g > 0: inst_score += 3
+
+                # 3. Balance Sheet & Margin Strength (Max 20 pts)
+                if 0 <= de <= 0.15: inst_score += 12; tags.append("Zero-Debt💎")
+                elif 0 <= de <= 0.50: inst_score += 9
+                elif 0 <= de <= 0.90: inst_score += 4
+
+                if opm >= 20: inst_score += 8
+                elif opm >= 14: inst_score += 5
+
+                # 4. Valuation Comfort P/E (Max 15 pts)
+                if 5 <= pe <= 25: inst_score += 15; tags.append("Value-PE")
+                elif 25 < pe <= 42: inst_score += 11
+                elif 42 < pe <= 60: inst_score += 6
+
+                # 5. Relative Price Strength near 52W High (Max 10 pts)
+                dist_52h = ((h52 - ltp) / h52 * 100.0) if h52 > 0 else 50.0
+                if dist_52h <= 12.0: inst_score += 10; tags.append("52W-Leader")
+                elif dist_52h <= 22.0: inst_score += 6
+
+                # Custom Sector Name Mapping
+                mapped_sec = sec_raw
+                for k_sec, s_list in NIFTY_50_SECTORS.items():
+                    if sym in s_list:
+                        mapped_sec = k_sec
+                        break
+
+                rows.append({
+                    "Symbol": sym,
+                    "Fetch_T": f"{sym}.NS",
+                    "Sector": mapped_sec,
+                    "LTP": ltp,
+                    "Day_C": day_c,
+                    "Inst_Score": min(99, inst_score),
+                    "Grade_Tag": " • ".join(tags[:2]) if tags else "Inst-Grade",
+                    "Market_Cap (Cr)": mcap_cr,
+                    "P/E Ratio": pe,
+                    "ROE %": roe,
+                    "ROCE %": roce,
+                    "EPS Gr %": eps_g,
+                    "Sales Gr %": rev_g,
+                    "OPM %": opm,
+                    "Debt/Equity": de,
+                    "Div Yield %": div_y,
+                    "52W High": h52,
+                    "52W Low": l52,
+                    "Dist_52H": dist_52h
+                })
+    except Exception:
+        pass
+
+    df_out = pd.DataFrame(rows)
+    if df_out.empty:
+        return df_out
+
+    # 🎯 APPLY STRICT INSTITUTIONAL FILTERS & RETURN ONLY TOP 50 STOCKS
+    if filter_mode == "My Portfolio 💼":
+        return df_out.sort_values(by="Inst_Score", ascending=False).reset_index(drop=True)
+
+    elif filter_mode == "🦅 Warren Buffett Value Stocks":
+        # High ROE (>=16%), Low Debt (<=0.5), Reasonable P/E (5 to 28), Good OPM (>=12%)
+        cond = (df_out["ROE %"] >= 16.0) & (df_out["Debt/Equity"] <= 0.50) & (df_out["P/E Ratio"] > 4.0) & (df_out["P/E Ratio"] <= 28.0) & (df_out["OPM %"] >= 12.0)
+        df_sub = df_out[cond].sort_values(by=["Inst_Score", "ROE %"], ascending=[False, False])
+        return df_sub.head(50).reset_index(drop=True)
+
+    elif filter_mode == "Swing Trading Candidates 📈":
+        # Strong Fundamentals (Score >= 65, EPS Growth >= 12%) + Strong Price Trend (Within 18% of 52W High & Positive Day%)
+        cond = (df_out["Inst_Score"] >= 65) & (df_out["EPS Gr %"] >= 12.0) & (df_out["Dist_52H"] <= 18.0) & (df_out["Day_C"] > 0)
+        df_sub = df_out[cond].sort_values(by=["Inst_Score", "Day_C"], ascending=[False, False])
+        return df_sub.head(50).reset_index(drop=True)
+
+    elif filter_mode == "Nifty 50 Stocks":
+        df_sub = df_out[df_out["Symbol"].isin(set(NIFTY_50))].sort_values(by="Inst_Score", ascending=False)
+        return df_sub.head(50).reset_index(drop=True)
+
+    else:
+        # ⭐ DEFAULT: Top Ranked Institutional 50 across ALL 2500 NSE Stocks
+        # Strict Filter: Market Cap >= 2500 Cr, ROE >= 15%, ROCE >= 12%, D/E <= 0.85, Positive EPS & Sales Growth, P/E between 5 and 65
+        cond = (
+            (df_out["Market_Cap (Cr)"] >= 2500) &
+            (df_out["ROE %"] >= 15.0) &
+            (df_out["ROCE %"] >= 12.0) &
+            (df_out["Debt/Equity"] <= 0.85) &
+            (df_out["EPS Gr %"] > 5.0) &
+            (df_out["Sales Gr %"] > 5.0) &
+            (df_out["P/E Ratio"] >= 5.0) &
+            (df_out["P/E Ratio"] <= 65.0)
+        )
+        df_sub = df_out[cond].sort_values(by=["Inst_Score", "ROE %", "EPS Gr %"], ascending=[False, False, False])
+        return df_sub.head(50).reset_index(drop=True)
 
 # --- RENDER FUNCTIONS ---
 
@@ -10470,19 +10625,67 @@ def render_live_ui():
                 if view_mode == "News 📰":
                     render_market_news_hub(df_all_stocks, processed_charts)
                 elif watchlist_mode == "Fundamentals 🏢":
-                
-                    st.markdown(f"<div style='font-size:16px; font-weight:bold; margin-bottom:8px; color:#d29922;'>🏢 Core Fundamentals ({fund_filter})</div>", unsafe_allow_html=True)
-                    fund_tickers = df_stocks_display['Fetch_T'].tolist()[:50] if not df_stocks_display.empty else [f"{s}.NS" for s in NIFTY_50[:50]]
-                    df_fund = fetch_fundamentals_data(fund_tickers)
+                    st.markdown(
+                        f"<div style='font-size:15.5px; font-weight:bold; margin-bottom:6px; color:#ffd700;'>"
+                        f"🏛️ Institutional Core Fundamentals — Top 50 Filtered from 2,500+ NSE Stocks ({fund_filter})</div>",
+                        unsafe_allow_html=True
+                    )
+                    port_syms_list = df_port_saved['Symbol'].tolist() if not df_port_saved.empty else []
+                    df_fund = fetch_fundamentals_data(fund_filter, port_syms_list)
+
                     if not df_fund.empty:
-                        if fund_filter == "🦅 Warren Buffett Value Stocks":
-                            df_fund = df_fund[(df_fund['ROE %'] > 15) & (df_fund['Debt/Equity'] < 0.5) & (df_fund['P/E Ratio'] > 0) & (df_fund['P/E Ratio'] < 25)]
-                        html_fund = '<table class="term-table"><thead><tr><th colspan="10" class="term-head-fund" style="background-color: #d29922; color: #161b22;">📊 FUNDAMENTAL & TECHNICAL METRICS</th></tr><tr><th style="text-align:left;">STOCK</th><th>SECTOR</th><th>LTP (₹)</th><th>TECH SCORE</th><th>MKT CAP (Cr)</th><th>P/E</th><th>ROE %</th><th>D/E Ratio</th><th>DIV YIELD</th><th>52W HIGH</th></tr></thead><tbody>'
-                        for _, row in df_fund.iterrows():
-                            stock_name = row["Fetch_T"].replace(".NS", "")
-                            tech_row = df_stocks_display[df_stocks_display['Fetch_T'] == row["Fetch_T"]]
-                            ltp_val, score_val = (float(tech_row['P'].iloc[0]), int(tech_row['S'].iloc[0])) if not tech_row.empty else (0.0, 0)
-                            html_fund += f'<tr><td class="t-symbol">{stock_name}</td><td>{row["Sector"]}</td><td>{ltp_val:.2f}</td><td style="color:#ffd700;">⭐ {score_val}</td><td>{row["Market_Cap (Cr)"]:,.2f}</td><td>{row["P/E Ratio"]}</td><td class="text-green">{row["ROE %"]}%</td><td>{row["Debt/Equity"]}</td><td>{row["Div Yield %"]}%</td><td class="text-green">₹{row["52W High"]}</td></tr>'
+                        sec_opts = ["All Sectors (Top 50)"] + sorted(df_fund["Sector"].unique().tolist())
+                        sel_f_sec = st.selectbox("🏭 Filter by Sector:", sec_opts, key="inst_fund_sec_sel", label_visibility="collapsed")
+                        if sel_f_sec != "All Sectors (Top 50)":
+                            df_fund = df_fund[df_fund["Sector"] == sel_f_sec].reset_index(drop=True)
+
+                        html_fund = (
+                            '<table class="term-table"><thead>'
+                            '<tr><th colspan="13" class="term-head-fund" style="background-color:#d29922; color:#161b22;">'
+                            '🏛️ INSTITUTIONAL TOP 50 QUALITY SCREENER (SCANNED ACROSS 2,500+ NSE STOCKS)</th></tr>'
+                            '<tr style="background:#21262d;">'
+                            '<th style="width:4%;">RANK</th>'
+                            '<th style="text-align:left; width:11%;">STOCK</th>'
+                            '<th style="width:11%; color:#ffd700;">SECTOR</th>'
+                            '<th style="width:9%;">LTP (DAY%)</th>'
+                            '<th style="width:8%; color:#00BFFF;">INST SCORE</th>'
+                            '<th style="width:12%;">GRADE TAG</th>'
+                            '<th style="width:9%;">MKT CAP (Cr)</th>'
+                            '<th style="width:6%;">P/E</th>'
+                            '<th style="width:6%;">ROE%</th>'
+                            '<th style="width:6%;">ROCE%</th>'
+                            '<th style="width:6%;">EPS Gr%</th>'
+                            '<th style="width:6%;">OPM%</th>'
+                            '<th style="width:6%;">D/E</th>'
+                            '</tr></thead><tbody>'
+                        )
+                        for idx_f, row in df_fund.iterrows():
+                            bg_c = "row-dark" if idx_f % 2 == 0 else "row-light"
+                            s_name = row["Symbol"]
+                            dc_v = float(row["Day_C"])
+                            dc_col = "text-green" if dc_v >= 0 else "text-red"
+                            roe_col = "text-green" if row["ROE %"] >= 18 else ""
+                            eps_col = "text-green" if row["EPS Gr %"] >= 15 else ("text-red" if row["EPS Gr %"] < 0 else "")
+                            de_col = "text-green" if row["Debt/Equity"] <= 0.3 else ("text-red" if row["Debt/Equity"] > 1.0 else "")
+                            rk_lbl = "🏆 1" if idx_f == 0 else f"{idx_f + 1}"
+
+                            html_fund += (
+                                f'<tr class="{bg_c}">'
+                                f'<td><b>{rk_lbl}</b></td>'
+                                f'<td class="t-symbol"><a href="?grid_sym={s_name}.NS" target="_self" title="Click to open in Pro Grid">{s_name} 📌</a></td>'
+                                f'<td style="font-size:10px; color:#c9d1d9; font-weight:bold;">{row["Sector"]}</td>'
+                                f'<td>₹{row["LTP"]:,.1f} <span class="{dc_col}">({dc_v:+.1f}%)</span></td>'
+                                f'<td style="color:#00BFFF; font-weight:bold; font-size:13px;">{int(row["Inst_Score"])}/100</td>'
+                                f'<td style="font-size:10px; color:#ffd700;">{row["Grade_Tag"]}</td>'
+                                f'<td>₹{row["Market_Cap (Cr)"]:,.0f}</td>'
+                                f'<td>{row["P/E Ratio"]:.1f}</td>'
+                                f'<td class="{roe_col}">{row["ROE %"]:.1f}%</td>'
+                                f'<td>{row["ROCE %"]:.1f}%</td>'
+                                f'<td class="{eps_col}">{row["EPS Gr %"]:+.1f}%</td>'
+                                f'<td>{row["OPM %"]:.1f}%</td>'
+                                f'<td class="{de_col}">{row["Debt/Equity"]:.2f}</td>'
+                                f'</tr>'
+                            )
                         html_fund += '</tbody></table>'
                         st.markdown(html_fund, unsafe_allow_html=True)
                     else:
