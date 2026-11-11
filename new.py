@@ -2976,6 +2976,52 @@ _COMPANY_TO_NSE = {
 }
 
 
+def _detect_5m_cvd_flips(df_5m):
+    """5m డేటాలో VWAP-Reset CVD లెక్కించి, Green Flip (Bull) మరియు Red Flip (Bear) క్యాండిల్ ఇండెక్స్‌లను ఇస్తుంది"""
+    bull_flips, bear_flips = [], []
+    if df_5m is None or df_5m.empty or len(df_5m) < 2:
+        return bull_flips, bear_flips
+
+    running_cvd = 0.0
+    prev_cvd = 0.0
+    prev_day = None
+    prev_vwap_state = None
+
+    for idx_i, (dt_idx, r) in enumerate(df_5m.iterrows()):
+        o = float(r.get('Open', 0) or 0)
+        h = float(r.get('High', 0) or 0)
+        l = float(r.get('Low', 0) or 0)
+        c = float(r.get('Close', 0) or 0)
+        v = float(r.get('Volume', 0) or 0)
+        vwap_v = float(r.get('VWAP', c) or c)
+
+        cur_day = pd.Timestamp(dt_idx).date()
+        is_above_vwap = bool(c >= vwap_v)
+        is_reset = (prev_day != cur_day) or (prev_vwap_state != is_above_vwap)
+
+        if is_reset:
+            running_cvd = 0.0
+            prev_day = cur_day
+            prev_vwap_state = is_above_vwap
+
+        rng_hl = max(h - l, 0.001)
+        body_loc = (c - o) / rng_hl
+        wick_loc = ((c - l) - (h - c)) / rng_hl
+        clv_ratio = max(0.05, min(0.95, 0.50 + 0.50 * (0.60 * body_loc + 0.40 * wick_loc)))
+        buy_v = round(v * clv_ratio)
+        sell_v = round(v - buy_v)
+        delta_v = buy_v - sell_v
+
+        prev_cvd = running_cvd
+        running_cvd += delta_v
+
+        if not is_reset and idx_i > 0:
+            if prev_cvd < 0 and running_cvd > 0:
+                bull_flips.append(idx_i)  # ❇️ CVD Green Flip (Candle కింద)
+            elif prev_cvd > 0 and running_cvd < 0:
+                bear_flips.append(idx_i)  # 🔻 CVD Red Flip (Candle పైన)
+
+    return bull_flips, bear_flips
 def _build_inline_mini_chart_html(
     stk_sym, stock_row=None, df_5m=None, cat_label=""
 ):
@@ -3077,6 +3123,9 @@ def _build_inline_mini_chart_html(
     vol_max = max(float(vol_s.max()), 1.0)
     vol_sma = vol_s.rolling(20, min_periods=1).mean()
 
+    bull_flips_svg, bear_flips_svg = _detect_5m_cvd_flips(d)
+    bull_flip_set, bear_flip_set = set(bull_flips_svg), set(bear_flips_svg)
+
     svg_elems = []
     vwap_pts, ema_pts = [], []
 
@@ -3106,13 +3155,21 @@ def _build_inline_mini_chart_html(
         b_h = max(1.5, abs(yc - yo))
 
         svg_elems.append(
-            f"<line x1='{cx}' y1='{yh}' x2='{cx}' y2='{yl}' stroke='{c_col}'"
-            " stroke-width='1.1'/>"
+            f"<line x1='{cx}' y1='{yh}' x2='{cx}' y2='{yl}' stroke='{c_col}' stroke-width='1.1'/>"
         )
         svg_elems.append(
-            f"<rect x='{round(cx - bar_w/2, 1)}' y='{b_top}'"
-            f" width='{round(bar_w, 1)}' height='{b_h}' fill='{c_col}'/>"
+            f"<rect x='{round(cx - bar_w/2, 1)}' y='{b_top}' width='{round(bar_w, 1)}' height='{b_h}' fill='{c_col}'/>"
         )
+
+        # 🎯 Mini-Chart CVD Flip Emojis (❇️ Candle కింద / 🔻 Candle పైన)
+        if idx in bull_flip_set:
+            svg_elems.append(
+                f"<text x='{cx}' y='{min(p_bot + 3, yl + 10)}' font-size='8.5' text-anchor='middle'>❇️</text>"
+            )
+        elif idx in bear_flip_set:
+            svg_elems.append(
+                f"<text x='{cx}' y='{max(p_top + 7, yh - 3)}' font-size='8.5' text-anchor='middle'>🔻</text>"
+            )
 
         if vl_v > 0:
             vh = max(1.0, (vl_v / vol_max) * (v_bot - v_top))
@@ -3123,14 +3180,11 @@ def _build_inline_mini_chart_html(
                 else (
                     "#FF0000"
                     if c_col == "#FF0000"
-                    else (
-                        "rgba(46,160,67,0.45)" if is_bull else "rgba(218,54,51,0.45)"
-                    )
+                    else ("rgba(46,160,67,0.45)" if is_bull else "rgba(218,54,51,0.45)")
                 )
             )
             svg_elems.append(
-                f"<rect x='{round(cx - bar_w/2, 1)}' y='{vy}'"
-                f" width='{round(bar_w, 1)}' height='{round(vh, 1)}' fill='{v_col}'/>"
+                f"<rect x='{round(cx - bar_w/2, 1)}' y='{vy}' width='{round(bar_w, 1)}' height='{round(vh, 1)}' fill='{v_col}'/>"
             )
 
         vwap_pts.append(f"{cx},{py(vw_v)}")
@@ -7714,7 +7768,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 tag_y_vwap = float(df_chart['VWAP'].iloc[tag_pos]) if has_vwap else 0.0
                 tag_y_ema = float(df_chart['EMA_10'].iloc[tag_pos]) if has_ema else 0.0
 
-                # News చార్ట్‌లో లాగా V: మరియు E: ట్యాగ్స్ కరెక్ట్‌గా లైన్ మీదే కూర్చునేలా (దగ్గరగా ఉంటే మాత్రమే ±6.5px జరుపుతుంది)
                 v_shift, e_shift = 0, 0
                 if has_vwap and has_ema and abs(tag_y_vwap - tag_y_ema) / max(max_val - min_val, 0.001) < 0.10:
                     if tag_y_vwap >= tag_y_ema:
@@ -7745,6 +7798,23 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                         showarrow=False, xanchor="left", yanchor="middle", yshift=e_shift,
                         font=dict(color="#161b22", size=8.5, family="monospace", weight="bold"),
                         bgcolor="#00BFFF", borderpad=1.5, **rc
+                    )
+
+                # 🎯 MINI-CHART CVD FLIP EMOJIS (❇️ Below Candle on Green Flip | 🔻 Above Candle on Red Flip)
+                bull_flips_mc, bear_flips_mc = _detect_5m_cvd_flips(df_chart)
+                for _bf_idx in bull_flips_mc:
+                    fig.add_annotation(
+                        x=_bf_idx, y=float(df_chart['Low'].iloc[_bf_idx]),
+                        text="❇️", showarrow=False,
+                        xanchor="center", yanchor="top", yshift=-2,
+                        font=dict(size=9.5), **rc
+                    )
+                for _sf_idx in bear_flips_mc:
+                    fig.add_annotation(
+                        x=_sf_idx, y=float(df_chart['High'].iloc[_sf_idx]),
+                        text="🔻", showarrow=False,
+                        xanchor="center", yanchor="bottom", yshift=2,
+                        font=dict(size=9.5), **rc
                     )
 
             if show_vol and 'Volume' in df_chart.columns:
@@ -7784,11 +7854,11 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 fig.update_yaxes(
                     showspikes=True, spikemode='across+toaxis', spikesnap='cursor', spikethickness=1, spikedash='dash', spikecolor='#8b949e',
                     showgrid=False, zeroline=False, showticklabels=True, side='right', tickfont=dict(color="#ffffff", size=9),
-                    fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.6)], **rc
+                    fixedrange=True, range=[min_val - (y_padding * 1.45), max_val + (y_padding * 2.6)], **rc
                 )
             else:
                 fig.update_xaxes(range=x_full_range, autorange=False, showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True)
-                fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - y_padding, max_val + (y_padding * 2.6)], **rc)
+                fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False, showline=False, fixedrange=True, range=[min_val - (y_padding * 1.45), max_val + (y_padding * 2.6)], **rc)
 
             st.plotly_chart(
                 fig,
@@ -7804,7 +7874,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 },
             )
 
-            
     except Exception as e:
         st.markdown(f"<div style='height:150px; display:flex; align-items:center; justify-content:center; color:#888;'>Chart error: {e}</div>", unsafe_allow_html=True)
 
@@ -8114,8 +8183,9 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         cur_day_date = pd.Timestamp(dt_idx).date()
         vwap_val = float(r.get('VWAP', c)) if pd.notna(r.get('VWAP', c)) else c
         is_above_vwap = bool(c >= vwap_val)
+        is_cvd_reset = (prev_day_date != cur_day_date) or (prev_vwap_state != is_above_vwap)
 
-        if (prev_day_date != cur_day_date) or (prev_vwap_state != is_above_vwap):
+        if is_cvd_reset:
             running_cvd = 0.0
             prev_day_date = cur_day_date
             prev_vwap_state = is_above_vwap
@@ -8141,6 +8211,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             'time': ts, 'o': o, 'h': h, 'l': l, 'c': c, 'v': round(v),
             'buy': int(buy_v), 'sell': int(sell_v),
             'delta': int(delta_v), 'cvd': int(running_cvd), 'cvd_up': is_cvd_positive,
+            'reset': is_cvd_reset,
             'anchor': is_anchor, 'poc': round((o + c + mid_p) / 3.0, 2),
             'lvls': [
                 {'p': top_p, 's': int(sell_v * 0.42), 'b': int(buy_v * 0.25)},
@@ -8749,16 +8820,30 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                             }}
                         }}
                     }}
-                    // 🚨 PRE-VWAP CVD FLIP DETECTOR (Highlights exact candle like BALKRISIND 12:15 PM)
+                    // 🚨 PRE-VWAP CVD FLIP DETECTOR (Green Flip -> Candle కింద | Red Flip -> Candle పైన)
                         const prevIt = i > 0 ? ofData[i - 1] : null;
-                        if (prevIt && ((prevIt.cvd > 0 && item.cvd < 0 && item.cvd_up === false) || (prevIt.cvd < 0 && item.cvd > 0 && item.cvd_up === true))) {{
-                            const yPos = candleSeries.priceToCoordinate(item.h);
-                            if (yPos !== null) {{
-                                svgHtml += `<rect x="${{cx - 24}}" y="${{Math.max(4, yPos - 28)}}" width="48" height="12" rx="3" fill="#dc2626" stroke="#ffd700" stroke-width="1"/>`;
-                                svgHtml += `<text x="${{cx}}" y="${{Math.max(13, yPos - 19)}}" fill="#ffffff" font-size="8" font-family="monospace" font-weight="bold" text-anchor="middle">🚨CVD-FLIP</text>`;
+                        if (prevIt && !item.reset) {{
+                            // 🟢 CVD GREEN FLIP: క్యాండిల్ కింద (Below Low) గ్రీన్ యారో & బ్యాడ్జ్
+                            if (prevIt.cvd < 0 && item.cvd > 0 && item.cvd_up === true) {{
+                                const yLow = candleSeries.priceToCoordinate(item.l);
+                                if (yLow !== null) {{
+                                    const boxY = Math.min(tblTop - 15, yLow + 10);
+                                    svgHtml += `<polygon points="${{cx}},${{yLow + 2}} ${{cx - 5}},${{yLow + 9}} ${{cx + 5}},${{yLow + 9}}" fill="#22c55e" stroke="#ffd700" stroke-width="0.8"/>`;
+                                    svgHtml += `<rect x="${{cx - 25}}" y="${{boxY}}" width="50" height="12" rx="3" fill="#16a34a" stroke="#ffd700" stroke-width="1"/>`;
+                                    svgHtml += `<text x="${{cx}}" y="${{boxY + 9}}" fill="#ffffff" font-size="8" font-family="monospace" font-weight="bold" text-anchor="middle">▲CVD-FLIP</text>`;
+                                }}
+                            }}
+                            // 🔴 CVD RED FLIP: క్యాండిల్ పైన (Above High) రెడ్ యారో & బ్యాడ్జ్
+                            else if (prevIt.cvd > 0 && item.cvd < 0 && item.cvd_up === false) {{
+                                const yHigh = candleSeries.priceToCoordinate(item.h);
+                                if (yHigh !== null) {{
+                                    const boxY = Math.max(4, yHigh - 22);
+                                    svgHtml += `<polygon points="${{cx}},${{yHigh - 2}} ${{cx - 5}},${{yHigh - 9}} ${{cx + 5}},${{yHigh - 9}}" fill="#ef4444" stroke="#ffd700" stroke-width="0.8"/>`;
+                                    svgHtml += `<rect x="${{cx - 25}}" y="${{boxY}}" width="50" height="12" rx="3" fill="#dc2626" stroke="#ffd700" stroke-width="1"/>`;
+                                    svgHtml += `<text x="${{cx}}" y="${{boxY + 9}}" fill="#ffffff" font-size="8" font-family="monospace" font-weight="bold" text-anchor="middle">▼CVD-FLIP</text>`;
+                                }}
                             }}
                         }}
-
                     if (visCount <= 22 && item.lvls) {{
                         item.lvls.forEach(lv => {{
                             const py = candleSeries.priceToCoordinate(lv.p);
@@ -10063,22 +10148,22 @@ def render_live_ui():
                     cur_abv = abv_arr[-1]
                     vwap_dist_pct = abs(float(r_c['P']) - float(r_c['VWAP'])) / max(float(r_c['VWAP']), 1.0) * 100.0
 
-                    # 🩸 CASE 1: TOP REVERSAL SHORT (Price still ABOVE VWAP after morning uptrend, but CVD flipped RED < 0!)
+                    # 🔻 CASE 1: TOP REVERSAL SHORT (Price still ABOVE VWAP after morning uptrend, but CVD flipped RED < 0!)
                     if cur_abv and sum(abv_arr[-6:]) >= 5 and max(cvd_arr[:-1]) > 0 and cur_cvd < 0:
                         rc_copy = r_c.copy()
                         cvd_k = round(cur_cvd / 1000.0, 1)
-                        rc_copy['Strategy_Icon'] = "🩸 CVD-Flip TOP SELL"
-                        rc_copy['AlphaTag'] = f"🚨Pre-VWAP CVD:{cvd_k}K (+{vwap_dist_pct:.1f}% abv VWAP)"
+                        rc_copy['Strategy_Icon'] = "🔻 CVD-Flip TOP SELL"
+                        rc_copy['AlphaTag'] = f"🔻Pre-VWAP CVD:{cvd_k}K (+{vwap_dist_pct:.1f}% abv VWAP)"
                         rc_copy['S'] = 36
                         rc_copy['AI_Prob'] = 96
                         cvd_flip_rows.append(rc_copy)
 
-                    # 🚀 CASE 2: BOTTOM REVERSAL BUY (Price still BELOW VWAP after morning downtrend, but CVD flipped GREEN > 0!)
+                    # 💠 CASE 2: BOTTOM REVERSAL BUY (Price still BELOW VWAP after morning downtrend, but CVD flipped GREEN > 0!)
                     elif (not cur_abv) and sum(1 for x in abv_arr[-6:] if not x) >= 5 and min(cvd_arr[:-1]) < 0 and cur_cvd > 0:
                         rc_copy = r_c.copy()
                         cvd_k = round(cur_cvd / 1000.0, 1)
-                        rc_copy['Strategy_Icon'] = "🚀 CVD-Flip BOT BUY"
-                        rc_copy['AlphaTag'] = f"🚨Pre-VWAP CVD:+{cvd_k}K (-{vwap_dist_pct:.1f}% blw VWAP)"
+                        rc_copy['Strategy_Icon'] = "💠 CVD-Flip BOT BUY"
+                        rc_copy['AlphaTag'] = f"❇️Pre-VWAP CVD:+{cvd_k}K (-{vwap_dist_pct:.1f}% blw VWAP)"
                         rc_copy['S'] = 36
                         rc_copy['AI_Prob'] = 96
                         cvd_flip_rows.append(rc_copy)
