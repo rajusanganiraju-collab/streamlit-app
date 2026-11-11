@@ -8741,8 +8741,11 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
 
                     // 3. Delta & Cumulative Delta Values per Candle (When <= 40 candles visible)
                     if (visCount <= 40) {{
+                        const prevCvd = i > 0 ? ofData[i - 1].cvd : 0;
+                        const isCvdFalling = item.cvd < prevCvd;
                         const dCol = item.delta >= 0 ? '#4ade80' : '#f87171';
-                        const cvdCol = item.cvd >= 0 ? '#38bdf8' : '#fb7185';
+                        // 🔥 CVD తగ్గుతుంటే (5.3L -> 4.9L -> 4.0L) వెంటనే RED కలర్, పెరుగుతుంటే మాత్రమే GREEN/BLUE కలర్!
+                        const cvdCol = isCvdFalling ? '#f87171' : (item.cvd >= 0 ? '#38bdf8' : '#fb7185');
                         svgHtml += `<text x="${{cx}}" y="${{tblTop + 12}}" fill="${{dCol}}" font-size="8.5" font-family="monospace" font-weight="bold" text-anchor="middle">${{fmtK(item.delta)}}</text>`;
                         svgHtml += `<text x="${{cx}}" y="${{tblTop + 29}}" fill="${{cvdCol}}" font-size="8.5" font-family="monospace" font-weight="bold" text-anchor="middle">${{fmtK(item.cvd)}}</text>`;
 
@@ -9241,7 +9244,9 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             const vStr = v > 0 ? (v >= 1000000 ? '&nbsp;Vol <b>'+(v/1000000).toFixed(2)+'M</b>' : '&nbsp;Vol <b>'+(v/1000).toFixed(1)+'K</b>') : '';
             const tStr = fmtIST(bar.time);
             const ofBar = ofMap[bar.time];
-        const ofStr = ofBar ? ` &nbsp;|&nbsp; <span style="color:#4ade80;">Buy:<b>${{(ofBar.buy/1000).toFixed(1)}}K</b></span> <span style="color:#f87171;">Sell:<b>${{(ofBar.sell/1000).toFixed(1)}}K</b></span> <span style="color:${{ofBar.delta>=0?'#4ade80':'#f87171'}};">Δ:<b>${{ofBar.delta>=0?'+':''}}${{(ofBar.delta/1000).toFixed(1)}}K</b></span> <span style="color:#38bdf8;">CVD:<b>${{(ofBar.cvd/1000).toFixed(1)}}K</b></span>` : '';
+            const ofCvdCol = (ofBar && ofBar.delta < 0) ? '#f87171' : '#38bdf8';
+            const ofCvdArr = (ofBar && ofBar.delta < 0) ? '↓' : '↑';
+            const ofStr = ofBar ? ` &nbsp;|&nbsp; <span style="color:#4ade80;">Buy:<b>${{(ofBar.buy/1000).toFixed(1)}}K</b></span> <span style="color:#f87171;">Sell:<b>${{(ofBar.sell/1000).toFixed(1)}}K</b></span> <span style="color:${{ofBar.delta>=0?'#4ade80':'#f87171'}};">Δ:<b>${{ofBar.delta>=0?'+':''}}${{(ofBar.delta/1000).toFixed(1)}}K</b></span> <span style="color:${{ofCvdCol}};">CVD:<b>${{(ofBar.cvd/1000).toFixed(1)}}K${{ofCvdArr}}</b></span>` : '';
         ohlcBox.innerHTML = `🕒 <b>${{tStr}}</b> &nbsp; O<b>${{bar.open}}</b> H<b>${{bar.high}}</b> L<b>${{bar.low}}</b> C<b>${{bar.close}}</b> <span style="color:${{col}};font-weight:bold;">${{chg>=0?'+'+chg:chg}} (${{pct>=0?'+'+pct:pct}}%)</span> ${{vStr}}${{ofStr}}`;
         }}
         if (cData.length > 0) updateLegend(cData[cData.length - 1]);
