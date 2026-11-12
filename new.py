@@ -10085,10 +10085,30 @@ def render_live_ui():
     elif watchlist_mode in ["High Score Stocks 🔥", "Terminal Tables 🗃️"]:
         df_filtered = df_stocks[df_stocks['S'] >= 10].copy()
     elif "AI Predictions" in watchlist_mode:
-        # ✅ BUG #1 FIXED: Uses 5-min Intra_EMA10 & True 5-min VWAP instead of Weekly W_EMA10
+        # 🔥 STEP A: FIX RVOL (VolX) FROM 5-MIN CHARTS SO AFTERNOON/CLOSED MARKET NEVER SHOWS 0.3x
+        _true_5m_volx = {}
+        for _ft_v, _df5_v in processed_charts.items():
+            if _df5_v is not None and not _df5_v.empty and 'Volume' in _df5_v.columns and len(_df5_v) >= 15:
+                _v_s = _df5_v['Volume'].fillna(0.0).astype(float)
+                _sess_v = (_df5_v.index.to_series().diff() > pd.Timedelta(minutes=120)).cumsum()
+                _td_v = _v_s[_sess_v == _sess_v.iloc[-1]]
+                _prev_v = _v_s[_sess_v < _sess_v.iloc[-1]]
+                _base_v = float(_prev_v.mean()) if (len(_prev_v) >= 10 and float(_prev_v.mean()) > 0) else float(_v_s.mean())
+                if _base_v > 0 and not _td_v.empty:
+                    _day_ratio = float(_td_v.mean()) / _base_v
+                    _rec_ratio = float(_td_v.tail(6).max()) / (_base_v * 1.35)
+                    _true_5m_volx[_ft_v] = round(max(_day_ratio, _rec_ratio), 1)
+
+        df_filtered = df_filtered.copy()
+        _mapped_vx = pd.to_numeric(df_filtered['Fetch_T'].map(_true_5m_volx), errors='coerce').fillna(df_filtered['VolX'])
+        df_filtered['VolX'] = np.clip(np.maximum(df_filtered['VolX'].clip(upper=12.0), _mapped_vx), 0.5, 12.0).round(1)
+
+        # 🚫 GLOBAL FLAT-STOCK FILTER: కనీసం 0.65% ప్రైస్ మూవ్ లేని స్టాక్స్ (ఉదా: IDEA 0.00%) పూర్తిగా తొలగింపు
+        df_filtered = df_filtered[df_filtered['Day_C'].abs() >= 0.65].copy()
+
         intra_ema = df_filtered['Intra_EMA10'].where(df_filtered['Intra_EMA10'] > 0, df_filtered['VWAP'])
-        base_buy = (df_filtered['P'] > intra_ema) & (df_filtered['P'] > df_filtered['VWAP'])
-        base_sell = (df_filtered['P'] < intra_ema) & (df_filtered['P'] < df_filtered['VWAP'])
+        base_buy = (df_filtered['P'] > intra_ema) & (df_filtered['P'] > df_filtered['VWAP']) & (df_filtered['Day_C'] >= 0.65)
+        base_sell = (df_filtered['P'] < intra_ema) & (df_filtered['P'] < df_filtered['VWAP']) & (df_filtered['Day_C'] <= -0.65)
 
         ai_strats_to_run = list(move_type_filter) if isinstance(move_type_filter, list) else [move_type_filter]
         if "All Day Trading Moves 🚀" in ai_strats_to_run:
@@ -10104,44 +10124,63 @@ def render_live_ui():
                 if _core_s not in ai_strats_to_run:
                     ai_strats_to_run.append(_core_s)
 
+        is_multi_strat = len([s for s in ai_strats_to_run if s != "All Day Trading Moves 🚀"]) > 1
+        per_strat_cap = 5 if is_multi_strat else 15
+
+        def _calc_unified_power_score(df_in, bonus_pts=0):
+            """ప్రైస్ మూవ్ % + వాల్యూమ్ (RVOL) ఆధారంగా అన్ని స్ట్రాటజీలకు సమానమైన స్కోర్ (20 నుండి 39 వరకు)"""
+            return np.clip(
+                18.0 + (df_in['Day_C'].abs() * 3.2) + (df_in['VolX'].clip(upper=5.0) * 2.5) + bonus_pts,
+                20, 39
+            ).astype(int)
+
         all_dfs = []
         for strat in ai_strats_to_run:
             if strat == "All Day Trading Moves 🚀":
                 continue
 
-            # 1. 🧠 ORDER-FLOW SNIPER (Pure 5-Pillar Quant Score)
+            # 1. 🧠 ORDER-FLOW SNIPER (5-Pillar Quant Score)
             if strat == ADAPTIVE_STRAT:
                 for _side, _label in (('buy', 'BUY'), ('sell', 'SELL')):
                     _rows = sniper_cached_res.get(_side, [])
                     if not _rows:
                         continue
                     _m = {r['sym']: r for r in _rows}
-                    _sub = df_filtered[df_filtered['Fetch_T'].isin(list(_m.keys()))].copy()
+                    _side_mask = base_buy if _side == 'buy' else base_sell
+                    _sub = df_filtered[_side_mask & df_filtered['Fetch_T'].isin(list(_m.keys()))].copy()
                     if _sub.empty:
                         continue
                     _sub['AI_Prob'] = _sub['Fetch_T'].map(lambda s: int(_m[s]['score']))
-                    _sub = _sub.sort_values('AI_Prob', ascending=False)
+                    _sub['S'] = _calc_unified_power_score(_sub, bonus_pts=3)
+                    _sub = _sub.sort_values(by=['S', 'AI_Prob'], ascending=[False, False]).head(per_strat_cap)
                     _sub['Strategy_Icon'] = f"🎯 Sniper {_label}"
                     _sub['AlphaTag'] = _sub['Fetch_T'].map(lambda s: f"🎯{_m[s]['tag']} ({_m[s]['score']}%)")
-                    _sub['S'] = [35 - 2 * _k for _k in range(len(_sub))]
                     all_dfs.append(_sub)
 
-            # 2. 📰 NEWS + VOL + PRICE CATALYST (Pure News Score)
+            # 2. 📰 NEWS + VOL + PRICE CATALYST
             elif strat == NEWS_STRAT:
-                _df_news, _ = run_news_vol_price_strategy(df_filtered, processed_charts, min_volx=1.2, min_move_pct=0.75)
+                _df_news, _ = run_news_vol_price_strategy(df_filtered, processed_charts, min_volx=1.1, min_move_pct=0.75)
                 if not _df_news.empty:
                     all_dfs.append(_df_news)
-            # 2B. 🌍 DOMINO EFFECT & CRISIS MATRIX (Victim vs Winner + 3x Vol Insider Panic)
+
+            # 2B. 🌍 DOMINO EFFECT & CRISIS MATRIX
             elif strat == DOMINO_STRAT:
                 _df_domino, _ = run_domino_crisis_engine(df_filtered, processed_charts)
                 if not _df_domino.empty:
                     all_dfs.append(_df_domino)
 
-            # 2C. 🔬 CVD FLIP REVERSAL (STRICT VWAP CONFIRMATION: BUY > VWAP & SELL < VWAP)
+            # 2C. 🔬 CVD FLIP REVERSAL (STRICT VWAP CONFIRMATION + CUMULATIVE VOLUME & PRICE RANKING)
             elif strat == "🔬 CVD Flip Reversal (Before VWAP)":
-                cvd_flip_rows = []
+                cvd_buy_rows, cvd_sell_rows = [], []
                 for idx_c, r_c in df_filtered.iterrows():
                     ft_c = r_c['Fetch_T']
+                    ltp_now = float(r_c['P'])
+                    day_c_now = float(r_c.get('Day_C', 0.0))
+                    vol_x_now = float(r_c.get('VolX', 1.0))
+
+                    if abs(day_c_now) < 0.70 or vol_x_now < 1.05:
+                        continue
+
                     df_h5 = processed_charts.get(ft_c, pd.DataFrame())
                     if df_h5 is None or df_h5.empty or len(df_h5) < 6 or 'VWAP' not in df_h5.columns:
                         continue
@@ -10150,18 +10189,16 @@ def render_live_ui():
                     if len(td_c) < 4:
                         continue
 
-                    # మినీ చార్ట్‌లోని ఫంక్షన్‌నే వాడటం వల్ల చార్ట్‌లో ▲ / 🔻 సింబల్ ఉన్న స్టాక్స్ మాత్రమే వస్తాయి
                     bull_flips_c, bear_flips_c = _detect_5m_cvd_flips(td_c)
                     if not bull_flips_c and not bear_flips_c:
                         continue
 
-                    # ప్రస్తుత క్యాండిల్ Close, VWAP మరియు Live CVD లెక్కింపు
                     c_last = float(td_c['Close'].iloc[-1])
                     vw_last = float(td_c['VWAP'].iloc[-1])
-                    ltp_now = float(r_c['P'])
-                    day_c_now = float(r_c.get('Day_C', 0.0))
+                    ema10_last = float(td_c['EMA_10'].iloc[-1]) if 'EMA_10' in td_c.columns else vw_last
 
                     run_cvd = 0.0
+                    tot_wave_vol = 0.0
                     prev_st = None
                     for _, br in td_c.iterrows():
                         o_b, h_b, l_b, c_b = float(br['Open']), float(br['High']), float(br['Low']), float(br['Close'])
@@ -10170,6 +10207,7 @@ def render_live_ui():
                         st_now = bool(c_b >= vw_b)
                         if prev_st != st_now:
                             run_cvd = 0.0
+                            tot_wave_vol = 0.0
                             prev_st = st_now
                         rng_b = max(h_b - l_b, 0.001)
                         body_b = (c_b - o_b) / rng_b
@@ -10178,170 +10216,188 @@ def render_live_ui():
                         b_vol = round(v_b * clv_b)
                         s_vol = round(v_b - b_vol)
                         run_cvd += (b_vol - s_vol)
+                        tot_wave_vol += v_b
 
                     cvd_k = round(run_cvd / 1000.0, 1)
-                    n_td = len(td_c)
+                    cvd_dom_pct = (abs(run_cvd) / max(tot_wave_vol, 1.0)) * 100.0
+                    power_rank = (abs(day_c_now) * 4.5) + (min(vol_x_now, 5.0) * 3.0) + (cvd_dom_pct * 0.35)
+                    dyn_score = int(np.clip(18.0 + (abs(day_c_now) * 3.2) + (min(vol_x_now, 5.0) * 2.5) + (cvd_dom_pct * 0.08), 20, 38))
+                    dyn_prob = int(np.clip(68 + dyn_score * 0.75, 76, 98))
 
-                    # 🟢 1. POSITIVE / BUY: ధర & 5m Close కచ్చితంగా VWAP పైన ఉండాలి + Bullish CVD Flip (▲) + CVD > 0
-                    if (ltp_now > vw_last) and (c_last > vw_last) and (run_cvd > 0) and (day_c_now >= 0) and bull_flips_c:
+                    # 🟢 BUY: LTP & 5m Close > VWAP & EMA10 + Bullish CVD Flip (▲)
+                    if (ltp_now > vw_last) and (c_last > vw_last) and (ltp_now >= ema10_last) and (run_cvd > 0) and (day_c_now >= 0.70) and bull_flips_c:
                         last_bf = bull_flips_c[-1]
                         flip_tm = pd.Timestamp(td_c.index[last_bf]).strftime("%I:%M %p")
-                        is_fresh = (n_td - 1 - last_bf) <= 6
                         rc_copy = r_c.copy()
                         rc_copy['Strategy_Icon'] = "▲ CVD-Flip BUY"
-                        rc_copy['AlphaTag'] = f"▲CVD-Flip @{flip_tm} | CVD:+{cvd_k}K"
-                        rc_copy['S'] = 38 if is_fresh else 34
-                        rc_copy['AI_Prob'] = 97 if is_fresh else 93
-                        cvd_flip_rows.append(rc_copy)
+                        rc_copy['AlphaTag'] = f"▲CVD:{cvd_k:+.1f}K ({cvd_dom_pct:.0f}% Dom) @{flip_tm}"
+                        rc_copy['S'] = dyn_score
+                        rc_copy['AI_Prob'] = dyn_prob
+                        rc_copy['_cvd_pwr'] = power_rank
+                        cvd_buy_rows.append(rc_copy)
 
-                    # 🔴 2. NEGATIVE / SELL: ధర & 5m Close కచ్చితంగా VWAP కింద ఉండాలి + Bearish CVD Flip (🔻) + CVD < 0
-                    elif (ltp_now < vw_last) and (c_last < vw_last) and (run_cvd < 0) and (day_c_now <= 0) and bear_flips_c:
+                    # 🔴 SELL: LTP & 5m Close < VWAP & EMA10 + Bearish CVD Flip (🔻)
+                    elif (ltp_now < vw_last) and (c_last < vw_last) and (ltp_now <= ema10_last) and (run_cvd < 0) and (day_c_now <= -0.70) and bear_flips_c:
                         last_sf = bear_flips_c[-1]
                         flip_tm = pd.Timestamp(td_c.index[last_sf]).strftime("%I:%M %p")
-                        is_fresh = (n_td - 1 - last_sf) <= 6
                         rc_copy = r_c.copy()
                         rc_copy['Strategy_Icon'] = "🔻 CVD-Flip SELL"
-                        rc_copy['AlphaTag'] = f"🔻CVD-Flip @{flip_tm} | CVD:{cvd_k}K"
-                        rc_copy['S'] = 38 if is_fresh else 34
-                        rc_copy['AI_Prob'] = 97 if is_fresh else 93
-                        cvd_flip_rows.append(rc_copy)
+                        rc_copy['AlphaTag'] = f"🔻CVD:{cvd_k:.1f}K ({cvd_dom_pct:.0f}% Dom) @{flip_tm}"
+                        rc_copy['S'] = dyn_score
+                        rc_copy['AI_Prob'] = dyn_prob
+                        rc_copy['_cvd_pwr'] = power_rank
+                        cvd_sell_rows.append(rc_copy)
 
-                if cvd_flip_rows:
-                    all_dfs.append(pd.DataFrame(cvd_flip_rows))
+                if cvd_buy_rows:
+                    df_cb = pd.DataFrame(cvd_buy_rows).sort_values(by='_cvd_pwr', ascending=False).head(per_strat_cap).drop(columns=['_cvd_pwr'], errors='ignore')
+                    all_dfs.append(df_cb)
+                if cvd_sell_rows:
+                    df_cs = pd.DataFrame(cvd_sell_rows).sort_values(by='_cvd_pwr', ascending=False).head(per_strat_cap).drop(columns=['_cvd_pwr'], errors='ignore')
+                    all_dfs.append(df_cs)
+
             # 3. 🔥 FIRST HOUR VOL BREAKOUT (ORB + VWAP)
             elif strat == "🔥 First Hour Vol Breakout (ORB+VWAP)":
-                orb_vol = df_filtered['VolX'] >= 1.5
-                c_buy = base_buy & (df_filtered['Day_C'] > 1.0) & orb_vol & (df_filtered['P'] > df_filtered['O']) & ((df_filtered['O'] - df_filtered['L']) <= (df_filtered['P'] * 0.005))
-                c_sell = base_sell & (df_filtered['Day_C'] < -1.0) & orb_vol & (df_filtered['P'] < df_filtered['O']) & ((df_filtered['H'] - df_filtered['O']) <= (df_filtered['P'] * 0.005))
-                for _mask, _lbl, _asc in [(c_buy, "🚀 1-Hr BO BUY", False), (c_sell, "🩸 1-Hr BO SELL", True)]:
-                    _sub = df_filtered[_mask].sort_values(by=['VolX', 'Day_C'], ascending=[False, _asc]).head(5).copy()
+                orb_vol = df_filtered['VolX'] >= 1.15
+                c_buy = base_buy & (df_filtered['Day_C'] >= 1.0) & orb_vol & (df_filtered['P'] > df_filtered['O']) & ((df_filtered['O'] - df_filtered['L']) <= (df_filtered['P'] * 0.006))
+                c_sell = base_sell & (df_filtered['Day_C'] <= -1.0) & orb_vol & (df_filtered['P'] < df_filtered['O']) & ((df_filtered['H'] - df_filtered['O']) <= (df_filtered['P'] * 0.006))
+                for _mask, _lbl in [(c_buy, "🚀 1-Hr BO BUY"), (c_sell, "🩸 1-Hr BO SELL")]:
+                    _sub = df_filtered[_mask].copy()
                     if not _sub.empty:
-                        _sub['S'] = (14 + np.clip(_sub['VolX'] * 3.0, 2, 10) + np.clip(_sub['Day_C'].abs() * 1.5, 1, 6)).astype(int)
-                        _sub['AI_Prob'] = np.clip(65 + _sub['S'], 72, 97).astype(int)
+                        _sub['S'] = _calc_unified_power_score(_sub, bonus_pts=3)
+                        _sub['AI_Prob'] = np.clip(65 + _sub['S'], 75, 98).astype(int)
                         _sub['Strategy_Icon'] = _lbl
-                        all_dfs.append(_sub)
+                        all_dfs.append(_sub.sort_values(by='S', ascending=False).head(per_strat_cap))
 
-            # 4. 💥 INSIDE BAR VOL BREAKOUT (NR7) — ✅ BUG #4 FIXED
+            # 4. 💥 INSIDE BAR VOL BREAKOUT (NR7)
             elif strat == "💥 Inside Bar Vol Breakout (NR7)":
-                ib_vol = df_filtered['VolX'] >= 1.2
+                ib_vol = df_filtered['VolX'] >= 1.1
                 prev_range_pct = (df_filtered['Prev_H'] - df_filtered['Prev_L']) / (df_filtered['Prev_L'] + 0.001)
-                ib_narrow_prev = (prev_range_pct <= 0.022) | (df_filtered['Narrow_CPR'] == True)
-                c_buy = base_buy & ib_vol & ib_narrow_prev & (df_filtered['P'] > df_filtered['O']) & ((df_filtered['P'] > df_filtered['Prev_H']) | (df_filtered['Day_C'] >= 0.75))
-                c_sell = base_sell & ib_vol & ib_narrow_prev & (df_filtered['P'] < df_filtered['O']) & ((df_filtered['P'] < df_filtered['Prev_L']) | (df_filtered['Day_C'] <= -0.75))
-                for _mask, _lbl, _asc in [(c_buy, "💥 NR7 BO BUY", False), (c_sell, "🩸 NR7 BO SELL", True)]:
-                    _sub = df_filtered[_mask].sort_values(by=['VolX', 'Day_C'], ascending=[False, _asc]).head(5).copy()
+                ib_narrow_prev = (prev_range_pct <= 0.025) | (df_filtered['Narrow_CPR'] == True)
+                c_buy = base_buy & ib_vol & ib_narrow_prev & (df_filtered['P'] > df_filtered['O']) & ((df_filtered['P'] > df_filtered['Prev_H']) | (df_filtered['Day_C'] >= 0.85))
+                c_sell = base_sell & ib_vol & ib_narrow_prev & (df_filtered['P'] < df_filtered['O']) & ((df_filtered['P'] < df_filtered['Prev_L']) | (df_filtered['Day_C'] <= -0.85))
+                for _mask, _lbl in [(c_buy, "💥 NR7 BO BUY"), (c_sell, "🩸 NR7 BO SELL")]:
+                    _sub = df_filtered[_mask].copy()
                     if not _sub.empty:
-                        _prev_r = (_sub['Prev_H'] - _sub['Prev_L']) / (_sub['Prev_L'] + 0.001) * 100.0
-                        _tight_pts = np.clip((3.0 - _prev_r) * 3.5, 2, 10)
-                        _sub['S'] = (13 + _tight_pts + np.clip(_sub['VolX'] * 2.5, 2, 8)).astype(int)
-                        _sub['AI_Prob'] = np.clip(65 + _sub['S'], 72, 96).astype(int)
+                        _sub['S'] = _calc_unified_power_score(_sub, bonus_pts=3)
+                        _sub['AI_Prob'] = np.clip(65 + _sub['S'], 75, 97).astype(int)
                         _sub['Strategy_Icon'] = _lbl
-                        all_dfs.append(_sub)
+                        all_dfs.append(_sub.sort_values(by='S', ascending=False).head(per_strat_cap))
 
-            # 5. 🧲 INTRADAY DIP & SUPPORT BOUNCE — ✅ BUG #1 FIXED (Uses 5m Intra_EMA10)
+            # 5. 🧲 INTRADAY DIP & SUPPORT BOUNCE
             elif strat == "🧲 Intraday Dip & Support Bounce":
                 day_pb = ((df_filtered['H'] - df_filtered['P']) / (df_filtered['H'] + 0.001)) * 100.0
-                dip_ok = (day_pb >= 0.8) & (day_pb <= 3.0)
-                near_vwap_b = (df_filtered['P'] >= df_filtered['VWAP'] * 0.998) & (df_filtered['L'] <= df_filtered['VWAP'] * 1.003)
-                near_ema_b = (df_filtered['P'] >= intra_ema * 0.998) & (df_filtered['L'] <= intra_ema * 1.003)
-                c_buy = base_buy & dip_ok & (near_vwap_b | near_ema_b) & (df_filtered['P'] > df_filtered['O']) & (df_filtered['Day_C'] > 0) & (df_filtered['VolX'] >= 1.2)
+                dip_ok = (day_pb >= 0.6) & (day_pb <= 3.5)
+                near_vwap_b = (df_filtered['P'] >= df_filtered['VWAP']) & (df_filtered['L'] <= df_filtered['VWAP'] * 1.005)
+                near_ema_b = (df_filtered['P'] >= intra_ema) & (df_filtered['L'] <= intra_ema * 1.005)
+                c_buy = base_buy & dip_ok & (near_vwap_b | near_ema_b) & (df_filtered['VolX'] >= 1.05)
 
                 day_rl = ((df_filtered['P'] - df_filtered['L']) / (df_filtered['L'] + 0.001)) * 100.0
-                rally_ok = (day_rl >= 0.8) & (day_rl <= 3.0)
-                near_vwap_s = (df_filtered['P'] <= df_filtered['VWAP'] * 1.002) & (df_filtered['H'] >= df_filtered['VWAP'] * 0.997)
-                near_ema_s = (df_filtered['P'] <= intra_ema * 1.002) & (df_filtered['H'] >= intra_ema * 0.997)
-                c_sell = base_sell & rally_ok & (near_vwap_s | near_ema_s) & (df_filtered['P'] < df_filtered['O']) & (df_filtered['Day_C'] < 0) & (df_filtered['VolX'] >= 1.2)
+                rally_ok = (day_rl >= 0.6) & (day_rl <= 3.5)
+                near_vwap_s = (df_filtered['P'] <= df_filtered['VWAP']) & (df_filtered['H'] >= df_filtered['VWAP'] * 0.995)
+                near_ema_s = (df_filtered['P'] <= intra_ema) & (df_filtered['H'] >= intra_ema * 0.995)
+                c_sell = base_sell & rally_ok & (near_vwap_s | near_ema_s) & (df_filtered['VolX'] >= 1.05)
 
-                for _mask, _lbl, _asc in [(c_buy, "🧲 Dip Bounce BUY", False), (c_sell, "🩸 Dip Reject SELL", True)]:
-                    _sub = df_filtered[_mask].sort_values(by=['VolX', 'Day_C'], ascending=[False, _asc]).head(5).copy()
+                for _mask, _lbl in [(c_buy, "🧲 Dip Bounce BUY"), (c_sell, "🩸 Dip Reject SELL")]:
+                    _sub = df_filtered[_mask].copy()
                     if not _sub.empty:
-                        _prox_pts = np.clip(10.0 - ((_sub['P'] - _sub['VWAP']).abs() / (_sub['VWAP'] + 0.01) * 1500.0), 2, 10)
-                        _sub['S'] = (14 + _prox_pts + np.clip(_sub['VolX'] * 2.0, 1, 6)).astype(int)
-                        _sub['AI_Prob'] = np.clip(66 + _sub['S'], 74, 96).astype(int)
+                        _sub['S'] = _calc_unified_power_score(_sub, bonus_pts=2)
+                        _sub['AI_Prob'] = np.clip(66 + _sub['S'], 75, 97).astype(int)
                         _sub['Strategy_Icon'] = _lbl
-                        all_dfs.append(_sub)
+                        all_dfs.append(_sub.sort_values(by='S', ascending=False).head(per_strat_cap))
 
-            # 6. ⚡ SUDDEN VWAP CROSS (ANY TIME)
+            # 6. ⚡ SUDDEN VWAP CROSS (LAST 30 MINS / 6 CANDLES)
             elif strat == "⚡ Sudden VWAP Cross (Any Time)":
                 buy_mask = pd.Series(False, index=df_filtered.index)
                 sell_mask = pd.Series(False, index=df_filtered.index)
-                for idx, r in df_filtered[df_filtered['VolX'] >= 1.3].iterrows():
+                for idx, r in df_filtered[df_filtered['VolX'] >= 1.1].iterrows():
                     df_hist = processed_charts.get(r['Fetch_T'], pd.DataFrame())
-                    if not df_hist.empty and len(df_hist) >= 2 and 'VWAP' in df_hist.columns:
-                        c1, c2 = df_hist.iloc[-1], df_hist.iloc[-2]
-                        if ((c2['Close'] <= c2['VWAP']) and (c1['Close'] > c1['VWAP'])) or ((c1['Open'] <= c1['VWAP']) and (c1['Close'] > c1['VWAP'])):
+                    if not df_hist.empty and len(df_hist) >= 6 and 'VWAP' in df_hist.columns:
+                        rec_6 = df_hist.tail(6)
+                        c_now, vw_now = float(rec_6['Close'].iloc[-1]), float(rec_6['VWAP'].iloc[-1])
+                        if (c_now > vw_now) and (rec_6['Low'].iloc[:-1] <= rec_6['VWAP'].iloc[:-1]).any():
                             buy_mask.loc[idx] = True
-                        if ((c2['Close'] >= c2['VWAP']) and (c1['Close'] < c1['VWAP'])) or ((c1['Open'] >= c1['VWAP']) and (c1['Close'] < c1['VWAP'])):
+                        elif (c_now < vw_now) and (rec_6['High'].iloc[:-1] >= rec_6['VWAP'].iloc[:-1]).any():
                             sell_mask.loc[idx] = True
-                for _mask, _lbl, _asc in [(base_buy & buy_mask, "⚡ VWAP Cross BUY", False), (base_sell & sell_mask, "🩸 VWAP Cross SELL", True)]:
-                    _sub = df_filtered[_mask].sort_values(by=['VolX', 'Day_C'], ascending=[False, _asc]).head(5).copy()
+                for _mask, _lbl in [(base_buy & buy_mask, "⚡ VWAP Cross BUY"), (base_sell & sell_mask, "🩸 VWAP Cross SELL")]:
+                    _sub = df_filtered[_mask].copy()
                     if not _sub.empty:
-                        _sub['S'] = (15 + np.clip(_sub['VolX'] * 3.5, 3, 12)).astype(int)
+                        _sub['S'] = _calc_unified_power_score(_sub, bonus_pts=2)
                         _sub['AI_Prob'] = np.clip(66 + _sub['S'], 75, 97).astype(int)
                         _sub['Strategy_Icon'] = _lbl
-                        all_dfs.append(_sub)
+                        all_dfs.append(_sub.sort_values(by='S', ascending=False).head(per_strat_cap))
 
             # 7. 🚀 GAP & GO (OPEN = LOW / OPEN = HIGH)
             elif strat == "🚀 Gap & Go (Open = Low)":
-                high_vol = df_filtered['VolX'] >= 1.5
-                c_buy = base_buy & ((df_filtered['O'] - df_filtered['L']) <= (df_filtered['P'] * 0.002)) & (df_filtered['O'] > df_filtered['Prev_C']) & high_vol & (df_filtered['Day_C'] > 0.5)
-                c_sell = base_sell & ((df_filtered['H'] - df_filtered['O']) <= (df_filtered['P'] * 0.002)) & (df_filtered['O'] < df_filtered['Prev_C']) & high_vol & (df_filtered['Day_C'] < -0.5)
-                for _mask, _lbl, _asc in [(c_buy, "🚀 Gap&Go BUY", False), (c_sell, "🩸 Gap&Go SELL", True)]:
-                    _sub = df_filtered[_mask].sort_values(by=['VolX', 'Day_C'], ascending=[False, _asc]).head(5).copy()
+                high_vol = df_filtered['VolX'] >= 1.15
+                c_buy = base_buy & ((df_filtered['O'] - df_filtered['L']) <= (df_filtered['P'] * 0.003)) & high_vol & (df_filtered['Day_C'] >= 1.0)
+                c_sell = base_sell & ((df_filtered['H'] - df_filtered['O']) <= (df_filtered['P'] * 0.003)) & high_vol & (df_filtered['Day_C'] <= -1.0)
+                for _mask, _lbl in [(c_buy, "🚀 Gap&Go BUY"), (c_sell, "🩸 Gap&Go SELL")]:
+                    _sub = df_filtered[_mask].copy()
                     if not _sub.empty:
-                        _pwr_b = np.where((_sub.get('Bull_P', 0) >= 80) | (_sub.get('Bear_P', 0) >= 80), 5, 2)
-                        _sub['S'] = (16 + np.clip(_sub['VolX'] * 3.0, 3, 10) + _pwr_b).astype(int)
+                        _sub['S'] = _calc_unified_power_score(_sub, bonus_pts=4)
                         _sub['AI_Prob'] = np.clip(67 + _sub['S'], 76, 98).astype(int)
                         _sub['Strategy_Icon'] = _lbl
-                        all_dfs.append(_sub)
+                        all_dfs.append(_sub.sort_values(by='S', ascending=False).head(per_strat_cap))
 
             # 8. 💥 PDH / PDL BREAKOUT
             elif strat == "💥 PDH / PDL Breakout":
-                vol_confirm = df_filtered['VolX'] >= 1.8
+                vol_confirm = df_filtered['VolX'] >= 1.15
                 c_buy = base_buy & (df_filtered['P'] > df_filtered['Prev_H']) & vol_confirm
                 c_sell = base_sell & (df_filtered['P'] < df_filtered['Prev_L']) & vol_confirm
-                for _mask, _lbl, _asc in [(c_buy, "💥 PD Break BUY", False), (c_sell, "🩸 PD Break SELL", True)]:
-                    _sub = df_filtered[_mask].sort_values(by=['VolX', 'Day_C'], ascending=[False, _asc]).head(5).copy()
+                for _mask, _lbl in [(c_buy, "💥 PD Break BUY"), (c_sell, "🩸 PD Break SELL")]:
+                    _sub = df_filtered[_mask].copy()
                     if not _sub.empty:
-                        _sub['S'] = (15 + np.clip(_sub['VolX'] * 3.5, 3, 12) + np.clip(_sub['Day_C'].abs() * 1.2, 1, 5)).astype(int)
-                        _sub['AI_Prob'] = np.clip(66 + _sub['S'], 75, 98).astype(int)
+                        _sub['S'] = _calc_unified_power_score(_sub, bonus_pts=4)
+                        _sub['AI_Prob'] = np.clip(66 + _sub['S'], 76, 98).astype(int)
                         _sub['Strategy_Icon'] = _lbl
-                        all_dfs.append(_sub)
+                        all_dfs.append(_sub.sort_values(by='S', ascending=False).head(per_strat_cap))
 
             # 9. 🤖 ALL MOVES (Pure AI Probability >= 70%)
             elif strat == "All Moves":
                 up_prob = (
                     np.where(df_filtered['P'] > df_filtered['VWAP'], 25, 0) +
-                    np.where(df_filtered['VolX'] >= 1.5, 20, 0) +
-                    np.where(df_filtered.get('Bull_P', 0) >= 80, 30, 0) +
-                    np.where((df_filtered['O'] - df_filtered['L']).abs() < (df_filtered['P'] * 0.002), 25, 0)
+                    np.where(df_filtered['VolX'] >= 1.2, 20, 0) +
+                    np.where(df_filtered.get('Bull_P', 0) >= 75, 30, 0) +
+                    np.where((df_filtered['O'] - df_filtered['L']).abs() < (df_filtered['P'] * 0.003), 25, 0)
                 )
                 dn_prob = (
                     np.where(df_filtered['P'] < df_filtered['VWAP'], 25, 0) +
-                    np.where(df_filtered['VolX'] >= 1.5, 20, 0) +
-                    np.where(df_filtered.get('Bear_P', 0) >= 80, 30, 0) +
-                    np.where((df_filtered['O'] - df_filtered['H']).abs() < (df_filtered['P'] * 0.002), 25, 0)
+                    np.where(df_filtered['VolX'] >= 1.2, 20, 0) +
+                    np.where(df_filtered.get('Bear_P', 0) >= 75, 30, 0) +
+                    np.where((df_filtered['O'] - df_filtered['H']).abs() < (df_filtered['P'] * 0.003), 25, 0)
                 )
-                _sub_b = df_filtered[(up_prob >= 70) & (df_filtered['S'] >= 11)].copy()
+                _sub_b = df_filtered[(up_prob >= 70) & base_buy].copy()
                 if not _sub_b.empty:
-                    _sub_b['AI_Prob'] = up_prob[(up_prob >= 70) & (df_filtered['S'] >= 11)]
+                    _sub_b['S'] = _calc_unified_power_score(_sub_b, bonus_pts=1)
+                    _sub_b['AI_Prob'] = up_prob[(up_prob >= 70) & base_buy]
                     _sub_b['Strategy_Icon'] = "🚀 AI PREDICTS: UP"
                     all_dfs.append(_sub_b)
-                _sub_s = df_filtered[(dn_prob >= 70) & (df_filtered['S'] >= 11)].copy()
+                _sub_s = df_filtered[(dn_prob >= 70) & base_sell].copy()
                 if not _sub_s.empty:
-                    _sub_s['AI_Prob'] = dn_prob[(dn_prob >= 70) & (df_filtered['S'] >= 11)]
+                    _sub_s['S'] = _calc_unified_power_score(_sub_s, bonus_pts=1)
+                    _sub_s['AI_Prob'] = dn_prob[(dn_prob >= 70) & base_sell]
                     _sub_s['Strategy_Icon'] = "🩸 AI PREDICTS: DOWN"
                     all_dfs.append(_sub_s)
 
         if all_dfs:
             _combined_ai = pd.concat(all_dfs, ignore_index=True)
-            _combined_ai['_is_cvd_strat'] = _combined_ai['Strategy_Icon'].astype(str).str.contains('CVD-Flip', na=False)
-            df_filtered = _combined_ai.sort_values(by=['_is_cvd_strat', 'S'], ascending=[False, False]).drop_duplicates(subset=['Fetch_T'], keep='first').drop(columns=['_is_cvd_strat'], errors='ignore')
+            _combined_ai['_abs_dc'] = _combined_ai['Day_C'].abs()
+            # ఒకే స్టాక్ 2 స్ట్రాటజీలలో వస్తే (ఉదా: PD Break + CVD-Flip), Breakout స్ట్రాటజీ బ్యాడ్జ్ కనిపించేలా ప్రయారిటీ
+            _combined_ai['_strat_prio'] = np.where(
+                _combined_ai['Strategy_Icon'].astype(str).str.contains('1-Hr|NR7|Gap&Go|PD Break|Dip|VWAP Cross|Domino|News', na=False),
+                1, 0
+            )
+            df_filtered = (
+                _combined_ai.sort_values(by=['S', '_strat_prio', '_abs_dc', 'VolX'], ascending=[False, False, False, False])
+                .drop_duplicates(subset=['Fetch_T'], keep='first')
+                .sort_values(by=['S', '_abs_dc', 'VolX'], ascending=[False, False, False])
+                .drop(columns=['_abs_dc', '_strat_prio'], errors='ignore')
+            )
         else:
             df_filtered = pd.DataFrame(columns=df_filtered.columns)
 
         if not df_filtered.empty:
-            is_sell_sig = df_filtered['Strategy_Icon'].astype(str).str.contains('🔴|SELL|DOWN|🩸', na=False)
+            is_sell_sig = df_filtered['Strategy_Icon'].astype(str).str.contains('🔴|🔻|SELL|DOWN|🩸', na=False)
             is_buy = ~is_sell_sig
             atr_val = df_filtered.get('ATR', df_filtered['P'] * 0.02)
             risk_amt = atr_val * 1.5
