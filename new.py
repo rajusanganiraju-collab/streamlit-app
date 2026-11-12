@@ -8041,7 +8041,7 @@ def _compute_pinescript_suite(df_p):
     }
 
 
-# --- PRO GRID CHART ENGINE (DRAGGABLE BUY/SELL LIMIT LINE + SL/TGT + FREEHAND FIBONACCI) ---
+# --- PRO GRID CHART ENGINE (ZERO-FLICKER IN-PLACE LIVE UPDATE + 100% ZOOM MEMORY) ---
 def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, active_inds, chart_height=330, key_idx=0, current_grid_syms=None):
     disp_sym = row_data.get('T', fetch_sym.replace('.NS', ''))
     tf_short = "5m (5D)" if timeframe == "Intraday (5m)" else ("1D" if timeframe == "Daily Chart" else "1W")
@@ -8140,7 +8140,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     sr_low = round(float(df_p['Low'].min()), 2)
 
     active_tr = _SS['chart_trades'].get(fetch_sym)
-    pos_js = "null"
+    pos_obj = None
     exit_btn_html = ""
     ent_lbl_html = "🔵 BUY:"
     if active_tr:
@@ -8170,7 +8170,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             "pnlPct": round(pnl_pct, 2),
             "entryColor": "#38bdf8" if t_otype == "LIMIT" else ("#22c55e" if pnl_val >= 0 else "#f97316")
         }
-        pos_js = json.dumps(pos_obj)
         exit_btn_html = (
             f"<span style='background:{pnl_col};color:#fff;padding:0px 5px;border-radius:3px;font-size:9.5px;font-weight:bold;'>"
             f"{pnl_sign}₹{pnl_val:,.1f} ({pnl_sign}{pnl_pct:.1f}%)</span>"
@@ -8198,7 +8197,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         spd_candles_js.append({'time': ts, 'open': o, 'high': h, 'low': l, 'close': c, 'color': sc, 'wickColor': sc, 'borderColor': sc})
         vol_js.append({'time': ts, 'value': v, 'color': 'rgba(20, 184, 166, 0.45)' if c >= o else 'rgba(239, 68, 68, 0.45)'})
 
-        # 🔬 ORDER FLOW: VWAP CROSS RESET TO 0 + GREEN UNTIL MINUS (< 0)
         cur_day_date = pd.Timestamp(dt_idx).date()
         vwap_val = float(r.get('VWAP', c)) if pd.notna(r.get('VWAP', c)) else c
         is_above_vwap = bool(c >= vwap_val)
@@ -8275,7 +8273,52 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     bar_sp = 4.5 if len(current_grid_syms) >= 2 else 6.5
     wtbl = pine_res['wave_tbl']
 
-    html_code = f"""
+    # 📦 LIVE PAYLOAD OBJECT (Pushed silently via 0-height script so main chart iframe NEVER reloads!)
+    live_payload = {
+        "sym": fetch_sym,
+        "disp_sym": disp_sym,
+        "tf_short": tf_short,
+        "ltp_fmt": f"₹{ltp_v:,.2f}",
+        "chg_fmt": f"({chg_v:+.2f}%)",
+        "c_col": c_col,
+        "prod_badge_txt": prod_badge_txt,
+        "prod_badge_col": prod_badge_col,
+        "buy_title": f"Buy {disp_sym} ({prod_mode}) @ ₹{ltp_v:.2f}",
+        "sell_title": f"Sell {disp_sym} ({prod_mode}) @ ₹{ltp_v:.2f}",
+        "exit_btn_html": exit_btn_html,
+        "ent_lbl_html": ent_lbl_html,
+        "sr_high": sr_high,
+        "sr_low": sr_low,
+        "piv": piv,
+        "r1": r1,
+        "s1": s1,
+        "wtbl": wtbl,
+        "activePos": pos_obj,
+        "cData": candles_js,
+        "spdCandles": spd_candles_js,
+        "vData": vol_js,
+        "vwapData": vwap_js,
+        "ema10Data": ema10_js,
+        "ema20Data": ema20_js,
+        "kalData": kal_js,
+        "stData": st_js,
+        "bbUpData": bb_u_js,
+        "bbDnData": bb_d_js,
+        "pFastData": p_fast_js,
+        "pSlowData": p_slow_js,
+        "pUpData": p_up_js,
+        "pLoData": p_lo_js,
+        "pMidData": p_mid_js,
+        "mtf20Data": mtf20_js,
+        "mtf100Data": mtf100_js,
+        "mtf200Data": mtf200_js,
+        "dynEmaData": dyn_ema_js,
+        "bigMarkers": markers_js,
+        "ofData": of_footprint_js,
+    }
+
+    # 🔒 100% STATIC HTML TEMPLATE PER (fetch_sym, timeframe, theme_mode, key_idx) -> NEVER BLINKS ON 30s REFRESH!
+    static_html_code = f"""
     <!DOCTYPE html>
     <html>
     <head>
@@ -8307,7 +8350,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             padding: 1px 6px; border-radius: 3px; font-size: 9.5px; font-weight: 800; cursor: pointer;
             color: #ffffff; transition: 0.12s; white-space: nowrap; letter-spacing: 0.3px;
         }}
-        .prod-b {{ background: {prod_badge_col}; border: 1px solid rgba(255,255,255,0.25); font-size: 9px; padding: 1px 5px; }}
+        .prod-b {{ background: #0284c7; border: 1px solid rgba(255,255,255,0.25); font-size: 9px; padding: 1px 5px; }}
         .prod-b:hover {{ opacity: 0.9; }}
         .buy-b {{ background: #16a34a; border: 1px solid #22c55e; }}
         .buy-b:hover {{ background: #15803d; transform: scale(1.04); }}
@@ -8403,12 +8446,12 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             <div class="stk-info">
                 <span style="font-weight:800; font-size:11.5px; color:#ffffff;">{disp_sym}</span>
                 <span style="background:#1e293b; color:#38bdf8; padding:0px 4px; border-radius:3px; font-size:9px; font-weight:bold;">{tf_short}</span>
-                <span style="font-weight:700; font-size:11.5px; color:#ffd700;">₹{ltp_v:,.2f}</span>
-                <span style="font-weight:700; font-size:10px; color:{c_col};">({chg_v:+.2f}%)</span>
-                <span class="tr-btn prod-b" onclick="triggerStBtn('{prod_token}')" title="Switch Intraday (MIS) / Longterm (CNC)">{prod_badge_txt}</span>
-                <span class="tr-btn buy-b" onclick="startNewTrade('{fetch_sym}', '{buy_token}')" title="Buy {disp_sym} ({prod_mode}) @ ₹{ltp_v:.2f}">BUY</span>
-                <span class="tr-btn sell-b" onclick="startNewTrade('{fetch_sym}', '{sell_token}')" title="Sell {disp_sym} ({prod_mode}) @ ₹{ltp_v:.2f}">SELL</span>
-                {exit_btn_html}
+                <span id="hdr_ltp_{chart_dom_id}" style="font-weight:700; font-size:11.5px; color:#ffd700;"></span>
+                <span id="hdr_chg_{chart_dom_id}" style="font-weight:700; font-size:10px;"></span>
+                <span id="hdr_prod_{chart_dom_id}" class="tr-btn prod-b" onclick="triggerStBtn('{prod_token}')" title="Switch Intraday (MIS) / Longterm (CNC)">⚡ INTRADAY</span>
+                <span id="hdr_buy_{chart_dom_id}" class="tr-btn buy-b" onclick="startNewTrade('{fetch_sym}', '{buy_token}')">BUY</span>
+                <span id="hdr_sell_{chart_dom_id}" class="tr-btn sell-b" onclick="startNewTrade('{fetch_sym}', '{sell_token}')">SELL</span>
+                <span id="hdr_exit_{chart_dom_id}" style="display:inline-flex;align-items:center;gap:4px;"></span>
             </div>
             <div class="ind-bar">
                 <span id="draw_btn_{chart_dom_id}" class="ind-drop-btn" onclick="toggleDrawMenu(event)" title="Drawing Tools">✏️ Draw ▾</span>
@@ -8449,14 +8492,10 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         <div class="chart-stage">
             <div id="ohlc_{chart_dom_id}" class="ohlc-overlay">Move cursor to inspect OHLCV</div>
             <div id="draw_badge_{chart_dom_id}" class="draw-status-badge" onclick="cancelDrawTool()" title="Click to exit drawing mode"></div>
-
-            <div id="wtbl_{chart_dom_id}" class="wave-tbl">
-                <div>Wave Avg: <b style="color:{wtbl['col']};">{wtbl['rat_avg']}</b> | Max: <b>{wtbl['rat_max']}</b></div>
-                <div>Dominance: <b style="color:{wtbl['col']};">{wtbl['dom']}</b></div>
-            </div>
+            <div id="wtbl_{chart_dom_id}" class="wave-tbl"></div>
 
             <div id="sltg_bar_{chart_dom_id}" class="sltg-box">
-                <span id="ent_lbl_{chart_dom_id}" style="color:#38bdf8;font-weight:bold;">{ent_lbl_html}</span>
+                <span id="ent_lbl_{chart_dom_id}" style="color:#38bdf8;font-weight:bold;">🔵 BUY:</span>
                 <input id="inp_ent_{chart_dom_id}" class="sltg-inp" type="number" step="0.5" onchange="onManualSLTG('ENT')" oninput="onManualSLTG('ENT')">
                 <span id="otype_badge_{chart_dom_id}" class="otype-badge">MKT</span>
                 <span style="color:#f87171;font-weight:bold;margin-left:3px;">🛑 SL:</span>
@@ -8473,10 +8512,16 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
 
         <script>
         const SYM_KEY = "{fetch_sym}";
+        const CHART_DOM_ID = "{chart_dom_id}";
+        const ZOOM_KEY = SYM_KEY + "__" + "{timeframe}";
+
         window.parent._customSLTG = window.parent._customSLTG || {{}};
         window.parent._savedIndState = window.parent._savedIndState || null;
         window.parent._savedDrawings = window.parent._savedDrawings || {{}};
         window.parent._savedDrawings[SYM_KEY] = window.parent._savedDrawings[SYM_KEY] || [];
+        window.parent._savedZoomRange = window.parent._savedZoomRange || {{}};
+        window.parent._proChartPayloads = window.parent._proChartPayloads || {{}};
+        window.parent._proChartUpdaters = window.parent._proChartUpdaters || {{}};
 
         window.toggleIndMenu = function(e) {{
             e.stopPropagation();
@@ -8515,33 +8560,16 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             window.triggerStBtn(tokenStr);
         }};
 
-        const cData = {json.dumps(candles_js)};
-        const spdCandles = {json.dumps(spd_candles_js)};
-        const vData = {json.dumps(vol_js)};
-        const vwapData = {json.dumps(vwap_js)};
-        const ema10Data = {json.dumps(ema10_js)};
-        const ema20Data = {json.dumps(ema20_js)};
-        const kalData = {json.dumps(kal_js)};
-        const stData = {json.dumps(st_js)};
-        const bbUpData = {json.dumps(bb_u_js)};
-        const bbDnData = {json.dumps(bb_d_js)};
+        let cData = [], spdCandles = [], vData = [], vwapData = [], ema10Data = [], ema20Data = [];
+        let kalData = [], stData = [], bbUpData = [], bbDnData = [];
+        let pFastData = [], pSlowData = [], pUpData = [], pLoData = [], pMidData = [];
+        let mtf20Data = [], mtf100Data = [], mtf200Data = [], dynEmaData = [], bigMarkers = [];
+        let ofData = [], ofMap = {{}}, candleMap = {{}}, volLookup = {{}};
+        let activePos = null;
+        let srHighVal = 0, srLowVal = 0, pivVal = 0, r1Val = 0, s1Val = 0;
 
-        const pFastData = {json.dumps(p_fast_js)};
-        const pSlowData = {json.dumps(p_slow_js)};
-        const pUpData = {json.dumps(p_up_js)};
-        const pLoData = {json.dumps(p_lo_js)};
-        const pMidData = {json.dumps(p_mid_js)};
-        const mtf20Data = {json.dumps(mtf20_js)};
-        const mtf100Data = {json.dumps(mtf100_js)};
-        const mtf200Data = {json.dumps(mtf200_js)};
-        const dynEmaData = {json.dumps(dyn_ema_js)};
-        const bigMarkers = {json.dumps(markers_js)};
-        const ofData = {json.dumps(of_footprint_js)};
-        const ofMap = Object.fromEntries(ofData.map(x => [x.time, x]));
-        const activePos = {pos_js};
-
-        const candleMap = Object.fromEntries(cData.map(b => [b.time, b]));
         const container = document.getElementById('{chart_dom_id}');
+        const stageEl = container.parentElement || container;
         const drawSvg = document.getElementById('draw_svg_{chart_dom_id}');
         const drawBadge = document.getElementById('draw_badge_{chart_dom_id}');
         const drawBtn = document.getElementById('draw_btn_{chart_dom_id}');
@@ -8600,7 +8628,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             borderUpColor: '#15803d', borderDownColor: '#b91c1c',
             wickUpColor: '#15803d', wickDownColor: '#b91c1c'
         }});
-        candleSeries.setData(cData);
 
         const volSeries = chart.addHistogramSeries({{
             priceFormat: {{ type: 'volume' }},
@@ -8611,15 +8638,25 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         chart.priceScale('vol_scale').applyOptions({{
             scaleMargins: {{ top: 0.82, bottom: 0.0 }}
         }});
-        volSeries.setData(vData);
-        if ("{timeframe}" === "Intraday (5m)" && cData.length > 75) {{
-            chart.timeScale().setVisibleLogicalRange({{
-                from: cData.length - 75,
-                to: cData.length + 2
-            }});
-        }} else {{
-            chart.timeScale().fitContent();
-        }}
+
+        const vwapSeries = chart.addLineSeries({{ color: '#eab308', lineWidth: 2, title: 'VWAP', visible: {'true' if 'VWAP' in active_inds else 'false'} }});
+        const ema10Series = chart.addLineSeries({{ color: '#00BFFF', lineWidth: 2, lineStyle: 2, title: 'E', priceLineVisible: false, visible: {'true' if 'EMAs' in active_inds else 'false'} }});
+        const ema20Series = chart.addLineSeries({{ color: '#9333ea', lineWidth: 1, lineStyle: 2, priceLineVisible: false, visible: false }});
+        const kalSeries = chart.addLineSeries({{ color: '#0d9488', lineWidth: 2, priceLineVisible: false, visible: {'true' if 'Kalman' in active_inds else 'false'} }});
+        const stSeries = chart.addLineSeries({{ color: '#16a34a', lineWidth: 2, lineStyle: 1, priceLineVisible: false, visible: {'true' if 'ST(7,3)' in active_inds else 'false'} }});
+        const bbUpSeries = chart.addLineSeries({{ color: 'rgba(37,99,235,0.4)', lineWidth: 1, priceLineVisible: false, visible: {'true' if 'BB' in active_inds else 'false'} }});
+        const bbDnSeries = chart.addLineSeries({{ color: 'rgba(37,99,235,0.4)', lineWidth: 1, priceLineVisible: false, visible: {'true' if 'BB' in active_inds else 'false'} }});
+
+        const pineFastSeries = chart.addLineSeries({{ lineWidth: 2, priceLineVisible: false, visible: false, title: 'FastWMA' }});
+        const pineSlowSeries = chart.addLineSeries({{ color: '#64748b', lineWidth: 1, priceLineVisible: false, visible: false }});
+        const pineUpBand = chart.addLineSeries({{ color: '#f97316', lineWidth: 1, lineStyle: 2, priceLineVisible: false, visible: false }});
+        const pineLoBand = chart.addLineSeries({{ color: '#f97316', lineWidth: 1, lineStyle: 2, priceLineVisible: false, visible: false }});
+        const pineMidBand = chart.addLineSeries({{ lineWidth: 3, priceLineVisible: false, visible: false }});
+
+        const pineMtf20 = chart.addLineSeries({{ color: '#f97316', lineWidth: 2, priceLineVisible: false, visible: false, title: 'EMA20' }});
+        const pineMtf100 = chart.addLineSeries({{ color: '#3b82f6', lineWidth: 2, priceLineVisible: false, visible: false, title: 'EMA100' }});
+        const pineMtf200 = chart.addLineSeries({{ color: '#a855f7', lineWidth: 2, priceLineVisible: false, visible: false, title: 'EMA200' }});
+        const pineDynSeries = chart.addLineSeries({{ lineWidth: 2, priceLineVisible: false, visible: false, title: 'DynTrend' }});
 
         let currentTool = null;
         let pendingPt = null;
@@ -8627,6 +8664,27 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         let isFibFreeDragging = false;
         let freePts = [];
         let hLineObjs = [];
+        let srLines = [], pivLines = [];
+        let entryLineObj = null, slLineObj = null, tgLineObj = null;
+        let curEnt = 0, curSL = 0, curTG = 0, curOType = 'MARKET', draggingMode = null;
+        let _initialScrollDone = false;
+        let _isApplyingPayload = false;
+        let _prevBarCount = 0;
+
+        const defaultState = {{
+            ema: {'true' if 'EMAs' in active_inds else 'false'},
+            sr: {'true' if 'S&R' in active_inds else 'false'},
+            piv: {'true' if 'Pivots(R1,S1)' in active_inds else 'false'},
+            vwap: {'true' if 'VWAP' in active_inds else 'false'},
+            bb: {'true' if 'BB' in active_inds else 'false'},
+            kal: {'true' if 'Kalman' in active_inds else 'false'},
+            st: {'true' if 'ST(7,3)' in active_inds else 'false'},
+            pine_rib: false,
+            pine_big: false,
+            pine_tsa: false,
+            order_flow: true
+        }};
+        const state = Object.assign({{}}, defaultState, window.parent._savedIndState || {{}});
 
         function getClosestTime(xCoord) {{
             const t = chart.timeScale().coordinateToTime(xCoord);
@@ -8714,6 +8772,24 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             }});
         }}
 
+        function drawSR(show) {{
+            srLines.forEach(l => candleSeries.removePriceLine(l));
+            srLines = [];
+            if (show && srHighVal > 0 && srLowVal > 0) {{
+                srLines.push(candleSeries.createPriceLine({{ price: srHighVal, color: '#16a34a', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'Res' }}));
+                srLines.push(candleSeries.createPriceLine({{ price: srLowVal, color: '#dc2626', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'Sup' }}));
+            }}
+        }}
+        function drawPiv(show) {{
+            pivLines.forEach(l => candleSeries.removePriceLine(l));
+            pivLines = [];
+            if (show && pivVal > 0) {{
+                pivLines.push(candleSeries.createPriceLine({{ price: pivVal, color: '#d97706', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'P' }}));
+                pivLines.push(candleSeries.createPriceLine({{ price: r1Val, color: '#16a34a', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'R1' }}));
+                pivLines.push(candleSeries.createPriceLine({{ price: s1Val, color: '#dc2626', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'S1' }}));
+            }}
+        }}
+
         function renderAllDrawings(previewPt = null) {{
             const list = window.parent._savedDrawings[SYM_KEY] || [];
             const rect = container.getBoundingClientRect();
@@ -8789,7 +8865,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 }}
             }});
 
-            // 🔬 RENDER ORDER FLOW VOLUME FOOTPRINT, 3x ANCHOR ZONES & VWAP-RESET DELTA/CVD BAR
             if (typeof state !== 'undefined' && state.order_flow && ofData.length > 0) {{
                 const fmtK = (n) => {{
                     const a = Math.abs(n);
@@ -8842,7 +8917,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                         }}
                     }}
 
-                    // 🚨 CVD FLIP DETECTOR (Green Flip -> Candle కింద | Red Flip -> Candle పైన)
                     const prev1 = i > 0 ? ofData[i - 1] : null;
                     const hasTrap = (item.c > item.o && item.delta < 0) || (item.c < item.o && item.delta > 0);
 
@@ -8891,81 +8965,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             if (fibCntEl) fibCntEl.innerText = `(${{fibCount}})`;
         }}
 
-        const vwapSeries = chart.addLineSeries({{ color: '#eab308', lineWidth: 2, title: 'VWAP', visible: {'true' if 'VWAP' in active_inds else 'false'} }});
-        vwapSeries.setData(vwapData);
-
-        const ema10Series = chart.addLineSeries({{ color: '#00BFFF', lineWidth: 2, lineStyle: 2, title: 'E', priceLineVisible: false, visible: {'true' if 'EMAs' in active_inds else 'false'} }});
-        ema10Series.setData(ema10Data);
-        const ema20Series = chart.addLineSeries({{ color: '#9333ea', lineWidth: 1, lineStyle: 2, priceLineVisible: false, visible: false }});
-        ema20Series.setData(ema20Data);
-
-        const kalSeries = chart.addLineSeries({{ color: '#0d9488', lineWidth: 2, priceLineVisible: false, visible: {'true' if 'Kalman' in active_inds else 'false'} }});
-        kalSeries.setData(kalData);
-
-        const stSeries = chart.addLineSeries({{ color: '#16a34a', lineWidth: 2, lineStyle: 1, priceLineVisible: false, visible: {'true' if 'ST(7,3)' in active_inds else 'false'} }});
-        stSeries.setData(stData);
-
-        const bbUpSeries = chart.addLineSeries({{ color: 'rgba(37,99,235,0.4)', lineWidth: 1, priceLineVisible: false, visible: {'true' if 'BB' in active_inds else 'false'} }});
-        bbUpSeries.setData(bbUpData);
-        const bbDnSeries = chart.addLineSeries({{ color: 'rgba(37,99,235,0.4)', lineWidth: 1, priceLineVisible: false, visible: {'true' if 'BB' in active_inds else 'false'} }});
-        bbDnSeries.setData(bbDnData);
-
-        const pineFastSeries = chart.addLineSeries({{ lineWidth: 2, priceLineVisible: false, visible: false, title: 'FastWMA' }});
-        pineFastSeries.setData(pFastData);
-        const pineSlowSeries = chart.addLineSeries({{ color: '#64748b', lineWidth: 1, priceLineVisible: false, visible: false }});
-        pineSlowSeries.setData(pSlowData);
-        const pineUpBand = chart.addLineSeries({{ color: '#f97316', lineWidth: 1, lineStyle: 2, priceLineVisible: false, visible: false }});
-        pineUpBand.setData(pUpData);
-        const pineLoBand = chart.addLineSeries({{ color: '#f97316', lineWidth: 1, lineStyle: 2, priceLineVisible: false, visible: false }});
-        pineLoBand.setData(pLoData);
-        const pineMidBand = chart.addLineSeries({{ lineWidth: 3, priceLineVisible: false, visible: false }});
-        pineMidBand.setData(pMidData);
-
-        const pineMtf20 = chart.addLineSeries({{ color: '#f97316', lineWidth: 2, priceLineVisible: false, visible: false, title: 'EMA20' }});
-        pineMtf20.setData(mtf20Data);
-        const pineMtf100 = chart.addLineSeries({{ color: '#3b82f6', lineWidth: 2, priceLineVisible: false, visible: false, title: 'EMA100' }});
-        pineMtf100.setData(mtf100Data);
-        const pineMtf200 = chart.addLineSeries({{ color: '#a855f7', lineWidth: 2, priceLineVisible: false, visible: false, title: 'EMA200' }});
-        pineMtf200.setData(mtf200Data);
-
-        const pineDynSeries = chart.addLineSeries({{ lineWidth: 2, priceLineVisible: false, visible: false, title: 'DynTrend' }});
-        pineDynSeries.setData(dynEmaData);
-
-        let srLines = [];
-        let pivLines = [];
-        function drawSR(show) {{
-            srLines.forEach(l => candleSeries.removePriceLine(l));
-            srLines = [];
-            if (show) {{
-                srLines.push(candleSeries.createPriceLine({{ price: {sr_high}, color: '#16a34a', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'Res' }}));
-                srLines.push(candleSeries.createPriceLine({{ price: {sr_low}, color: '#dc2626', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'Sup' }}));
-            }}
-        }}
-        function drawPiv(show) {{
-            pivLines.forEach(l => candleSeries.removePriceLine(l));
-            pivLines = [];
-            if (show) {{
-                pivLines.push(candleSeries.createPriceLine({{ price: {piv}, color: '#d97706', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'P' }}));
-                pivLines.push(candleSeries.createPriceLine({{ price: {r1}, color: '#16a34a', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'R1' }}));
-                pivLines.push(candleSeries.createPriceLine({{ price: {s1}, color: '#dc2626', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'S1' }}));
-            }}
-        }}
-
-        const defaultState = {{
-            ema: {'true' if 'EMAs' in active_inds else 'false'},
-            sr: {'true' if 'S&R' in active_inds else 'false'},
-            piv: {'true' if 'Pivots(R1,S1)' in active_inds else 'false'},
-            vwap: {'true' if 'VWAP' in active_inds else 'false'},
-            bb: {'true' if 'BB' in active_inds else 'false'},
-            kal: {'true' if 'Kalman' in active_inds else 'false'},
-            st: {'true' if 'ST(7,3)' in active_inds else 'false'},
-            pine_rib: false,
-            pine_big: false,
-            pine_tsa: false,
-            order_flow: true
-        }};
-        const state = Object.assign({{}}, defaultState, window.parent._savedIndState || {{}});
-
         function applyAllIndStates() {{
             vwapSeries.applyOptions({{ visible: state.vwap }});
             ema10Series.applyOptions({{ visible: state.ema }});
@@ -8989,7 +8988,9 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             candleSeries.setMarkers(state.pine_big ? bigMarkers : []);
 
             pineDynSeries.applyOptions({{ visible: state.pine_tsa }});
-            candleSeries.setData(state.pine_tsa ? spdCandles : cData);
+            if (cData.length > 0) {{
+                candleSeries.setData(state.pine_tsa ? spdCandles : cData);
+            }}
             wTbl.style.display = state.pine_tsa ? 'block' : 'none';
 
             ['ema','sr','piv','vwap','bb','kal','st','pine_rib','pine_big','pine_tsa','order_flow'].forEach(k => {{
@@ -9000,12 +9001,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             if (allEl) allEl.checked = (state.pine_rib && state.pine_big && state.pine_tsa);
             renderAllDrawings();
         }}
-
-        rebuildHPriceLines();
-        applyAllIndStates();
-        setTimeout(() => renderAllDrawings(), 80);
-        chart.timeScale().subscribeVisibleLogicalRangeChange(() => renderAllDrawings());
-        chart.timeScale().subscribeVisibleTimeRangeChange(() => renderAllDrawings());
 
         window.toggleInd = function(k) {{
             state[k] = !state[k];
@@ -9021,65 +9016,17 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             applyAllIndStates();
         }};
 
-        container.addEventListener('mousedown', (e) => {{
-            if (!currentTool) return;
-            const rect = container.getBoundingClientRect();
-            const mx = e.clientX - rect.left;
-            const my = e.clientY - rect.top;
-            const tVal = getClosestTime(mx);
-            const pVal = candleSeries.coordinateToPrice(my);
-            if (!tVal || pVal === null) return;
-
-            if (currentTool === 'hline') {{
-                window.parent._savedDrawings[SYM_KEY].push({{ type: 'hline', price: Math.round(pVal * 20) / 20 }});
-                rebuildHPriceLines();
-                cancelDrawTool();
-            }} else if (currentTool === 'vline') {{
-                window.parent._savedDrawings[SYM_KEY].push({{ type: 'vline', time: tVal }});
-                renderAllDrawings();
-                cancelDrawTool();
-            }} else if (currentTool === 'tl_hl') {{
-                const snappedP = snapHighLow(tVal, pVal);
-                if (!pendingPt) {{
-                    pendingPt = {{ time: tVal, price: snappedP }};
-                    drawBadge.innerHTML = '╱ Now click Point 2 on chart (High/Low Snap)';
-                }} else {{
-                    window.parent._savedDrawings[SYM_KEY].push({{ type: 'tl_hl', p1: pendingPt, p2: {{ time: tVal, price: snappedP }} }});
-                    renderAllDrawings();
-                    cancelDrawTool();
-                }}
-            }} else if (currentTool === 'fib') {{
-                const snappedP = snapHighLow(tVal, pVal);
-                if (!pendingPt) {{
-                    pendingPt = {{ time: tVal, price: snappedP }};
-                    drawBadge.innerHTML = '☰ Now click Point 2 on chart for Fibonacci (High/Low)';
-                }} else {{
-                    window.parent._savedDrawings[SYM_KEY].push({{ type: 'fib', p1: pendingPt, p2: {{ time: tVal, price: snappedP }} }});
-                    renderAllDrawings();
-                    cancelDrawTool();
-                }}
-            }} else if (currentTool === 'fib_free') {{
-                chart.applyOptions({{ handleScroll: false, handleScale: false }});
-                if (!pendingPt) {{
-                    pendingPt = {{ time: tVal, price: pVal }};
-                    isFibFreeDragging = true;
-                    drawBadge.innerHTML = '✍️☰ Drag & Release (or Click 2nd point) for FreeHand Fibonacci';
-                }} else {{
-                    window.parent._savedDrawings[SYM_KEY].push({{ type: 'fib', p1: pendingPt, p2: {{ time: tVal, price: pVal }} }});
-                    renderAllDrawings();
-                    cancelDrawTool();
-                }}
-            }} else if (currentTool === 'tl_free') {{
-                chart.applyOptions({{ handleScroll: false, handleScale: false }});
-                isFreeDrawing = true;
-                freePts = [{{ time: tVal, price: pVal }}];
+        // 🔒 SAVE USER ZOOM & PAN POSITION AUTOMATICALLY
+        chart.timeScale().subscribeVisibleLogicalRangeChange((newRange) => {{
+            if (!_isApplyingPayload && _initialScrollDone && newRange && typeof newRange.from === 'number' && typeof newRange.to === 'number') {{
+                window.parent._savedZoomRange[ZOOM_KEY] = {{ from: newRange.from, to: newRange.to }};
             }}
+            renderAllDrawings();
         }});
-
-        let entryLineObj = null, slLineObj = null, tgLineObj = null;
-        let curEnt = 0, curSL = 0, curTG = 0, curOType = 'MARKET', draggingMode = null;
+        chart.timeScale().subscribeVisibleTimeRangeChange(() => renderAllDrawings());
 
         function calcMetrics(priceVal) {{
+            if (!activePos) return {{ diff: 0, pct: 0, rs: 0, sign: '+' }};
             const diff = activePos.side === 'BUY' ? (priceVal - curEnt) : (curEnt - priceVal);
             const pct = curEnt > 0 ? (diff / curEnt) * 100.0 : 0.0;
             const rs = diff * activePos.qty;
@@ -9088,6 +9035,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         }}
 
         function fmtEntTitle(entPrice, oType) {{
+            if (!activePos) return '';
             const liveDiff = activePos.side === 'BUY' ? (activePos.ltp - entPrice) : (entPrice - activePos.ltp);
             const livePct = entPrice > 0 ? (liveDiff / entPrice) * 100.0 : 0.0;
             const liveRs = liveDiff * activePos.qty;
@@ -9126,7 +9074,40 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             window.parent.location.href = url.toString();
         }};
 
-        if (activePos) {{
+        window.onManualSLTG = function(changedField) {{
+            if (!activePos || !entryLineObj || !slLineObj || !tgLineObj) return;
+            const vEnt = parseFloat(inpEnt.value);
+            const vSL = parseFloat(inpSL.value);
+            const vTG = parseFloat(inpTG.value);
+            if (!isNaN(vEnt) && vEnt > 0) {{
+                if (changedField === 'ENT' && Math.abs(vEnt - curEnt) >= 0.01) {{
+                    curOType = 'LIMIT';
+                    updateOTypeBadge();
+                }}
+                curEnt = vEnt;
+                entryLineObj.applyOptions({{
+                    price: curEnt,
+                    color: curOType === 'LIMIT' ? '#38bdf8' : activePos.entryColor,
+                    title: fmtEntTitle(curEnt, curOType)
+                }});
+            }}
+            if (!isNaN(vSL) && vSL > 0) curSL = vSL;
+            if (!isNaN(vTG) && vTG > 0) curTG = vTG;
+            slLineObj.applyOptions({{ price: curSL, title: fmtSLTitle(curSL) }});
+            tgLineObj.applyOptions({{ price: curTG, title: fmtTGTitle(curTG) }});
+            window.parent._customSLTG[activePos.sym] = {{ entry: curEnt, sl: curSL, tg: curTG, orderType: curOType }};
+        }};
+
+        function syncActiveTradeLines() {{
+            if (!activePos) {{
+                if (entryLineObj) {{ candleSeries.removePriceLine(entryLineObj); entryLineObj = null; }}
+                if (tgLineObj) {{ candleSeries.removePriceLine(tgLineObj); tgLineObj = null; }}
+                if (slLineObj) {{ candleSeries.removePriceLine(slLineObj); slLineObj = null; }}
+                if (sltgBar) sltgBar.style.display = 'none';
+                return;
+            }}
+            if (draggingMode) return;
+
             const saved = window.parent._customSLTG[activePos.sym];
             curEnt = (saved && saved.entry > 0) ? saved.entry : activePos.entry;
             curSL = (saved && saved.sl > 0) ? saved.sl : activePos.sl;
@@ -9134,82 +9115,120 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             curOType = (saved && saved.orderType) ? saved.orderType : (activePos.orderType || 'MARKET');
 
             sltgBar.style.display = 'flex';
-            inpEnt.value = curEnt.toFixed(2);
-            inpSL.value = curSL.toFixed(2);
-            inpTG.value = curTG.toFixed(2);
+            if (document.activeElement !== inpEnt) inpEnt.value = curEnt.toFixed(2);
+            if (document.activeElement !== inpSL) inpSL.value = curSL.toFixed(2);
+            if (document.activeElement !== inpTG) inpTG.value = curTG.toFixed(2);
             updateOTypeBadge();
 
-            entryLineObj = candleSeries.createPriceLine({{
-                price: curEnt,
-                color: curOType === 'LIMIT' ? '#38bdf8' : activePos.entryColor,
-                lineWidth: 2,
-                lineStyle: LightweightCharts.LineStyle.Solid,
-                axisLabelVisible: true,
-                title: fmtEntTitle(curEnt, curOType)
-            }});
-            tgLineObj = candleSeries.createPriceLine({{
-                price: curTG,
-                color: '#16a34a',
-                lineWidth: 2,
-                lineStyle: LightweightCharts.LineStyle.Dashed,
-                axisLabelVisible: true,
-                title: fmtTGTitle(curTG)
-            }});
-            slLineObj = candleSeries.createPriceLine({{
-                price: curSL,
-                color: '#dc2626',
-                lineWidth: 2,
-                lineStyle: LightweightCharts.LineStyle.Dashed,
-                axisLabelVisible: true,
-                title: fmtSLTitle(curSL)
-            }});
+            const entCol = curOType === 'LIMIT' ? '#38bdf8' : activePos.entryColor;
+            if (!entryLineObj) {{
+                entryLineObj = candleSeries.createPriceLine({{
+                    price: curEnt, color: entCol, lineWidth: 2,
+                    lineStyle: LightweightCharts.LineStyle.Solid, axisLabelVisible: true,
+                    title: fmtEntTitle(curEnt, curOType)
+                }});
+            }} else {{
+                entryLineObj.applyOptions({{ price: curEnt, color: entCol, title: fmtEntTitle(curEnt, curOType) }});
+            }}
 
-            window.onManualSLTG = function(changedField) {{
-                const vEnt = parseFloat(inpEnt.value);
-                const vSL = parseFloat(inpSL.value);
-                const vTG = parseFloat(inpTG.value);
-                if (!isNaN(vEnt) && vEnt > 0) {{
-                    if (changedField === 'ENT' && Math.abs(vEnt - curEnt) >= 0.01) {{
-                        curOType = 'LIMIT';
-                        updateOTypeBadge();
-                    }}
-                    curEnt = vEnt;
-                    entryLineObj.applyOptions({{
-                        price: curEnt,
-                        color: curOType === 'LIMIT' ? '#38bdf8' : activePos.entryColor,
-                        title: fmtEntTitle(curEnt, curOType)
-                    }});
-                }}
-                if (!isNaN(vSL) && vSL > 0) curSL = vSL;
-                if (!isNaN(vTG) && vTG > 0) curTG = vTG;
-                slLineObj.applyOptions({{ price: curSL, title: fmtSLTitle(curSL) }});
+            if (!tgLineObj) {{
+                tgLineObj = candleSeries.createPriceLine({{
+                    price: curTG, color: '#16a34a', lineWidth: 2,
+                    lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true,
+                    title: fmtTGTitle(curTG)
+                }});
+            }} else {{
                 tgLineObj.applyOptions({{ price: curTG, title: fmtTGTitle(curTG) }});
-                window.parent._customSLTG[activePos.sym] = {{ entry: curEnt, sl: curSL, tg: curTG, orderType: curOType }};
-            }};
+            }}
 
-            container.addEventListener('mousedown', (e) => {{
-                if (currentTool) return;
-                const rect = container.getBoundingClientRect();
-                const mouseY = e.clientY - rect.top;
+            if (!slLineObj) {{
+                slLineObj = candleSeries.createPriceLine({{
+                    price: curSL, color: '#dc2626', lineWidth: 2,
+                    lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true,
+                    title: fmtSLTitle(curSL)
+                }});
+            }} else {{
+                slLineObj.applyOptions({{ price: curSL, title: fmtSLTitle(curSL) }});
+            }}
+        }}
+
+        container.addEventListener('mousedown', (e) => {{
+            const rect = container.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+
+            if (currentTool) {{
+                const tVal = getClosestTime(mx);
+                const pVal = candleSeries.coordinateToPrice(my);
+                if (!tVal || pVal === null) return;
+
+                if (currentTool === 'hline') {{
+                    window.parent._savedDrawings[SYM_KEY].push({{ type: 'hline', price: Math.round(pVal * 20) / 20 }});
+                    rebuildHPriceLines();
+                    cancelDrawTool();
+                }} else if (currentTool === 'vline') {{
+                    window.parent._savedDrawings[SYM_KEY].push({{ type: 'vline', time: tVal }});
+                    renderAllDrawings();
+                    cancelDrawTool();
+                }} else if (currentTool === 'tl_hl') {{
+                    const snappedP = snapHighLow(tVal, pVal);
+                    if (!pendingPt) {{
+                        pendingPt = {{ time: tVal, price: snappedP }};
+                        drawBadge.innerHTML = '╱ Now click Point 2 on chart (High/Low Snap)';
+                    }} else {{
+                        window.parent._savedDrawings[SYM_KEY].push({{ type: 'tl_hl', p1: pendingPt, p2: {{ time: tVal, price: snappedP }} }});
+                        renderAllDrawings();
+                        cancelDrawTool();
+                    }}
+                }} else if (currentTool === 'fib') {{
+                    const snappedP = snapHighLow(tVal, pVal);
+                    if (!pendingPt) {{
+                        pendingPt = {{ time: tVal, price: snappedP }};
+                        drawBadge.innerHTML = '☰ Now click Point 2 on chart for Fibonacci (High/Low)';
+                    }} else {{
+                        window.parent._savedDrawings[SYM_KEY].push({{ type: 'fib', p1: pendingPt, p2: {{ time: tVal, price: snappedP }} }});
+                        renderAllDrawings();
+                        cancelDrawTool();
+                    }}
+                }} else if (currentTool === 'fib_free') {{
+                    chart.applyOptions({{ handleScroll: false, handleScale: false }});
+                    if (!pendingPt) {{
+                        pendingPt = {{ time: tVal, price: pVal }};
+                        isFibFreeDragging = true;
+                        drawBadge.innerHTML = '✍️☰ Drag & Release (or Click 2nd point) for FreeHand Fibonacci';
+                    }} else {{
+                        window.parent._savedDrawings[SYM_KEY].push({{ type: 'fib', p1: pendingPt, p2: {{ time: tVal, price: pVal }} }});
+                        renderAllDrawings();
+                        cancelDrawTool();
+                    }}
+                }} else if (currentTool === 'tl_free') {{
+                    chart.applyOptions({{ handleScroll: false, handleScale: false }});
+                    isFreeDrawing = true;
+                    freePts = [{{ time: tVal, price: pVal }}];
+                }}
+                return;
+            }}
+
+            if (activePos) {{
                 const entY = candleSeries.priceToCoordinate(curEnt);
                 const slY = candleSeries.priceToCoordinate(curSL);
                 const tgY = candleSeries.priceToCoordinate(curTG);
 
-                if (entY !== null && Math.abs(mouseY - entY) <= 18) {{
+                if (entY !== null && Math.abs(my - entY) <= 18) {{
                     draggingMode = 'ENT';
                     chart.applyOptions({{ handleScroll: false, handleScale: false }});
                     e.preventDefault();
-                }} else if (slY !== null && Math.abs(mouseY - slY) <= 18) {{
+                }} else if (slY !== null && Math.abs(my - slY) <= 18) {{
                     draggingMode = 'SL';
                     chart.applyOptions({{ handleScroll: false, handleScale: false }});
                     e.preventDefault();
-                }} else if (tgY !== null && Math.abs(mouseY - tgY) <= 18) {{
+                }} else if (tgY !== null && Math.abs(my - tgY) <= 18) {{
                     draggingMode = 'TG';
                     chart.applyOptions({{ handleScroll: false, handleScale: false }});
                     e.preventDefault();
                 }}
-            }});
-        }}
+            }}
+        }});
 
         window.addEventListener('mousemove', (e) => {{
             const rect = container.getBoundingClientRect();
@@ -9322,117 +9341,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 const tVal = getClosestTime(mx);
                 const pVal = candleSeries.coordinateToPrice(my);
                 if (tVal && pVal !== null && Math.abs(pVal - pendingPt.price) > (pendingPt.price * 0.0005)) {{
-                    window.parent._savedDrawings[SYM_KEY].push({{ type: 'fib', p1: pendingPt, p2: {{ time: tVal, price: pVal }} }});
-                    renderAllDrawings();
-                    cancelDrawTool();
-                }}
-                isFibFreeDragging = false;
-            }}
-            if (draggingMode) {{
-                draggingMode = null;
-                container.style.cursor = 'default';
-                chart.applyOptions({{ handleScroll: true, handleScale: true }});
-            }}
-        }});
-
-        const volLookup = Object.fromEntries(vData.map(x => [x.time, x.value]));
-        function updateLegend(bar) {{
-            if (!bar) return;
-            const chg = (bar.close - bar.open).toFixed(2);
-            const pct = ((bar.close - bar.open) / bar.open * 100).toFixed(2);
-            const col = bar.close >= bar.open ? '#16a34a' : '#dc2626';
-            const v = volLookup[bar.time] || 0;
-            const vStr = v > 0 ? (v >= 1000000 ? '&nbsp;Vol <b>'+(v/1000000).toFixed(2)+'M</b>' : '&nbsp;Vol <b>'+(v/1000).toFixed(1)+'K</b>') : '';
-            const tStr = fmtIST(bar.time);
-            const ofBar = ofMap[bar.time];
-            const ofCvdCol = (ofBar && ofBar.cvd < 0) ? '#f87171' : '#4ade80';
-            const ofCvdArr = (ofBar && ofBar.cvd < 0) ? '↓' : '↑';
-            const ofStr = ofBar ? ` &nbsp;|&nbsp; <span style="color:#4ade80;">Buy:<b>${{(ofBar.buy/1000).toFixed(1)}}K</b></span> <span style="color:#f87171;">Sell:<b>${{(ofBar.sell/1000).toFixed(1)}}K</b></span> <span style="color:${{ofBar.delta>=0?'#4ade80':'#f87171'}};">Δ:<b>${{ofBar.delta>=0?'+':''}}${{(ofBar.delta/1000).toFixed(1)}}K</b></span> <span style="color:${{ofCvdCol}};">CVD:<b>${{(ofBar.cvd/1000).toFixed(1)}}K${{ofCvdArr}}</b></span>` : '';
-            ohlcBox.innerHTML = `🕒 <b>${{tStr}}</b> &nbsp; O<b>${{bar.open}}</b> H<b>${{bar.high}}</b> L<b>${{bar.low}}</b> C<b>${{bar.close}}</b> <span style="color:${{col}};font-weight:bold;">${{chg>=0?'+'+chg:chg}} (${{pct>=0?'+'+pct:pct}}%)</span> ${{vStr}}${{ofStr}}`;
-        }}
-        if (cData.length > 0) updateLegend(cData[cData.length - 1]);
-        chart.subscribeCrosshairMove(param => {{
-            if (param && param.time) {{
-                const d = param.seriesData.get(candleSeries);
-                if (d) updateLegend(d);
-            }} else if (cData.length > 0) {{
-                updateLegend(cData[cData.length - 1]);
-            }}
-        }});
-
-        container.addEventListener('touchstart', (e) => {{
-            if (!e.touches || e.touches.length === 0) return;
-            const touch = e.touches[0];
-            const rect = container.getBoundingClientRect();
-            const my = touch.clientY - rect.top;
-
-            let nearLine = false;
-            if (activePos) {{
-                const entY = candleSeries.priceToCoordinate(curEnt);
-                const slY = candleSeries.priceToCoordinate(curSL);
-                const tgY = candleSeries.priceToCoordinate(curTG);
-                if ((entY !== null && Math.abs(my - entY) <= 18) ||
-                    (slY !== null && Math.abs(my - slY) <= 18) ||
-                    (tgY !== null && Math.abs(my - tgY) <= 18)) {{
-                    nearLine = true;
-                }}
-            }}
-
-            if (nearLine || currentTool) {{
-                e.preventDefault();
-                container.dispatchEvent(new MouseEvent('mousedown', {{
-                    clientX: touch.clientX, clientY: touch.clientY, bubbles: true
-                }}));
-            }}
-        }}, {{ passive: false }});
-
-        window.addEventListener('touchmove', (e) => {{
-            if (!draggingMode && !isFreeDrawing && !isFibFreeDragging && !currentTool) return;
-            if (!e.touches || e.touches.length === 0) return;
-            e.preventDefault();
-            const touch = e.touches[0];
-            window.dispatchEvent(new MouseEvent('mousemove', {{
-                clientX: touch.clientX, clientY: touch.clientY, bubbles: true
-            }}));
-        }}, {{ passive: false }});
-
-        window.addEventListener('touchend', (e) => {{
-            if (!draggingMode && !isFreeDrawing && !isFibFreeDragging && !currentTool) return;
-            const touch = (e.changedTouches && e.changedTouches.length > 0) ? e.changedTouches[0] : null;
-            window.dispatchEvent(new MouseEvent('mouseup', {{
-                clientX: touch ? touch.clientX : 0, clientY: touch ? touch.clientY : 0, bubbles: true
-            }}));
-        }}, {{ passive: false }});
-
-        const stageEl = container.parentElement || container;
-        let _initialScrollDone = false;
-        function syncChartSize() {{
-            const w = stageEl.clientWidth || container.clientWidth;
-            const h = Math.max(180, (stageEl.clientHeight || container.clientHeight) - 8);
-            const isMob = w < 420;
-            chart.applyOptions({{
-                width: w,
-                height: h,
-                timeScale: {{ rightOffset: isMob ? 4 : 3, barSpacing: isMob ? 3.5 : {bar_sp} }}
-            }});
-            if (!_initialScrollDone && cData.length > 0) {{
-                const visBars = isMob ? Math.min(cData.length, 55) : Math.min(cData.length, 75);
-                chart.timeScale().setVisibleLogicalRange({{
-                    from: Math.max(0, cData.length - visBars),
-                    to: cData.length + (isMob ? 4 : 2)
-                }});
-                _initialScrollDone = true;
-            }}
-            renderAllDrawings();
-        }}
-        setTimeout(syncChartSize, 50);
-        setTimeout(syncChartSize, 250);
-        new ResizeObserver(() => syncChartSize()).observe(stageEl);
-        </script>
-    </body>
-    </html>
-    """
-    components.html(html_code, height=chart_height)
+                    window.parent._savedDrawings[SYM_KEY].push({{ type: 'fib', p1: pendingPt, p2: {{
 
 
 # =========================================================
