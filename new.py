@@ -10137,7 +10137,7 @@ def render_live_ui():
                 if not _df_domino.empty:
                     all_dfs.append(_df_domino)
 
-            # 2C. 🔬 CVD FLIP REVERSAL (LIVE PRE-VWAP + INTRADAY TRIGGERED CVD FLIPS)
+            # 2C. 🔬 CVD FLIP REVERSAL (STRICT VWAP CONFIRMATION: BUY > VWAP & SELL < VWAP)
             elif strat == "🔬 CVD Flip Reversal (Before VWAP)":
                 cvd_flip_rows = []
                 for idx_c, r_c in df_filtered.iterrows():
@@ -10146,90 +10146,64 @@ def render_live_ui():
                     if df_h5 is None or df_h5.empty or len(df_h5) < 6 or 'VWAP' not in df_h5.columns:
                         continue
                     _sess_c = (df_h5.index.to_series().diff() > pd.Timedelta(minutes=120)).cumsum()
-                    td_c = df_h5[_sess_c == _sess_c.iloc[-1]]
+                    td_c = df_h5[_sess_c == _sess_c.iloc[-1]].copy()
                     if len(td_c) < 4:
                         continue
 
+                    # మినీ చార్ట్‌లోని ఫంక్షన్‌నే వాడటం వల్ల చార్ట్‌లో ▲ / 🔻 సింబల్ ఉన్న స్టాక్స్ మాత్రమే వస్తాయి
+                    bull_flips_c, bear_flips_c = _detect_5m_cvd_flips(td_c)
+                    if not bull_flips_c and not bear_flips_c:
+                        continue
+
+                    # ప్రస్తుత క్యాండిల్ Close, VWAP మరియు Live CVD లెక్కింపు
+                    c_last = float(td_c['Close'].iloc[-1])
+                    vw_last = float(td_c['VWAP'].iloc[-1])
+                    ltp_now = float(r_c['P'])
+                    day_c_now = float(r_c.get('Day_C', 0.0))
+
                     run_cvd = 0.0
                     prev_st = None
-                    prev_del = 0.0
-                    wave_cvd_arr = []
-                    had_top_sell_flip = False
-                    had_bot_buy_flip = False
-                    last_flip_time = ""
-
-                    for dt_b, br in td_c.iterrows():
+                    for _, br in td_c.iterrows():
                         o_b, h_b, l_b, c_b = float(br['Open']), float(br['High']), float(br['Low']), float(br['Close'])
                         v_b = float(br.get('Volume', 0) or 0)
                         vw_b = float(br.get('VWAP', c_b) or c_b)
                         st_now = bool(c_b >= vw_b)
-                        is_rst = (prev_st != st_now)
-                        if is_rst:
+                        if prev_st != st_now:
                             run_cvd = 0.0
-                            wave_cvd_arr = []
                             prev_st = st_now
-
                         rng_b = max(h_b - l_b, 0.001)
                         body_b = (c_b - o_b) / rng_b
                         wick_b = ((c_b - l_b) - (h_b - c_b)) / rng_b
                         clv_b = max(0.05, min(0.95, 0.50 + 0.50 * (0.60 * body_b + 0.40 * wick_b)))
                         b_vol = round(v_b * clv_b)
                         s_vol = round(v_b - b_vol)
-                        d_vol = b_vol - s_vol
+                        run_cvd += (b_vol - s_vol)
 
-                        prev_c_val = run_cvd
-                        run_cvd += d_vol
-                        wave_cvd_arr.append(run_cvd)
+                    cvd_k = round(run_cvd / 1000.0, 1)
+                    n_td = len(td_c)
 
-                        # VWAP పైన ఉన్నప్పుడే CVD Red (< 0) ఫ్లిప్ అయిందా?
-                        if st_now and ((not is_rst and prev_c_val > 0 and run_cvd < 0) or (prev_del > 0 and d_vol < 0 and run_cvd < 0 and c_b < o_b)):
-                            had_top_sell_flip = True
-                            last_flip_time = pd.Timestamp(dt_b).strftime("%I:%M %p")
-                        # VWAP కింద ఉన్నప్పుడే CVD Green (> 0) ఫ్లిప్ అయిందా?
-                        elif (not st_now) and ((not is_rst and prev_c_val < 0 and run_cvd > 0) or (prev_del < 0 and d_vol > 0 and run_cvd > 0 and c_b > o_b)):
-                            had_bot_buy_flip = True
-                            last_flip_time = pd.Timestamp(dt_b).strftime("%I:%M %p")
-
-                        prev_del = d_vol
-
-                    cur_cvd = wave_cvd_arr[-1] if wave_cvd_arr else 0.0
-                    cvd_k = round(cur_cvd / 1000.0, 1)
-                    vwap_dist_pct = abs(float(r_c['P']) - float(r_c['VWAP'])) / max(float(r_c['VWAP']), 1.0) * 100.0
-
-                    # 🔻 1. LIVE PRE-VWAP TOP SELL (ధర ఇంకా VWAP పైనే ఉండి CVD మైనస్‌లోకి మారింది - #1 Priority)
-                    if prev_st is True and len(wave_cvd_arr) >= 2 and max(wave_cvd_arr[:-1]) > 0 and cur_cvd < 0:
+                    # 🟢 1. POSITIVE / BUY: ధర & 5m Close కచ్చితంగా VWAP పైన ఉండాలి + Bullish CVD Flip (▲) + CVD > 0
+                    if (ltp_now > vw_last) and (c_last > vw_last) and (run_cvd > 0) and (day_c_now >= 0) and bull_flips_c:
+                        last_bf = bull_flips_c[-1]
+                        flip_tm = pd.Timestamp(td_c.index[last_bf]).strftime("%I:%M %p")
+                        is_fresh = (n_td - 1 - last_bf) <= 6
                         rc_copy = r_c.copy()
-                        rc_copy['Strategy_Icon'] = "🔻 CVD-Flip TOP SELL"
-                        rc_copy['AlphaTag'] = f"🔻Live Pre-VWAP CVD:{cvd_k}K (+{vwap_dist_pct:.1f}% abv VWAP)"
-                        rc_copy['S'] = 38
-                        rc_copy['AI_Prob'] = 98
+                        rc_copy['Strategy_Icon'] = "▲ CVD-Flip BUY"
+                        rc_copy['AlphaTag'] = f"▲CVD-Flip @{flip_tm} | CVD:+{cvd_k}K"
+                        rc_copy['S'] = 38 if is_fresh else 34
+                        rc_copy['AI_Prob'] = 97 if is_fresh else 93
                         cvd_flip_rows.append(rc_copy)
 
-                    # 💠 2. LIVE PRE-VWAP BOT BUY (ధర ఇంకా VWAP కిందే ఉండి CVD ప్లస్‌లోకి మారింది - #1 Priority)
-                    elif prev_st is False and len(wave_cvd_arr) >= 2 and min(wave_cvd_arr[:-1]) < 0 and cur_cvd > 0:
-                        rc_copy = r_c.copy()
-                        rc_copy['Strategy_Icon'] = "💠 CVD-Flip BOT BUY"
-                        rc_copy['AlphaTag'] = f"❇️Live Pre-VWAP CVD:+{cvd_k}K (-{vwap_dist_pct:.1f}% blw VWAP)"
-                        rc_copy['S'] = 38
-                        rc_copy['AI_Prob'] = 98
-                        cvd_flip_rows.append(rc_copy)
-
-                    # 🔻 3. CONFIRMED INTRADAY CVD-FLIP BREAKDOWN (ఈరోజు VWAP పైన CVD ఫ్లిప్ ఇచ్చాక VWAP బ్రేక్ చేసి పడుతున్న స్టాక్స్ - ఉదా: ADANIPORTS, ADANIENSOL, BPCL)
-                    elif had_top_sell_flip and prev_st is False and cur_cvd < 0 and float(r_c['Day_C']) <= -0.8:
+                    # 🔴 2. NEGATIVE / SELL: ధర & 5m Close కచ్చితంగా VWAP కింద ఉండాలి + Bearish CVD Flip (🔻) + CVD < 0
+                    elif (ltp_now < vw_last) and (c_last < vw_last) and (run_cvd < 0) and (day_c_now <= 0) and bear_flips_c:
+                        last_sf = bear_flips_c[-1]
+                        flip_tm = pd.Timestamp(td_c.index[last_sf]).strftime("%I:%M %p")
+                        is_fresh = (n_td - 1 - last_sf) <= 6
                         rc_copy = r_c.copy()
                         rc_copy['Strategy_Icon'] = "🔻 CVD-Flip SELL"
-                        rc_copy['AlphaTag'] = f"🔻CVD-Flip @{last_flip_time} | CVD:{cvd_k}K"
-                        rc_copy['S'] = 34
-                        rc_copy['AI_Prob'] = 93
-                        cvd_flip_rows.append(rc_copy)
-
-                    # 💠 4. CONFIRMED INTRADAY CVD-FLIP BREAKOUT (ఈరోజు VWAP కింద CVD ఫ్లిప్ ఇచ్చాక VWAP బ్రేక్ చేసి పెరుగుతున్న స్టాక్స్)
-                    elif had_bot_buy_flip and prev_st is True and cur_cvd > 0 and float(r_c['Day_C']) >= 0.8:
-                        rc_copy = r_c.copy()
-                        rc_copy['Strategy_Icon'] = "💠 CVD-Flip BUY"
-                        rc_copy['AlphaTag'] = f"❇️CVD-Flip @{last_flip_time} | CVD:+{cvd_k}K"
-                        rc_copy['S'] = 34
-                        rc_copy['AI_Prob'] = 93
+                        rc_copy['AlphaTag'] = f"🔻CVD-Flip @{flip_tm} | CVD:{cvd_k}K"
+                        rc_copy['S'] = 38 if is_fresh else 34
+                        rc_copy['AI_Prob'] = 97 if is_fresh else 93
                         cvd_flip_rows.append(rc_copy)
 
                 if cvd_flip_rows:
