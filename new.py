@@ -9341,7 +9341,249 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 const tVal = getClosestTime(mx);
                 const pVal = candleSeries.coordinateToPrice(my);
                 if (tVal && pVal !== null && Math.abs(pVal - pendingPt.price) > (pendingPt.price * 0.0005)) {{
-                    window.parent._savedDrawings[SYM_KEY].push({{ type: 'fib', p1: pendingPt, p2: {{
+                    window.parent._savedDrawings[SYM_KEY].push({{ type: 'fib', p1: pendingPt, p2: {{ time: tVal, price: pVal }} }});
+                    renderAllDrawings();
+                    cancelDrawTool();
+                }}
+                isFibFreeDragging = false;
+            }}
+            if (draggingMode) {{
+                draggingMode = null;
+                container.style.cursor = 'default';
+                chart.applyOptions({{ handleScroll: true, handleScale: true }});
+            }}
+        }});
+
+        function updateLegend(bar) {{
+            if (!bar) return;
+            const chg = (bar.close - bar.open).toFixed(2);
+            const pct = ((bar.close - bar.open) / bar.open * 100).toFixed(2);
+            const col = bar.close >= bar.open ? '#16a34a' : '#dc2626';
+            const v = volLookup[bar.time] || 0;
+            const vStr = v > 0 ? (v >= 1000000 ? '&nbsp;Vol <b>'+(v/1000000).toFixed(2)+'M</b>' : '&nbsp;Vol <b>'+(v/1000).toFixed(1)+'K</b>') : '';
+            const tStr = fmtIST(bar.time);
+            const ofBar = ofMap[bar.time];
+            const ofCvdCol = (ofBar && ofBar.cvd < 0) ? '#f87171' : '#4ade80';
+            const ofCvdArr = (ofBar && ofBar.cvd < 0) ? '↓' : '↑';
+            const ofStr = ofBar ? ` &nbsp;|&nbsp; <span style="color:#4ade80;">Buy:<b>${{(ofBar.buy/1000).toFixed(1)}}K</b></span> <span style="color:#f87171;">Sell:<b>${{(ofBar.sell/1000).toFixed(1)}}K</b></span> <span style="color:${{ofBar.delta>=0?'#4ade80':'#f87171'}};">Δ:<b>${{ofBar.delta>=0?'+':''}}${{(ofBar.delta/1000).toFixed(1)}}K</b></span> <span style="color:${{ofCvdCol}};">CVD:<b>${{(ofBar.cvd/1000).toFixed(1)}}K${{ofCvdArr}}</b></span>` : '';
+            ohlcBox.innerHTML = `🕒 <b>${{tStr}}</b> &nbsp; O<b>${{bar.open}}</b> H<b>${{bar.high}}</b> L<b>${{bar.low}}</b> C<b>${{bar.close}}</b> <span style="color:${{col}};font-weight:bold;">${{chg>=0?'+'+chg:chg}} (${{pct>=0?'+'+pct:pct}}%)</span> ${{vStr}}${{ofStr}}`;
+        }}
+
+        chart.subscribeCrosshairMove(param => {{
+            if (param && param.time) {{
+                const d = param.seriesData.get(candleSeries);
+                if (d) updateLegend(d);
+            }} else if (cData.length > 0) {{
+                updateLegend(cData[cData.length - 1]);
+            }}
+        }});
+
+        container.addEventListener('touchstart', (e) => {{
+            if (!e.touches || e.touches.length === 0) return;
+            const touch = e.touches[0];
+            const rect = container.getBoundingClientRect();
+            const my = touch.clientY - rect.top;
+
+            let nearLine = false;
+            if (activePos) {{
+                const entY = candleSeries.priceToCoordinate(curEnt);
+                const slY = candleSeries.priceToCoordinate(curSL);
+                const tgY = candleSeries.priceToCoordinate(curTG);
+                if ((entY !== null && Math.abs(my - entY) <= 18) ||
+                    (slY !== null && Math.abs(my - slY) <= 18) ||
+                    (tgY !== null && Math.abs(my - tgY) <= 18)) {{
+                    nearLine = true;
+                }}
+            }}
+
+            if (nearLine || currentTool) {{
+                e.preventDefault();
+                container.dispatchEvent(new MouseEvent('mousedown', {{
+                    clientX: touch.clientX, clientY: touch.clientY, bubbles: true
+                }}));
+            }}
+        }}, {{ passive: false }});
+
+        window.addEventListener('touchmove', (e) => {{
+            if (!draggingMode && !isFreeDrawing && !isFibFreeDragging && !currentTool) return;
+            if (!e.touches || e.touches.length === 0) return;
+            e.preventDefault();
+            const touch = e.touches[0];
+            window.dispatchEvent(new MouseEvent('mousemove', {{
+                clientX: touch.clientX, clientY: touch.clientY, bubbles: true
+            }}));
+        }}, {{ passive: false }});
+
+        window.addEventListener('touchend', (e) => {{
+            if (!draggingMode && !isFreeDrawing && !isFibFreeDragging && !currentTool) return;
+            const touch = (e.changedTouches && e.changedTouches.length > 0) ? e.changedTouches[0] : null;
+            window.dispatchEvent(new MouseEvent('mouseup', {{
+                clientX: touch ? touch.clientX : 0, clientY: touch ? touch.clientY : 0, bubbles: true
+            }}));
+        }}, {{ passive: false }});
+
+        function syncChartSize() {{
+            const w = stageEl.clientWidth || container.clientWidth;
+            const h = Math.max(180, (stageEl.clientHeight || container.clientHeight) - 8);
+            const isMob = w < 420;
+            chart.applyOptions({{
+                width: w,
+                height: h,
+                timeScale: {{ rightOffset: isMob ? 4 : 3, barSpacing: isMob ? 3.5 : {bar_sp} }}
+            }});
+            renderAllDrawings();
+        }}
+
+        function applyLivePayload(p) {{
+            if (!p) return;
+            _isApplyingPayload = true;
+            try {{
+                const ltpEl = document.getElementById('hdr_ltp_{chart_dom_id}');
+                if (ltpEl) ltpEl.innerText = p.ltp_fmt || '';
+                const chgEl = document.getElementById('hdr_chg_{chart_dom_id}');
+                if (chgEl) {{
+                    chgEl.innerText = p.chg_fmt || '';
+                    chgEl.style.color = p.c_col || '#4ade80';
+                }}
+                const prodEl = document.getElementById('hdr_prod_{chart_dom_id}');
+                if (prodEl) {{
+                    prodEl.innerText = p.prod_badge_txt || '⚡ INTRADAY';
+                    prodEl.style.background = p.prod_badge_col || '#0284c7';
+                }}
+                const buyEl = document.getElementById('hdr_buy_{chart_dom_id}');
+                if (buyEl) buyEl.title = p.buy_title || '';
+                const sellEl = document.getElementById('hdr_sell_{chart_dom_id}');
+                if (sellEl) sellEl.title = p.sell_title || '';
+                const exitEl = document.getElementById('hdr_exit_{chart_dom_id}');
+                if (exitEl) exitEl.innerHTML = p.exit_btn_html || '';
+                const entLblEl = document.getElementById('ent_lbl_{chart_dom_id}');
+                if (entLblEl) entLblEl.innerHTML = p.ent_lbl_html || '🔵 BUY:';
+
+                if (p.wtbl && wTbl) {{
+                    wTbl.innerHTML = `<div>Wave Avg: <b style="color:${{p.wtbl.col}};">${{p.wtbl.rat_avg}}</b> | Max: <b>${{p.wtbl.rat_max}}</b></div><div>Dominance: <b style="color:${{p.wtbl.col}};">${{p.wtbl.dom}}</b></div>`;
+                }}
+
+                const savedRange = window.parent._savedZoomRange[ZOOM_KEY] || (_initialScrollDone ? chart.timeScale().getVisibleLogicalRange() : null);
+
+                cData = p.cData || [];
+                spdCandles = p.spdCandles || [];
+                vData = p.vData || [];
+                vwapData = p.vwapData || [];
+                ema10Data = p.ema10Data || [];
+                ema20Data = p.ema20Data || [];
+                kalData = p.kalData || [];
+                stData = p.stData || [];
+                bbUpData = p.bbUpData || [];
+                bbDnData = p.bbDnData || [];
+                pFastData = p.pFastData || [];
+                pSlowData = p.pSlowData || [];
+                pUpData = p.pUpData || [];
+                pLoData = p.pLoData || [];
+                pMidData = p.pMidData || [];
+                mtf20Data = p.mtf20Data || [];
+                mtf100Data = p.mtf100Data || [];
+                mtf200Data = p.mtf200Data || [];
+                dynEmaData = p.dynEmaData || [];
+                bigMarkers = p.bigMarkers || [];
+                ofData = p.ofData || [];
+
+                ofMap = Object.fromEntries(ofData.map(x => [x.time, x]));
+                candleMap = Object.fromEntries(cData.map(b => [b.time, b]));
+                volLookup = Object.fromEntries(vData.map(x => [x.time, x.value]));
+
+                srHighVal = p.sr_high || 0;
+                srLowVal = p.sr_low || 0;
+                pivVal = p.piv || 0;
+                r1Val = p.r1 || 0;
+                s1Val = p.s1 || 0;
+                activePos = p.activePos || null;
+
+                candleSeries.setData(state.pine_tsa ? spdCandles : cData);
+                volSeries.setData(vData);
+                vwapSeries.setData(vwapData);
+                ema10Series.setData(ema10Data);
+                ema20Series.setData(ema20Data);
+                kalSeries.setData(kalData);
+                stSeries.setData(stData);
+                bbUpSeries.setData(bbUpData);
+                bbDnSeries.setData(bbDnData);
+                pineFastSeries.setData(pFastData);
+                pineSlowSeries.setData(pSlowData);
+                pineUpBand.setData(pUpData);
+                pineLoBand.setData(pLoData);
+                pineMidBand.setData(pMidData);
+                pineMtf20.setData(mtf20Data);
+                pineMtf100.setData(mtf100Data);
+                pineMtf200.setData(mtf200Data);
+                pineDynSeries.setData(dynEmaData);
+                candleSeries.setMarkers(state.pine_big ? bigMarkers : []);
+
+                const barDiff = (_prevBarCount > 0 && cData.length >= _prevBarCount) ? (cData.length - _prevBarCount) : 0;
+                _prevBarCount = cData.length;
+
+                if (savedRange && typeof savedRange.from === 'number' && typeof savedRange.to === 'number') {{
+                    const shifted = {{ from: savedRange.from + barDiff, to: savedRange.to + barDiff }};
+                    chart.timeScale().setVisibleLogicalRange(shifted);
+                    window.parent._savedZoomRange[ZOOM_KEY] = shifted;
+                    _initialScrollDone = true;
+                }} else if (!_initialScrollDone && cData.length > 0) {{
+                    const w = stageEl.clientWidth || container.clientWidth;
+                    const isMob = w < 420;
+                    const visBars = isMob ? Math.min(cData.length, 55) : Math.min(cData.length, 75);
+                    const defRange = {{ from: Math.max(0, cData.length - visBars), to: cData.length + (isMob ? 4 : 2) }};
+                    chart.timeScale().setVisibleLogicalRange(defRange);
+                    window.parent._savedZoomRange[ZOOM_KEY] = defRange;
+                    _initialScrollDone = true;
+                }}
+
+                rebuildHPriceLines();
+                syncActiveTradeLines();
+                applyAllIndStates();
+                if (cData.length > 0) updateLegend(cData[cData.length - 1]);
+            }} finally {{
+                _isApplyingPayload = false;
+            }}
+        }}
+
+        window.parent._proChartUpdaters[CHART_DOM_ID] = applyLivePayload;
+        if (window.parent._proChartPayloads && window.parent._proChartPayloads[CHART_DOM_ID]) {{
+            applyLivePayload(window.parent._proChartPayloads[CHART_DOM_ID]);
+        }} else {{
+            let _waitCnt = 0;
+            const _waitTimer = setInterval(() => {{
+                _waitCnt++;
+                if (window.parent._proChartPayloads && window.parent._proChartPayloads[CHART_DOM_ID]) {{
+                    clearInterval(_waitTimer);
+                    applyLivePayload(window.parent._proChartPayloads[CHART_DOM_ID]);
+                }} else if (_waitCnt > 50) {{
+                    clearInterval(_waitTimer);
+                }}
+            }}, 40);
+        }}
+
+        setTimeout(syncChartSize, 50);
+        setTimeout(syncChartSize, 250);
+        new ResizeObserver(() => syncChartSize()).observe(stageEl);
+        </script>
+    </body>
+    </html>
+    """
+    components.html(static_html_code, height=chart_height)
+
+    push_js = f"""<!-- live_push_{int(time.time() * 1000)}_{key_idx} -->
+    <script>
+    (function() {{
+        const p = {json.dumps(live_payload)};
+        const domId = {json.dumps(chart_dom_id)};
+        window.parent._proChartPayloads = window.parent._proChartPayloads || {{}};
+        window.parent._proChartPayloads[domId] = p;
+        if (window.parent._proChartUpdaters && typeof window.parent._proChartUpdaters[domId] === 'function') {{
+            window.parent._proChartUpdaters[domId](p);
+        }}
+    }})();
+    </script>
+    """
+    components.html(push_js, height=0)
 
 
 # =========================================================
@@ -9349,11 +9591,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
 # =========================================================
 @st.cache_data(ttl=25, show_spinner=False)
 def fetch_fast_live_quotes(tkrs_tuple, market_open, cache_ver=7):
-    """
-    ⚡ ZERO-DELAY LIVE ENGINE (WORKS ON BOTH LOCALHOST & GITHUB STREAMLIT CLOUD):
-    1. TradingView Bulk API నుండి 10-Day Avg Volume & ఫాల్‌బ్యాక్ డేటా తెస్తుంది.
-    2. Yahoo Finance (yfinance) నుండి 15-నిమిషాల డిలే లేని 100% రియల్-టైమ్ ధరలు (LTP, Open, High, Low, Prev_C, Live VolX) ఓవర్‌రైట్ చేస్తుంది.
-    """
+    # ZERO-DELAY LIVE ENGINE (WORKS ON BOTH LOCALHOST & GITHUB STREAMLIT CLOUD)
     out = {}
     avg_vol_map = {}
     minutes = get_minutes_passed()
