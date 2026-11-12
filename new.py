@@ -10360,7 +10360,9 @@ def render_live_ui():
                     all_dfs.append(_sub_s)
 
         if all_dfs:
-            df_filtered = pd.concat(all_dfs).drop_duplicates(subset=['Fetch_T'], keep='first')
+            _combined_ai = pd.concat(all_dfs, ignore_index=True)
+            _combined_ai['_is_cvd_strat'] = _combined_ai['Strategy_Icon'].astype(str).str.contains('CVD-Flip', na=False)
+            df_filtered = _combined_ai.sort_values(by=['_is_cvd_strat', 'S'], ascending=[False, False]).drop_duplicates(subset=['Fetch_T'], keep='first').drop(columns=['_is_cvd_strat'], errors='ignore')
         else:
             df_filtered = pd.DataFrame(columns=df_filtered.columns)
 
