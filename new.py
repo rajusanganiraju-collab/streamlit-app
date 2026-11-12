@@ -2977,7 +2977,7 @@ _COMPANY_TO_NSE = {
 
 
 def _detect_5m_cvd_flips(df_5m):
-    """5m డేటాలో VWAP-Reset CVD ఫ్లిప్స్ + Morning Pre-VWAP Reversals గుర్తించి (3-bar cooldown తో) ఇండెక్స్‌లను ఇస్తుంది"""
+    """Pro Grid చార్ట్‌తో 100% మ్యాచ్ అయ్యేలా 5m డేటాలో Bull (▲) & Bear (🔻) CVD ఫ్లిప్ ఇండెక్స్‌లను ఇస్తుంది"""
     bull_flips, bear_flips = [], []
     if df_5m is None or df_5m.empty or len(df_5m) < 2:
         return bull_flips, bear_flips
@@ -2987,13 +2987,14 @@ def _detect_5m_cvd_flips(df_5m):
     prev_delta = 0.0
     prev_day = None
     prev_vwap_state = None
-    last_flip_idx = -10
+    last_bull_idx = -10
+    last_bear_idx = -10
 
     for idx_i, (dt_idx, r) in enumerate(df_5m.iterrows()):
-        o = float(r.get('Open', 0) or 0)
-        h = float(r.get('High', 0) or 0)
-        l = float(r.get('Low', 0) or 0)
-        c = float(r.get('Close', 0) or 0)
+        o = round(float(r.get('Open', 0) or 0), 2)
+        h = round(float(r.get('High', 0) or 0), 2)
+        l = round(float(r.get('Low', 0) or 0), 2)
+        c = round(float(r.get('Close', 0) or 0), 2)
         v = float(r.get('Volume', 0) or 0)
         vwap_v = float(r.get('VWAP', c) or c)
 
@@ -3016,16 +3017,20 @@ def _detect_5m_cvd_flips(df_5m):
 
         prev_cvd = running_cvd
         running_cvd += delta_v
+        cvd_up = bool(running_cvd >= 0)
 
-        if idx_i > 0 and (idx_i - last_flip_idx) >= 3:
-            # ❇️ Bullish CVD Green Flip (Candle కింద)
-            if (not is_reset and prev_cvd < 0 and running_cvd > 0) or (not is_above_vwap and prev_delta < 0 and delta_v > 0 and running_cvd > 0 and c > o):
+        if idx_i > 0:
+            is_green_flip = (not is_reset and prev_cvd < 0 and running_cvd > 0) or (prev_delta < 0 and delta_v > 0 and running_cvd > 0 and c > o and prev_cvd <= 0)
+            is_red_flip = (not is_reset and prev_cvd > 0 and running_cvd < 0) or (prev_delta > 0 and delta_v < 0 and running_cvd < 0 and c < o and prev_cvd >= 0)
+
+            # ▲ Bullish CVD Green Flip (Candle కింద)
+            if is_green_flip and cvd_up and (idx_i - last_bull_idx) >= 3:
                 bull_flips.append(idx_i)
-                last_flip_idx = idx_i
+                last_bull_idx = idx_i
             # 🔻 Bearish CVD Red Flip (Candle పైన)
-            elif (not is_reset and prev_cvd > 0 and running_cvd < 0) or (is_above_vwap and prev_delta > 0 and delta_v < 0 and running_cvd < 0 and c < o):
+            elif is_red_flip and (not cvd_up) and (idx_i - last_bear_idx) >= 3:
                 bear_flips.append(idx_i)
-                last_flip_idx = idx_i
+                last_bear_idx = idx_i
 
         prev_delta = delta_v
 
@@ -3172,10 +3177,10 @@ def _build_inline_mini_chart_html(
             f" width='{round(bar_w, 1)}' height='{b_h}' fill='{c_col}'/>"
         )
 
-        # 🎯 Mini-Chart CVD Flip Emojis (❇️ Candle కింద / 🔻 Candle పైన)
+        # 🎯 Mini-Chart CVD Flip Arrows (▲ Candle కింద / 🔻 Candle పైన)
         if idx in bull_flip_set:
             svg_elems.append(
-                f"<text x='{cx}' y='{min(p_bot + 3, yl + 10)}' font-size='8.5' text-anchor='middle'>❇️</text>"
+                f"<text x='{cx}' y='{min(p_bot + 3, yl + 10)}' fill='#00e676' font-size='9.5' text-anchor='middle'>▲</text>"
             )
         elif idx in bear_flip_set:
             svg_elems.append(
@@ -7814,14 +7819,14 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                         bgcolor="#00BFFF", borderpad=1.5, **rc
                     )
 
-                # 🎯 MINI-CHART CVD FLIP EMOJIS (❇️ Below Candle on Green Flip | 🔻 Above Candle on Red Flip)
+                # 🎯 MINI-CHART CVD FLIP ARROWS (▲ Below Candle on Green Flip | 🔻 Above Candle on Red Flip)
                 bull_flips_mc, bear_flips_mc = _detect_5m_cvd_flips(df_chart)
                 for _bf_idx in bull_flips_mc:
                     fig.add_annotation(
                         x=_bf_idx, y=float(df_chart['Low'].iloc[_bf_idx]),
-                        text="❇️", showarrow=False,
+                        text="▲", showarrow=False,
                         xanchor="center", yanchor="top", yshift=-2,
-                        font=dict(size=9.5), **rc
+                        font=dict(size=10, color="#00e676"), **rc
                     )
                 for _sf_idx in bear_flips_mc:
                     fig.add_annotation(
