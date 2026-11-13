@@ -7917,6 +7917,14 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
             _right_pad = max(3.5, float(n_bars) * 0.065)
             x_full_range = [-0.8, float(n_bars) + _right_pad]
 
+            if fetch_sym == "^VWAP_BS":
+                st.caption(
+                    f"DBG2 n_bars={n_bars} | min={min_val} max={max_val} pad={y_padding} | "
+                    f"nan_OHLC={int(df_chart[['Open','High','Low','Close']].isna().sum().sum())} | "
+                    f"inf={int(np.isinf(df_chart[['Open','High','Low','Close']].to_numpy(dtype=float)).sum())} | "
+                    f"first={df_chart.index[0]} last={df_chart.index[-1]} | "
+                    f"ltp={row.get('P')} close_last={df_chart['Close'].iloc[-1]}"
+                )
             fig.update_layout(
                 autosize=True,
                 margin=dict(l=2, r=38 if show_crosshair else 12, t=2, b=16 if show_crosshair else 2),
