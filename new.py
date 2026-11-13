@@ -11500,9 +11500,9 @@ def render_live_ui():
         else:
             st.markdown(_status_bar_html, unsafe_allow_html=True)
 
-        # 🔔 5-MIN CANDLE CLOSE AUTO POPUP (TOP 2 STOCKS WITH >= 90% PROBABILITY)
+        # 🔔 5-MIN CANDLE CLOSE AUTO POPUP (ZERO-REFRESH CLOSE & INSTANT CHART OPEN)
         _now_ist_dt = now_ist()
-        _candle_slot_5m = f"{_now_ist_dt.strftime('%Y-%m-%d %H')}:{(_now_ist_dt.minute // 5) * 5:02d}"
+        _candle_slot_5m = f"{_now_ist_dt.strftime('%Y-%m-%d %H')}:{(_now_ist_dt.minute // 5) * 5:02d}_v2"
 
         if _SS.get('last_5m_popup_slot') != _candle_slot_5m:
             _top2_90 = scan_all_strategies_top2_90pct(
@@ -11514,55 +11514,54 @@ def render_live_ui():
             _SS['top2_5m_picks'] = _top2_90
 
         _active_top2 = _SS.get('top2_5m_picks', [])
-        if _active_top2 and _SS.get('popup_dismissed_slot') != _candle_slot_5m:
+        if _active_top2:
             _cards_html = ""
-            _slot_q = urllib.parse.quote(_candle_slot_5m)
             for _idx_p, _pk in enumerate(_active_top2):
-                _is_b = (_pk['side'] == "BUY")
+                _is_b = (_pk.get('side') == "BUY")
                 _b_col = "#22c55e" if _is_b else "#ef4444"
                 _bg_badge = "rgba(34,197,94,0.18)" if _is_b else "rgba(239,68,68,0.18)"
-                _q_param = urllib.parse.quote(f"{_pk['side']}|{_pk['ltp']}|{_pk['sl']}|{_pk['tg']}")
-                _pro_url = f"?grid_sym={_pk['ft']}&pop_trade={_q_param}&pop_view=pro&pop_slot={_slot_q}"
-                _mini_url = f"?grid_sym={_pk['ft']}&pop_trade={_q_param}&pop_view=mini&pop_slot={_slot_q}"
+                _opt_e = float(_pk.get('opt_entry', _pk.get('ltp', 0.0)))
+                _sl_e = float(_pk.get('sl', 0.0))
+                _tg_e = float(_pk.get('tg', 0.0))
+                _ltp_e = float(_pk.get('ltp', _opt_e))
+                _rr_e = _pk.get('rr', 2.0)
+                _enote = _pk.get('entry_note', f"{_pk.get('side', 'BUY')} @ ₹{_opt_e:.2f}")
 
                 _cards_html += (
                     f"<div style='background:#161b22;border:1.5px solid {_b_col};border-radius:8px;padding:10px 12px;margin-top:8px;'>"
                     f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
                     f"<span style='font-size:15px;font-weight:900;color:#ffffff;'>#{_idx_p+1} {_pk['sym']} "
                     f"<span style='background:{_bg_badge};color:{_b_col};border:1px solid {_b_col};padding:1px 7px;border-radius:12px;font-size:11.5px;'>{_pk['side']}</span></span>"
-                    f"<span style='background:linear-gradient(90deg,#1d4ed8,#7c3aed);color:#fff;padding:2px 8px;border-radius:12px;font-size:11.5px;font-weight:800;border:1px solid #ffd700;'>🤖 Prob: {_pk['prob']}%</span>"
+                    f"<span style='background:linear-gradient(90deg,#1d4ed8,#7c3aed);color:#fff;padding:2px 8px;border-radius:12px;font-size:11.5px;font-weight:800;border:1px solid #ffd700;'>🤖 Prob: {_pk['prob']}% (1:{_rr_e} RR)</span>"
                     f"</div>"
                     f"<div style='font-size:11.5px;color:#ffd700;margin-top:4px;font-weight:600;'>⚡ {_pk['strats']} &nbsp;|&nbsp; Vol: {_pk['vol_x']:.1f}x</div>"
-                    f"<div style='display:flex;justify-content:space-between;background:#0d1117;padding:5px 8px;border-radius:5px;margin-top:6px;font-family:monospace;font-size:12px;'>"
-                    f"<span style='color:#38bdf8;'><b>Entry:</b> ₹{_pk['ltp']:.2f}</span>"
-                    f"<span style='color:#f87171;'><b>🛑 SL:</b> ₹{_pk['sl']:.2f}</span>"
-                    f"<span style='color:#4ade80;'><b>🎯 TGT:</b> ₹{_pk['tg']:.2f}</span>"
+                    f"<div style='font-size:11px;color:#38bdf8;margin-top:2px;'>💡 <b>High-Profit Zone:</b> {_enote} (LTP: ₹{_ltp_e:.2f})</div>"
+                    f"<div style='display:flex;justify-content:space-between;background:#0d1117;padding:5px 8px;border-radius:5px;margin-top:5px;font-family:monospace;font-size:12px;'>"
+                    f"<span style='color:#38bdf8;'><b>Buy/Sell:</b> ₹{_opt_e:.2f}</span>"
+                    f"<span style='color:#f87171;'><b>🛑 SL:</b> ₹{_sl_e:.2f}</span>"
+                    f"<span style='color:#4ade80;'><b>🎯 TGT:</b> ₹{_tg_e:.2f}</span>"
                     f"</div>"
                     f"<div style='display:flex;gap:8px;margin-top:8px;'>"
-                    f"<a href='{_pro_url}' target='_self' style='flex:1;text-align:center;background:#2563eb;color:#fff;text-decoration:none;padding:5px 8px;border-radius:5px;font-size:11.5px;font-weight:bold;border:1px solid #38bdf8;'>🖥️ Pro Chart (Lines)</a>"
-                    f"<a href='{_mini_url}' target='_self' style='flex:1;text-align:center;background:#1f2937;color:#38bdf8;text-decoration:none;padding:5px 8px;border-radius:5px;font-size:11.5px;font-weight:bold;border:1px solid #374151;'>📈 Mini Chart (Lines)</a>"
+                    f"<span class='pop-5m-open-mini' data-sym='{_pk['sym']}' style='flex:1;cursor:pointer;text-align:center;background:#16a34a;color:#fff;padding:6px 8px;border-radius:5px;font-size:12px;font-weight:bold;border:1px solid #4ade80;'>📈 Show Mini Chart Below Global Indices (No Reload)</span>"
                     f"</div></div>"
                 )
 
             st.markdown(
                 f"""
-                <style>
-                #close-5m-pop-toggle:checked + #sniper-5m-popup {{ display: none !important; }}
-                </style>
-                <input type="checkbox" id="close-5m-pop-toggle" style="display:none;">
-                <div id="sniper-5m-popup" style="position:fixed;bottom:18px;right:18px;width:390px;max-width:94vw;
+                <div id="sniper-5m-popup" data-slot="{_candle_slot_5m}" style="position:fixed;bottom:18px;right:18px;width:400px;max-width:94vw;
                     background:rgba(11,14,20,0.98);border:2px solid #ffd700;border-radius:12px;padding:12px 14px;
                     z-index:999999;box-shadow:0 12px 32px rgba(0,0,0,0.85);font-family:'Inter',sans-serif;">
                     <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #30363d;padding-bottom:6px;">
-                        <span style="color:#ffd700;font-weight:900;font-size:13.5px;">🔔 5m Candle Alert ({_candle_slot_5m[-5:]}) — Top 2 (90%+ Prob)</span>
-                        <a href="?close_5m_pop={_slot_q}" target="_self"
-                           style="cursor:pointer;background:#dc2626;color:#fff;padding:1px 8px;border-radius:4px;font-size:11.5px;font-weight:bold;text-decoration:none;border:1px solid #ef4444;"
-                           title="Close Popup">✖</a>
+                        <span style="color:#ffd700;font-weight:900;font-size:13.5px;">🔔 5m Candle Alert ({_candle_slot_5m[-8:-3]}) — Top 2 (90%+ Prob)</span>
+                        <span class="pop-5m-close-btn"
+                              style="cursor:pointer;background:#dc2626;color:#fff;padding:1px 8px;border-radius:4px;font-size:12px;font-weight:bold;border:1px solid #ef4444;"
+                              title="Close Popup (No Reload)">✖</span>
                     </div>
                     {_cards_html}
                 </div>
                 """,
                 unsafe_allow_html=True
+            )
             )
 
         components.html(
@@ -12191,26 +12190,81 @@ def render_live_ui():
 
                         # 🎯 POPUP RECOMMENDATION MINI-CHART (DIRECTLY BELOW GLOBAL INDICES — ZERO RELOAD!)
                         for _pk in _SS.get('top2_5m_picks', []):
-                            _psym = _pk['sym']
-                            _pft = _pk['ft']
+                            _psym = _pk.get('sym', '')
+                            _pft = _pk.get('ft', f"{_psym}.NS")
                             _df_5m_p = processed_charts.get(_pft, pd.DataFrame())
-                            if _df_5m_p is None or _df_5m_p.empty:
+                            if not _psym or _df_5m_p is None or _df_5m_p.empty:
                                 continue
+
+                            _opt_e = float(_pk.get('opt_entry', _pk.get('ltp', 0.0)))
+                            _sl_e = float(_pk.get('sl', 0.0))
+                            _tg_e = float(_pk.get('tg', 0.0))
+                            _ltp_e = float(_pk.get('ltp', _opt_e))
+                            _rr_e = _pk.get('rr', round(abs(_tg_e - _opt_e) / max(abs(_opt_e - _sl_e), 0.01), 1))
+                            _enote = _pk.get('entry_note', f"{_pk.get('side', 'BUY')} @ ₹{_opt_e:.2f}")
 
                             # Optimal Buy/Sell Entry, SL & Target లైన్స్‌తో రెడీగా ఉండే హై-ప్రెసిషన్ చార్ట్
                             _SS['chart_trades'][_pft] = {
-                                'side': _pk['side'],
+                                'side': _pk.get('side', 'BUY'),
                                 'qty': max(1, int(_UI.get('trade_qty', 10))),
                                 'prod': _UI.get('trade_prod', 'INTRADAY'),
                                 'order_type': 'LIMIT',
-                                'entry': _pk['opt_entry'],
-                                'sl': _pk['sl'],
-                                'target': _pk['tg'],
+                                'entry': _opt_e,
+                                'sl': _sl_e,
+                                'target': _tg_e,
                                 'time': now_ist().strftime('%d-%b %I:%M:%S %p'),
                                 'mode': '🎯 90%+ Optimal Entry'
                             }
-                            _svg_chart_html = _build_inline_mini_chart_html(_psym, _pk.get('row', {}), _df_5m_p, f"🤖 {_pk['prob']}% {_pk['side']}")
-                            _b_col = "#22c55e" if _pk['side'] == "BUY" else "#ef4444"
+                            _b_col = "#22c55e" if _pk.get('side') == "BUY" else "#ef4444"
+
+                            # 📈 SVG Mini-Chart విత్ Entry (Blue), SL (Red), Take Profit (Green) లైన్స్
+                            _d_sub = _df_5m_p.dropna(subset=['Open', 'High', 'Low', 'Close']).copy()
+                            _sess_id = (_d_sub.index.to_series().diff() > pd.Timedelta(minutes=120)).cumsum()
+                            _d_sub = _d_sub[_sess_id == _sess_id.iloc[-1]].tail(75).copy()
+                            if not _d_sub.empty:
+                                _d_sub['VWAP'] = _d_sub['VWAP'] if 'VWAP' in _d_sub.columns else ((_d_sub['High'] + _d_sub['Low'] + _d_sub['Close']) / 3.0).expanding().mean()
+                                _d_sub['EMA_10'] = _d_sub['EMA_10'] if 'EMA_10' in _d_sub.columns else _d_sub['Close'].ewm(span=10, adjust=False).mean()
+                                _y_min = min(float(_d_sub['Low'].min()), _opt_e, _sl_e, _tg_e)
+                                _y_max = max(float(_d_sub['High'].max()), _opt_e, _sl_e, _tg_e)
+                                _y_rng = max(_y_max - _y_min, _ltp_e * 0.003)
+                                _y_lo, _y_hi = _y_min - _y_rng * 0.12, _y_max + _y_rng * 0.12
+                                _W, _H = 680, 210
+                                _pt, _pb = 10, 185
+                                _nb = len(_d_sub)
+                                _sx = (_W - 70) / max(_nb, 1)
+                                _bw = max(2.5, min(7.0, _sx * 0.68))
+
+                                def _py(v):
+                                    return round(_pb - ((float(v) - _y_lo) / (_y_hi - _y_lo)) * (_pb - _pt), 1)
+
+                                _svg_parts = []
+                                _vw_pts, _em_pts = [], []
+                                for _i in range(_nb):
+                                    _cx = round(10 + _i * _sx + _sx * 0.5, 1)
+                                    _ov, _hv, _lv, _cv = float(_d_sub['Open'].iloc[_i]), float(_d_sub['High'].iloc[_i]), float(_d_sub['Low'].iloc[_i]), float(_d_sub['Close'].iloc[_i])
+                                    _cc = "#2ea043" if _cv >= _ov else "#da3633"
+                                    _yh, _yl, _yo, _yc = _py(_hv), _py(_lv), _py(_ov), _py(_cv)
+                                    _svg_parts.append(f"<line x1='{_cx}' y1='{_yh}' x2='{_cx}' y2='{_yl}' stroke='{_cc}' stroke-width='1.2'/>")
+                                    _svg_parts.append(f"<rect x='{round(_cx - _bw/2, 1)}' y='{min(_yo, _yc)}' width='{round(_bw, 1)}' height='{max(1.5, abs(_yc - _yo))}' fill='{_cc}'/>")
+                                    _vw_pts.append(f"{_cx},{_py(float(_d_sub['VWAP'].iloc[_i]))}")
+                                    _em_pts.append(f"{_cx},{_py(float(_d_sub['EMA_10'].iloc[_i]))}")
+
+                                _svg_parts.append(f"<polyline fill='none' stroke='#FFD700' stroke-width='1.5' stroke-dasharray='3,3' points='{' '.join(_vw_pts)}'/>")
+                                _svg_parts.append(f"<polyline fill='none' stroke='#00BFFF' stroke-width='1.4' stroke-dasharray='5,3' points='{' '.join(_em_pts)}'/>")
+
+                                # 🔵 Entry Line, 🛑 SL Line, 🎯 Take Profit Line
+                                for _lp, _lcol, _llbl in [
+                                    (_opt_e, "#38bdf8", f"BUY/SELL ₹{_opt_e:.1f}"),
+                                    (_sl_e, "#ef4444", f"SL ₹{_sl_e:.1f}"),
+                                    (_tg_e, "#22c55e", f"TGT ₹{_tg_e:.1f}")
+                                ]:
+                                    _ly = _py(_lp)
+                                    _svg_parts.append(f"<line x1='8' y1='{_ly}' x2='{_W - 8}' y2='{_ly}' stroke='{_lcol}' stroke-width='1.6' stroke-dasharray='5,3'/>")
+                                    _svg_parts.append(f"<rect x='{_W - 115}' y='{_ly - 8}' width='110' height='15' rx='3' fill='{_lcol}'/><text x='{_W - 60}' y='{_ly + 3}' fill='#fff' font-size='9.5' font-family='monospace' font-weight='bold' text-anchor='middle'>{_llbl}</text>")
+
+                                _custom_svg = f"<svg width='100%' height='{_H}' viewBox='0 0 {_W} {_H}' preserveAspectRatio='none' style='background:#0b0e14;border:1px solid #30363d;border-radius:6px;display:block;'>{''.join(_svg_parts)}</svg>"
+                            else:
+                                _custom_svg = ""
 
                             st.markdown(
                                 f"""
@@ -12218,24 +12272,22 @@ def render_live_ui():
                                      style="display:none;background:#0d1117;border:2px solid {_b_col};border-radius:10px;padding:10px 14px;margin:8px 0 12px 0;box-shadow:0 8px 24px rgba(0,0,0,0.7);">
                                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;border-bottom:1px solid #21262d;padding-bottom:6px;flex-wrap:wrap;gap:6px;">
                                         <div>
-                                            <span style="font-size:15px;font-weight:900;color:#ffd700;">🎯 5m High-Probability Setup: {_psym} ({_pk['side']}) — Prob: {_pk['prob']}%</span><br>
-                                            <span style="font-size:12px;color:#c9d1d9;">⚡ <b>Strategies:</b> {_pk['strats']} &nbsp;|&nbsp; 💡 <b>Optimal Zone:</b> {_pk['entry_note']}</span>
+                                            <span style="font-size:15px;font-weight:900;color:#ffd700;">🎯 5m High-Probability Setup: {_psym} ({_pk.get('side', 'BUY')}) — Prob: {_pk.get('prob', 90)}%</span><br>
+                                            <span style="font-size:12px;color:#c9d1d9;">⚡ <b>Strategies:</b> {_pk.get('strats', '')} &nbsp;|&nbsp; 💡 <b>Optimal Zone:</b> {_enote}</span>
                                         </div>
-                                        <div style="display:flex;gap:10px;align-items:center;font-family:monospace;font-size:13px;">
-                                            <span style="background:#1e293b;color:#38bdf8;padding:3px 8px;border-radius:5px;border:1px solid #38bdf8;"><b>🔵 ENTRY:</b> ₹{_pk['opt_entry']:.2f}</span>
-                                            <span style="background:#1e293b;color:#f87171;padding:3px 8px;border-radius:5px;border:1px solid #f87171;"><b>🛑 SL:</b> ₹{_pk['sl']:.2f}</span>
-                                            <span style="background:#1e293b;color:#4ade80;padding:3px 8px;border-radius:5px;border:1px solid #4ade80;"><b>🎯 TAKE PROFIT:</b> ₹{_pk['tg']:.2f} (1:{_pk['rr']} RR)</span>
+                                        <div style="display:flex;gap:8px;align-items:center;font-family:monospace;font-size:12.5px;flex-wrap:wrap;">
+                                            <span style="background:#1e293b;color:#38bdf8;padding:3px 8px;border-radius:5px;border:1px solid #38bdf8;"><b>🔵 ENTRY:</b> ₹{_opt_e:.2f}</span>
+                                            <span style="background:#1e293b;color:#f87171;padding:3px 8px;border-radius:5px;border:1px solid #f87171;"><b>🛑 SL:</b> ₹{_sl_e:.2f}</span>
+                                            <span style="background:#1e293b;color:#4ade80;padding:3px 8px;border-radius:5px;border:1px solid #4ade80;"><b>🎯 TAKE PROFIT:</b> ₹{_tg_e:.2f} (1:{_rr_e} RR)</span>
+                                            <a href="?grid_sym={_pft}" target="_self" style="background:#2563eb;color:#fff;padding:3px 9px;border-radius:5px;font-weight:bold;text-decoration:none;">🖥️ Open Pro Grid</a>
                                             <span class="sniper-mini-hide-btn" style="cursor:pointer;background:#dc2626;color:#fff;padding:3px 9px;border-radius:5px;font-weight:bold;">✖ Hide</span>
                                         </div>
                                     </div>
+                                    {_custom_svg}
                                 </div>
                                 """,
                                 unsafe_allow_html=True
                             )
-                            # ఆ స్టాక్ యొక్క ఇంటరాక్టివ్ Plotly Mini-Chart (Entry, SL, Target డాటెడ్ లైన్స్‌తో)
-                            with st.container():
-                                _r_obj = pd.Series(_pk.get('row', {'T': _psym, 'Fetch_T': _pft, 'P': _pk['ltp'], 'Day_C': _pk['day_c'], 'H': _pk['tg'], 'L': _pk['sl']}))
-                                render_chart(_r_obj, _df_5m_p, show_pin=True, key_suffix=f"pop5m_{_psym}", timeframe="Intraday (5m)", show_crosshair=True, show_vol=True)
 
                     pinned_df = df_live[
                         df_live['Fetch_T'].isin(st.session_state.pinned_stocks)
