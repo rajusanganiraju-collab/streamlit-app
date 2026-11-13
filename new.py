@@ -4244,40 +4244,61 @@ def _build_strategy_news_feed_records(df_strat_stocks, processed_charts):
 
 @st.cache_data(ttl=600, show_spinner=False)
 def gemini_batch_news_card_verdicts(items_tuple):
-    """News & Strategy కార్డుల్లోని స్టాక్స్ అన్నింటికీ ఒకేసారి Gemini AI తెలుగు ట్రేడ్ సలహా ఇస్తుంది"""
+    """Per-stock cache (10 min). Kotha / expire ayina stocks ki matrame Gemini call veltundi."""
     if not items_tuple:
         return {}
-    out_map = {}
+    cache = _SS.setdefault('ai_card_cache', {})
+    now = time.time()
+    out_map, missing = {}, []
 
-    # ఒక్కో బ్యాచ్‌లో 10 స్టాక్స్ చొప్పున పంపడం వల్ల ఫాస్ట్‌గా సమాధానం వస్తుంది
-    for i in range(0, min(len(items_tuple), 20), 10):
-        chunk = items_tuple[i : i + 10]
-        lines = []
-        for idx, (stk, sig, cat, ltp, day_c, vol_x, hl_te, qres_txt, mkt_te) in enumerate(chunk):
-            lines.append(
-                f"{idx}. Stock: {stk} | Signal: {sig} ({cat}) | LTP: ₹{ltp:.2f} ({day_c:+.2f}%) | Vol: {vol_x:.1f}x\n"
-                f"   News: {hl_te[:140]}\n"
-                f"   Q-Results: {qres_txt[:180] if qres_txt else 'N/A'}\n"
-                f"   Levels: {mkt_te[:180]}"
-            )
-        prompt = (
-            "You are an elite NSE Intraday & Swing Quant Analyst. Analyze each stock below by combining its "
-            "5m VWAP/EMA position, Volume (RVOL), Q-Results (Beat/Miss), and News.\n"
-            "Return ONLY a valid JSON object where the key is the exact Stock symbol (e.g. \"RECLTD\") and the value is a "
-            "crisp 2-line Telugu trade verdict covering:\n"
-            "1) 🎯 ట్రెండ్ & రిజల్ట్ ఇంపాక్ట్ (నిజమైన ఇన్‌స్టిట్యూషనల్ మూవ్ ఆ లేక ట్రాప్ ఆ? Q-Results/News కి ప్రైస్ ఎలా రియాక్ట్ అవుతోంది?)\n"
-            "2) ⚡ యాక్షన్ ప్లాన్ (ఏ ధర వద్ద ఎంట్రీ/హోల్డ్ చేయాలి & ఏ లెవెల్ కింద/పైన అవాయిడ్ చేయాలి?)\n\n"
-            + "\n".join(lines)
+    for it in items_tuple:
+        stk, sig, cat = it[0], it[1], it[2]
+        hit = cache.get((stk, sig, cat))
+        if hit and (now - hit[0]) < 600:
+            out_map[str(stk).upper().strip()] = hit[1]
+        else:
+            missing.append(it)
+
+    # API fail ayithe 60s varaku malli kottaku (rate limit protect)
+    if not missing or now < _SS.get('ai_card_fail_until', 0):
+        return out_map
+
+    chunk = missing[:10]          # oka refresh ki max 10 stocks, migatavi next refresh lo
+    lines = []
+    for idx, (stk, sig, cat, ltp, day_c, vol_x, hl_te, qres_txt, mkt_te) in enumerate(chunk):
+        lines.append(
+            f"{idx}. Stock: {stk} | Signal: {sig} ({cat}) | LTP: ₹{ltp:.2f} ({day_c:+.2f}%) | Vol: {vol_x:.1f}x\n"
+            f"   News: {hl_te[:140]}\n"
+            f"   Q-Results: {qres_txt[:180] if qres_txt else 'N/A'}\n"
+            f"   Levels: {mkt_te[:180]}"
         )
-        ok, res = _call_gemini_api(prompt, json_mode=True)
-        if ok:
-            try:
-                parsed = json.loads(res)
-                if isinstance(parsed, dict):
-                    for k, v in parsed.items():
-                        out_map[str(k).upper().strip()] = str(v).strip().replace("\n", "<br>")
-            except Exception:
-                pass
+    prompt = (
+        "You are an elite NSE Intraday & Swing Quant Analyst. Analyze each stock below by combining its "
+        "5m VWAP/EMA position, Volume (RVOL), Q-Results (Beat/Miss), and News.\n"
+        "Return ONLY a valid JSON object where the key is the exact Stock symbol (e.g. \"RECLTD\") and the value is a "
+        "crisp 2-line Telugu trade verdict covering:\n"
+        "1) 🎯 ట్రెండ్ & రిజల్ట్ ఇంపాక్ట్ (నిజమైన ఇన్‌స్టిట్యూషనల్ మూవ్ ఆ లేక ట్రాప్ ఆ? Q-Results/News కి ప్రైస్ ఎలా రియాక్ట్ అవుతోంది?)\n"
+        "2) ⚡ యాక్షన్ ప్లాన్ (ఏ ధర వద్ద ఎంట్రీ/హోల్డ్ చేయాలి & ఏ లెవెల్ కింద/పైన అవాయిడ్ చేయాలి?)\n\n"
+        + "\n".join(lines)
+    )
+    ok, res = _call_gemini_api(prompt, json_mode=True)
+    parsed = {}
+    if ok:
+        try:
+            p = json.loads(res)
+            if isinstance(p, dict):
+                parsed = {str(k).upper().strip(): str(v).strip().replace("\n", "<br>") for k, v in p.items()}
+        except Exception:
+            parsed = {}
+    if not parsed:
+        _SS['ai_card_fail_until'] = now + 60
+        return out_map
+
+    for it in chunk:
+        k = str(it[0]).upper().strip()
+        if k in parsed:
+            cache[(it[0], it[1], it[2])] = (now, parsed[k])
+            out_map[k] = parsed[k]
     return out_map
 
 
