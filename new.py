@@ -10073,6 +10073,82 @@ def render_live_ui():
         _target_df['Bull_P'] = (((_target_df['P'] - _target_df['L']) / _rng) * 100.0).fillna(_target_df['Bull_P'])
         _target_df['Bear_P'] = (((_target_df['H'] - _target_df['P']) / _rng) * 100.0).fillna(_target_df['Bear_P'])
 
+    # 🔥 BUILD LIVE 5-MIN CANDLESTICK CHART FOR VWAP BUY/SELL BREADTH (WITH VWAP & EMA_10)
+    _fno_univ_fts = [f"{s}.NS" for s in set(NIFTY_50).union(set(FNO_STOCKS))]
+    _b_open_l, _b_high_l, _b_low_l, _b_close_l, _b_vol_l = [], [], [], [], []
+    for _u_ft in _fno_univ_fts:
+        _df5_u = processed_charts.get(_u_ft)
+        if _df5_u is None or _df5_u.empty or 'VWAP' not in _df5_u.columns:
+            continue
+        _vw_u = _df5_u['VWAP']
+        _b_open_l.append((_df5_u['Open'] > _vw_u).astype(float))
+        _b_high_l.append((_df5_u['High'] > _vw_u).astype(float))
+        _b_low_l.append((_df5_u['Low'] > _vw_u).astype(float))
+        _b_close_l.append((_df5_u['Close'] > _vw_u).astype(float))
+        if 'Volume' in _df5_u.columns:
+            _b_vol_l.append(_df5_u['Volume'].fillna(0.0).astype(float))
+
+    if _b_close_l:
+        _c_mat = pd.concat(_b_close_l, axis=1).sort_index()
+        _valid_cnt = _c_mat.notna().sum(axis=1)
+        _keep_ts = _valid_cnt >= max(5, int(_valid_cnt.max() * 0.45))
+        _c_mat = _c_mat.loc[_keep_ts]
+        _valid_cnt = _valid_cnt.loc[_keep_ts].replace(0, np.nan)
+
+        _o_mat = pd.concat(_b_open_l, axis=1).reindex(_c_mat.index)
+        _h_mat = pd.concat(_b_high_l, axis=1).reindex(_c_mat.index)
+        _l_mat = pd.concat(_b_low_l, axis=1).reindex(_c_mat.index)
+
+        _bo = ((_o_mat.sum(axis=1) / _valid_cnt) * 100.0).round(2)
+        _bc = ((_c_mat.sum(axis=1) / _valid_cnt) * 100.0).round(2)
+        _bh = np.maximum(((_h_mat.sum(axis=1) / _valid_cnt) * 100.0).round(2), np.maximum(_bo, _bc))
+        _bl = np.minimum(((_l_mat.sum(axis=1) / _valid_cnt) * 100.0).round(2), np.minimum(_bo, _bc))
+        _bv = pd.concat(_b_vol_l, axis=1).reindex(_c_mat.index).sum(axis=1).fillna(0.0) if _b_vol_l else pd.Series(1000.0, index=_c_mat.index)
+
+        _df_vwap_bs = pd.DataFrame({
+            'Open': _bo, 'High': _bh, 'Low': _bl, 'Close': _bc, 'Volume': _bv
+        }, index=_c_mat.index).dropna()
+
+        # Sync latest 5m candle with exact live VWAP BUY% from df_live
+        _df_mkt_now = df_live[(~df_live['Is_Index']) & (~df_live['Is_Sector']) & (~df_live['Is_Commodity']) & (df_live['T'].isin(set(NIFTY_50).union(set(FNO_STOCKS))))].drop_duplicates(subset=['T'])
+        if not _df_mkt_now.empty and not _df_vwap_bs.empty:
+            _live_bpct = round(float((_df_mkt_now['P'] > _df_mkt_now['VWAP']).sum()) / float(len(_df_mkt_now)) * 100.0, 2)
+            _last_ts = _df_vwap_bs.index[-1]
+            _df_vwap_bs.at[_last_ts, 'Close'] = _live_bpct
+            _df_vwap_bs.at[_last_ts, 'High'] = max(float(_df_vwap_bs.at[_last_ts, 'High']), _live_bpct)
+            _df_vwap_bs.at[_last_ts, 'Low'] = min(float(_df_vwap_bs.at[_last_ts, 'Low']), _live_bpct)
+
+        _df_vwap_bs_proc = _fix_ist_df(process_5m_data(_df_vwap_bs))
+        if not _df_vwap_bs_proc.empty:
+            processed_charts["^VWAP_BS"] = _df_vwap_bs_proc
+            _sess_bs = (_df_vwap_bs_proc.index.to_series().diff() > pd.Timedelta(minutes=120)).cumsum()
+            _td_bs = _df_vwap_bs_proc[_sess_bs == _sess_bs.iloc[-1]]
+            _p_bs = float(_td_bs['Close'].iloc[-1])
+            _o_bs = float(_td_bs['Open'].iloc[0])
+            _h_bs = float(_td_bs['High'].max())
+            _l_bs = float(_td_bs['Low'].min())
+            _vw_bs = float(_td_bs['VWAP'].iloc[-1]) if 'VWAP' in _td_bs.columns else _p_bs
+            _em_bs = float(_td_bs['EMA_10'].iloc[-1]) if 'EMA_10' in _td_bs.columns else _p_bs
+            _net_dom = round(_p_bs - 50.0, 2)  # +ve = Buy Dominance (>50%), -ve = Sell Dominance (<50%)
+            _bs_icon = "🟢 BUY DOM" if _p_bs >= 53.0 else ("🔴 SELL DOM" if _p_bs <= 47.0 else "⚖️ NEUTRAL")
+
+            _bs_row = {
+                "VCP_Contract": False, "VCP_Vol_Dry": False,
+                "Fetch_T": "^VWAP_BS", "T": "VWAP B/S%", "P": _p_bs, "O": _o_bs, "H": _h_bs, "L": _l_bs, "Prev_C": 50.0,
+                "Prev_H": _h_bs, "Prev_L": _l_bs, "W_EMA10": _em_bs, "W_EMA50": 50.0,
+                "D_EMA50": 50.0, "EMA20": _em_bs, "SMA20": 50.0, "SMA50": 50.0, "SMA150": 50.0, "SMA200": 50.0,
+                "High52W": 100.0, "Low52W": 0.0, "SMA200_20D": 50.0,
+                "Day_C": _net_dom, "C": _net_dom, "W_C": _net_dom, "S": int(_p_bs), "VolX": 1.5,
+                "Is_Swing": False, "Is_W_Pullback": False, "VWAP": _vw_bs, "Intra_EMA10": _em_bs,
+                "ATR": max(float(_td_bs['ATR_13'].iloc[-1]) if 'ATR_13' in _td_bs.columns else 3.0, 1.5),
+                "Narrow_CPR": False, "Bull_P": _p_bs, "Bear_P": 100.0 - _p_bs,
+                "Is_Index": True, "Is_Sector": False, "Sector": "MARKET BREADTH", "Is_Commodity": False,
+                "SMA150_20D": 50.0, "Box_Top20": _h_bs, "Box_Bot20": _l_bs, "Pullback_52W": 0.0,
+                "RSI2": 50.0, "RSI14": _p_bs, "Strategy_Icon": _bs_icon, "Order": 0
+            }
+            df_live = pd.concat([pd.DataFrame([_bs_row]), df_live[df_live['Fetch_T'] != "^VWAP_BS"]], ignore_index=True)
+            df_indices = pd.concat([pd.DataFrame([_bs_row]), df_indices[df_indices['Fetch_T'] != "^VWAP_BS"]], ignore_index=True).sort_values('Order')
+
     df_lookup = df_live.drop_duplicates(subset=['Fetch_T'], keep='first').set_index('Fetch_T').to_dict('index')
     weekly_trends = {}
     for sym, sym_row in df_lookup.items():
