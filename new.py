@@ -1408,26 +1408,32 @@ def fetch_all_data(_v=5):
 
 def process_5m_data(df_raw):
     try:
-        df_s = df_raw.dropna(subset=['Open', 'High', 'Low', 'Close']).copy()
+        df_s = df_raw.dropna(subset=['Close']).copy()
         if df_s.empty:
             return pd.DataFrame()
+        for _c in ['Open', 'High', 'Low']:
+            if _c not in df_s.columns:
+                df_s[_c] = df_s['Close']
+            else:
+                df_s[_c] = df_s[_c].fillna(df_s['Close'])
+
         df_s.index = pd.to_datetime(df_s.index)
         if df_s.index.tz is not None:
             df_s.index = df_s.index.tz_convert('Asia/Kolkata').tz_localize(None)
         df_s = df_s[~df_s.index.duplicated(keep='last')].sort_index()
 
-        # 🔧 FIX 1: USD/INR (INR=X) లాంటి వాటిలో O=H=L=C ఉన్నప్పుడు క్యాండిల్ కనిపించేలా prev_close ని Open గా సెట్ చేయడం
-        zero_body = (df_s['Open'] == df_s['Close']) & (df_s['High'] == df_s['Low'])
-        if zero_body.sum() > (len(df_s) * 0.3):
-            prev_c = df_s['Close'].shift(1).fillna(df_s['Open'])
-            df_s.loc[zero_body, 'Open'] = prev_c[zero_body]
-            df_s['High'] = df_s[['Open', 'High', 'Close']].max(axis=1)
-            df_s['Low'] = df_s[['Open', 'Low', 'Close']].min(axis=1)
+        # 🔧 FIX: USD/INR & Commodities లో O=H=L=C ఉన్నప్పుడు క్యాండిల్ బాడీ & విక్స్ కనిపించేలా చేయడం
+        prev_c = df_s['Close'].shift(1).fillna(df_s['Open'])
+        zero_body = (df_s['Open'] == df_s['Close'])
+        df_s.loc[zero_body, 'Open'] = prev_c[zero_body]
+        df_s['High'] = df_s[['Open', 'High', 'Close']].max(axis=1)
+        df_s['Low'] = df_s[['Open', 'Low', 'Close']].min(axis=1)
 
-        # 🔧 FIX 2: వరుసగా 3 కంటే ఎక్కువ డెడ్ ఫ్లాట్ క్యాండిల్స్ ఉంటేనే తొలగించడం (2h గ్యాప్ రాకుండా)
-        is_flat_dup = (df_s['High'] == df_s['Low']) & (df_s['Close'] == df_s['Close'].shift(1)) & (df_s['Close'] == df_s['Close'].shift(2))
-        if (~is_flat_dup).sum() >= 60:
-            df_s = df_s[~is_flat_dup].copy()
+        flat_wick = (df_s['High'] == df_s['Low'])
+        if flat_wick.any():
+            eps = (df_s['Close'] * 0.00015).clip(lower=0.0025)
+            df_s.loc[flat_wick, 'High'] = df_s.loc[flat_wick, 'High'] + eps[flat_wick]
+            df_s.loc[flat_wick, 'Low'] = (df_s.loc[flat_wick, 'Low'] - eps[flat_wick]).clip(lower=0.0001)
 
         df_s['EMA_10'] = df_s['Close'].ewm(span=10, adjust=False).mean()
         df_s['EMA_20'] = df_s['Close'].ewm(span=20, adjust=False).mean()
@@ -7289,45 +7295,62 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
         if raw_prob < 90:
             continue
 
-        # 🎯 SMART INTRADAY SL & TARGET: 5m Volatility (ATR_13) + Previous 5-Candle Swing High / Low
+        # 🎯 OPTIMAL HIGH-PROFITABILITY ENTRY + SWING HIGH/LOW & 5M ATR SL/TARGET
         if not td_5m.empty and len(td_5m) >= 3:
             atr_5m = float(td_5m['ATR_13'].iloc[-1]) if ('ATR_13' in td_5m.columns and pd.notna(td_5m['ATR_13'].iloc[-1])) else float((td_5m['High'] - td_5m['Low']).tail(10).mean())
             atr_5m = max(atr_5m, ltp * 0.0025)
             recent_bars = td_5m.iloc[-6:-1] if len(td_5m) >= 6 else td_5m.iloc[:-1]
             prev_swing_low = float(recent_bars['Low'].min()) if not recent_bars.empty else float(td_5m['Low'].iloc[-1])
             prev_swing_high = float(recent_bars['High'].max()) if not recent_bars.empty else float(td_5m['High'].iloc[-1])
+            imp_bars = td_5m.tail(12)
+            imp_hi, imp_lo = float(imp_bars['High'].max()), float(imp_bars['Low'].min())
         else:
             atr_5m = max(float(row.get('ATR', ltp * 0.015)) * 0.28, ltp * 0.004)
             prev_swing_low = ltp - (1.2 * atr_5m)
             prev_swing_high = ltp + (1.2 * atr_5m)
+            imp_hi, imp_lo = hi, lo
 
         if is_b:
-            # BUY SL: గత 5 క్యాండిల్స్ Swing Low కి కొద్దిగా కింద (Volatility బఫర్‌తో), మరీ దూరం కాకుండా క్లాంప్ చేయడం
-            raw_sl = min(prev_swing_low - (0.25 * atr_5m), ltp - (1.2 * atr_5m))
-            risk_pts = float(np.clip(ltp - raw_sl, max(0.8 * atr_5m, ltp * 0.0035), min(2.5 * atr_5m, ltp * 0.015)))
-            sl_p = round(ltp - risk_pts, 2)
-            # BUY Target: 1:2 Risk-Reward లేదా Day High / Previous High బ్రేక్అవుట్ ప్రొజెక్షన్
-            tg_base = ltp + max(risk_pts * 2.0, 2.2 * atr_5m)
-            if hi > ltp and (hi - ltp) >= risk_pts * 1.3:
-                tg_base = max(tg_base, hi)
-            tg_p = round(tg_base, 2)
+            # 🟢 Optimal Buy Entry: 10-EMA / 38.2% Pullback Zone (అత్యధిక లాభం ఇచ్చే ఎంట్రీ ధర)
+            fib_382_b = imp_hi - 0.382 * (imp_hi - imp_lo)
+            pullback_sup = max(ema10, vwap, fib_382_b)
+            if (ltp - pullback_sup) > (0.6 * atr_5m):
+                opt_entry = round(max(pullback_sup, ltp - 0.5 * atr_5m), 2)
+                entry_note = f"Pullback Buy @ ₹{opt_entry:.1f} (10-EMA/VWAP Support)"
+            else:
+                opt_entry = round(ltp, 2)
+                entry_note = f"Breakout Buy @ ₹{opt_entry:.1f}"
+
+            raw_sl = min(prev_swing_low - (0.25 * atr_5m), opt_entry - (1.1 * atr_5m))
+            risk_pts = float(np.clip(opt_entry - raw_sl, max(0.8 * atr_5m, opt_entry * 0.0035), min(2.4 * atr_5m, opt_entry * 0.014)))
+            sl_p = round(opt_entry - risk_pts, 2)
+            tg_p = round(max(opt_entry + (risk_pts * 2.2), hi if (hi - opt_entry) >= risk_pts * 1.4 else 0), 2)
         else:
-            # SELL SL: గత 5 క్యాండిల్స్ Swing High కి కొద్దిగా పైన (Volatility బఫర్‌తో)
-            raw_sl = max(prev_swing_high + (0.25 * atr_5m), ltp + (1.2 * atr_5m))
-            risk_pts = float(np.clip(raw_sl - ltp, max(0.8 * atr_5m, ltp * 0.0035), min(2.5 * atr_5m, ltp * 0.015)))
-            sl_p = round(ltp + risk_pts, 2)
-            # SELL Target: 1:2 Risk-Reward లేదా Day Low / Previous Low బ్రేక్‌డౌన్ ప్రొజెక్షన్
-            tg_base = ltp - max(risk_pts * 2.0, 2.2 * atr_5m)
-            if lo < ltp and (ltp - lo) >= risk_pts * 1.3:
-                tg_base = min(tg_base, lo)
-            tg_p = round(tg_base, 2)
+            # 🔴 Optimal Sell Entry: 10-EMA / 38.2% Bounce Rejection Zone
+            fib_382_s = imp_lo + 0.382 * (imp_hi - imp_lo)
+            bounce_res = min(ema10, vwap, fib_382_s)
+            if (bounce_res - ltp) > (0.6 * atr_5m):
+                opt_entry = round(min(bounce_res, ltp + 0.5 * atr_5m), 2)
+                entry_note = f"Bounce Sell @ ₹{opt_entry:.1f} (10-EMA/VWAP Reject)"
+            else:
+                opt_entry = round(ltp, 2)
+                entry_note = f"Breakdown Sell @ ₹{opt_entry:.1f}"
+
+            raw_sl = max(prev_swing_high + (0.25 * atr_5m), opt_entry + (1.1 * atr_5m))
+            risk_pts = float(np.clip(raw_sl - opt_entry, max(0.8 * atr_5m, opt_entry * 0.0035), min(2.4 * atr_5m, opt_entry * 0.014)))
+            sl_p = round(opt_entry + risk_pts, 2)
+            tg_p = round(min(opt_entry - (risk_pts * 2.2), lo if (opt_entry - lo) >= risk_pts * 1.4 else 999999), 2)
+
+        rr_ratio = round(abs(tg_p - opt_entry) / max(abs(opt_entry - sl_p), 0.01), 1)
+        row_dict = row.to_dict()
 
         candidates.append({
             "sym": sym, "ft": ft, "side": side, "ltp": round(ltp, 2),
+            "opt_entry": opt_entry, "entry_note": entry_note, "rr": rr_ratio,
             "day_c": round(day_c, 2), "vol_x": round(vol_x, 1),
             "prob": raw_prob, "score": int(min(39, round(pwr_score))),
             "strats": " + ".join(matched_strats[:3]),
-            "sl": sl_p, "tg": tg_p
+            "sl": sl_p, "tg": tg_p, "row": row_dict
         })
 
     candidates.sort(key=lambda x: (-x["prob"], -x["score"], -x["vol_x"], -abs(x["day_c"])))
@@ -12165,6 +12188,54 @@ def render_live_ui():
                                     sec_df = df_stocks[df_stocks['T'].isin(sec_stock_names)].copy()
                                     if not sec_df.empty:
                                         render_chart_grid(sec_df.head(6), True, "sec_top6", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
+
+                        # 🎯 POPUP RECOMMENDATION MINI-CHART (DIRECTLY BELOW GLOBAL INDICES — ZERO RELOAD!)
+                        for _pk in _SS.get('top2_5m_picks', []):
+                            _psym = _pk['sym']
+                            _pft = _pk['ft']
+                            _df_5m_p = processed_charts.get(_pft, pd.DataFrame())
+                            if _df_5m_p is None or _df_5m_p.empty:
+                                continue
+
+                            # Optimal Buy/Sell Entry, SL & Target లైన్స్‌తో రెడీగా ఉండే హై-ప్రెసిషన్ చార్ట్
+                            _SS['chart_trades'][_pft] = {
+                                'side': _pk['side'],
+                                'qty': max(1, int(_UI.get('trade_qty', 10))),
+                                'prod': _UI.get('trade_prod', 'INTRADAY'),
+                                'order_type': 'LIMIT',
+                                'entry': _pk['opt_entry'],
+                                'sl': _pk['sl'],
+                                'target': _pk['tg'],
+                                'time': now_ist().strftime('%d-%b %I:%M:%S %p'),
+                                'mode': '🎯 90%+ Optimal Entry'
+                            }
+                            _svg_chart_html = _build_inline_mini_chart_html(_psym, _pk.get('row', {}), _df_5m_p, f"🤖 {_pk['prob']}% {_pk['side']}")
+                            _b_col = "#22c55e" if _pk['side'] == "BUY" else "#ef4444"
+
+                            st.markdown(
+                                f"""
+                                <div id="sniper-mini-box-{_psym}" class="sniper-5m-mini-container"
+                                     style="display:none;background:#0d1117;border:2px solid {_b_col};border-radius:10px;padding:10px 14px;margin:8px 0 12px 0;box-shadow:0 8px 24px rgba(0,0,0,0.7);">
+                                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;border-bottom:1px solid #21262d;padding-bottom:6px;flex-wrap:wrap;gap:6px;">
+                                        <div>
+                                            <span style="font-size:15px;font-weight:900;color:#ffd700;">🎯 5m High-Probability Setup: {_psym} ({_pk['side']}) — Prob: {_pk['prob']}%</span><br>
+                                            <span style="font-size:12px;color:#c9d1d9;">⚡ <b>Strategies:</b> {_pk['strats']} &nbsp;|&nbsp; 💡 <b>Optimal Zone:</b> {_pk['entry_note']}</span>
+                                        </div>
+                                        <div style="display:flex;gap:10px;align-items:center;font-family:monospace;font-size:13px;">
+                                            <span style="background:#1e293b;color:#38bdf8;padding:3px 8px;border-radius:5px;border:1px solid #38bdf8;"><b>🔵 ENTRY:</b> ₹{_pk['opt_entry']:.2f}</span>
+                                            <span style="background:#1e293b;color:#f87171;padding:3px 8px;border-radius:5px;border:1px solid #f87171;"><b>🛑 SL:</b> ₹{_pk['sl']:.2f}</span>
+                                            <span style="background:#1e293b;color:#4ade80;padding:3px 8px;border-radius:5px;border:1px solid #4ade80;"><b>🎯 TAKE PROFIT:</b> ₹{_pk['tg']:.2f} (1:{_pk['rr']} RR)</span>
+                                            <span class="sniper-mini-hide-btn" style="cursor:pointer;background:#dc2626;color:#fff;padding:3px 9px;border-radius:5px;font-weight:bold;">✖ Hide</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                """,
+                                unsafe_allow_html=True
+                            )
+                            # ఆ స్టాక్ యొక్క ఇంటరాక్టివ్ Plotly Mini-Chart (Entry, SL, Target డాటెడ్ లైన్స్‌తో)
+                            with st.container():
+                                _r_obj = pd.Series(_pk.get('row', {'T': _psym, 'Fetch_T': _pft, 'P': _pk['ltp'], 'Day_C': _pk['day_c'], 'H': _pk['tg'], 'L': _pk['sl']}))
+                                render_chart(_r_obj, _df_5m_p, show_pin=True, key_suffix=f"pop5m_{_psym}", timeframe="Intraday (5m)", show_crosshair=True, show_vol=True)
 
                     pinned_df = df_live[
                         df_live['Fetch_T'].isin(st.session_state.pinned_stocks)
