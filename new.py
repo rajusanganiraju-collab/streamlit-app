@@ -7045,22 +7045,196 @@ def _calc_grid_mode(cnt):
 
 if "grid_sym" in st.query_params:
     _g_sym = st.query_params["grid_sym"]
+    _pop_act = st.query_params.get("pop_trade", "")
+    _pop_view = st.query_params.get("pop_view", "pro")
     st.query_params.clear()
+
+    if _pop_act:
+        try:
+            _pside, _pent, _psl, _ptg = _pop_act.split("|")
+            _SS['chart_trades'][_g_sym] = {
+                'side': _pside,
+                'qty': max(1, int(_UI.get('trade_qty', 10))),
+                'prod': _UI.get('trade_prod', 'INTRADAY'),
+                'order_type': 'MARKET',
+                'entry': round(float(_pent), 2),
+                'sl': round(float(_psl), 2),
+                'target': round(float(_ptg), 2),
+                'time': now_ist().strftime('%d-%b %I:%M:%S %p'),
+                'mode': '🎯 90%+ AI Sniper Alert',
+                'order_id': '',
+                'is_super': False
+            }
+        except Exception:
+            pass
+
     _p_list = list(_UI.get('pinned_stocks', []))
-    if _g_sym in _p_list:
-        _p_list.remove(_g_sym)
+    if _pop_act:
+        if _g_sym in _p_list:
+            _p_list.remove(_g_sym)
+        _p_list.insert(0, _g_sym)
+        _p_list = _p_list[:6]
     else:
-        if len(_p_list) >= 6:
-            _p_list.pop(0)
-        _p_list.append(_g_sym)
+        if _g_sym in _p_list:
+            _p_list.remove(_g_sym)
+        else:
+            if len(_p_list) >= 6:
+                _p_list.pop(0)
+            _p_list.append(_g_sym)
+
     _UI['pinned_stocks'] = _p_list
     st.session_state.pinned_stocks = list(_p_list)
     _UI['inspected_stock'] = _g_sym.replace(".NS", "")
     st.session_state.inspected_stock = _UI['inspected_stock']
-    _new_m = _calc_grid_mode(len(_p_list))
-    _UI['grid_layout_mode'] = _new_m
-    st.session_state.grid_layout_mode = _new_m
-    st.session_state.pro_grid_radio_key = _new_m
+
+    if _pop_act and _pop_view == "mini":
+        _UI['grid_layout_mode'] = "Off"
+        st.session_state.grid_layout_mode = "Off"
+        st.session_state.pro_grid_radio_key = "Off"
+        _UI['view_mode'] = "Chart 📈"
+    elif _pop_act and _pop_view == "pro":
+        _UI['grid_layout_mode'] = "1"
+        st.session_state.grid_layout_mode = "1"
+        st.session_state.pro_grid_radio_key = "1"
+    else:
+        _new_m = _calc_grid_mode(len(_p_list))
+        _UI['grid_layout_mode'] = _new_m
+        st.session_state.grid_layout_mode = _new_m
+        st.session_state.pro_grid_radio_key = _new_m
+
+
+def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_res):
+    if df_universe is None or df_universe.empty:
+        return []
+    df_u = df_universe.drop_duplicates(subset=['Fetch_T']).copy()
+    df_u = df_u[df_u['Day_C'].abs() >= 0.65].copy()
+    if df_u.empty:
+        return []
+
+    intra_ema = df_u['Intra_EMA10'].where(df_u['Intra_EMA10'] > 0, df_u['VWAP'])
+    base_buy = (df_u['P'] > intra_ema) & (df_u['P'] > df_u['VWAP']) & (df_u['Day_C'] >= 0.65)
+    base_sell = (df_u['P'] < intra_ema) & (df_u['P'] < df_u['VWAP']) & (df_u['Day_C'] <= -0.65)
+
+    sniper_map = {}
+    for side_k in ('buy', 'sell'):
+        for item in sniper_cached_res.get(side_k, []):
+            sniper_map[item['sym']] = item
+
+    candidates = []
+    for _, row in df_u.iterrows():
+        ft = row['Fetch_T']
+        sym = str(row['T']).strip()
+        ltp, op, hi, lo = float(row['P']), float(row['O']), float(row['H']), float(row['L'])
+        vwap = float(row['VWAP'])
+        ema10 = float(row.get('Intra_EMA10', vwap) or vwap)
+        day_c, vol_x = float(row['Day_C']), float(row['VolX'])
+        prev_h, prev_l = float(row.get('Prev_H', hi)), float(row.get('Prev_L', lo))
+        atr = max(float(row.get('ATR', ltp * 0.015)), ltp * 0.005)
+        bull_p, bear_p = float(row.get('Bull_P', 50.0)), float(row.get('Bear_P', 50.0))
+
+        is_b = bool(base_buy.loc[row.name])
+        is_s = bool(base_sell.loc[row.name])
+        if not (is_b or is_s):
+            continue
+
+        side = "BUY" if is_b else "SELL"
+        matched_strats = []
+        bonus_prob = 0
+
+        if ft in sniper_map:
+            sn = sniper_map[ft]
+            if (sn['side'] == 'buy' and is_b) or (sn['side'] == 'sell' and is_s):
+                matched_strats.append(f"🎯Sniper({sn['score']}%)")
+                bonus_prob += 8
+
+        df_5m = processed_charts.get(ft, pd.DataFrame())
+        if df_5m is not None and not df_5m.empty and len(df_5m) >= 4:
+            _sess = (df_5m.index.to_series().diff() > pd.Timedelta(minutes=120)).cumsum()
+            td_5m = df_5m[_sess == _sess.iloc[-1]]
+            b_flips, s_flips = _detect_5m_cvd_flips(td_5m)
+            if is_b and b_flips and (len(td_5m) - b_flips[-1]) <= 3:
+                matched_strats.append("🔬CVD-Flip BUY")
+                bonus_prob += 7
+            elif is_s and s_flips and (len(td_5m) - s_flips[-1]) <= 3:
+                matched_strats.append("🔬CVD-Flip SELL")
+                bonus_prob += 7
+
+            rec6 = td_5m.tail(6)
+            if len(rec6) >= 3 and 'VWAP' in rec6.columns:
+                if is_b and (rec6['Low'].iloc[:-1] <= rec6['VWAP'].iloc[:-1]).any():
+                    matched_strats.append("⚡VWAP-Cross")
+                    bonus_prob += 5
+                elif is_s and (rec6['High'].iloc[:-1] >= rec6['VWAP'].iloc[:-1]).any():
+                    matched_strats.append("⚡VWAP-Cross")
+                    bonus_prob += 5
+
+        if vol_x >= 1.15 and abs(day_c) >= 1.0:
+            if is_b and ltp > op and (op - lo) <= (ltp * 0.006):
+                matched_strats.append("🔥1Hr-ORB")
+                bonus_prob += 6
+            elif is_s and ltp < op and (hi - op) <= (ltp * 0.006):
+                matched_strats.append("🔥1Hr-ORB")
+                bonus_prob += 6
+
+        prev_rng = (prev_h - prev_l) / max(prev_l, 1.0)
+        if vol_x >= 1.1 and (prev_rng <= 0.025 or bool(row.get('Narrow_CPR', False))):
+            if (is_b and ltp > op) or (is_s and ltp < op):
+                matched_strats.append("💥NR7-BO")
+                bonus_prob += 5
+
+        if vol_x >= 1.15 and abs(day_c) >= 1.0:
+            if is_b and (op - lo) <= (ltp * 0.003):
+                matched_strats.append("🚀Gap&Go")
+                bonus_prob += 7
+            elif is_s and (hi - op) <= (ltp * 0.003):
+                matched_strats.append("🩸Gap&Go")
+                bonus_prob += 7
+
+        if vol_x >= 1.15:
+            if is_b and ltp > prev_h:
+                matched_strats.append("💥PDH-BO")
+                bonus_prob += 6
+            elif is_s and ltp < prev_l:
+                matched_strats.append("🩸PDL-BO")
+                bonus_prob += 6
+
+        if is_b:
+            day_pb = ((hi - ltp) / max(hi, 1.0)) * 100.0
+            if 0.6 <= day_pb <= 3.5 and (lo <= vwap * 1.005 or lo <= ema10 * 1.005) and vol_x >= 1.05:
+                matched_strats.append("🧲Dip-Bounce")
+                bonus_prob += 5
+        else:
+            day_rl = ((ltp - lo) / max(lo, 1.0)) * 100.0
+            if 0.6 <= day_rl <= 3.5 and (hi >= vwap * 0.995 or hi >= ema10 * 0.995) and vol_x >= 1.05:
+                matched_strats.append("🧲Rally-Reject")
+                bonus_prob += 5
+
+        if not matched_strats:
+            continue
+
+        pwr_score = 18.0 + (abs(day_c) * 3.2) + (min(vol_x, 5.0) * 2.5)
+        order_flow_p = bull_p if is_b else bear_p
+        raw_prob = int(min(99, round(62 + (pwr_score * 0.65) + bonus_prob + (4 if order_flow_p >= 75 else 0))))
+        if ft in sniper_map:
+            raw_prob = max(raw_prob, int(sniper_map[ft]['score']))
+
+        if raw_prob < 90:
+            continue
+
+        risk_amt = round(max(atr * 1.5, ltp * 0.006), 2)
+        sl_p = round(ltp - risk_amt, 2) if is_b else round(ltp + risk_amt, 2)
+        tg_p = round(ltp + (risk_amt * 2.0), 2) if is_b else round(ltp - (risk_amt * 2.0), 2)
+
+        candidates.append({
+            "sym": sym, "ft": ft, "side": side, "ltp": round(ltp, 2),
+            "day_c": round(day_c, 2), "vol_x": round(vol_x, 1),
+            "prob": raw_prob, "score": int(min(39, round(pwr_score))),
+            "strats": " + ".join(matched_strats[:3]),
+            "sl": sl_p, "tg": tg_p
+        })
+
+    candidates.sort(key=lambda x: (-x["prob"], -x["score"], -x["vol_x"], -abs(x["day_c"])))
+    return candidates[:2]
 
 def _toggle_wl_stock(s_ft, s_disp):
     st.session_state.inspected_stock = s_disp
@@ -7954,6 +8128,28 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 showarrow=False, font=dict(size=11.5, color="#ffffff"),
                 bgcolor="rgba(0,0,0,0)", borderwidth=0
             )
+
+            # 🔥 MINI-CHART ENTRY, STOP LOSS & TAKE PROFIT LINES
+            _active_tr_mc = _SS.get('chart_trades', {}).get(fetch_sym)
+            if _active_tr_mc:
+                _mc_ent = float(_active_tr_mc.get('entry', 0))
+                _mc_sl = float(_active_tr_mc.get('sl', 0))
+                _mc_tg = float(_active_tr_mc.get('target', 0))
+                _mc_side = _active_tr_mc.get('side', 'BUY')
+                for _lvl_p, _lvl_col, _lvl_txt in [
+                    (_mc_ent, "#38bdf8", f"{_mc_side} ₹{_mc_ent:.1f}"),
+                    (_mc_sl, "#ef4444", f"SL ₹{_mc_sl:.1f}"),
+                    (_mc_tg, "#22c55e", f"TGT ₹{_mc_tg:.1f}")
+                ]:
+                    if _lvl_p > 0:
+                        fig.add_hline(
+                            y=_lvl_p, line_dash="dash", line_color=_lvl_col, line_width=1.4,
+                            annotation_text=_lvl_txt, annotation_position="top left",
+                            annotation_font=dict(size=8.5, color="#ffffff"),
+                            annotation_bgcolor=_lvl_col, **rc
+                        )
+                        min_val = min(min_val, _lvl_p)
+                        max_val = max(max_val, _lvl_p)
 
             if show_crosshair:
                 t_step = max(1, n_bars // 4)
@@ -11183,6 +11379,65 @@ def render_live_ui():
                 st.button("🗑️ Clear", key="btn_clear_all", width="stretch", on_click=_clear_all_pro_charts)
         else:
             st.markdown(_status_bar_html, unsafe_allow_html=True)
+
+        # 🔔 5-MIN CANDLE CLOSE AUTO POPUP (TOP 2 STOCKS WITH >= 90% PROBABILITY)
+        _now_ist_dt = now_ist()
+        _candle_slot_5m = f"{_now_ist_dt.strftime('%Y-%m-%d %H')}:{(_now_ist_dt.minute // 5) * 5:02d}"
+
+        if _SS.get('last_5m_popup_slot') != _candle_slot_5m:
+            _top2_90 = scan_all_strategies_top2_90pct(
+                df_all_stocks[df_all_stocks['T'].isin(set(NIFTY_50 + FNO_STOCKS + MIDCAP_150))],
+                processed_charts,
+                sniper_cached_res
+            )
+            _SS['last_5m_popup_slot'] = _candle_slot_5m
+            _SS['top2_5m_picks'] = _top2_90
+
+        _active_top2 = _SS.get('top2_5m_picks', [])
+        if _active_top2:
+            _cards_html = ""
+            for _idx_p, _pk in enumerate(_active_top2):
+                _is_b = (_pk['side'] == "BUY")
+                _b_col = "#22c55e" if _is_b else "#ef4444"
+                _bg_badge = "rgba(34,197,94,0.18)" if _is_b else "rgba(239,68,68,0.18)"
+                _q_param = f"{_pk['side']}|{_pk['ltp']}|{_pk['sl']}|{_pk['tg']}"
+                _pro_url = f"?grid_sym={_pk['ft']}&pop_trade={urllib.parse.quote(_q_param)}&pop_view=pro"
+                _mini_url = f"?grid_sym={_pk['ft']}&pop_trade={urllib.parse.quote(_q_param)}&pop_view=mini"
+
+                _cards_html += (
+                    f"<div style='background:#161b22;border:1.5px solid {_b_col};border-radius:8px;padding:10px 12px;margin-top:8px;'>"
+                    f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
+                    f"<span style='font-size:15px;font-weight:900;color:#ffffff;'>#{_idx_p+1} {_pk['sym']} "
+                    f"<span style='background:{_bg_badge};color:{_b_col};border:1px solid {_b_col};padding:1px 7px;border-radius:12px;font-size:11.5px;'>{_pk['side']}</span></span>"
+                    f"<span style='background:linear-gradient(90deg,#1d4ed8,#7c3aed);color:#fff;padding:2px 8px;border-radius:12px;font-size:11.5px;font-weight:800;border:1px solid #ffd700;'>🤖 Prob: {_pk['prob']}%</span>"
+                    f"</div>"
+                    f"<div style='font-size:11.5px;color:#ffd700;margin-top:4px;font-weight:600;'>⚡ {_pk['strats']} &nbsp;|&nbsp; Vol: {_pk['vol_x']:.1f}x</div>"
+                    f"<div style='display:flex;justify-content:space-between;background:#0d1117;padding:5px 8px;border-radius:5px;margin-top:6px;font-family:monospace;font-size:12px;'>"
+                    f"<span style='color:#38bdf8;'><b>Entry:</b> ₹{_pk['ltp']:.2f}</span>"
+                    f"<span style='color:#f87171;'><b>🛑 SL:</b> ₹{_pk['sl']:.2f}</span>"
+                    f"<span style='color:#4ade80;'><b>🎯 TGT:</b> ₹{_pk['tg']:.2f}</span>"
+                    f"</div>"
+                    f"<div style='display:flex;gap:8px;margin-top:8px;'>"
+                    f"<a href='{_pro_url}' target='_self' style='flex:1;text-align:center;background:#2563eb;color:#fff;text-decoration:none;padding:5px 8px;border-radius:5px;font-size:11.5px;font-weight:bold;border:1px solid #38bdf8;'>🖥️ Pro Chart (Lines)</a>"
+                    f"<a href='{_mini_url}' target='_self' style='flex:1;text-align:center;background:#1f2937;color:#38bdf8;text-decoration:none;padding:5px 8px;border-radius:5px;font-size:11.5px;font-weight:bold;border:1px solid #374151;'>📈 Mini Chart (Lines)</a>"
+                    f"</div></div>"
+                )
+
+            st.markdown(
+                f"""
+                <div id="sniper-5m-popup" style="position:fixed;bottom:18px;right:18px;width:390px;max-width:94vw;
+                    background:rgba(11,14,20,0.98);border:2px solid #ffd700;border-radius:12px;padding:12px 14px;
+                    z-index:999999;box-shadow:0 12px 32px rgba(0,0,0,0.85);font-family:'Inter',sans-serif;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #30363d;padding-bottom:6px;">
+                        <span style="color:#ffd700;font-weight:900;font-size:13.5px;">🔔 5m Candle Alert ({_candle_slot_5m[-5:]}) — Top 2 (90%+ Prob)</span>
+                        <span onclick="this.parentElement.parentElement.style.display='none';"
+                              style="cursor:pointer;background:#dc2626;color:#fff;padding:1px 7px;border-radius:4px;font-size:11px;font-weight:bold;">✖</span>
+                    </div>
+                    {_cards_html}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
         components.html(
             f"""<!-- refresh_{_run_ts} -->
