@@ -7645,6 +7645,15 @@ def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Intraday 
         chart_dict = {}
 
     store_5m = _SS.get('5m_store', {})
+    if "^VWAP_BS" in df_grid['Fetch_T'].values:
+        _d = chart_dict.get("^VWAP_BS")
+        _in_store = "^VWAP_BS" in _SS.get('5m_store', {})
+        st.caption(
+            f"DBG VWAP_BS | tf={timeframe} | in_dict={_d is not None} | "
+            f"rows={0 if _d is None else len(_d)} | in_store={_in_store} | "
+            f"cols={[] if _d is None else list(_d.columns)[:6]} | "
+            f"last={None if (_d is None or _d.empty) else _d.index[-1]}"
+        )
     valid_items = []
     for _, row in df_grid.iterrows():
         ft = row['Fetch_T']
