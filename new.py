@@ -7103,6 +7103,74 @@ if "grid_sym" in st.query_params:
         st.session_state.pro_grid_radio_key = _new_m
 
 
+if "close_5m_pop" in st.query_params:
+    _SS['popup_dismissed_slot'] = st.query_params["close_5m_pop"]
+    st.query_params.clear()
+
+if "grid_sym" in st.query_params:
+    _g_sym = st.query_params["grid_sym"]
+    _pop_act = st.query_params.get("pop_trade", "")
+    _pop_view = st.query_params.get("pop_view", "pro")
+    _pop_slot = st.query_params.get("pop_slot", "")
+    st.query_params.clear()
+
+    if _pop_slot:
+        _SS['popup_dismissed_slot'] = _pop_slot
+
+    if _pop_act:
+        try:
+            _pside, _pent, _psl, _ptg = _pop_act.split("|")
+            _SS['chart_trades'][_g_sym] = {
+                'side': _pside,
+                'qty': max(1, int(_UI.get('trade_qty', 10))),
+                'prod': _UI.get('trade_prod', 'INTRADAY'),
+                'order_type': 'MARKET',
+                'entry': round(float(_pent), 2),
+                'sl': round(float(_psl), 2),
+                'target': round(float(_ptg), 2),
+                'time': now_ist().strftime('%d-%b %I:%M:%S %p'),
+                'mode': '🎯 90%+ AI Sniper Alert',
+                'order_id': '',
+                'is_super': False
+            }
+        except Exception:
+            pass
+
+    _p_list = list(_UI.get('pinned_stocks', []))
+    if _pop_act:
+        if _g_sym in _p_list:
+            _p_list.remove(_g_sym)
+        _p_list.insert(0, _g_sym)
+        _p_list = _p_list[:6]
+    else:
+        if _g_sym in _p_list:
+            _p_list.remove(_g_sym)
+        else:
+            if len(_p_list) >= 6:
+                _p_list.pop(0)
+            _p_list.append(_g_sym)
+
+    _UI['pinned_stocks'] = _p_list
+    st.session_state.pinned_stocks = list(_p_list)
+    _UI['inspected_stock'] = _g_sym.replace(".NS", "")
+    st.session_state.inspected_stock = _UI['inspected_stock']
+
+    if _pop_act and _pop_view == "mini":
+        _UI['grid_layout_mode'] = "Off"
+        st.session_state.grid_layout_mode = "Off"
+        st.session_state.pro_grid_radio_key = "Off"
+        _UI['view_mode'] = "Chart 📈"
+    elif _pop_act and _pop_view == "pro":
+        _UI['grid_layout_mode'] = "1"
+        st.session_state.grid_layout_mode = "1"
+        st.session_state.pro_grid_radio_key = "1"
+    else:
+        _new_m = _calc_grid_mode(len(_p_list))
+        _UI['grid_layout_mode'] = _new_m
+        st.session_state.grid_layout_mode = _new_m
+        st.session_state.pro_grid_radio_key = _new_m
+
+
 def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_res):
     if df_universe is None or df_universe.empty:
         return []
@@ -7129,7 +7197,6 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
         ema10 = float(row.get('Intra_EMA10', vwap) or vwap)
         day_c, vol_x = float(row['Day_C']), float(row['VolX'])
         prev_h, prev_l = float(row.get('Prev_H', hi)), float(row.get('Prev_L', lo))
-        atr = max(float(row.get('ATR', ltp * 0.015)), ltp * 0.005)
         bull_p, bear_p = float(row.get('Bull_P', 50.0)), float(row.get('Bear_P', 50.0))
 
         is_b = bool(base_buy.loc[row.name])
@@ -7148,6 +7215,7 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
                 bonus_prob += 8
 
         df_5m = processed_charts.get(ft, pd.DataFrame())
+        td_5m = pd.DataFrame()
         if df_5m is not None and not df_5m.empty and len(df_5m) >= 4:
             _sess = (df_5m.index.to_series().diff() > pd.Timedelta(minutes=120)).cumsum()
             td_5m = df_5m[_sess == _sess.iloc[-1]]
@@ -7221,9 +7289,38 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
         if raw_prob < 90:
             continue
 
-        risk_amt = round(max(atr * 1.5, ltp * 0.006), 2)
-        sl_p = round(ltp - risk_amt, 2) if is_b else round(ltp + risk_amt, 2)
-        tg_p = round(ltp + (risk_amt * 2.0), 2) if is_b else round(ltp - (risk_amt * 2.0), 2)
+        # 🎯 SMART INTRADAY SL & TARGET: 5m Volatility (ATR_13) + Previous 5-Candle Swing High / Low
+        if not td_5m.empty and len(td_5m) >= 3:
+            atr_5m = float(td_5m['ATR_13'].iloc[-1]) if ('ATR_13' in td_5m.columns and pd.notna(td_5m['ATR_13'].iloc[-1])) else float((td_5m['High'] - td_5m['Low']).tail(10).mean())
+            atr_5m = max(atr_5m, ltp * 0.0025)
+            recent_bars = td_5m.iloc[-6:-1] if len(td_5m) >= 6 else td_5m.iloc[:-1]
+            prev_swing_low = float(recent_bars['Low'].min()) if not recent_bars.empty else float(td_5m['Low'].iloc[-1])
+            prev_swing_high = float(recent_bars['High'].max()) if not recent_bars.empty else float(td_5m['High'].iloc[-1])
+        else:
+            atr_5m = max(float(row.get('ATR', ltp * 0.015)) * 0.28, ltp * 0.004)
+            prev_swing_low = ltp - (1.2 * atr_5m)
+            prev_swing_high = ltp + (1.2 * atr_5m)
+
+        if is_b:
+            # BUY SL: గత 5 క్యాండిల్స్ Swing Low కి కొద్దిగా కింద (Volatility బఫర్‌తో), మరీ దూరం కాకుండా క్లాంప్ చేయడం
+            raw_sl = min(prev_swing_low - (0.25 * atr_5m), ltp - (1.2 * atr_5m))
+            risk_pts = float(np.clip(ltp - raw_sl, max(0.8 * atr_5m, ltp * 0.0035), min(2.5 * atr_5m, ltp * 0.015)))
+            sl_p = round(ltp - risk_pts, 2)
+            # BUY Target: 1:2 Risk-Reward లేదా Day High / Previous High బ్రేక్అవుట్ ప్రొజెక్షన్
+            tg_base = ltp + max(risk_pts * 2.0, 2.2 * atr_5m)
+            if hi > ltp and (hi - ltp) >= risk_pts * 1.3:
+                tg_base = max(tg_base, hi)
+            tg_p = round(tg_base, 2)
+        else:
+            # SELL SL: గత 5 క్యాండిల్స్ Swing High కి కొద్దిగా పైన (Volatility బఫర్‌తో)
+            raw_sl = max(prev_swing_high + (0.25 * atr_5m), ltp + (1.2 * atr_5m))
+            risk_pts = float(np.clip(raw_sl - ltp, max(0.8 * atr_5m, ltp * 0.0035), min(2.5 * atr_5m, ltp * 0.015)))
+            sl_p = round(ltp + risk_pts, 2)
+            # SELL Target: 1:2 Risk-Reward లేదా Day Low / Previous Low బ్రేక్‌డౌన్ ప్రొజెక్షన్
+            tg_base = ltp - max(risk_pts * 2.0, 2.2 * atr_5m)
+            if lo < ltp and (ltp - lo) >= risk_pts * 1.3:
+                tg_base = min(tg_base, lo)
+            tg_p = round(tg_base, 2)
 
         candidates.append({
             "sym": sym, "ft": ft, "side": side, "ltp": round(ltp, 2),
@@ -11394,15 +11491,16 @@ def render_live_ui():
             _SS['top2_5m_picks'] = _top2_90
 
         _active_top2 = _SS.get('top2_5m_picks', [])
-        if _active_top2:
+        if _active_top2 and _SS.get('popup_dismissed_slot') != _candle_slot_5m:
             _cards_html = ""
+            _slot_q = urllib.parse.quote(_candle_slot_5m)
             for _idx_p, _pk in enumerate(_active_top2):
                 _is_b = (_pk['side'] == "BUY")
                 _b_col = "#22c55e" if _is_b else "#ef4444"
                 _bg_badge = "rgba(34,197,94,0.18)" if _is_b else "rgba(239,68,68,0.18)"
-                _q_param = f"{_pk['side']}|{_pk['ltp']}|{_pk['sl']}|{_pk['tg']}"
-                _pro_url = f"?grid_sym={_pk['ft']}&pop_trade={urllib.parse.quote(_q_param)}&pop_view=pro"
-                _mini_url = f"?grid_sym={_pk['ft']}&pop_trade={urllib.parse.quote(_q_param)}&pop_view=mini"
+                _q_param = urllib.parse.quote(f"{_pk['side']}|{_pk['ltp']}|{_pk['sl']}|{_pk['tg']}")
+                _pro_url = f"?grid_sym={_pk['ft']}&pop_trade={_q_param}&pop_view=pro&pop_slot={_slot_q}"
+                _mini_url = f"?grid_sym={_pk['ft']}&pop_trade={_q_param}&pop_view=mini&pop_slot={_slot_q}"
 
                 _cards_html += (
                     f"<div style='background:#161b22;border:1.5px solid {_b_col};border-radius:8px;padding:10px 12px;margin-top:8px;'>"
@@ -11425,13 +11523,18 @@ def render_live_ui():
 
             st.markdown(
                 f"""
+                <style>
+                #close-5m-pop-toggle:checked + #sniper-5m-popup {{ display: none !important; }}
+                </style>
+                <input type="checkbox" id="close-5m-pop-toggle" style="display:none;">
                 <div id="sniper-5m-popup" style="position:fixed;bottom:18px;right:18px;width:390px;max-width:94vw;
                     background:rgba(11,14,20,0.98);border:2px solid #ffd700;border-radius:12px;padding:12px 14px;
                     z-index:999999;box-shadow:0 12px 32px rgba(0,0,0,0.85);font-family:'Inter',sans-serif;">
                     <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #30363d;padding-bottom:6px;">
                         <span style="color:#ffd700;font-weight:900;font-size:13.5px;">🔔 5m Candle Alert ({_candle_slot_5m[-5:]}) — Top 2 (90%+ Prob)</span>
-                        <span onclick="this.parentElement.parentElement.style.display='none';"
-                              style="cursor:pointer;background:#dc2626;color:#fff;padding:1px 7px;border-radius:4px;font-size:11px;font-weight:bold;">✖</span>
+                        <a href="?close_5m_pop={_slot_q}" target="_self"
+                           style="cursor:pointer;background:#dc2626;color:#fff;padding:1px 8px;border-radius:4px;font-size:11.5px;font-weight:bold;text-decoration:none;border:1px solid #ef4444;"
+                           title="Close Popup">✖</a>
                     </div>
                     {_cards_html}
                 </div>
