@@ -2977,7 +2977,7 @@ _COMPANY_TO_NSE = {
 
 
 def _detect_5m_cvd_flips(df_5m):
-    """Pro Grid చార్ట్‌తో 100% మ్యాచ్ అయ్యేలా 5m డేటాలో Bull (▲) & Bear (🔻) CVD ఫ్లిప్ ఇండెక్స్‌లను ఇస్తుంది"""
+    """5m డేటాలో Bull/Bear CVD Flip (Reversal) + Same-Direction CVD Multiplier (2x-3x Surge) ఇండెక్స్‌లను ఇస్తుంది"""
     bull_flips, bear_flips = [], []
     if df_5m is None or df_5m.empty or len(df_5m) < 2:
         return bull_flips, bear_flips
@@ -2989,6 +2989,7 @@ def _detect_5m_cvd_flips(df_5m):
     prev_vwap_state = None
     last_bull_idx = -10
     last_bear_idx = -10
+    abs_deltas = []
 
     for idx_i, (dt_idx, r) in enumerate(df_5m.iterrows()):
         o = round(float(r.get('Open', 0) or 0), 2)
@@ -3015,20 +3016,34 @@ def _detect_5m_cvd_flips(df_5m):
         sell_v = round(v - buy_v)
         delta_v = buy_v - sell_v
 
+        avg_abs_delta = float(np.mean(abs_deltas[-10:])) if len(abs_deltas) >= 3 else max(abs(delta_v), 1.0)
+        abs_deltas.append(abs(delta_v))
+
         prev_cvd = running_cvd
         running_cvd += delta_v
         cvd_up = bool(running_cvd >= 0)
 
         if idx_i > 0:
+            # 1. Reversal Flip (-ve to +ve OR +ve to -ve)
             is_green_flip = (not is_reset and prev_cvd < 0 and running_cvd > 0) or (prev_delta < 0 and delta_v > 0 and running_cvd > 0 and c > o and prev_cvd <= 0)
             is_red_flip = (not is_reset and prev_cvd > 0 and running_cvd < 0) or (prev_delta > 0 and delta_v < 0 and running_cvd < 0 and c < o and prev_cvd >= 0)
 
-            # ▲ Bullish CVD Green Flip (Candle కింద)
-            if is_green_flip and cvd_up and (idx_i - last_bull_idx) >= 3:
+            # 2. Same-Direction CVD Multiplier / Surge (VWAP పైన/కింద ఉన్నప్పుడు CVD సడెన్‌గా 1.6x+ పెరగడం)
+            is_bull_surge = (
+                not is_reset and is_above_vwap and c > o
+                and prev_cvd > 0 and running_cvd >= (prev_cvd * 1.65)
+                and delta_v >= (avg_abs_delta * 2.2)
+            )
+            is_bear_surge = (
+                not is_reset and (not is_above_vwap) and c < o
+                and prev_cvd < 0 and abs(running_cvd) >= (abs(prev_cvd) * 1.65)
+                and abs(delta_v) >= (avg_abs_delta * 2.2)
+            )
+
+            if (is_green_flip or is_bull_surge) and cvd_up and (idx_i - last_bull_idx) >= 3:
                 bull_flips.append(idx_i)
                 last_bull_idx = idx_i
-            # 🔻 Bearish CVD Red Flip (Candle పైన)
-            elif is_red_flip and (not cvd_up) and (idx_i - last_bear_idx) >= 3:
+            elif (is_red_flip or is_bear_surge) and (not cvd_up) and (idx_i - last_bear_idx) >= 3:
                 bear_flips.append(idx_i)
                 last_bear_idx = idx_i
 
@@ -10367,29 +10382,35 @@ def render_live_ui():
 
                     cvd_k = round(run_cvd / 1000.0, 1)
                     cvd_dom_pct = (abs(run_cvd) / max(tot_wave_vol, 1.0)) * 100.0
-                    power_rank = (abs(day_c_now) * 4.5) + (min(vol_x_now, 5.0) * 3.0) + (cvd_dom_pct * 0.35)
-                    dyn_score = int(np.clip(18.0 + (abs(day_c_now) * 3.2) + (min(vol_x_now, 5.0) * 2.5) + (cvd_dom_pct * 0.08), 20, 38))
-                    dyn_prob = int(np.clip(68 + dyn_score * 0.75, 76, 98))
 
-                    # 🟢 BUY: LTP & 5m Close > VWAP & EMA10 + Bullish CVD Flip (▲)
+                    # చివరి 3 క్యాండిల్స్‌లో CVD ఎంత మల్టిపుల్ (2x, 3x...) అయ్యిందో లెక్కించడం
+                    prev_cvd_base = max(abs(run_cvd - float((td_c['Volume'].iloc[-2:].sum()) * 0.35)), 1.0)
+                    cvd_mult = round(abs(run_cvd) / prev_cvd_base, 1) if len(td_c) >= 4 else 1.0
+                    is_mult_surge = cvd_mult >= 1.8
+
+                    power_rank = (abs(day_c_now) * 4.5) + (min(vol_x_now, 5.0) * 3.0) + (cvd_dom_pct * 0.35) + (3.0 if is_mult_surge else 0.0)
+                    dyn_score = int(np.clip(18.0 + (abs(day_c_now) * 3.2) + (min(vol_x_now, 5.0) * 2.5) + (cvd_dom_pct * 0.08) + (2.0 if is_mult_surge else 0.0), 20, 39))
+                    dyn_prob = int(np.clip(68 + dyn_score * 0.75, 76, 99))
+
+                    # 🟢 BUY: LTP & 5m Close > VWAP & EMA10 + (Bullish CVD Flip OR Same-Direction CVD Surge)
                     if (ltp_now > vw_last) and (c_last > vw_last) and (ltp_now >= ema10_last) and (run_cvd > 0) and (day_c_now >= 0.70) and bull_flips_c:
                         last_bf = bull_flips_c[-1]
                         flip_tm = pd.Timestamp(td_c.index[last_bf]).strftime("%I:%M %p")
                         rc_copy = r_c.copy()
-                        rc_copy['Strategy_Icon'] = "▲ CVD-Flip BUY"
-                        rc_copy['AlphaTag'] = f"▲CVD:{cvd_k:+.1f}K ({cvd_dom_pct:.0f}% Dom) @{flip_tm}"
+                        rc_copy['Strategy_Icon'] = f"🚀 CVD-{cvd_mult:.1f}x BUY" if is_mult_surge else "▲ CVD-Flip BUY"
+                        rc_copy['AlphaTag'] = f"▲CVD:{cvd_k:+.1f}K ({cvd_mult:.1f}x Surge | {cvd_dom_pct:.0f}% Dom) @{flip_tm}"
                         rc_copy['S'] = dyn_score
                         rc_copy['AI_Prob'] = dyn_prob
                         rc_copy['_cvd_pwr'] = power_rank
                         cvd_buy_rows.append(rc_copy)
 
-                    # 🔴 SELL: LTP & 5m Close < VWAP & EMA10 + Bearish CVD Flip (🔻)
+                    # 🔴 SELL: LTP & 5m Close < VWAP & EMA10 + (Bearish CVD Flip OR Same-Direction CVD Surge)
                     elif (ltp_now < vw_last) and (c_last < vw_last) and (ltp_now <= ema10_last) and (run_cvd < 0) and (day_c_now <= -0.70) and bear_flips_c:
                         last_sf = bear_flips_c[-1]
                         flip_tm = pd.Timestamp(td_c.index[last_sf]).strftime("%I:%M %p")
                         rc_copy = r_c.copy()
-                        rc_copy['Strategy_Icon'] = "🔻 CVD-Flip SELL"
-                        rc_copy['AlphaTag'] = f"🔻CVD:{cvd_k:.1f}K ({cvd_dom_pct:.0f}% Dom) @{flip_tm}"
+                        rc_copy['Strategy_Icon'] = f"🩸 CVD-{cvd_mult:.1f}x SELL" if is_mult_surge else "🔻 CVD-Flip SELL"
+                        rc_copy['AlphaTag'] = f"🔻CVD:{cvd_k:.1f}K ({cvd_mult:.1f}x Surge | {cvd_dom_pct:.0f}% Dom) @{flip_tm}"
                         rc_copy['S'] = dyn_score
                         rc_copy['AI_Prob'] = dyn_prob
                         rc_copy['_cvd_pwr'] = power_rank
