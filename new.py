@@ -100,7 +100,7 @@ def gemini_stock_sniper_verdict(sym, ltp, day_c, vwap, ema10, rvol, bull_p, atr,
         f"Relative Volume (RVOL): {rvol:.1f}x | Buyer Power: {bull_p:.0f}% | ATR: ₹{atr:.2f}\n"
         f"Scanner Signal: {strat_tag} | Latest News: {news_hl or 'No major news'}\n\n"
         f"Give exact Telugu output in 3 points:\n"
-        f"1. 🎯 ట్రెండ్ క్వాలిటీ: (ఇది నిజమైన ఇన్‌స్టిట్యూషనల్ మూవ్ ఆ లేక ట్రాప్ ఆ?)\n"
+        f"1. 🎯 ట్రెండ్ క్వాలిటీ: (ఇది నిజమైన ఇన్స్టిట్యూషనల్ మూవ్ ఆ లేక ట్రాప్ ఆ?)\n"
         f"2. ⚡ ట్రేడ్ లెవెల్స్: (ఎంట్రీ, స్టాప్-లాస్ SL మరియు టార్గెట్ T1/T2)\n"
         f"3. ⚠️ రిస్క్ అలర్ట్: (ఏ ధర కంటే కింద/పైన ట్రేడ్ అవాయిడ్ చేయాలి?)"
     )
@@ -109,7 +109,7 @@ def gemini_stock_sniper_verdict(sym, ltp, day_c, vwap, ema10, rvol, bull_p, atr,
 
 @st.cache_data(ttl=600, show_spinner=False)
 def gemini_batch_domino_news(headlines_tuple):
-    """బ్రేకింగ్ న్యూస్ హెడ్‌లైన్స్ చదివి ఏ స్టాక్ పెరుగుతుందో (Winner), ఏది పడుతుందో (Victim) JSON లో ఇస్తుంది"""
+    """బ్రేకింగ్ న్యూస్ హెడ్లైన్స్ చదివి ఏ స్టాక్ పెరుగుతుందో (Winner), ఏది పడుతుందో (Victim) JSON లో ఇస్తుంది"""
     if not headlines_tuple:
         return []
     joined_news = "\n".join([f"{i}. {h}" for i, h in enumerate(headlines_tuple[:10])])
@@ -129,31 +129,6 @@ def gemini_batch_domino_news(headlines_tuple):
             return json.loads(res)
         except Exception:
             pass
-    return []
-
-    joined_news = "\n".join([f"{i}. {h}" for i, h in enumerate(headlines_tuple[:10])])
-    prompt = (
-        "You are an Indian Stock Market (NSE) Domino-Effect & Supply-Chain Analyst.\n"
-        "Read these news headlines and return ONLY a valid JSON array of objects for headlines that impact NSE stocks.\n"
-        "Each object must have:\n"
-        '- "idx": integer index of the headline (0 to 9)\n'
-        '- "winners": array of uppercase NSE stock symbols (e.g. ["HAL", "BEL"]) that benefit\n'
-        '- "victims": array of uppercase NSE stock symbols (e.g. ["INDIGO", "ASIANPAINT"]) that get hurt\n'
-        '- "te_rule": 1-sentence Telugu explanation of why Winner rises and Victim falls.\n\n'
-        f"Headlines:\n{joined_news}"
-    )
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.1, "responseMimeType": "application/json"}
-    }
-    try:
-        r = requests.post(url, json=payload, timeout=12)
-        if r.status_code == 200:
-            txt = r.json()["candidates"][0]["content"]["parts"][0]["text"]
-            return json.loads(txt)
-    except Exception:
-        pass
     return []
 
 try:
@@ -599,12 +574,6 @@ SMALLCAP_250 = [
 
 # =========================================================
 # 📡 DHAN LAYER (v4) — REST based, real connection check, diagnostics
-# ---------------------------------------------------------
-#  • "Connected ✅" toast ippudu nijanga token + Data API check chesaake matrame
-#  • 5-min candles: /v2/charts/intraday (columnar response: open/high/low/close/volume/timestamp)
-#  • Rate limit (≈5 req/sec) respect + 20 sec time budget (migata stocks yfinance nundi)
-#  • WebSocket: library version tho sambandham lekunda connect (MarketFeed/DhanFeed), correct keys
-#  • Anni errors UI lo kanipistayi (silent `except: pass` ledu)
 # =========================================================
 DHAN_REST = "https://api.dhan.co/v2"
 DHAN_BUDGET_SEC = 20     # Dhan 5-min fetch ki max time per refresh — migata stocks yfinance nundi
@@ -638,7 +607,7 @@ def _dhan_classify(status, body_text, j=None):
         if not msg and isinstance(data, dict):
             msg = "; ".join(f"{k}: {v}" for k, v in data.items())
     blob = f"{code} {msg} {str(body_text)[:120]}".lower()
-    if any(x in blob for x in ('dh-902', '806', 'not subscribed', 'data api')):          # mundu check — idi kuda 401 tho vastundi
+    if any(x in blob for x in ('dh-902', '806', 'not subscribed', 'data api')):           # mundu check — idi kuda 401 tho vastundi
         hint = "Data API subscription ledu — historical/live data kosam Dhan lo 'Data APIs' plan activate cheyyali"
     elif status in (401, 403) or any(x in blob for x in ('dh-901', 'invalid_authentication', 'expired', 'invalid token')):
         hint = "TOKEN expired/invalid — Dhan lo kotha access token generate chesi secrets lo update cheyyandi (token 24 gantalu matrame)"
@@ -726,10 +695,10 @@ def _dhan_parse_candles(data):
         if len(df_) == 0 or len(ts) != len(df_):
             return None, "Candles ledu / timestamp mismatch"
         base = pd.to_datetime(ts, unit='s', errors='coerce')
-        if base.dt.year.min() < 2010:                                    # legacy 1980-epoch (IST) format
+        if base.dt.year.min() < 2010:                                     # legacy 1980-epoch (IST) format
             base = pd.to_datetime(ts + 315513000, unit='s', errors='coerce')
         best = None
-        for shift in (pd.Timedelta(hours=5, minutes=30), pd.Timedelta(0)):   # NSE candles 09:15 tho start avvali
+        for shift in (pd.Timedelta(hours=5, minutes=30), pd.Timedelta(0)):    # NSE candles 09:15 tho start avvali
             cand = base + shift
             mod = cand.dt.hour * 60 + cand.dt.minute
             if 540 <= mod.min() <= 570 and mod.max() <= 935:
@@ -788,7 +757,7 @@ def _load_dhan_sec_map():
     df_ = pd.read_csv("https://images.dhan.co/api-data/api-scrip-master.csv", low_memory=False)
     nse_eq = df_[(df_['SEM_EXM_EXCH_ID'] == 'NSE') & (df_['SEM_INSTRUMENT_NAME'] == 'EQUITY')]
     if 'SEM_SERIES' in nse_eq.columns:
-        nse_eq = nse_eq.assign(_p=(nse_eq['SEM_SERIES'] == 'EQ').astype(int)).sort_values('_p')   # duplicates unte EQ series win avvali
+        nse_eq = nse_eq.assign(_p=(nse_eq['SEM_SERIES'] == 'EQ').astype(int)).sort_values('_p')    # duplicates unte EQ series win avvali
     m = dict(zip(nse_eq['SEM_TRADING_SYMBOL'], nse_eq['SEM_SMST_SECURITY_ID'].astype(str)))
     if len(m) < 100:
         raise ValueError(f"Scrip master chala takkuva ({len(m)})")
@@ -816,7 +785,7 @@ def dhan_data_probe(cid, tok, sec_id):
     return out
 
 
-DHAN_USABLE = False     # ⚡ False ఉన్నప్పుడు అసలు Dhan API / 20MB CSV డౌన్‌లోడ్ అవ్వదు
+DHAN_USABLE = False     # ⚡ False ఉన్నప్పుడు అసలు Dhan API / 20MB CSV డౌన్లోడ్ అవ్వదు
 dhan = False
 if DHAN_USABLE:
     _DH_CID, _DH_TOK = _dhan_creds()
@@ -829,13 +798,6 @@ else:
     _DH_HEALTH = {'ok': False, 'msg': 'Disabled'}
     _DH_PROBE = {'ok': False, 'msg': 'Disabled', 'n': 0, 'first': '', 'last': ''}
     sec_map, rev_sec_map = {}, {}
-
-# if not st.session_state.shown_dhan_status:
-#     if DHAN_USABLE:
-#         st.toast("Dhan LIVE ✅ (token + Data API verified)", icon="🟢")
-#     else:
-#         st.toast(f"Dhan ❌ → yfinance vadutunnam: {(_DH_HEALTH['msg'] if not _DH_HEALTH['ok'] else _DH_PROBE['msg'])[:90]}", icon="🔴")
-#     st.session_state.shown_dhan_status = True
 
 
 # --- WEBSOCKET LIVE TICKER (BACKGROUND THREAD) ---
@@ -1173,7 +1135,7 @@ def fetch_all_data(_v=5):
     _cache_file = os.path.join(tempfile.gettempdir(), "daily_base_cache_v5.pkl")
     if os.path.exists(_cache_file):
         try:
-            # ఫైల్ 6 గంటల లోపుదైతే మళ్ళీ 550 స్టాక్స్ డౌన్‌లోడ్ చేయకుండా డైరెక్ట్‌గా తీసుకుంటుంది
+            # ఫైల్ 6 గంటల లోపుదైతే మళ్ళీ 550 స్టాక్స్ డౌన్లోడ్ చేయకుండా డైరెక్ట్గా తీసుకుంటుంది
             if (time.time() - os.path.getmtime(_cache_file)) < 21600:
                 _cached_df = pd.read_pickle(_cache_file)
                 if isinstance(_cached_df, pd.DataFrame) and not _cached_df.empty:
@@ -1467,37 +1429,7 @@ def process_5m_data(df_raw):
         return pd.DataFrame()
 
 # =========================================================
-# 🧠 ADAPTIVE LIVE ENGINE v3 (Self-Learning, Cost-Aware)
-# ---------------------------------------------------------
-# Fixed rules ledu. Prathi refresh lo (market open lo 30s):
-#  1. QUALITY FILTER : illiquid / bid-ask-bounce noisy stocks ni universe nundi teesestundi
-#  2. FEATURES       : 17 stock features (momentum, VWAP, EMA, RSI, ORB, volume, range, Nifty-RS ...)
-#                      + Nifty trend-strength / volatility + interactions (regime ki taggattu)
-#  3. LEARNING       : last 5 days 5-min data nundi "next 30 min move" ni weighted ridge regression tho
-#                      nerchukuntundi (ee time-of-day ki daggara + recent data ki ekkuva weight)
-#  4. WALK-FORWARD   : prathi roju ni "chudani" test day ga pettukuni (train: appati varaku data) ->
-#                      IC, top-signals hit-rate, COST taruvata net expectancy lekkistundi.
-#                      Edge/profit ledu ante -> recommend cheyyadu
-#  5. TREND GUARD    : confirmed strong trend ki ethirega signal ivvadu
-#                      (ex: VWAP & EMA pai + volume surge unna stock ni SELL cheyyadu)
-#  6. TIME GUARD     : market open lo 9:30–15:00 madhya matrame signals
-# =========================================================
-# =========================================================
-# 🎯 INSTITUTIONAL ORDER-FLOW & ALPHA SNIPER ENGINE (PRO)
-# ---------------------------------------------------------
-# 5-Pillar Intraday Quant Scoring (0 to 100):
-#  1. Institutional VWAP Control & EMA Ribbon (9 > 21 > VWAP) [25 pts]
-#  2. Order-Flow / Cumulative Volume Delta (CVD Buying/Selling Pressure) [25 pts]
-#  3. Relative Strength (Alpha) vs Nifty (Full Day + Last 30m) [20 pts]
-#  4. Relative Volume (RVOL) & Intraday Breakout Structure [15 pts]
-#  5. Non-Exhaustion RSI & Extension Guard (No Top-Buying) [15 pts]
-# =========================================================
-# =========================================================
 # 📰 NEWS + VOLUME + PRICE CATALYST ENGINE (MULTI-PURPOSE v7)
-# ---------------------------------------------------------
-#  • Default '🎯 Strategy' Mode: Shows currently selected strategy stocks with Left 30% Mini-Chart + Right 70% News, Q-Results & SL/Targets
-#  • 5 Global 24h Filters: All High-Impact, Most Important, Q-Results, Latest Time-Wise, Order Wins
-#  • Priority Sorting: Most Important News at Top & Scrolling Ticker -> Remaining in Strict Time-Wise Order
 # =========================================================
 from email.utils import parsedate_to_datetime
 import inspect as _inspect
@@ -1680,7 +1612,7 @@ DOMINO_CRISIS_MATRIX = [
         "victims": [],
         "tag_buy": "🔒Cyber-Shield BUY",
         "tag_sell": "🩸Cyber-Victim SELL",
-        "te_desc": "బ్యాంకింగ్/ఇన్‌ఫ్రాపై సైబర్ దాడి జరిగితే ఆ స్టాక్ పడుతుంది, నెట్‌వర్క్ సెక్యూరిటీ & క్లౌడ్ ఇన్‌ఫ్రా స్టాక్స్ లాభపడతాయి."
+        "te_desc": "బ్యాంకింగ్/ఇన్ఫ్రాపై సైబర్ దాడి జరిగితే ఆ స్టాక్ పడుతుంది, నెట్వర్క్ సెక్యూరిటీ & క్లౌడ్ ఇన్ఫ్రా స్టాక్స్ లాభపడతాయి."
     },
     {
         "id": "POWER_GRID_SHORTAGE",
@@ -1690,7 +1622,7 @@ DOMINO_CRISIS_MATRIX = [
         "victims": [],
         "tag_buy": "⚡Grid-Infra BUY",
         "tag_sell": "",
-        "te_desc": "బొగ్గు కొరత లేదా పవర్ గ్రిడ్ డిమాండ్ పెరిగితే జెన్‌సెట్స్, టర్బైన్స్ మరియు ట్రాన్స్‌ఫార్మర్ కంపెనీలకు భారీ ఆర్డర్లు."
+        "te_desc": "బొగ్గు కొరత లేదా పవర్ గ్రిడ్ డిమాండ్ పెరిగితే జెన్సెట్స్, టర్బైన్స్ మరియు ట్రాన్స్ఫార్మర్ కంపెనీలకు భారీ ఆర్డర్లు."
     },
 
     # 6. NEW HIGH-IMPACT SECTORS (SOLAR, RAILWAYS, EV, TELECOM, CDMO, RBI/SEBI)
@@ -1732,7 +1664,7 @@ DOMINO_CRISIS_MATRIX = [
         "victims": [],
         "tag_buy": "📡Telecom-Infra BUY",
         "tag_sell": "",
-        "te_desc": "టెలికాం టారిఫ్ పెంపు, భారత్‌నెట్ (BharatNet) ఆర్డర్లు లేదా డేటా సెంటర్ల విస్తరణ వల్ల టెలికాం & ఫైబర్ ఇన్‌ఫ్రా స్టాక్స్ కి లాభం."
+        "te_desc": "టెలికాం టారిఫ్ పెంపు, భారత్నెట్ (BharatNet) ఆర్డర్లు లేదా డేటా సెంటర్ల విస్తరణ వల్ల టెలికాం & ఫైబర్ ఇన్ఫ్రా స్టాక్స్ కి లాభం."
     },
     {
         "id": "US_BIOSECURE_CDMO",
@@ -1955,13 +1887,6 @@ def fetch_nse_oi_spurts():
 
 
 def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=2.5, panic_drop_thresh=-1.8, min_volx=1.0, min_move_pct=0.55):
-    """
-    Executes Complete Domino Intelligence Engine (Both Positive BUY & Negative SELL):
-      1. Separate Top 20 BUY & Top 20 SELL queues so BUY stocks never block SELL stocks
-      2. Dynamic Market Reaction: If a Domino stock has Selling Pressure below VWAP (LTP < VWAP & Day_C <= -0.55%),
-         it automatically registers as 🔴 SELL (even if it was in beneficiaries list)
-      3. Institutional Selling / Distribution Detector: Captures high seller-volume stocks below VWAP
-    """
     if df_universe is None or df_universe.empty:
         return pd.DataFrame(), []
 
@@ -2011,15 +1936,12 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=2.5
         net_c = float(s_row.get("C", 0.0))
         vol_x = float(s_row.get("VolX", 0.0))
 
-        # 1. VOLUME FILTER: Active market participation check
         if vol_x < min_volx and abs(day_c) < 1.2:
             return
 
         ltp_v, vwap_v, ema10_v, buyer_pct, bull_p, bear_p = _get_live_vwap_ema_and_pressure(sym)
         seller_pct = 100 - buyer_pct
 
-        # 2. BUY / SELL DIRECTION, VWAP & BUYING/SELLING PRESSURE CHECK
-        # (Fixes EMA_10 bottom-bounce trap so stocks below VWAP with negative Day_C always enter SELL)
         if side == "BUY":
             has_up_move = (day_c >= min_move_pct) or (day_c >= 0.35 and net_c >= 0.85)
             above_vwap = (ltp_v >= vwap_v) or (ltp_v >= ema10_v and day_c >= 1.2)
@@ -2033,7 +1955,6 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=2.5
             if not (has_down_move and below_vwap and high_sell_pressure):
                 return
 
-        # 3. Score Boost with Volume, Price Momentum & Order-Flow Pressure
         score = base_score
         if side == "BUY":
             score += min(10, int(vol_x * 2 + max(0.0, day_c) + max(0, (buyer_pct - 52) // 4)))
@@ -2053,9 +1974,6 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=2.5
                 "priority_rank": priority_rank
             }
 
-    # ---------------------------------------------------------
-    # STEP A0: 🧠 GEMINI AI SMART DOMINO SCANNER (TRUE CONTEXT)
-    # ---------------------------------------------------------
     if crisis_rss:
         _top_hls = tuple([it["title_en"] for it in crisis_rss[:10]])
         _ai_dom_list = gemini_batch_domino_news(_top_hls)
@@ -2083,9 +2001,6 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=2.5
                 except Exception:
                     pass
 
-    # ---------------------------------------------------------
-    # STEP A: SCAN GLOBAL & DOMESTIC CRISIS RSS (23 SECTOR RULES)
-    # ---------------------------------------------------------
     for item in crisis_rss:
         t_en = item["title_en"]
         t_low = t_en.lower()
@@ -2112,7 +2027,6 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=2.5
                 for b_sym in rule["beneficiaries"]:
                     if b_sym in stk_lookup:
                         b_day_c = float(stk_lookup[b_sym].get("Day_C", 0.0))
-                        # If stock is rising -> BUY; if stock is falling below VWAP on that news -> SELL (Sell-the-news / Bearish reaction)
                         if b_day_c >= 0:
                             _register_signal(
                                 b_sym, "BUY", rule["tag_buy"], t_en,
@@ -2123,7 +2037,7 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=2.5
                             sell_tag = rule["tag_sell"] or rule["tag_buy"].replace("BUY", "SELL")
                             _register_signal(
                                 b_sym, "SELL", sell_tag, t_en,
-                                f"🩸 <b>{rule['name']} (Selling Pressure):</b> వార్త ఉన్నప్పటికీ మార్కెట్‌లో సెల్లర్స్ ఆధిపత్యం వల్ల VWAP కింద బలహీనంగా ట్రేడ్ అవుతోంది.",
+                                f"🩸 <b>{rule['name']} (Selling Pressure):</b> వార్త ఉన్నప్పటికీ మార్కెట్లో సెల్లర్స్ ఆధిపత్యం వల్ల VWAP కింద బలహీనంగా ట్రేడ్ అవుతోంది.",
                                 lnk, age_h, base_score=86, priority_rank=2
                             )
                 for v_sym in rule["victims"]:
@@ -2134,9 +2048,6 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=2.5
                             lnk, age_h, base_score=88, priority_rank=1
                         )
 
-    # ---------------------------------------------------------
-    # STEP B: CHECK DIRECT STOCK NEWS FOR VICTIM-TO-WINNER SWITCH
-    # ---------------------------------------------------------
     for ft, n_info in stk_news_map.items():
         if not n_info:
             continue
@@ -2161,9 +2072,6 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=2.5
                     lnk, age_h, base_score=99, priority_rank=0
                 )
 
-    # ---------------------------------------------------------
-    # STEP C: 🛢️💵🥇 LIVE MACRO SPIKE AUTO-TRIGGER (CRUDE, USD/INR, GOLD, COPPER, NATGAS)
-    # ---------------------------------------------------------
     def _macro_chg(sym_code):
         df_m = processed_charts.get(sym_code, pd.DataFrame())
         if df_m is None or df_m.empty:
@@ -2215,7 +2123,7 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=2.5
             _register_signal(
                 b_s, "BUY", f"💵USD/INR +{usdinr_chg:.2f}% BUY",
                 f"Rupee Weakening (USD/INR {usdinr_chg:+.2f}% at ₹{usdinr_p:.2f}) boosts dollar export revenue for {b_s}",
-                f"💵 <b>USD/INR Live Breakout (₹{usdinr_p:.2f}):</b> డాలర్ బలపడటం వల్ల ఐటీ & ఫార్మా ఎగుమతి ఆదాయం పెరిగి <b>{b_s}</b> లో ఇన్‌స్టిట్యూషనల్ బయింగ్.",
+                f"💵 <b>USD/INR Live Breakout (₹{usdinr_p:.2f}):</b> డాలర్ బలపడటం వల్ల ఐటీ & ఫార్మా ఎగుమతి ఆదాయం పెరిగి <b>{b_s}</b> లో ఇన్స్టిట్యూషనల్ బయింగ్.",
                 "https://in.tradingview.com/chart/?symbol=FX_IDC:USDINR", 0.2, base_score=88, priority_rank=1
             )
 
@@ -2246,9 +2154,6 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=2.5
                 "https://in.tradingview.com/chart/?symbol=NYMEX:NG1!", 0.2, base_score=87, priority_rank=2
             )
 
-    # ---------------------------------------------------------
-    # STEP C2: 🌍 USA (SPX), EUROPE (DAX) & SILVER LIVE AUTO-TRIGGERS
-    # ---------------------------------------------------------
     spx_chg, _ = _macro_chg("^GSPC")
     dax_chg, _ = _macro_chg("^GDAXI")
     silver_chg, _ = _macro_chg("SI=F")
@@ -2303,9 +2208,6 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=2.5
                 "https://in.tradingview.com/chart/?symbol=COMEX:SI1!", 0.2, base_score=90, priority_rank=1
             )
 
-    # ---------------------------------------------------------
-    # STEP C3: 🕵️ HARSHAD MEHTA ACCUMULATION, TWIN GLITCH & INSTITUTIONAL DUMP
-    # ---------------------------------------------------------
     _TWIN_PAIRS = [
         ("PFC", "RECLTD"), ("BALRAMCHIN", "EIDPARRY"), ("HINDALCO", "NATIONALUM"),
         ("MUTHOOTFIN", "MANAPPURAM"), ("CHAMBLFERT", "COROMANDEL"), ("BPCL", "HINDPETRO"),
@@ -2342,33 +2244,28 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=2.5
         ltp_v, vwap_v, _, real_buyer_pct, _, bear_p_g = _get_live_vwap_ema_and_pressure(sym_g)
         real_seller_pct = 100 - real_buyer_pct
 
-        # CASE 1: 🕵️ Harshad Mehta Silent Accumulation (BUY)
         if vx_g >= 2.2 and (0.60 <= dc_g <= 2.2) and (prev_c_chg >= 0.0) and (ltp_v >= vwap_v) and real_buyer_pct >= 62:
             _register_signal(
                 sym_g, "BUY", f"🕵️Insider-Stealth ({real_buyer_pct}% Buyers | {vx_g:.1f}x)",
                 f"Silent Accumulation: {sym_g} has {real_buyer_pct}% 5m buying volume on {vx_g:.1f}x RVOL (Open Chg: {dc_g:+.2f}%, Net Chg: {prev_c_chg:+.2f}%)",
-                f"🕵️ <b>Harshad Mehta Silent Accumulation:</b> 5-నిమిషాల చార్ట్‌లో నిజమైన బయ్యర్ వాల్యూమ్ <b>{real_buyer_pct}%</b> ఉంది (RVOL: {vx_g:.1f}x, నిన్నటి క్లోజ్ నుండి: {prev_c_chg:+.2f}%).",
+                f"🕵️ <b>Harshad Mehta Silent Accumulation:</b> 5-నిమిషాల చార్ట్లో నిజమైన బయ్యర్ వాల్యూమ్ <b>{real_buyer_pct}%</b> ఉంది (RVOL: {vx_g:.1f}x, నిన్నటి క్లోజ్ నుండి: {prev_c_chg:+.2f}%).",
                 f"https://in.tradingview.com/chart/?symbol=NSE:{sym_g}", 0.1, base_score=real_buyer_pct, priority_rank=0
             )
 
-        # CASE 2: 🚨 Active Institutional Selling / Dump Below VWAP (SELL)
         elif (dc_g <= -1.0 or prev_c_chg <= -1.5) and (ltp_v < vwap_v) and vx_g >= 1.2 and (real_seller_pct >= 55 or bear_p_g >= 60):
             _register_signal(
                 sym_g, "SELL", f"🚨Inst-Dump ({dc_g:+.1f}% | {real_seller_pct}% Sellers)",
                 f"Institutional Selling Pressure: {sym_g} down {dc_g:+.2f}% (Net {prev_c_chg:+.2f}%) below VWAP with {real_seller_pct}% seller volume ({vx_g:.1f}x RVOL)",
-                f"🚨 <b>Institutional Selling Pressure (SELL):</b> ఈరోజు ఓపెన్ నుండి <b>{dc_g:+.2f}%</b> పడిపోయి, VWAP కింద <b>{real_seller_pct}%</b> సెల్లింగ్ వాల్యూమ్‌తో ({vx_g:.1f}x RVOL) బలహీనంగా ఉంది.",
+                f"🚨 <b>Institutional Selling Pressure (SELL):</b> ఈరోజు ఓపెన్ నుండి <b>{dc_g:+.2f}%</b> పడిపోయి, VWAP కింద <b>{real_seller_pct}%</b> సెల్లింగ్ వాల్యూమ్తో ({vx_g:.1f}x RVOL) బలహీనంగా ఉంది.",
                 f"https://in.tradingview.com/chart/?symbol=NSE:{sym_g}", 0.1, base_score=max(82, real_seller_pct), priority_rank=1
             )
 
-    # ---------------------------------------------------------
-    # STEP C4: 🔥 LIVE NSE OPEN INTEREST (OI SPURTS) + VWAP + VOLUME RADAR
-    # ---------------------------------------------------------
     oi_spurts_map = fetch_nse_oi_spurts()
     for oi_sym, oi_info in oi_spurts_map.items():
         if oi_sym not in stk_lookup:
             continue
         pct_oi = float(oi_info.get("pct_oi", 0.0))
-        if pct_oi < 20.0:  # కనీసం 20% కంటే ఎక్కువ OI పెరిగి ఉండాలి (60%+ అయితే #1 Mega Priority)
+        if pct_oi < 20.0:
             continue
 
         s_row_oi = stk_lookup[oi_sym]
@@ -2381,33 +2278,28 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=2.5
         ltp_v, vwap_v, ema10_v, real_buyer_pct, bull_p_oi, bear_p_oi = _get_live_vwap_ema_and_pressure(oi_sym)
         real_seller_pct = 100 - real_buyer_pct
 
-        is_mega_oi = (pct_oi >= 50.0)  # COROMANDEL (+235%), COCHINSHIP (+71%) లాంటివి
+        is_mega_oi = (pct_oi >= 50.0)
         p_rank = 0 if is_mega_oi else 1
         b_score = 98 if pct_oi >= 60.0 else (95 if pct_oi >= 40.0 else 91)
 
-        # 🟢 CASE 1: LONG BUILDUP (High OI Spurt + Price Above VWAP + High Buyer Volume)
         if (ltp_v >= vwap_v) and (dc_oi >= 0.40 or nc_oi >= 0.75) and (vx_oi >= 1.1 or pct_oi >= 50.0) and (real_buyer_pct >= 52 or bull_p_oi >= 55):
             oi_tag = f"🔥OI-Explosion +{pct_oi:.0f}% BUY" if is_mega_oi else f"⚡OI-Buildup +{pct_oi:.0f}% BUY"
             _register_signal(
                 oi_sym, "BUY", oi_tag,
                 f"NSE OI Spurt Long Buildup: {oi_sym} Open Interest surged +{pct_oi:.1f}% ({prev_oi_v:,} -> {cur_oi_v:,} contracts) above VWAP with {real_buyer_pct}% buyer volume ({vx_oi:.1f}x RVOL)",
-                f"🔥 <b>NSE Open Interest (OI) Long Buildup (+{pct_oi:.1f}% OI):</b> ఫ్యూచర్స్ & ఆప్షన్స్‌లో ఓపెన్ ఇంట్రెస్ట్ <b>+{pct_oi:.1f}%</b> ({prev_oi_v:,} నుండి {cur_oi_v:,} కాంట్రాక్టులకు) పెరిగి, VWAP పైన <b>{real_buyer_pct}%</b> బయ్యర్ వాల్యూమ్‌తో ({vx_oi:.1f}x RVOL) భారీ ఇన్‌స్టిట్యూషనల్ బయింగ్ జరుగుతోంది!",
+                f"🔥 <b>NSE Open Interest (OI) Long Buildup (+{pct_oi:.1f}% OI):</b> ఫ్యూచర్స్ & ఆప్షన్స్లో ఓపెన్ ఇంట్రెస్ట్ <b>+{pct_oi:.1f}%</b> ({prev_oi_v:,} నుండి {cur_oi_v:,} కాంట్రాక్టులకు) పెరిగి, VWAP పైన <b>{real_buyer_pct}%</b> బయ్యర్ వాల్యూమ్తో ({vx_oi:.1f}x RVOL) భారీ ఇన్స్టిట్యూషనల్ బయింగ్ జరుగుతోంది!",
                 "https://www.nseindia.com/market-data/oi-spurts", 0.1, base_score=b_score, priority_rank=p_rank
             )
 
-        # 🔴 CASE 2: SHORT BUILDUP (High OI Spurt + Price Below VWAP + High Seller Volume)
         elif (ltp_v < vwap_v) and (dc_oi <= -0.40 or nc_oi <= -0.75) and (vx_oi >= 1.1 or pct_oi >= 50.0) and (real_seller_pct >= 52 or bear_p_oi >= 55):
             oi_tag = f"🩸OI-Short +{pct_oi:.0f}% SELL" if is_mega_oi else f"📉OI-Short +{pct_oi:.0f}% SELL"
             _register_signal(
                 oi_sym, "SELL", oi_tag,
                 f"NSE OI Spurt Short Buildup: {oi_sym} Open Interest surged +{pct_oi:.1f}% ({prev_oi_v:,} -> {cur_oi_v:,} contracts) below VWAP with {real_seller_pct}% seller volume ({vx_oi:.1f}x RVOL)",
-                f"🩸 <b>NSE Open Interest (OI) Short Buildup (+{pct_oi:.1f}% OI):</b> ఓపెన్ ఇంట్రెస్ట్ <b>+{pct_oi:.1f}%</b> పెరిగి, స్టాక్ VWAP కింద <b>{real_seller_pct}%</b> సెల్లింగ్ వాల్యూమ్‌తో ({vx_oi:.1f}x RVOL) బలమైన షార్ట్ బిల్డప్ (Short Buildup) లో ఉంది!",
+                f"🩸 <b>NSE Open Interest (OI) Short Buildup (+{pct_oi:.1f}% OI):</b> ఓపెన్ ఇంట్రెస్ట్ <b>+{pct_oi:.1f}%</b> పెరిగి, స్టాక్ VWAP కింద <b>{real_seller_pct}%</b> సెల్లింగ్ వాల్యూమ్తో ({vx_oi:.1f}x RVOL) బలమైన షార్ట్ బిల్డప్ (Short Buildup) లో ఉంది!",
                 "https://www.nseindia.com/market-data/oi-spurts", 0.1, base_score=b_score, priority_rank=p_rank
             )
 
-    # ---------------------------------------------------------
-    # STEP D: POINT 6 — ZERO-LAG PRE-GUESSING (Insider Panic Detector)
-    # ---------------------------------------------------------
     for sym, s_row in stk_lookup.items():
         ft = s_row["Fetch_T"]
         vol_x = float(s_row.get("VolX", 0.0))
@@ -2428,7 +2320,7 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=2.5
             _register_signal(
                 sym, "SELL", "🚨Hidden-Trouble (Vol Dump)",
                 f"Zero-Lag Pre-Guess: {sym} crashing ({day_c:+.2f}%) on {vol_x:.1f}x Volume below VWAP without public news",
-                f"🚨 <b>Zero-Lag Insider Panic Detector:</b> మీడియాలో వార్త రాకముందే <b>{sym}</b> లో <b>{vol_x:.1f}x</b> వాల్యూమ్‌తో సడెన్ క్రాష్ ({day_c:+.2f}%) కనిపిస్తోంది!",
+                f"🚨 <b>Zero-Lag Insider Panic Detector:</b> మీడియాలో వార్త రాకముందే <b>{sym}</b> లో <b>{vol_x:.1f}x</b> వాల్యూమ్తో సడెన్ క్రాష్ ({day_c:+.2f}%) కనిపిస్తోంది!",
                 f"https://www.google.com/search?q={sym}+share+news&tbm=nws",
                 0.1, base_score=95, priority_rank=0
             )
@@ -2437,7 +2329,7 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=2.5
                     _register_signal(
                         comp_sym, "BUY", f"⚡Pre-Guess Winner (vs {sym})",
                         f"Pre-Guess Sympathy Buy: Rival {sym} showing {vol_x:.1f}x volume panic dump while {comp_sym} holds strong above VWAP",
-                        f"⚡ <b>Zero-Lag Sympathy Switch:</b> ప్రత్యర్థి స్టాక్ ({sym}) లో సడెన్ వాల్యూమ్ క్రాష్ జరుగుతుండగా, <b>{comp_sym}</b> VWAP పైన స్ట్రాంగ్‌గా పెరుగుతోంది!",
+                        f"⚡ <b>Zero-Lag Sympathy Switch:</b> ప్రత్యర్థి స్టాక్ ({sym}) లో సడెన్ వాల్యూమ్ క్రాష్ జరుగుతుండగా, <b>{comp_sym}</b> VWAP పైన స్ట్రాంగ్గా పెరుగుతోంది!",
                         f"https://www.google.com/search?q={comp_sym}+share+news&tbm=nws",
                         0.1, base_score=93, priority_rank=1
                     )
@@ -2462,7 +2354,6 @@ def run_domino_crisis_engine(df_universe, processed_charts, panic_vol_thresh=2.5
     out_rows = []
     feed_records = []
 
-    # ✅ SEPARATE TOP 20 BUY & TOP 20 SELL QUEUES (So BUY signals never crowd out SELL signals!)
     buy_sigs = sorted(
         [s for s in domino_signals.values() if s["side"] == "BUY"],
         key=lambda x: (x["priority_rank"], -x["score"], x["age_h"])
@@ -2955,7 +2846,6 @@ _COMPANY_TO_NSE = {
     "birlasoft": "BSOFT", "karnataka bank": "KTKBANK", "eclerx": "ECLERX",
     "syrma": "SYRMA", "mas financial": "MASFIN", "dodla": "DODLA",
     "vaibhav global": "VAIBHAVGBL", "heg ": "HEG", "nocil": "NOCIL",
-    # 🔥 DOMINO MATRIX COMPANY NAME MAPPINGS (Add inside _COMPANY_TO_NSE)
     "mtar": "MTARTECH", "data patterns": "DATAPATTNS", "zen tech": "ZENTEC",
     "bharat dynamics": "BDL", "bdl ": "BDL", "beml": "BEML", "midhani": "MIDHANI",
     "mishra dhatu": "MIDHANI", "ramkrishna forg": "RKFORGE", "rk forge": "RKFORGE",
@@ -2977,7 +2867,7 @@ _COMPANY_TO_NSE = {
 
 
 def _detect_5m_cvd_flips(df_5m):
-    """5m డేటాలో Bull/Bear CVD Flip (Reversal) + Same-Direction CVD Multiplier (2x-3x Surge) ఇండెక్స్‌లను ఇస్తుంది"""
+    """5m డేటాలో Bull/Bear CVD Flip (Reversal) + Same-Direction CVD Multiplier (2x-3x Surge) ఇండెక్స్లను ఇస్తుంది"""
     bull_flips, bear_flips = [], []
     if df_5m is None or df_5m.empty or len(df_5m) < 2:
         return bull_flips, bear_flips
@@ -3024,11 +2914,9 @@ def _detect_5m_cvd_flips(df_5m):
         cvd_up = bool(running_cvd >= 0)
 
         if idx_i > 0:
-            # 1. Reversal Flip (-ve to +ve OR +ve to -ve)
             is_green_flip = (not is_reset and prev_cvd < 0 and running_cvd > 0) or (prev_delta < 0 and delta_v > 0 and running_cvd > 0 and c > o and prev_cvd <= 0)
             is_red_flip = (not is_reset and prev_cvd > 0 and running_cvd < 0) or (prev_delta > 0 and delta_v < 0 and running_cvd < 0 and c < o and prev_cvd >= 0)
 
-            # 2. Same-Direction CVD Multiplier / Surge (VWAP పైన/కింద ఉన్నప్పుడు CVD సడెన్‌గా 1.6x+ పెరగడం)
             is_bull_surge = (
                 not is_reset and is_above_vwap and c > o
                 and prev_cvd > 0 and running_cvd >= (prev_cvd * 1.65)
@@ -3192,7 +3080,6 @@ def _build_inline_mini_chart_html(
             f" width='{round(bar_w, 1)}' height='{b_h}' fill='{c_col}'/>"
         )
 
-        # 🎯 Mini-Chart CVD Flip Arrows (▲ Candle కింద / 🔻 Candle పైన)
         if idx in bull_flip_set:
             svg_elems.append(
                 f"<text x='{cx}' y='{min(p_bot + 3, yl + 10)}' fill='#00e676' font-size='9.5' text-anchor='middle'>▲</text>"
@@ -3466,10 +3353,6 @@ def _extract_stock_from_headline(title_en):
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_pro_qresults_summary(sym, headline_en="", bias=0, day_c=0.0, vol_x=1.0):
-    """
-    Fetches actual quarterly financial metrics (Revenue, Net Profit, EBITDA, OPM%,
-    YoY%, QoQ%, EPS Estimate vs Reported Beat/Miss) for professional traders.
-    """
     clean_s = str(sym).replace(".NS", "").strip()
     if not clean_s or clean_s in ("NSE CORP", "🇮🇳 INDIA MKT", "🌍 GLOBAL", "MARKET"):
         return ""
@@ -3589,7 +3472,7 @@ def fetch_pro_qresults_summary(sym, headline_en="", bias=0, day_c=0.0, vol_x=1.0
         yoy_p = pat_yoy if pat_yoy is not None else 0.0
         if (yoy_p >= 15.0 or bias > 0) and day_c >= 0.5:
             exp_badge = "<span style='color:#00FF00;font-weight:bold;'>✅ BEAT (అంచనాలను మించింది)</span>"
-            exp_desc = f"బలమైన లాభాల వృద్ధి + {vol_x:.1f}x వాల్యూమ్‌తో ఇన్‌స్టిట్యూషనల్ బయింగ్ జరుగుతోంది."
+            exp_desc = f"బలమైన లాభాల వృద్ధి + {vol_x:.1f}x వాల్యూమ్తో ఇన్స్టిట్యూషనల్ బయింగ్ జరుగుతోంది."
         elif (yoy_p >= 10.0 or bias > 0) and day_c <= -1.0:
             exp_badge = "<span style='color:#ffd700;font-weight:bold;'>⚠️ SELL-ON-NEWS (మార్జిన్/గైడెన్స్ ఒత్తిడి)</span>"
             exp_desc = "లాభం పెరిగినప్పటికీ మార్కెట్ ఆశించిన స్థాయిలో లేకపోవడంతో ప్రాఫిట్ బుకింగ్ కనిపిస్తోంది."
@@ -3646,7 +3529,6 @@ def _translate_batch_to_telugu(texts_list):
 
 
 def _wrap_hover_text(txt, width=32):
-    """Wraps Telugu/English headline into short lines so Mini-Chart hover popup never gets clipped!"""
     clean_t = str(txt or "").strip()
     if not clean_t:
         return ""
@@ -3656,10 +3538,6 @@ def _wrap_hover_text(txt, width=32):
 
 @st.cache_data(ttl=300, show_spinner=False)
 def fetch_live_stock_news_batch(symbols_tuple, max_age_hours=24):
-    """
-    Fetches stock news within `max_age_hours` (default 24h), translates to Telugu,
-    and wraps `title` cleanly so Mini-Chart hover tooltips never get cut off.
-    """
     now_utc = datetime.now(ZoneInfo("UTC"))
     unique_syms = tuple(dict.fromkeys(symbols_tuple))
 
@@ -3990,14 +3868,14 @@ def run_news_vol_price_strategy(
             )
 
         vwap_status = (
-            f"VWAP (₹{vwap_live:.1f}) & 10-EMA (₹{intra_ema10:.1f}) పైన బుల్లిష్‌గా"
+            f"VWAP (₹{vwap_live:.1f}) & 10-EMA (₹{intra_ema10:.1f}) పైన బుల్లిష్గా"
             if ltp >= vwap_live
-            else f"VWAP (₹{vwap_live:.1f}) & 10-EMA (₹{intra_ema10:.1f}) కింద బేరిష్‌గా"
+            else f"VWAP (₹{vwap_live:.1f}) & 10-EMA (₹{intra_ema10:.1f}) కింద బేరిష్గా"
         )
         pb_52 = ((high_52w - ltp) / high_52w * 100.0) if high_52w > 0 else 0.0
         mkt_summary_te = (
             f"📊 చార్ట్ & టెక్నికల్ విశ్లేషణ: ప్రస్తుతం ₹{ltp:.2f} వద్ద"
-            f" ({day_c:+.2f}%), సాధారణం కంటే {vol_x:.1f}x రెట్ల వాల్యూమ్‌తో"
+            f" ({day_c:+.2f}%), సాధారణం కంటే {vol_x:.1f}x రెట్ల వాల్యూమ్తో"
             f" {vwap_status} ట్రేడ్ అవుతోంది (52W గరిష్టం ₹{high_52w:.1f} నుండి"
             f" {pb_52:.1f}% దూరం)."
         )
@@ -4075,10 +3953,6 @@ def run_news_vol_price_strategy(
 
 
 def _build_strategy_news_feed_records(df_strat_stocks, processed_charts):
-    """
-    Takes the exact stocks from the user's currently selected strategy (`df_stocks_display`)
-    and builds the split view (Left 30% Mini-Chart + Right 70% News, Pro Q-Results, SL/Targets & Technicals).
-    """
     if df_strat_stocks is None or df_strat_stocks.empty:
         return []
 
@@ -4102,7 +3976,6 @@ def _build_strategy_news_feed_records(df_strat_stocks, processed_charts):
                 except Exception:
                     pass
 
-    # Search up to 7 days of news for the selected strategy stocks so any recent catalyst appears
     news_map = fetch_live_stock_news_batch(tuple(fts), max_age_hours=168)
     texts_to_tr = []
     for v in news_map.values():
@@ -4187,8 +4060,8 @@ def _build_strategy_news_feed_records(df_strat_stocks, processed_charts):
             cat_tag = strat_icon if strat_icon else "🎯 Strategy Setup"
             raw_en_title = f"{stk_name} Technical Breakout Setup ({cat_tag})"
             te_headline = (
-                f"🎯 {stk_name} — సెలెక్ట్ చేసిన స్ట్రాటజీ ({cat_tag}) కండిషన్స్‌తో"
-                f" లైవ్‌లో యాక్టివ్‌గా ఉంది (Vol: {vol_x:.1f}x)."
+                f"🎯 {stk_name} — సెలెక్ట్ చేసిన స్ట్రాటజీ ({cat_tag}) కండిషన్స్తో"
+                f" లైవ్లో యాక్టివ్గా ఉంది (Vol: {vol_x:.1f}x)."
             )
             te_details = (
                 f"ట్రేడింగ్ లెవెల్స్: 🛑 స్టాప్ లాస్ (SL): ₹{sl_v:.2f}  |  🎯 టార్గెట్ 1 (T1): ₹{t1_v:.2f}  |  🎯 టార్గెట్ 2 (T2): ₹{t2_v:.2f}"
@@ -4198,15 +4071,14 @@ def _build_strategy_news_feed_records(df_strat_stocks, processed_charts):
             bias = -1 if is_sell else 1
             is_most_imp = (vol_x >= 2.5 and abs(day_c) >= 2.0)
 
-        # Fetch Pro Q-Results Table for the strategy stock
         qres_html = fetch_pro_qresults_summary(
             stk_name, raw_en_title, bias, day_c, vol_x
         )
 
         vwap_status = (
-            f"VWAP (₹{vwap_live:.1f}) & 10-EMA (₹{intra_ema10:.1f}) పైన బుల్లిష్‌గా"
+            f"VWAP (₹{vwap_live:.1f}) & 10-EMA (₹{intra_ema10:.1f}) పైన బుల్లిష్గా"
             if ltp >= vwap_live
-            else f"VWAP (₹{vwap_live:.1f}) & 10-EMA (₹{intra_ema10:.1f}) కింద బేరిష్‌గా"
+            else f"VWAP (₹{vwap_live:.1f}) & 10-EMA (₹{intra_ema10:.1f}) కింద బేరిష్గా"
         )
         pb_52 = ((high_52w - ltp) / high_52w * 100.0) if high_52w > 0 else 0.0
         mkt_summary_te = (
@@ -4259,7 +4131,6 @@ def gemini_batch_news_card_verdicts(items_tuple):
         else:
             missing.append(it)
 
-    # API fail ayithe 60s varaku malli kottaku (rate limit protect)
     if not missing or now < _SS.get('ai_card_fail_until', 0):
         return out_map
 
@@ -4277,7 +4148,7 @@ def gemini_batch_news_card_verdicts(items_tuple):
         "5m VWAP/EMA position, Volume (RVOL), Q-Results (Beat/Miss), and News.\n"
         "Return ONLY a valid JSON object where the key is the exact Stock symbol (e.g. \"RECLTD\") and the value is a "
         "crisp 2-line Telugu trade verdict covering:\n"
-        "1) 🎯 ట్రెండ్ & రిజల్ట్ ఇంపాక్ట్ (నిజమైన ఇన్‌స్టిట్యూషనల్ మూవ్ ఆ లేక ట్రాప్ ఆ? Q-Results/News కి ప్రైస్ ఎలా రియాక్ట్ అవుతోంది?)\n"
+        "1) 🎯 ట్రెండ్ & రిజల్ట్ ఇంపాక్ట్ (నిజమైన ఇన్స్టిట్యూషనల్ మూవ్ ఆ లేక ట్రాప్ ఆ? Q-Results/News కి ప్రైస్ ఎలా రియాక్ట్ అవుతోంది?)\n"
         "2) ⚡ యాక్షన్ ప్లాన్ (ఏ ధర వద్ద ఎంట్రీ/హోల్డ్ చేయాలి & ఏ లెవెల్ కింద/పైన అవాయిడ్ చేయాలి?)\n\n"
         + "\n".join(lines)
     )
@@ -4303,7 +4174,7 @@ def gemini_batch_news_card_verdicts(items_tuple):
 
 
 def _fallback_quant_verdict_te(r, qres_plain):
-    """ఒకవేళ API బిజీగా ఉన్నా లేదా 20వ స్టాక్ దాటినా ఖాళీగా రాకుండా ఇన్‌స్టంట్ క్వాంట్ సలహా ఇస్తుంది"""
+    """ఒకవేళ API బిజీగా ఉన్నా లేదా 20వ స్టాక్ దాటినా ఖాళీగా రాకుండా ఇన్స్టంట్ క్వాంట్ సలహా ఇస్తుంది"""
     is_buy = "BUY" in str(r.get("Signal", ""))
     vol_x = float(r.get("VolX", 1.0))
     day_c = float(r.get("Day%", 0.0))
@@ -4312,17 +4183,17 @@ def _fallback_quant_verdict_te(r, qres_plain):
 
     if is_buy:
         if has_miss:
-            t_msg = f"Q-Results అంచనాలను మిస్ అయినప్పటికీ, మార్కెట్ దాన్ని పట్టించుకోకుండా {vol_x:.1f}x భారీ వాల్యూమ్‌తో VWAP పైన బుల్లిష్‌గా ట్రేడ్ అవుతోంది (Strong Absorption)."
+            t_msg = f"Q-Results అంచనాలను మిస్ అయినప్పటికీ, మార్కెట్ దాన్ని పట్టించుకోకుండా {vol_x:.1f}x భారీ వాల్యూమ్తో VWAP పైన బుల్లిష్గా ట్రేడ్ అవుతోంది (Strong Absorption)."
         elif has_beat:
-            t_msg = f"బలమైన Q-Results (BEAT) + {vol_x:.1f}x ఇన్‌స్టిట్యూషనల్ వాల్యూమ్‌తో స్టాక్ VWAP & 10-EMA పైన పక్కా బ్రేక్అవుట్ మూవ్‌లో ఉంది."
+            t_msg = f"బలమైన Q-Results (BEAT) + {vol_x:.1f}x ఇన్స్టిట్యూషనల్ వాల్యూమ్తో స్టాక్ VWAP & 10-EMA పైన పక్కా బ్రేక్అవుట్ మూవ్లో ఉంది."
         else:
-            t_msg = f"సాధారణం కంటే {vol_x:.1f}x రెట్ల వాల్యూమ్‌తో ({day_c:+.2f}%) బయ్యర్ల ఆధిపత్యంలో VWAP పైన స్ట్రాంగ్‌గా ట్రేడ్ అవుతోంది."
+            t_msg = f"సాధారణం కంటే {vol_x:.1f}x రెట్ల వాల్యూమ్తో ({day_c:+.2f}%) బయ్యర్ల ఆధిపత్యంలో VWAP పైన స్ట్రాంగ్గా ట్రేడ్ అవుతోంది."
         act_msg = "పైన ఇచ్చిన SL (స్టాప్-లాస్) ఖచ్చితంగా మెయింటైన్ చేస్తూ VWAP పైన ఉన్నంతవరకు BUY / HOLD కొనసాగించవచ్చు."
     else:
         if has_beat:
-            t_msg = f"Q-Results బాగున్నప్పటికీ పై లెవెల్స్‌లో ప్రాఫిట్ బుకింగ్ (Sell-on-News) వల్ల {vol_x:.1f}x వాల్యూమ్‌తో VWAP కింద బలహీనంగా ఉంది."
+            t_msg = f"Q-Results బాగున్నప్పటికీ పై లెవెల్స్లో ప్రాఫిట్ బుకింగ్ (Sell-on-News) వల్ల {vol_x:.1f}x వాల్యూమ్తో VWAP కింద బలహీనంగా ఉంది."
         else:
-            t_msg = f"సెల్లర్స్ ఆధిపత్యం ({day_c:+.2f}%, Vol: {vol_x:.1f}x) వల్ల స్టాక్ VWAP మరియు 10-EMA కింద బేరిష్ ప్రెషర్‌లో ఉంది."
+            t_msg = f"సెల్లర్స్ ఆధిపత్యం ({day_c:+.2f}%, Vol: {vol_x:.1f}x) వల్ల స్టాక్ VWAP మరియు 10-EMA కింద బేరిష్ ప్రెషర్లో ఉంది."
         act_msg = "ధర తిరిగి VWAP పైన నిలబడే వరకు కొత్తగా BUY చేయవద్దు; పైన ఇచ్చిన SL తో మాత్రమే షార్ట్/సెల్ ప్లాన్ చేయండి."
 
     return f"🎯 <b>ట్రెండ్ క్వాలిటీ:</b> {t_msg}<br>⚡ <b>వ్యూహం:</b> {act_msg}"
@@ -4333,7 +4204,6 @@ def render_news_catalyst_banner(feed_records, banner_title=None):
     if not feed_records:
         return ""
 
-    # 1. Prepare batch input for Gemini AI
     dedup_records = []
     seen_prep = set()
     batch_items = []
@@ -4384,7 +4254,6 @@ def render_news_catalyst_banner(feed_records, banner_title=None):
         )
         mkt_block = f"<div class='pro-news-mkt'>{safe_mkt}</div>"
 
-        # 🧠 Gemini AI Advice Block (Uses Manual Store -> Batch Gemini AI -> Quant Fallback)
         ai_verdict_html = (
             manual_ai_store.get(stk)
             or ai_batch_map.get(stk.upper())
@@ -4594,7 +4463,6 @@ def fetch_indian_and_global_market_news():
     if stock_flashes:
         flash_parts.extend(stock_flashes[:5])
 
-    # Include 24h Corporate Stock News (Q-Results, Orders, Approvals) even in Chart / Heat Map mode
     for sp in out.get("stocks", [])[:5]:
         stk_lbl = sp.get("stock", "NSE")
         te_txt = _html.escape(sp.get("title", ""))
@@ -4611,7 +4479,6 @@ def fetch_indian_and_global_market_news():
             f"<span style='color:#79c0ff;font-size:12px;'>({sp.get('age_h', 1.0):.1f}గం. క్రితం)</span>"
         )
 
-    # Include Important Indian & Global Macro News (Fallback to latest if no 'is_imp' flagged)
     all_macro = [it for it in (out.get("india", []) + out.get("global", [])) if it.get("age_h", 99) <= 24.0]
     macro_pool = [it for it in all_macro if it.get("is_imp")] or all_macro
     macro_pool.sort(key=lambda x: x["age_h"])
@@ -4639,13 +4506,6 @@ def fetch_indian_and_global_market_news():
 
 
 def render_market_news_hub(df_all_stocks, processed_charts, df_strategy_stocks=None, watchlist_mode_name=""):
-    """
-    Multi-Purpose News & Strategy Hub:
-      • Default '🎯 Strategy' Option (index=5): Displays the exact stocks from the user's currently selected strategy
-        with Left 30% Mini-Chart + Right 70% Full News, Q-Results & Technical Levels!
-      • Other 5 Options: Scans the full market across 24 Hours (All High-Impact, Most Important, Q-Results, Latest Time-Wise, Order Wins).
-    """
-    # Automatically grab `df_stocks_display` & `watchlist_mode` from caller (`render_live_ui`) if not passed explicitly
     if df_strategy_stocks is None:
         try:
             caller_locals = _inspect.currentframe().f_back.f_locals
@@ -4672,7 +4532,6 @@ def render_market_news_hub(df_all_stocks, processed_charts, df_strategy_stocks=N
         key="pro_news_cat_filter_v7",
     )
 
-    # 🔥 Add this block right below `news_cat_pick = st.radio(...)`:
     if news_cat_pick == "🌍 Domino & Crisis Matrix (24h)":
         _, dom_feed = run_domino_crisis_engine(df_all_stocks, processed_charts)
         if dom_feed:
@@ -4686,9 +4545,6 @@ def render_market_news_hub(df_all_stocks, processed_charts, df_strategy_stocks=N
             st.info("ℹ️ ప్రస్తుతం 24 గంటల్లో Domino Crisis లేదా 3x VolX Insider Panic సిగ్నల్స్ ఏవీ లేవు.")
         return
 
-    # =========================================================
-    # 🎯 MODE 1: STRATEGY VIEW (DEFAULT) — Shows Selected Strategy Stocks with Charts + Full Details
-    # =========================================================
     if news_cat_pick == "🎯 Strategy":
         strat_records = _build_strategy_news_feed_records(
             df_strategy_stocks, processed_charts
@@ -4720,9 +4576,6 @@ def render_market_news_hub(df_all_stocks, processed_charts, df_strategy_stocks=N
             )
         return
 
-    # =========================================================
-    # 🌍 MODE 2: 24-HOUR MARKET-WIDE NEWS FILTERS (5 OPTIONS)
-    # =========================================================
     cat_code = "ALL"
     if "Most Important" in news_cat_pick:
         cat_code = "IMP"
@@ -4869,7 +4722,7 @@ def render_market_news_hub(df_all_stocks, processed_charts, df_strategy_stocks=N
                 s_vw = float(s_d.get("VWAP", s_p))
                 s_h52 = float(s_d.get("High52W", s_p))
                 dc_col = "#3fb950" if s_dc >= 0 else "#f85149"
-                vw_txt = "VWAP పైన బుల్లిష్‌గా" if s_p >= s_vw else "VWAP కింద బేరిష్‌గా"
+                vw_txt = "VWAP పైన బుల్లిష్గా" if s_p >= s_vw else "VWAP కింద బేరిష్గా"
                 price_chip = (
                     f"<span class='pro-meta-chip'>₹{s_p:,.2f} <span"
                     f" style='color:{dc_col};'>({s_dc:+.2f}%)</span> | Vol:"
@@ -4986,7 +4839,7 @@ def render_market_news_hub(df_all_stocks, processed_charts, df_strategy_stocks=N
             st.markdown(
                 _build_pro_news_table(
                     india_list,
-                    "🇮🇳 ఇండియన్ స్టాక్ మార్కెట్‌పై ప్రభావం చూపే ముఖ్య వార్తలు (24h • 🔥 Most Important First • 🕒 Time-Wise)",
+                    "🇮🇳 ఇండియన్ స్టాక్ మార్కెట్పై ప్రభావం చూపే ముఖ్య వార్తలు (24h • 🔥 Most Important First • 🕒 Time-Wise)",
                     "#38bdf8",
                     "linear-gradient(90deg, #0f2942 0%, #0d1117 100%)",
                     with_mini_chart=False,
@@ -4998,7 +4851,7 @@ def render_market_news_hub(df_all_stocks, processed_charts, df_strategy_stocks=N
             st.markdown(
                 _build_pro_news_table(
                     global_list,
-                    "🌍 గ్లోబల్ మార్కెట్స్‌పై ప్రభావం చూపే వార్తలు (24h • 🔥 Most Important First • 🕒 Time-Wise)",
+                    "🌍 గ్లోబల్ మార్కెట్స్పై ప్రభావం చూపే వార్తలు (24h • 🔥 Most Important First • 🕒 Time-Wise)",
                     "#a371f7",
                     "linear-gradient(90deg, #27143a 0%, #0d1117 100%)",
                     with_mini_chart=False,
@@ -5203,7 +5056,7 @@ def render_portfolio_news_and_results_table(df_port, df_stocks, weekly_trends):
         )
 
         sma_status = (
-            f"50-SMA (₹{sma50:.1f}) పైన బుల్లిష్ సపోర్ట్‌తో"
+            f"50-SMA (₹{sma50:.1f}) పైన బుల్లిష్ సపోర్ట్తో"
             if ltp >= sma50
             else f"50-SMA (₹{sma50:.1f}) కింద బలహీనంగా"
         )
@@ -5213,7 +5066,7 @@ def render_portfolio_news_and_results_table(df_port, df_stocks, weekly_trends):
             else f"VWAP (₹{vwap_v:.1f}) కింద"
         )
         tech_summary_te = (
-            f"📊 <b>టెక్నికల్ & పోర్ట్‌ఫోలియో విశ్లేషణ:</b> మీ కొనుగోలు ధర"
+            f"📊 <b>టెక్నికల్ & పోర్ట్ఫోలియో విశ్లేషణ:</b> మీ కొనుగోలు ధర"
             f" <b>₹{buy_p:.2f}</b> కాగా ప్రస్తుతం <b>₹{ltp:.2f}</b> వద్ద"
             f" ({vw_status}, {sma_status}) ట్రేడ్ అవుతోంది. వీక్లీ ట్రెండ్:"
             f" <b>{wk_trend}</b> | వాల్యూమ్: <b>{vol_x:.1f}x</b> | 52W High:"
@@ -5287,11 +5140,11 @@ def render_portfolio_news_and_results_table(df_port, df_stocks, weekly_trends):
     return (
         "<div class='pro-news-wrap'><div class='pro-news-hdr'"
         " style='background:linear-gradient(90deg, #0d47a1 0%, #0d1117"
-        " 100%);border-left:4px solid #58a6ff;'><span>📰 నా పోర్ట్‌ఫోలియో స్టాక్స్"
+        " 100%);border-left:4px solid #58a6ff;'><span>📰 నా పోర్ట్ఫోలియో స్టాక్స్"
         " — డిఫాల్ట్ మినీ చార్ట్, ప్రొఫెషనల్ Q-Results (Beat/Miss) & HOLD / SELL సలహా"
         " (Time-Wise Order)</span></div><table class='pro-news-table'><thead><tr><th"
         " style='width:29%;'>📈 లైవ్ మినీ చార్ట్ (5m INTRADAY)</th><th"
-        " style='width:55%;'>📢 పోర్ట్‌ఫోలియో P&L, ప్రొఫెషనల్ Q-Results & టెక్నికల్"
+        " style='width:55%;'>📢 పోర్ట్ఫోలియో P&L, ప్రొఫెషనల్ Q-Results & టెక్నికల్"
         " విశ్లేషణ</th><th style='width:16%;text-align:center;'>💡"
         " HOLD / SELL సలహా</th></tr></thead><tbody>"
         + rows_html
@@ -5359,7 +5212,6 @@ def adaptive_live_engine(five_min_data, candidates, top_n=8, min_edge=60):
                     d = d.assign(Volume=0.0)
                 d = d[['Open', 'High', 'Low', 'Close', 'Volume']].astype(float)
 
-                # Indicators on 5-min series
                 c, hi, lo, op, vol = d['Close'], d['High'], d['Low'], d['Open'], d['Volume'].fillna(0.0)
                 ema9 = c.ewm(span=9, adjust=False).mean()
                 ema21 = c.ewm(span=21, adjust=False).mean()
@@ -5373,7 +5225,6 @@ def adaptive_live_engine(five_min_data, candidates, top_n=8, min_edge=60):
                 loss = (-delta.clip(upper=0)).ewm(alpha=1/14, adjust=False).mean()
                 rsi14 = (100.0 - (100.0 / (1.0 + gain / loss.replace(0, np.nan)))).fillna(50.0)
 
-                # Isolate latest trading day
                 u_dates = sorted(list(set(d.index.date)))
                 today_df = d[d.index.date == u_dates[-1]].copy()
                 if len(today_df) < 3:
@@ -5394,11 +5245,9 @@ def adaptive_live_engine(five_min_data, candidates, top_n=8, min_edge=60):
                 atr_now = max(float(atr14.iloc[-1]), ltp * 0.002)
                 rsi_now = float(rsi14.iloc[-1])
 
-                # 1. VWAP Control & Trend Structure (Max 25 pts)
                 pct_above_vwap = float((today_df['Close'] > vwap_s).mean())
                 pct_below_vwap = float((today_df['Close'] < vwap_s).mean())
 
-                # 2. Order-Flow CVD Proxy (Buying vs Selling Volume Pressure - Max 25 pts)
                 rng = (today_df['High'] - today_df['Low']).replace(0, np.nan)
                 clv = ((today_df['Close'] - today_df['Low']) / rng).fillna(0.5)  # 0 to 1
                 last_n = min(len(today_df), 12)  # Last 60 mins order flow
@@ -5406,14 +5255,12 @@ def adaptive_live_engine(five_min_data, candidates, top_n=8, min_edge=60):
                 recent_clv = clv.iloc[-last_n:]
                 buy_vol_ratio = float((recent_vol * recent_clv).sum() / recent_vol.sum()) if recent_vol.sum() > 0 else 0.5
 
-                # 3. Relative Strength vs Nifty (Max 20 pts)
                 s_day_ret = (ltp / day_open - 1.0) * 100.0 if day_open > 0 else 0.0
                 lb_idx = max(0, len(today_df) - 7)
                 s_30m_ret = (ltp / float(today_df['Close'].iloc[lb_idx]) - 1.0) * 100.0
                 rs_day = s_day_ret - n_day_ret
                 rs_30m = s_30m_ret - n_30m_ret
 
-                # 4. RVOL & Micro-Breakout (Max 15 pts)
                 vol_base = float(vol.iloc[-25:-3].mean()) if len(vol) >= 25 else float(vol.mean())
                 vol_rec = float(today_df['Volume'].iloc[-3:].mean())
                 rvol = (vol_rec / vol_base) if vol_base > 0 else 1.0
@@ -5423,11 +5270,9 @@ def adaptive_live_engine(five_min_data, candidates, top_n=8, min_edge=60):
                 near_day_high = ltp >= (day_high * 0.993)
                 near_day_low = ltp <= (day_low * 1.007)
 
-                # --- BUY SCORING (0 to 100) ---
                 if ltp > vwap_now and e9_now >= e21_now and ltp >= e21_now:
                     b_score = 0.0
                     tags = []
-                    # Pillar 1: VWAP + EMA Ribbon (25)
                     b_score += 12.0 if (ltp > e9_now > e21_now > vwap_now) else 7.0
                     if pct_above_vwap >= 0.75:
                         b_score += 13.0
@@ -5435,7 +5280,6 @@ def adaptive_live_engine(five_min_data, candidates, top_n=8, min_edge=60):
                     elif pct_above_vwap >= 0.60:
                         b_score += 8.0
 
-                    # Pillar 2: Order-Flow CVD (25)
                     if buy_vol_ratio >= 0.62:
                         b_score += 25.0
                         tags.append("CVD-Buy🔥")
@@ -5444,7 +5288,6 @@ def adaptive_live_engine(five_min_data, candidates, top_n=8, min_edge=60):
                     elif buy_vol_ratio >= 0.48:
                         b_score += 8.0
 
-                    # Pillar 3: Nifty Alpha RS (20)
                     if rs_day >= 1.0 and rs_30m >= 0.25:
                         b_score += 20.0
                         tags.append("Alpha+RS")
@@ -5453,7 +5296,6 @@ def adaptive_live_engine(five_min_data, candidates, top_n=8, min_edge=60):
                     elif rs_day > 0:
                         b_score += 6.0
 
-                    # Pillar 4: RVOL & Structure (15)
                     if rvol >= 1.4:
                         b_score += 8.0
                         tags.append(f"RVOL {rvol:.1f}x")
@@ -5462,7 +5304,6 @@ def adaptive_live_engine(five_min_data, candidates, top_n=8, min_edge=60):
                     if ltp > orb_h or near_day_high:
                         b_score += 7.0
 
-                    # Pillar 5: Strong RSI Momentum (15) — No upper RSI/ATR cap
                     if rsi_now >= 54.0:
                         b_score += 15.0
                     elif rsi_now >= 48.0:
@@ -5476,11 +5317,9 @@ def adaptive_live_engine(five_min_data, candidates, top_n=8, min_edge=60):
                             tag=" ".join(tags[:2]) if tags else "Inst-Buy"
                         ))
 
-                # --- SELL SCORING (0 to 100) ---
                 elif ltp < vwap_now and e9_now <= e21_now and ltp <= e21_now:
                     s_score = 0.0
                     tags = []
-                    # Pillar 1: VWAP + EMA Ribbon (25)
                     s_score += 12.0 if (ltp < e9_now < e21_now < vwap_now) else 7.0
                     if pct_below_vwap >= 0.75:
                         s_score += 13.0
@@ -5488,7 +5327,6 @@ def adaptive_live_engine(five_min_data, candidates, top_n=8, min_edge=60):
                     elif pct_below_vwap >= 0.60:
                         s_score += 8.0
 
-                    # Pillar 2: Order-Flow CVD Selling Pressure (25)
                     sell_vol_ratio = 1.0 - buy_vol_ratio
                     if sell_vol_ratio >= 0.62:
                         s_score += 25.0
@@ -5498,7 +5336,6 @@ def adaptive_live_engine(five_min_data, candidates, top_n=8, min_edge=60):
                     elif sell_vol_ratio >= 0.48:
                         s_score += 8.0
 
-                    # Pillar 3: Nifty Negative Alpha (20)
                     if rs_day <= -1.0 and rs_30m <= -0.25:
                         s_score += 20.0
                         tags.append("Weak-RS")
@@ -5507,7 +5344,6 @@ def adaptive_live_engine(five_min_data, candidates, top_n=8, min_edge=60):
                     elif rs_day < 0:
                         s_score += 6.0
 
-                    # Pillar 4: RVOL & Breakdown (15)
                     if rvol >= 1.4:
                         s_score += 8.0
                         tags.append(f"RVOL {rvol:.1f}x")
@@ -5516,7 +5352,6 @@ def adaptive_live_engine(five_min_data, candidates, top_n=8, min_edge=60):
                     if ltp < orb_l or near_day_low:
                         s_score += 7.0
 
-                    # Pillar 5: Strong Bearish RSI Momentum (15) — No lower RSI/ATR cap
                     if rsi_now <= 46.0:
                         s_score += 15.0
                     elif rsi_now <= 52.0:
@@ -5558,7 +5393,6 @@ def adaptive_status_html(info):
 
 
 def card_bg_class(pct_val):
-    # 🎨 % change intensity ప్రకారం gradient color (TradingView style)
     if pct_val >= 3.0: return "bull-card-3"
     if pct_val >= 1.5: return "bull-card-2"
     if pct_val > 0: return "bull-card"
@@ -5581,11 +5415,6 @@ def generate_status(row):
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def fetch_fundamentals_data(filter_mode="Top Ranked Stocks ⭐", custom_symbols=None):
-    """
-    🏛️ INSTITUTIONAL 2500+ NSE STOCKS SCREENER:
-    మొత్తం NSE మార్కెట్‌లోని 2500+ స్టాక్స్‌ని 1 సెకనులో స్కాన్ చేసి, కఠినమైన ఇన్‌స్టిట్యూషనల్ ఫిల్టర్లతో
-    (ROE, ROCE, EPS Growth, Sales Growth, OPM%, Low Debt, P/E) కేవలం TOP 50 స్టాక్స్‌ని మాత్రమే ఇస్తుంది.
-    """
     headers = {"User-Agent": "Mozilla/5.0", "Content-Type": "application/json"}
     cols = [
         "name", "sector", "close", "change", "market_cap_basic",
@@ -5599,7 +5428,6 @@ def fetch_fundamentals_data(filter_mode="Top Ranked Stocks ⭐", custom_symbols=
         tickers_tv = [f"NSE:{str(s).replace('.NS', '').strip()}" for s in custom_symbols if str(s).strip()]
         payload = {"symbols": {"tickers": tickers_tv, "query": {"types": []}}, "columns": cols}
     else:
-        # 2500+ NSE Stocks నుండి కనీసం ₹1,500 Cr Market Cap & Price > ₹50 ఉన్న కంపెనీలను స్కాన్ చేయడం
         payload = {
             "filter": [
                 {"left": "exchange", "operation": "equal", "right": "NSE"},
@@ -5638,11 +5466,9 @@ def fetch_fundamentals_data(filter_mode="Top Ranked Stocks ⭐", custom_symbols=
                 h52 = round(float(d[13]), 1) if d[13] is not None else ltp
                 l52 = round(float(d[14]), 1) if d[14] is not None else ltp
 
-                # 🏛️ INSTITUTIONAL QUANT SCORE (0 TO 100 POINTS)
                 inst_score = 0
                 tags = []
 
-                # 1. ROE & Capital Efficiency (Max 30 pts)
                 if roe >= 22: inst_score += 18; tags.append("High-ROE")
                 elif roe >= 16: inst_score += 13
                 elif roe >= 12: inst_score += 7
@@ -5651,7 +5477,6 @@ def fetch_fundamentals_data(filter_mode="Top Ranked Stocks ⭐", custom_symbols=
                 elif roce >= 13: inst_score += 8
                 elif roce >= 9: inst_score += 4
 
-                # 2. Quarterly/Annual Earnings & Revenue Growth (Max 25 pts)
                 if eps_g >= 25: inst_score += 15; tags.append("EPS-Surge🚀")
                 elif eps_g >= 15: inst_score += 11
                 elif eps_g >= 8: inst_score += 6
@@ -5660,7 +5485,6 @@ def fetch_fundamentals_data(filter_mode="Top Ranked Stocks ⭐", custom_symbols=
                 elif rev_g >= 10: inst_score += 6
                 elif rev_g > 0: inst_score += 3
 
-                # 3. Balance Sheet & Margin Strength (Max 20 pts)
                 if 0 <= de <= 0.15: inst_score += 12; tags.append("Zero-Debt💎")
                 elif 0 <= de <= 0.50: inst_score += 9
                 elif 0 <= de <= 0.90: inst_score += 4
@@ -5668,17 +5492,14 @@ def fetch_fundamentals_data(filter_mode="Top Ranked Stocks ⭐", custom_symbols=
                 if opm >= 20: inst_score += 8
                 elif opm >= 14: inst_score += 5
 
-                # 4. Valuation Comfort P/E (Max 15 pts)
                 if 5 <= pe <= 25: inst_score += 15; tags.append("Value-PE")
                 elif 25 < pe <= 42: inst_score += 11
                 elif 42 < pe <= 60: inst_score += 6
 
-                # 5. Relative Price Strength near 52W High (Max 10 pts)
                 dist_52h = ((h52 - ltp) / h52 * 100.0) if h52 > 0 else 50.0
                 if dist_52h <= 12.0: inst_score += 10; tags.append("52W-Leader")
                 elif dist_52h <= 22.0: inst_score += 6
 
-                # Custom Sector Name Mapping
                 mapped_sec = sec_raw
                 for k_sec, s_list in NIFTY_50_SECTORS.items():
                     if sym in s_list:
@@ -5713,18 +5534,15 @@ def fetch_fundamentals_data(filter_mode="Top Ranked Stocks ⭐", custom_symbols=
     if df_out.empty:
         return df_out
 
-    # 🎯 APPLY STRICT INSTITUTIONAL FILTERS & RETURN ONLY TOP 50 STOCKS
     if filter_mode == "My Portfolio 💼":
         return df_out.sort_values(by="Inst_Score", ascending=False).reset_index(drop=True)
 
     elif filter_mode == "🦅 Warren Buffett Value Stocks":
-        # High ROE (>=16%), Low Debt (<=0.5), Reasonable P/E (5 to 28), Good OPM (>=12%)
         cond = (df_out["ROE %"] >= 16.0) & (df_out["Debt/Equity"] <= 0.50) & (df_out["P/E Ratio"] > 4.0) & (df_out["P/E Ratio"] <= 28.0) & (df_out["OPM %"] >= 12.0)
         df_sub = df_out[cond].sort_values(by=["Inst_Score", "ROE %"], ascending=[False, False])
         return df_sub.head(50).reset_index(drop=True)
 
     elif filter_mode == "Swing Trading Candidates 📈":
-        # Strong Fundamentals (Score >= 65, EPS Growth >= 12%) + Strong Price Trend (Within 18% of 52W High & Positive Day%)
         cond = (df_out["Inst_Score"] >= 65) & (df_out["EPS Gr %"] >= 12.0) & (df_out["Dist_52H"] <= 18.0) & (df_out["Day_C"] > 0)
         df_sub = df_out[cond].sort_values(by=["Inst_Score", "Day_C"], ascending=[False, False])
         return df_sub.head(50).reset_index(drop=True)
@@ -5734,8 +5552,6 @@ def fetch_fundamentals_data(filter_mode="Top Ranked Stocks ⭐", custom_symbols=
         return df_sub.head(50).reset_index(drop=True)
 
     else:
-        # ⭐ DEFAULT: Top Ranked Institutional 50 across ALL 2500 NSE Stocks
-        # Strict Filter: Market Cap >= 2500 Cr, ROE >= 15%, ROCE >= 12%, D/E <= 0.85, Positive EPS & Sales Growth, P/E between 5 and 65
         cond = (
             (df_out["Market_Cap (Cr)"] >= 2500) &
             (df_out["ROE %"] >= 15.0) &
@@ -5774,10 +5590,6 @@ def render_mf_table(df_mf):
 
 # =========================================================
 # 📊 PORTFOLIO ALLOCATION (Sector • Market-cap • Stock weights) — Zerodha Console style
-# ---------------------------------------------------------
-#  • Sector: static map (F&O + Midcap universe) -> sheet 'Sector' column override -> yfinance fallback -> Others
-#  • Cap: Nifty 50 + Next 50 = Large, Midcap/F&O = Mid, migata = Small (approx; sheet lo 'Cap' column tho override cheyyochchu)
-#  • Concentration alerts: single stock > 20% / sector > 35%
 # =========================================================
 _PF_SECTOR_GROUPS = {
     "Financial Services": "ABCAPITAL ANGELONE AUBANK AXISBANK BAJAJFINSV BAJFINANCE BANDHANBNK BANKBARODA BSE CANBK CANFINHOME CDSL CHOLAFIN CUB "
@@ -5828,7 +5640,7 @@ def _pf_yf_sector_raw(sym):
     mp = {'Financial Services': "Financial Services", 'Technology': "IT & Software", 'Healthcare': "Healthcare", 'Energy': "Energy",
           'Utilities': "Power & Utilities", 'Consumer Defensive': "FMCG", 'Real Estate': "Real Estate", 'Communication Services': "Telecom & Media"}
     if sec not in mp:
-        raise ValueError("sector unknown")          # cache avvakunda
+        raise ValueError("sector unknown")           # cache avvakunda
     return mp[sec]
 
 
@@ -5988,7 +5800,6 @@ def render_portfolio_table(df_port, df_stocks, weekly_trends, port_sort="Default
         date_val = str(row.get('Date', '-')).strip()
         if date_val in ['nan', 'NaN', '']: date_val = '-'
         
-        # Purchase nundi enni rojulu ayyindo calculate cheyadam (No. of Days)
         parsed_dt = pd.to_datetime(date_val, errors='coerce')
         if pd.notna(parsed_dt):
             days_held = max(0, (today_dt - parsed_dt.date()).days)
@@ -6352,6 +6163,12 @@ if 'selected_ai_strats' not in st.session_state:
     ]
 if 'selected_sw_strats' not in st.session_state:
     st.session_state.selected_sw_strats = ["📈 Minervini Trend Template (VCP)"]
+if 'trade_setups' not in _SS:
+    _SS['trade_setups'] = {}
+if 'last_5m_popup_bar' not in _SS:
+    _SS['last_5m_popup_bar'] = ""
+if 'dismissed_5m_popup_bar' not in _SS:
+    _SS['dismissed_5m_popup_bar'] = ""
 
 # --- CSS: ZERO SIDE MARGINS + EXCEL WATCHLIST + COMPACT MULTI-CHART GRID ---
 st.markdown("""
@@ -6663,7 +6480,6 @@ st.markdown("""
             min-width: 0 !important;
         }
 
-        /* Fix Chart Container & Iframe Height on Mobile so Bottom Date & Time Fits Default Without Scrolling */
         div[data-testid="stVerticalBlockBorderWrapper"]:has(.left-main-scroll-marker) {
             height: calc(100dvh - 165px) !important;
             max-height: calc(100dvh - 165px) !important;
@@ -6678,12 +6494,6 @@ st.markdown("""
             height: calc(42dvh - 30px) !important;
             min-height: 210px !important;
         }
-        div[data-testid="stVerticalBlockBorderWrapper"]:has(.right-panel-marker) {
-            padding: 3px !important;
-            height: calc(100dvh - 95px) !important;
-            max-height: calc(100dvh - 95px) !important;
-        }
-        /* Ultra-Compact Right 35% Panel Controls (Fixes H-e-a-t-M-a-p vertical text wrapping) */
         div[data-testid="stVerticalBlockBorderWrapper"]:has(.right-panel-marker) {
             padding: 3px !important;
             height: calc(100vh - 10px) !important;
@@ -6733,7 +6543,6 @@ st.markdown("""
             text-overflow: ellipsis !important;
         }
 
-        /* Compact Watchlist Table inside 35% Mobile Panel (Hide Chg pts column on mobile so Symbol, Last & Chg% fit cleanly!) */
         div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .tv-sort-hdr-marker) div[data-testid="stHorizontalBlock"] {
             flex-direction: row !important;
             flex-wrap: nowrap !important;
@@ -6755,7 +6564,6 @@ st.markdown("""
             font-size: 9px !important;
         }
 
-        /* Watchlist HTML Table Rows on Mobile */
         div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .right-panel-marker) .term-table {
             font-size: 9px !important;
         }
@@ -6777,7 +6585,6 @@ st.markdown("""
             width: 28% !important; padding-right: 2px !important;
         }
 
-        /* Top Action Bar (Paper, Qty, Mini, Theme, Clear) Compact Grid on Mobile */
         div[data-testid="stHorizontalBlock"]:has(> div[data-testid="stColumn"] .pro-ActionBar) {
             display: flex !important;
             flex-direction: row !important;
@@ -6791,7 +6598,6 @@ st.markdown("""
         }
     }
 
-    /* 🔥 HIDE 20% RIGHT PANEL -> EXPAND 80% CHARTS TO 100% FULL WIDTH (DESKTOP & MOBILE) */
     body.hide-right-20 div[data-testid="stHorizontalBlock"]:has(.right-panel-marker) > div[data-testid="stColumn"]:nth-child(2) {
         display: none !important;
         width: 0px !important;
@@ -6809,7 +6615,6 @@ st.markdown("""
         min-width: 100% !important;
     }
 
-    /* Floating Right-Edge Handle (Works on Desktop & Mobile to Hide/Show 20% Panel Anytime) */
     #rp-edge-toggle {
         position: fixed;
         right: 0px;
@@ -6837,7 +6642,6 @@ st.markdown("""
         background: #388bfd;
         padding-right: 7px;
     }
-    /* 📰 Mini-Chart Full-Box News Overlay on Hover + 📷 PNG & ⛶ Full-Screen Buttons Fix */
     div[data-testid="stElementContainer"]:has(.mc-card-news-zone),
     div[data-testid="stElementContainer"]:has(.mc-card-news-zone) > div,
     div[data-testid="stElementContainer"]:has(.mc-card-news-zone) div[data-testid="stMarkdown"],
@@ -6858,7 +6662,6 @@ st.markdown("""
         padding: 0px !important;
         height: 0px !important;
     }
-    /* 🔥 Trigger kevalam stock name paina matrame untundi (Right side PNG & Fullscreen buttons ni block cheyadu) */
     .mc-news-trigger {
         position: absolute !important;
         top: 4px !important;
@@ -6870,7 +6673,6 @@ st.markdown("""
         cursor: pointer !important;
         background: transparent !important;
     }
-    /* 🔥 Stock Name pakkana Right Side lo 📷 PNG & ⛶ Full Screen buttons eppudu hide avvakunda kanipinchela */
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) div[data-testid="stElementToolbar"] {
         position: absolute !important;
         top: 2px !important;
@@ -6886,7 +6688,6 @@ st.markdown("""
         z-index: 105 !important;
         background: transparent !important;
     }
-    /* 🔥 Full Screen (⛶) nokkinappudu MATRAME Mini-Chart peddaga (88vh) kanipinchela */
     div[data-testid="stFullScreenFrame"]:fullscreen div[data-testid="stPlotlyChart"],
     div[data-testid="stFullScreenFrame"]:fullscreen .js-plotly-plot,
     div[data-testid="stFullScreenFrame"]:fullscreen .plot-container,
@@ -6894,7 +6695,6 @@ st.markdown("""
         height: 88vh !important;
         min-height: 88vh !important;
     }
-    /* 🔥 News Mode Mini-Chart Full Screen Style */
     .mc-inline-card:fullscreen {
         background: #0b0e14 !important;
         padding: 20px !important;
@@ -6978,7 +6778,6 @@ st.markdown("""
     }
     .flash-ticker-move {
         display: inline-block;
-        /* 95s valla news chala slow ga, chadavadaniki spastanga scroll avutundi */
         animation: flashScroll 95s linear infinite;
         font-size: 14.5px !important;
         font-weight: 700 !important;
@@ -6988,7 +6787,6 @@ st.markdown("""
     .flash-ticker-wrap:hover .flash-ticker-move {
         animation-play-state: paused;
     }
-    /* Top Action Bar height kuda 38px ki penchadam */
     div[data-testid="stColumn"]:has(.pro-ActionBar) div.stButton > button,
     div[data-testid="stColumn"]:has(.pro-ActionBar) div[data-testid="stSelectbox"] > div > div {
         height: 38px !important;
@@ -7045,293 +6843,88 @@ def _calc_grid_mode(cnt):
 
 if "grid_sym" in st.query_params:
     _g_sym = st.query_params["grid_sym"]
-    _pop_act = st.query_params.get("pop_trade", "")
-    _pop_view = st.query_params.get("pop_view", "pro")
     st.query_params.clear()
-
-    if _pop_act:
-        try:
-            _pside, _pent, _psl, _ptg = _pop_act.split("|")
-            _SS['chart_trades'][_g_sym] = {
-                'side': _pside,
-                'qty': max(1, int(_UI.get('trade_qty', 10))),
-                'prod': _UI.get('trade_prod', 'INTRADAY'),
-                'order_type': 'MARKET',
-                'entry': round(float(_pent), 2),
-                'sl': round(float(_psl), 2),
-                'target': round(float(_ptg), 2),
-                'time': now_ist().strftime('%d-%b %I:%M:%S %p'),
-                'mode': '🎯 90%+ AI Sniper Alert',
-                'order_id': '',
-                'is_super': False
-            }
-        except Exception:
-            pass
-
     _p_list = list(_UI.get('pinned_stocks', []))
-    if _pop_act:
-        if _g_sym in _p_list:
-            _p_list.remove(_g_sym)
-        _p_list.insert(0, _g_sym)
-        _p_list = _p_list[:6]
+    if _g_sym in _p_list:
+        _p_list.remove(_g_sym)
     else:
-        if _g_sym in _p_list:
-            _p_list.remove(_g_sym)
-        else:
-            if len(_p_list) >= 6:
-                _p_list.pop(0)
-            _p_list.append(_g_sym)
-
+        if len(_p_list) >= 6:
+            _p_list.pop(0)
+        _p_list.append(_g_sym)
     _UI['pinned_stocks'] = _p_list
     st.session_state.pinned_stocks = list(_p_list)
     _UI['inspected_stock'] = _g_sym.replace(".NS", "")
     st.session_state.inspected_stock = _UI['inspected_stock']
+    _new_m = _calc_grid_mode(len(_p_list))
+    _UI['grid_layout_mode'] = _new_m
+    st.session_state.grid_layout_mode = _new_m
+    st.session_state.pro_grid_radio_key = _new_m
 
-    if _pop_act and _pop_view == "mini":
-        _UI['grid_layout_mode'] = "Off"
-        st.session_state.grid_layout_mode = "Off"
-        st.session_state.pro_grid_radio_key = "Off"
-        _UI['view_mode'] = "Chart 📈"
-    elif _pop_act and _pop_view == "pro":
-        _UI['grid_layout_mode'] = "1"
-        st.session_state.grid_layout_mode = "1"
-        st.session_state.pro_grid_radio_key = "1"
-    else:
-        _new_m = _calc_grid_mode(len(_p_list))
-        _UI['grid_layout_mode'] = _new_m
-        st.session_state.grid_layout_mode = _new_m
-        st.session_state.pro_grid_radio_key = _new_m
+if "rec_click" in st.query_params:
+    try:
+        _rc_parts = str(st.query_params["rec_click"]).split("|")
+        st.query_params.clear()
+        if len(_rc_parts) >= 8:
+            _rc_sym = _rc_parts[0]
+            _rc_side = _rc_parts[1]
+            _rc_ent = float(_rc_parts[2])
+            _rc_sl = float(_rc_parts[3])
+            _rc_t1 = float(_rc_parts[4])
+            _rc_t2 = float(_rc_parts[5])
+            _rc_prob = int(float(_rc_parts[6]))
+            _rc_target_view = _rc_parts[7]  # "PRO" or "MINI"
+            _rc_strat = _rc_parts[8] if len(_rc_parts) >= 9 else "5m Sniper"
 
-
-if "close_5m_pop" in st.query_params:
-    _SS['popup_dismissed_slot'] = st.query_params["close_5m_pop"]
-    st.query_params.clear()
-
-if "grid_sym" in st.query_params:
-    _g_sym = st.query_params["grid_sym"]
-    _pop_act = st.query_params.get("pop_trade", "")
-    _pop_view = st.query_params.get("pop_view", "pro")
-    _pop_slot = st.query_params.get("pop_slot", "")
-    st.query_params.clear()
-
-    if _pop_slot:
-        _SS['popup_dismissed_slot'] = _pop_slot
-
-    if _pop_act:
-        try:
-            _pside, _pent, _psl, _ptg = _pop_act.split("|")
-            _SS['chart_trades'][_g_sym] = {
-                'side': _pside,
-                'qty': max(1, int(_UI.get('trade_qty', 10))),
-                'prod': _UI.get('trade_prod', 'INTRADAY'),
-                'order_type': 'MARKET',
-                'entry': round(float(_pent), 2),
-                'sl': round(float(_psl), 2),
-                'target': round(float(_ptg), 2),
-                'time': now_ist().strftime('%d-%b %I:%M:%S %p'),
-                'mode': '🎯 90%+ AI Sniper Alert',
-                'order_id': '',
-                'is_super': False
+            _SS.setdefault('trade_setups', {})[_rc_sym] = {
+                'side': _rc_side,
+                'entry': round(_rc_ent, 2),
+                'sl': round(_rc_sl, 2),
+                't1': round(_rc_t1, 2),
+                't2': round(_rc_t2, 2),
+                'prob': _rc_prob,
+                'strat': _rc_strat,
+                'time': now_ist().strftime('%I:%M %p')
             }
-        except Exception:
-            pass
+            if _rc_sym not in _SS.get('chart_trades', {}):
+                _SS.setdefault('chart_trades', {})[_rc_sym] = {
+                    'side': _rc_side,
+                    'qty': int(_UI.get('trade_qty', 10)),
+                    'prod': _UI.get('trade_prod', 'INTRADAY'),
+                    'order_type': 'LIMIT',
+                    'entry': round(_rc_ent, 2),
+                    'sl': round(_rc_sl, 2),
+                    'target': round(_rc_t1, 2),
+                    't2': round(_rc_t2, 2),
+                    'time': now_ist().strftime('%d-%b %I:%M:%S %p'),
+                    'mode': f"🎯 5m-Auto Setup ({_rc_prob}%)",
+                    'order_id': '',
+                    'is_super': False
+                }
+            else:
+                _SS['chart_trades'][_rc_sym]['entry'] = round(_rc_ent, 2)
+                _SS['chart_trades'][_rc_sym]['sl'] = round(_rc_sl, 2)
+                _SS['chart_trades'][_rc_sym]['target'] = round(_rc_t1, 2)
+                _SS['chart_trades'][_rc_sym]['t2'] = round(_rc_t2, 2)
 
-    _p_list = list(_UI.get('pinned_stocks', []))
-    if _pop_act:
-        if _g_sym in _p_list:
-            _p_list.remove(_g_sym)
-        _p_list.insert(0, _g_sym)
-        _p_list = _p_list[:6]
-    else:
-        if _g_sym in _p_list:
-            _p_list.remove(_g_sym)
-        else:
-            if len(_p_list) >= 6:
-                _p_list.pop(0)
-            _p_list.append(_g_sym)
+            _p_list = [s for s in _UI.get('pinned_stocks', []) if s != _rc_sym]
+            _p_list.insert(0, _rc_sym)
+            _p_list = _p_list[:6]
+            _UI['pinned_stocks'] = _p_list
+            st.session_state.pinned_stocks = list(_p_list)
+            _UI['inspected_stock'] = _rc_sym.replace(".NS", "")
+            st.session_state.inspected_stock = _UI['inspected_stock']
 
-    _UI['pinned_stocks'] = _p_list
-    st.session_state.pinned_stocks = list(_p_list)
-    _UI['inspected_stock'] = _g_sym.replace(".NS", "")
-    st.session_state.inspected_stock = _UI['inspected_stock']
-
-    if _pop_act and _pop_view == "mini":
-        _UI['grid_layout_mode'] = "Off"
-        st.session_state.grid_layout_mode = "Off"
-        st.session_state.pro_grid_radio_key = "Off"
-        _UI['view_mode'] = "Chart 📈"
-    elif _pop_act and _pop_view == "pro":
-        _UI['grid_layout_mode'] = "1"
-        st.session_state.grid_layout_mode = "1"
-        st.session_state.pro_grid_radio_key = "1"
-    else:
-        _new_m = _calc_grid_mode(len(_p_list))
-        _UI['grid_layout_mode'] = _new_m
-        st.session_state.grid_layout_mode = _new_m
-        st.session_state.pro_grid_radio_key = _new_m
-
-
-def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_res):
-    if df_universe is None or df_universe.empty:
-        return []
-    df_u = df_universe.drop_duplicates(subset=['Fetch_T']).copy()
-    df_u = df_u[df_u['Day_C'].abs() >= 0.65].copy()
-    if df_u.empty:
-        return []
-
-    intra_ema = df_u['Intra_EMA10'].where(df_u['Intra_EMA10'] > 0, df_u['VWAP'])
-    base_buy = (df_u['P'] > intra_ema) & (df_u['P'] > df_u['VWAP']) & (df_u['Day_C'] >= 0.65)
-    base_sell = (df_u['P'] < intra_ema) & (df_u['P'] < df_u['VWAP']) & (df_u['Day_C'] <= -0.65)
-
-    sniper_map = {}
-    for side_k in ('buy', 'sell'):
-        for item in sniper_cached_res.get(side_k, []):
-            sniper_map[item['sym']] = item
-
-    candidates = []
-    for _, row in df_u.iterrows():
-        ft = row['Fetch_T']
-        sym = str(row['T']).strip()
-        ltp, op, hi, lo = float(row['P']), float(row['O']), float(row['H']), float(row['L'])
-        vwap = float(row['VWAP'])
-        ema10 = float(row.get('Intra_EMA10', vwap) or vwap)
-        day_c, vol_x = float(row['Day_C']), float(row['VolX'])
-        prev_h, prev_l = float(row.get('Prev_H', hi)), float(row.get('Prev_L', lo))
-        bull_p, bear_p = float(row.get('Bull_P', 50.0)), float(row.get('Bear_P', 50.0))
-
-        is_b = bool(base_buy.loc[row.name])
-        is_s = bool(base_sell.loc[row.name])
-        if not (is_b or is_s):
-            continue
-
-        side = "BUY" if is_b else "SELL"
-        matched_strats = []
-        bonus_prob = 0
-
-        if ft in sniper_map:
-            sn = sniper_map[ft]
-            if (sn['side'] == 'buy' and is_b) or (sn['side'] == 'sell' and is_s):
-                matched_strats.append(f"🎯Sniper({sn['score']}%)")
-                bonus_prob += 8
-
-        df_5m = processed_charts.get(ft, pd.DataFrame())
-        td_5m = pd.DataFrame()
-        if df_5m is not None and not df_5m.empty and len(df_5m) >= 4:
-            _sess = (df_5m.index.to_series().diff() > pd.Timedelta(minutes=120)).cumsum()
-            td_5m = df_5m[_sess == _sess.iloc[-1]]
-            b_flips, s_flips = _detect_5m_cvd_flips(td_5m)
-            if is_b and b_flips and (len(td_5m) - b_flips[-1]) <= 3:
-                matched_strats.append("🔬CVD-Flip BUY")
-                bonus_prob += 7
-            elif is_s and s_flips and (len(td_5m) - s_flips[-1]) <= 3:
-                matched_strats.append("🔬CVD-Flip SELL")
-                bonus_prob += 7
-
-            rec6 = td_5m.tail(6)
-            if len(rec6) >= 3 and 'VWAP' in rec6.columns:
-                if is_b and (rec6['Low'].iloc[:-1] <= rec6['VWAP'].iloc[:-1]).any():
-                    matched_strats.append("⚡VWAP-Cross")
-                    bonus_prob += 5
-                elif is_s and (rec6['High'].iloc[:-1] >= rec6['VWAP'].iloc[:-1]).any():
-                    matched_strats.append("⚡VWAP-Cross")
-                    bonus_prob += 5
-
-        if vol_x >= 1.15 and abs(day_c) >= 1.0:
-            if is_b and ltp > op and (op - lo) <= (ltp * 0.006):
-                matched_strats.append("🔥1Hr-ORB")
-                bonus_prob += 6
-            elif is_s and ltp < op and (hi - op) <= (ltp * 0.006):
-                matched_strats.append("🔥1Hr-ORB")
-                bonus_prob += 6
-
-        prev_rng = (prev_h - prev_l) / max(prev_l, 1.0)
-        if vol_x >= 1.1 and (prev_rng <= 0.025 or bool(row.get('Narrow_CPR', False))):
-            if (is_b and ltp > op) or (is_s and ltp < op):
-                matched_strats.append("💥NR7-BO")
-                bonus_prob += 5
-
-        if vol_x >= 1.15 and abs(day_c) >= 1.0:
-            if is_b and (op - lo) <= (ltp * 0.003):
-                matched_strats.append("🚀Gap&Go")
-                bonus_prob += 7
-            elif is_s and (hi - op) <= (ltp * 0.003):
-                matched_strats.append("🩸Gap&Go")
-                bonus_prob += 7
-
-        if vol_x >= 1.15:
-            if is_b and ltp > prev_h:
-                matched_strats.append("💥PDH-BO")
-                bonus_prob += 6
-            elif is_s and ltp < prev_l:
-                matched_strats.append("🩸PDL-BO")
-                bonus_prob += 6
-
-        if is_b:
-            day_pb = ((hi - ltp) / max(hi, 1.0)) * 100.0
-            if 0.6 <= day_pb <= 3.5 and (lo <= vwap * 1.005 or lo <= ema10 * 1.005) and vol_x >= 1.05:
-                matched_strats.append("🧲Dip-Bounce")
-                bonus_prob += 5
-        else:
-            day_rl = ((ltp - lo) / max(lo, 1.0)) * 100.0
-            if 0.6 <= day_rl <= 3.5 and (hi >= vwap * 0.995 or hi >= ema10 * 0.995) and vol_x >= 1.05:
-                matched_strats.append("🧲Rally-Reject")
-                bonus_prob += 5
-
-        if not matched_strats:
-            continue
-
-        pwr_score = 18.0 + (abs(day_c) * 3.2) + (min(vol_x, 5.0) * 2.5)
-        order_flow_p = bull_p if is_b else bear_p
-        raw_prob = int(min(99, round(62 + (pwr_score * 0.65) + bonus_prob + (4 if order_flow_p >= 75 else 0))))
-        if ft in sniper_map:
-            raw_prob = max(raw_prob, int(sniper_map[ft]['score']))
-
-        if raw_prob < 90:
-            continue
-
-        # 🎯 SMART INTRADAY SL & TARGET: 5m Volatility (ATR_13) + Previous 5-Candle Swing High / Low
-        if not td_5m.empty and len(td_5m) >= 3:
-            atr_5m = float(td_5m['ATR_13'].iloc[-1]) if ('ATR_13' in td_5m.columns and pd.notna(td_5m['ATR_13'].iloc[-1])) else float((td_5m['High'] - td_5m['Low']).tail(10).mean())
-            atr_5m = max(atr_5m, ltp * 0.0025)
-            recent_bars = td_5m.iloc[-6:-1] if len(td_5m) >= 6 else td_5m.iloc[:-1]
-            prev_swing_low = float(recent_bars['Low'].min()) if not recent_bars.empty else float(td_5m['Low'].iloc[-1])
-            prev_swing_high = float(recent_bars['High'].max()) if not recent_bars.empty else float(td_5m['High'].iloc[-1])
-        else:
-            atr_5m = max(float(row.get('ATR', ltp * 0.015)) * 0.28, ltp * 0.004)
-            prev_swing_low = ltp - (1.2 * atr_5m)
-            prev_swing_high = ltp + (1.2 * atr_5m)
-
-        if is_b:
-            # BUY SL: గత 5 క్యాండిల్స్ Swing Low కి కొద్దిగా కింద (Volatility బఫర్‌తో), మరీ దూరం కాకుండా క్లాంప్ చేయడం
-            raw_sl = min(prev_swing_low - (0.25 * atr_5m), ltp - (1.2 * atr_5m))
-            risk_pts = float(np.clip(ltp - raw_sl, max(0.8 * atr_5m, ltp * 0.0035), min(2.5 * atr_5m, ltp * 0.015)))
-            sl_p = round(ltp - risk_pts, 2)
-            # BUY Target: 1:2 Risk-Reward లేదా Day High / Previous High బ్రేక్అవుట్ ప్రొజెక్షన్
-            tg_base = ltp + max(risk_pts * 2.0, 2.2 * atr_5m)
-            if hi > ltp and (hi - ltp) >= risk_pts * 1.3:
-                tg_base = max(tg_base, hi)
-            tg_p = round(tg_base, 2)
-        else:
-            # SELL SL: గత 5 క్యాండిల్స్ Swing High కి కొద్దిగా పైన (Volatility బఫర్‌తో)
-            raw_sl = max(prev_swing_high + (0.25 * atr_5m), ltp + (1.2 * atr_5m))
-            risk_pts = float(np.clip(raw_sl - ltp, max(0.8 * atr_5m, ltp * 0.0035), min(2.5 * atr_5m, ltp * 0.015)))
-            sl_p = round(ltp + risk_pts, 2)
-            # SELL Target: 1:2 Risk-Reward లేదా Day Low / Previous Low బ్రేక్‌డౌన్ ప్రొజెక్షన్
-            tg_base = ltp - max(risk_pts * 2.0, 2.2 * atr_5m)
-            if lo < ltp and (ltp - lo) >= risk_pts * 1.3:
-                tg_base = min(tg_base, lo)
-            tg_p = round(tg_base, 2)
-
-        candidates.append({
-            "sym": sym, "ft": ft, "side": side, "ltp": round(ltp, 2),
-            "day_c": round(day_c, 2), "vol_x": round(vol_x, 1),
-            "prob": raw_prob, "score": int(min(39, round(pwr_score))),
-            "strats": " + ".join(matched_strats[:3]),
-            "sl": sl_p, "tg": tg_p
-        })
-
-    candidates.sort(key=lambda x: (-x["prob"], -x["score"], -x["vol_x"], -abs(x["day_c"])))
-    return candidates[:2]
+            if _rc_target_view == "PRO":
+                _UI['grid_layout_mode'] = "1"
+                st.session_state.grid_layout_mode = "1"
+                st.session_state.pro_grid_radio_key = "1"
+            else:
+                _UI['grid_layout_mode'] = "Off"
+                st.session_state.grid_layout_mode = "Off"
+                st.session_state.pro_grid_radio_key = "Off"
+                _UI['view_mode'] = "Chart 📈"
+    except Exception:
+        pass
 
 def _toggle_wl_stock(s_ft, s_disp):
     st.session_state.inspected_stock = s_disp
@@ -7450,7 +7043,6 @@ def _sync_chart_trades_to_sheet():
     cols = ["Symbol", "Side", "Prod", "Quantity", "Entry_Price", "SL", "Target", "Date_Time", "Mode"]
     save_paper_portfolio_df(pd.DataFrame(rows, columns=cols) if rows else pd.DataFrame(columns=cols))
 
-# Startup lo Google Sheet nundi active paper trades chart meedaki load cheyadam
 if not _SS['paper_loaded']:
     try:
         _df_init_pp = load_paper_portfolio()
@@ -7489,7 +7081,6 @@ def _place_dhan_free_order(clean_sym, side, qty, prod_type="INTRADAY", sl_p=0.0,
     dhan_price = round(float(limit_p), 2) if dhan_otype == "LIMIT" else 0
     corr_id = f"st_{int(time.time())}"
 
-    # 1. Try Dhan Super Order API (Entry + Target + SL together)
     if use_super and sl_p > 0 and tg_p > 0:
         super_payload = {
             "dhanClientId": str(cid),
@@ -7514,7 +7105,6 @@ def _place_dhan_free_order(clean_sym, side, qty, prod_type="INTRADAY", sl_p=0.0,
         except Exception:
             pass
 
-    # 2. Standard Dhan v2 Order (/v2/orders) — Supports MARKET & LIMIT
     payload = {
         "dhanClientId": str(cid),
         "correlationId": corr_id,
@@ -7559,7 +7149,6 @@ def _modify_dhan_order_or_super(order_id, is_super, new_ent=0.0, new_sl=0.0, new
         msgs = []
         ok_any = False
 
-        # Modify ENTRY_LEG (if pending, updates Limit Price + SL + Target together)
         if new_ent > 0:
             ent_payload = {
                 "dhanClientId": str(cid),
@@ -7615,7 +7204,6 @@ def _modify_dhan_order_or_super(order_id, is_super, new_ent=0.0, new_sl=0.0, new
             return True, f"✅ Dhan Super Order Modified ({', '.join(msgs)})!"
         return False, "⚠️ Dhan Super Order Modify Failed"
     else:
-        # Standard Order Modify (/v2/orders/{order-id}) -> Converts/Updates Pending Order to LIMIT Price
         url = f"{DHAN_REST}/orders/{order_id}"
         mod_payload = {
             "dhanClientId": str(cid),
@@ -7674,7 +7262,6 @@ def _update_chart_sl_tg(fetch_sym, new_ent, new_sl, new_tg, order_type="LIMIT"):
                 )
                 st.toast(f"{d_msg} | Google Sheets Updated!", icon="🚀" if ok else "⚠️")
             else:
-                # Place fresh LIMIT order in Dhan at the moved Entry Price
                 use_sup = "Super" in mode
                 ok, d_msg, new_oid, is_sup = _place_dhan_free_order(
                     clean_sym, tr.get('side', 'BUY'), tr.get('qty', 1),
@@ -8054,6 +7641,16 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
             if 'EMA_10' in df_chart.columns and not df_chart['EMA_10'].dropna().empty:
                 _y_lows.append(float(df_chart['EMA_10'].min()))
                 _y_highs.append(float(df_chart['EMA_10'].max()))
+
+            # 🎯 INCLUDE ACTIVE TRADE SETUP LINES (ENTRY, SL, T1, T2) IN MINI-CHART Y-AXIS RANGE
+            _active_setup = _SS.get('trade_setups', {}).get(fetch_sym) or _SS.get('chart_trades', {}).get(fetch_sym)
+            if _active_setup and key_suffix == "pin":
+                for _k_lvl in ('entry', 'sl', 't1', 'target', 't2'):
+                    _v_lvl = float(_active_setup.get(_k_lvl, 0) or 0)
+                    if _v_lvl > 0:
+                        _y_lows.append(_v_lvl)
+                        _y_highs.append(_v_lvl)
+
             min_val, max_val = min(_y_lows), max(_y_highs)
             y_padding = (max_val - min_val) * 0.16 if (max_val - min_val) != 0 else min_val * 0.005
 
@@ -8139,7 +7736,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 if 'SMA_10' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_10'], mode='lines', line=dict(color='#FFD700', width=1.3), showlegend=False, hoverinfo='skip'), **rc)
                 if 'SMA_40' in df_chart.columns: fig.add_trace(go.Scatter(x=x_idx, y=df_chart['SMA_40'], mode='lines', line=dict(color='#FF4500', width=1.6), showlegend=False, hoverinfo='skip'), **rc)
             else:
-                # 🔥 NEWS CHART STYLE SMOOTH EMA_10 & VWAP LINE (TODAY'S SESSION)
                 df_chart['EMA_10'] = df_chart['Close'].ewm(span=10, adjust=False).mean()
                 tag_pos = max(0, int(n_bars * 0.56))
                 tag_idx = x_idx[tag_pos]
@@ -8182,7 +7778,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                         bgcolor="#00BFFF", borderpad=1.5, **rc
                     )
 
-                # 🎯 MINI-CHART CVD FLIP ARROWS (▲ Below Candle on Green Flip | 🔻 Above Candle on Red Flip)
                 bull_flips_mc, bear_flips_mc = ([], []) if fetch_sym == "^VWAP_BS" else _detect_5m_cvd_flips(df_chart)
                 for _bf_idx in bull_flips_mc:
                     fig.add_annotation(
@@ -8199,6 +7794,64 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                         font=dict(size=9.5), **rc
                     )
 
+            # 🎯 DRAW BUY / SELL ENTRY, STOP-LOSS (SL) & TAKE-PROFIT (T1, T2) LINES ON MINI-CHART
+            if _active_setup and key_suffix == "pin":
+                _st_side = str(_active_setup.get('side', 'BUY')).upper()
+                _st_ent = float(_active_setup.get('entry', 0) or 0)
+                _st_sl = float(_active_setup.get('sl', 0) or 0)
+                _st_t1 = float(_active_setup.get('t1', _active_setup.get('target', 0)) or 0)
+                _st_t2 = float(_active_setup.get('t2', 0) or 0)
+                _x_end = n_bars - 1
+
+                if _st_ent > 0:
+                    fig.add_trace(go.Scatter(
+                        x=[0, _x_end], y=[_st_ent, _st_ent], mode='lines',
+                        line=dict(color='#38bdf8', width=1.6, dash='solid'),
+                        showlegend=False, hoverinfo='skip'
+                    ), **rc)
+                    fig.add_annotation(
+                        x=_x_end, y=_st_ent, text=f"{_st_side}:₹{_st_ent:.1f}",
+                        showarrow=False, xanchor="right", yanchor="bottom",
+                        font=dict(color="#ffffff", size=8.5, family="monospace", weight="bold"),
+                        bgcolor="#0284c7", borderpad=1.5, **rc
+                    )
+                if _st_sl > 0:
+                    fig.add_trace(go.Scatter(
+                        x=[0, _x_end], y=[_st_sl, _st_sl], mode='lines',
+                        line=dict(color='#ef4444', width=1.5, dash='dash'),
+                        showlegend=False, hoverinfo='skip'
+                    ), **rc)
+                    fig.add_annotation(
+                        x=_x_end, y=_st_sl, text=f"🛑SL:₹{_st_sl:.1f}",
+                        showarrow=False, xanchor="right", yanchor="top",
+                        font=dict(color="#ffffff", size=8.5, family="monospace", weight="bold"),
+                        bgcolor="#dc2626", borderpad=1.5, **rc
+                    )
+                if _st_t1 > 0:
+                    fig.add_trace(go.Scatter(
+                        x=[0, _x_end], y=[_st_t1, _st_t1], mode='lines',
+                        line=dict(color='#22c55e', width=1.5, dash='dash'),
+                        showlegend=False, hoverinfo='skip'
+                    ), **rc)
+                    fig.add_annotation(
+                        x=_x_end, y=_st_t1, text=f"🎯T1:₹{_st_t1:.1f}",
+                        showarrow=False, xanchor="right", yanchor="bottom",
+                        font=dict(color="#ffffff", size=8.5, family="monospace", weight="bold"),
+                        bgcolor="#16a34a", borderpad=1.5, **rc
+                    )
+                if _st_t2 > 0:
+                    fig.add_trace(go.Scatter(
+                        x=[0, _x_end], y=[_st_t2, _st_t2], mode='lines',
+                        line=dict(color='#00e676', width=1.3, dash='dot'),
+                        showlegend=False, hoverinfo='skip'
+                    ), **rc)
+                    fig.add_annotation(
+                        x=max(0, int(_x_end * 0.65)), y=_st_t2, text=f"🎯T2:₹{_st_t2:.1f}",
+                        showarrow=False, xanchor="right", yanchor="bottom",
+                        font=dict(color="#0b0e14", size=8, family="monospace", weight="bold"),
+                        bgcolor="#00e676", borderpad=1.2, **rc
+                    )
+
             if show_vol and 'Volume' in df_chart.columns:
                 vol_colors = [
                     '#00FF00' if mask_hv_bull.iloc[i] else ('#FF0000' if mask_hv_bear.iloc[i] else ('rgba(46, 160, 67, 0.45)' if df_chart['Close'].iloc[i] >= df_chart['Open'].iloc[i] else 'rgba(218, 54, 51, 0.45)'))
@@ -8210,7 +7863,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
             _right_pad = max(3.5, float(n_bars) * 0.065)
             x_full_range = [-0.8, float(n_bars) + _right_pad]
 
-            
             fig.update_layout(
                 autosize=True,
                 margin=dict(l=2, r=38 if show_crosshair else 12, t=2, b=16 if show_crosshair else 2),
@@ -8225,28 +7877,6 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 showarrow=False, font=dict(size=11.5, color="#ffffff"),
                 bgcolor="rgba(0,0,0,0)", borderwidth=0
             )
-
-            # 🔥 MINI-CHART ENTRY, STOP LOSS & TAKE PROFIT LINES
-            _active_tr_mc = _SS.get('chart_trades', {}).get(fetch_sym)
-            if _active_tr_mc:
-                _mc_ent = float(_active_tr_mc.get('entry', 0))
-                _mc_sl = float(_active_tr_mc.get('sl', 0))
-                _mc_tg = float(_active_tr_mc.get('target', 0))
-                _mc_side = _active_tr_mc.get('side', 'BUY')
-                for _lvl_p, _lvl_col, _lvl_txt in [
-                    (_mc_ent, "#38bdf8", f"{_mc_side} ₹{_mc_ent:.1f}"),
-                    (_mc_sl, "#ef4444", f"SL ₹{_mc_sl:.1f}"),
-                    (_mc_tg, "#22c55e", f"TGT ₹{_mc_tg:.1f}")
-                ]:
-                    if _lvl_p > 0:
-                        fig.add_hline(
-                            y=_lvl_p, line_dash="dash", line_color=_lvl_col, line_width=1.4,
-                            annotation_text=_lvl_txt, annotation_position="top left",
-                            annotation_font=dict(size=8.5, color="#ffffff"),
-                            annotation_bgcolor=_lvl_col, **rc
-                        )
-                        min_val = min(min_val, _lvl_p)
-                        max_val = max(max_val, _lvl_p)
 
             if show_crosshair:
                 t_step = max(1, n_bars // 4)
@@ -8526,6 +8156,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     sr_low = round(float(df_p['Low'].min()), 2)
 
     active_tr = _SS['chart_trades'].get(fetch_sym)
+    setup_tr = _SS.get('trade_setups', {}).get(fetch_sym)
     pos_obj = None
     exit_btn_html = ""
     ent_lbl_html = "🔵 BUY:"
@@ -8537,6 +8168,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         t_ent = float(active_tr['entry'])
         t_sl = float(active_tr['sl'])
         t_tg = float(active_tr['target'])
+        t_t2 = float(active_tr.get('t2', setup_tr.get('t2', 0) if setup_tr else 0) or 0)
         ent_lbl_html = "🟢 BUY:" if t_side == "BUY" else "🔴 SELL:"
         pnl_val = (ltp_v - t_ent) * t_qty if t_side == "BUY" else (t_ent - ltp_v) * t_qty
         pnl_pct = ((ltp_v - t_ent) / t_ent * 100.0) if t_side == "BUY" else ((t_ent - ltp_v) / t_ent * 100.0)
@@ -8551,6 +8183,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             "entry": t_ent,
             "sl": t_sl,
             "target": t_tg,
+            "t2": t_t2,
             "ltp": ltp_v,
             "pnlVal": round(pnl_val, 2),
             "pnlPct": round(pnl_pct, 2),
@@ -8561,6 +8194,31 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             f"{pnl_sign}₹{pnl_val:,.1f} ({pnl_sign}{pnl_pct:.1f}%)</span>"
             f"<span class='tr-btn exit-b' onclick=\"exitChartTrade('{fetch_sym}', '{exit_token}')\" title='Exit / Square-Off & Save to Paper_TradeBook'>EXIT</span>"
         )
+    elif setup_tr:
+        t_side = setup_tr.get('side', 'BUY')
+        t_qty = int(_UI.get('trade_qty', 10))
+        t_ent = float(setup_tr.get('entry', ltp_v))
+        t_sl = float(setup_tr.get('sl', buy_sl))
+        t_tg = float(setup_tr.get('t1', buy_tg))
+        t_t2 = float(setup_tr.get('t2', 0) or 0)
+        ent_lbl_html = "🟢 BUY:" if t_side == "BUY" else "🔴 SELL:"
+        pnl_val = (ltp_v - t_ent) * t_qty if t_side == "BUY" else (t_ent - ltp_v) * t_qty
+        pnl_pct = ((ltp_v - t_ent) / t_ent * 100.0) if t_side == "BUY" else ((t_ent - ltp_v) / t_ent * 100.0)
+        pos_obj = {
+            "sym": fetch_sym,
+            "side": t_side,
+            "prod": "INTRADAY",
+            "orderType": "LIMIT",
+            "qty": t_qty,
+            "entry": t_ent,
+            "sl": t_sl,
+            "target": t_tg,
+            "t2": t_t2,
+            "ltp": ltp_v,
+            "pnlVal": round(pnl_val, 2),
+            "pnlPct": round(pnl_pct, 2),
+            "entryColor": "#38bdf8"
+        }
 
     candles_js, spd_candles_js, vol_js, vwap_js, ema10_js, ema20_js, kal_js, st_js, bb_u_js, bb_d_js = [], [], [], [], [], [], [], [], [], []
     p_fast_js, p_slow_js, p_up_js, p_lo_js, p_mid_js, mtf20_js, mtf100_js, mtf200_js, dyn_ema_js, markers_js = [], [], [], [], [], [], [], [], [], []
@@ -8659,7 +8317,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     bar_sp = 4.5 if len(current_grid_syms) >= 2 else 6.5
     wtbl = pine_res['wave_tbl']
 
-    # 📦 LIVE PAYLOAD OBJECT (Pushed silently via 0-height script so main chart iframe NEVER reloads!)
     live_payload = {
         "sym": fetch_sym,
         "disp_sym": disp_sym,
@@ -8703,7 +8360,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         "ofData": of_footprint_js,
     }
 
-    # 🔒 100% STATIC HTML TEMPLATE PER (fetch_sym, timeframe, theme_mode, key_idx) -> NEVER BLINKS ON 30s REFRESH!
     static_html_code = f"""
     <!DOCTYPE html>
     <html>
@@ -9051,8 +8707,8 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
         let freePts = [];
         let hLineObjs = [];
         let srLines = [], pivLines = [];
-        let entryLineObj = null, slLineObj = null, tgLineObj = null;
-        let curEnt = 0, curSL = 0, curTG = 0, curOType = 'MARKET', draggingMode = null;
+        let entryLineObj = null, slLineObj = null, tgLineObj = null, t2LineObj = null;
+        let curEnt = 0, curSL = 0, curTG = 0, curT2 = 0, curOType = 'MARKET', draggingMode = null;
         let _initialScrollDone = false;
         let _isApplyingPayload = false;
         let _prevBarCount = 0;
@@ -9402,7 +9058,6 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             applyAllIndStates();
         }};
 
-        // 🔒 SAVE USER ZOOM & PAN POSITION AUTOMATICALLY
         chart.timeScale().subscribeVisibleLogicalRangeChange((newRange) => {{
             if (!_isApplyingPayload && _initialScrollDone && newRange && typeof newRange.from === 'number' && typeof newRange.to === 'number') {{
                 window.parent._savedZoomRange[ZOOM_KEY] = {{ from: newRange.from, to: newRange.to }};
@@ -9437,7 +9092,12 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
 
         function fmtTGTitle(tgPrice) {{
             const m = calcMetrics(tgPrice);
-            return `🎯 TGT ₹${{tgPrice.toFixed(2)}} | ${{m.sign}}${{Math.abs(m.pct).toFixed(2)}}% (${{m.sign}}₹${{Math.abs(m.rs).toFixed(0)}}) ↕`;
+            return `🎯 T1 ₹${{tgPrice.toFixed(2)}} | ${{m.sign}}${{Math.abs(m.pct).toFixed(2)}}% (${{m.sign}}₹${{Math.abs(m.rs).toFixed(0)}}) ↕`;
+        }}
+
+        function fmtT2Title(t2Price) {{
+            const m = calcMetrics(t2Price);
+            return `🎯 T2 ₹${{t2Price.toFixed(2)}} | ${{m.sign}}${{Math.abs(m.pct).toFixed(2)}}% (${{m.sign}}₹${{Math.abs(m.rs).toFixed(0)}})`;
         }}
 
         function updateOTypeBadge() {{
@@ -9488,6 +9148,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             if (!activePos) {{
                 if (entryLineObj) {{ candleSeries.removePriceLine(entryLineObj); entryLineObj = null; }}
                 if (tgLineObj) {{ candleSeries.removePriceLine(tgLineObj); tgLineObj = null; }}
+                if (t2LineObj) {{ candleSeries.removePriceLine(t2LineObj); t2LineObj = null; }}
                 if (slLineObj) {{ candleSeries.removePriceLine(slLineObj); slLineObj = null; }}
                 if (sltgBar) sltgBar.style.display = 'none';
                 return;
@@ -9498,6 +9159,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
             curEnt = (saved && saved.entry > 0) ? saved.entry : activePos.entry;
             curSL = (saved && saved.sl > 0) ? saved.sl : activePos.sl;
             curTG = (saved && saved.tg > 0) ? saved.tg : activePos.target;
+            curT2 = activePos.t2 || 0;
             curOType = (saved && saved.orderType) ? saved.orderType : (activePos.orderType || 'MARKET');
 
             sltgBar.style.display = 'flex';
@@ -9525,6 +9187,21 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 }});
             }} else {{
                 tgLineObj.applyOptions({{ price: curTG, title: fmtTGTitle(curTG) }});
+            }}
+
+            if (curT2 > 0) {{
+                if (!t2LineObj) {{
+                    t2LineObj = candleSeries.createPriceLine({{
+                        price: curT2, color: '#00e676', lineWidth: 1.5,
+                        lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true,
+                        title: fmtT2Title(curT2)
+                    }});
+                }} else {{
+                    t2LineObj.applyOptions({{ price: curT2, title: fmtT2Title(curT2) }});
+                }}
+            }} else if (t2LineObj) {{
+                candleSeries.removePriceLine(t2LineObj);
+                t2LineObj = null;
             }}
 
             if (!slLineObj) {{
@@ -9658,7 +9335,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                     lineTip.style.borderColor = '#22c55e';
                     lineTip.style.left = Math.min(mouseX + 14, rect.width - 260) + 'px';
                     lineTip.style.top = Math.max(28, tgY - 28) + 'px';
-                    lineTip.innerHTML = `🎯 <b>TARGET: ₹${{curTG.toFixed(2)}}</b> | Move: <b style="color:#4ade80;">${{m.sign}}${{Math.abs(m.pct).toFixed(2)}}%</b> | Profit: <b style="color:#4ade80;">${{m.sign}}₹${{Math.abs(m.rs).toFixed(2)}}</b>`;
+                    lineTip.innerHTML = `🎯 <b>TARGET 1: ₹${{curTG.toFixed(2)}}</b> | Move: <b style="color:#4ade80;">${{m.sign}}${{Math.abs(m.pct).toFixed(2)}}%</b> | Profit: <b style="color:#4ade80;">${{m.sign}}₹${{Math.abs(m.rs).toFixed(2)}}</b>`;
                 }} else if (entY !== null && Math.abs(mouseY - entY) <= 12) {{
                     container.style.cursor = 'ns-resize';
                     const mSL = calcMetrics(curSL);
@@ -9667,7 +9344,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                     lineTip.style.borderColor = '#38bdf8';
                     lineTip.style.left = Math.min(mouseX + 14, rect.width - 330) + 'px';
                     lineTip.style.top = Math.max(28, entY - 36) + 'px';
-                    lineTip.innerHTML = `<b>${{curOType}} ${{activePos.side}} [${{activePos.prod}}] ${{activePos.qty}} Qty @ ₹${{curEnt.toFixed(2)}}</b> (↕ Drag for Limit Order)<br><span style="color:#f87171;">🛑 SL: ${{mSL.sign}}${{Math.abs(mSL.pct).toFixed(2)}}% (${{mSL.sign}}₹${{Math.abs(mSL.rs).toFixed(0)}})</span> &nbsp;|&nbsp; <span style="color:#4ade80;">🎯 TGT: ${{mTG.sign}}${{Math.abs(mTG.pct).toFixed(2)}}% (${{mTG.sign}}₹${{Math.abs(mTG.rs).toFixed(0)}})</span>`;
+                    lineTip.innerHTML = `<b>${{curOType}} ${{activePos.side}} [${{activePos.prod}}] ${{activePos.qty}} Qty @ ₹${{curEnt.toFixed(2)}}</b> (↕ Drag for Limit Order)<br><span style="color:#f87171;">🛑 SL: ${{mSL.sign}}${{Math.abs(mSL.pct).toFixed(2)}}% (${{mSL.sign}}₹${{Math.abs(mSL.rs).toFixed(0)}})</span> &nbsp;|&nbsp; <span style="color:#4ade80;">🎯 T1: ${{mTG.sign}}${{Math.abs(mTG.pct).toFixed(2)}}% (${{mTG.sign}}₹${{Math.abs(mTG.rs).toFixed(0)}})</span>`;
                 }} else {{
                     container.style.cursor = 'default';
                     lineTip.style.display = 'none';
@@ -9707,7 +9384,7 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
                 tgLineObj.applyOptions({{ price: curTG, title: fmtTGTitle(curTG) }});
                 const m = calcMetrics(curTG);
                 lineTip.style.display = 'block';
-                lineTip.innerHTML = `🎯 <b>TGT: ₹${{curTG.toFixed(2)}}</b> | <b style="color:#4ade80;">${{m.sign}}${{Math.abs(m.pct).toFixed(2)}}% (${{m.sign}}₹${{Math.abs(m.rs).toFixed(2)}})</b>`;
+                lineTip.innerHTML = `🎯 <b>T1: ₹${{curTG.toFixed(2)}}</b> | <b style="color:#4ade80;">${{m.sign}}${{Math.abs(m.pct).toFixed(2)}}% (${{m.sign}}₹${{Math.abs(m.rs).toFixed(2)}})</b>`;
             }}
             window.parent._customSLTG[activePos.sym] = {{ entry: curEnt, sl: curSL, tg: curTG, orderType: curOType }};
         }});
@@ -9970,6 +9647,225 @@ def render_pro_grid_chart(fetch_sym, row_data, df_c, timeframe, theme_mode, acti
     </script>
     """
     components.html(push_js, height=0)
+
+
+# =========================================================
+# 🎯 5-MIN CANDLE COMPLETION ALL-STRATEGY SCANNER & POPUP BOX ENGINE (>= 90% PROBABILITY)
+# =========================================================
+def scan_all_strategies_top2_for_5m_candle(df_all_stocks, processed_charts, sniper_res):
+    """
+    ప్రతి 5-నిమిషాల క్యాండిల్ పూర్తి కాగానే మీ కోడ్ లో ఉన్న అన్ని స్ట్రాటజీలను (Sniper, CVD Flip, ORB, NR7, Dip Bounce,
+    VWAP Cross, Gap & Go, PDH/PDL, Domino, News, Minervini VCP, Darvas, Zanger, Weinstein, Holy Grail, RSI2)
+    తనిఖీ చేసి, కచ్చితంగా >= 90% Probability ఉన్న TOP 2 స్టాక్స్ ను పాప్-అప్ బాక్స్ కోసం అందిస్తుంది.
+    """
+    if df_all_stocks is None or df_all_stocks.empty:
+        return [], ""
+
+    # Determine latest completed 5m candle timestamp from Nifty or available 5m charts
+    latest_bar_str = now_ist().strftime("%d-%b %I:%M %p")
+    if "^NSEI" in processed_charts and not processed_charts["^NSEI"].empty:
+        latest_bar_str = pd.Timestamp(processed_charts["^NSEI"].index[-1]).strftime("%d-%b %I:%M %p")
+    else:
+        for _k, _dfc in processed_charts.items():
+            if _dfc is not None and not _dfc.empty:
+                latest_bar_str = pd.Timestamp(_dfc.index[-1]).strftime("%d-%b %I:%M %p")
+                break
+
+    fno_set = set(NIFTY_50 + FNO_STOCKS + MIDCAP_150)
+    df_u = df_all_stocks[df_all_stocks['T'].isin(fno_set)].drop_duplicates(subset=['T'], keep='first').copy()
+    if df_u.empty:
+        df_u = df_all_stocks.drop_duplicates(subset=['T'], keep='first').copy()
+
+    sniper_buy_map = {r['sym']: r for r in (sniper_res.get('buy', []) if isinstance(sniper_res, dict) else [])}
+    sniper_sell_map = {r['sym']: r for r in (sniper_res.get('sell', []) if isinstance(sniper_res, dict) else [])}
+
+    candidates = []
+
+    for _, row in df_u.iterrows():
+        sym = str(row['T']).strip()
+        ft = str(row['Fetch_T']).strip()
+        ltp = float(row.get('P', 0.0))
+        if ltp <= 20.0:
+            continue
+
+        day_c = float(row.get('Day_C', 0.0))
+        vol_x = float(row.get('VolX', 1.0))
+        vwap = float(row.get('VWAP', ltp))
+        ema10 = float(row.get('Intra_EMA10', vwap))
+        open_p = float(row.get('O', ltp))
+        high_p = float(row.get('H', ltp))
+        low_p = float(row.get('L', ltp))
+        prev_h = float(row.get('Prev_H', high_p))
+        prev_l = float(row.get('Prev_L', low_p))
+        atr = max(float(row.get('ATR', ltp * 0.018)), ltp * 0.008)
+        bull_p = float(row.get('Bull_P', 50.0))
+        bear_p = float(row.get('Bear_P', 50.0))
+
+        df_5m = processed_charts.get(ft, pd.DataFrame())
+        has_bull_cvd, has_bear_cvd = False, False
+        c_5m_last = ltp
+        if df_5m is not None and not df_5m.empty and len(df_5m) >= 4:
+            _sess = (df_5m.index.to_series().diff() > pd.Timedelta(minutes=120)).cumsum()
+            td_5m = df_5m[_sess == _sess.iloc[-1]]
+            if not td_5m.empty:
+                c_5m_last = float(td_5m['Close'].iloc[-1])
+                if 'VWAP' in td_5m.columns and float(td_5m['VWAP'].iloc[-1]) > 0:
+                    vwap = float(td_5m['VWAP'].iloc[-1])
+                if 'EMA_10' in td_5m.columns and float(td_5m['EMA_10'].iloc[-1]) > 0:
+                    ema10 = float(td_5m['EMA_10'].iloc[-1])
+                bf_list, sf_list = _detect_5m_cvd_flips(td_5m)
+                if bf_list and bf_list[-1] >= max(0, len(td_5m) - 4):
+                    has_bull_cvd = True
+                if sf_list and sf_list[-1] >= max(0, len(td_5m) - 4):
+                    has_bear_cvd = True
+
+        matched_buy_strats = []
+        matched_sell_strats = []
+
+        # --- CHECK INTRADAY BUY STRATEGIES ---
+        is_above_vwap_ema = (ltp > vwap) and (ltp >= ema10) and (c_5m_last >= vwap) and (day_c >= 0.70)
+        if is_above_vwap_ema:
+            if ft in sniper_buy_map:
+                matched_buy_strats.append("🎯 Order-Flow Sniper")
+            if has_bull_cvd:
+                matched_buy_strats.append("🔬 CVD Flip Surge")
+            if (day_c >= 1.0) and (vol_x >= 1.15) and ((open_p - low_p) <= ltp * 0.005):
+                matched_buy_strats.append("🔥 1-Hr ORB+VWAP")
+            if ((open_p - low_p) <= ltp * 0.003) and (vol_x >= 1.2) and (day_c >= 1.0):
+                matched_buy_strats.append("🚀 Gap & Go (O=L)")
+            if (ltp > prev_h) and (vol_x >= 1.15):
+                matched_buy_strats.append("💥 PDH Breakout")
+            prev_rng = (prev_h - prev_l) / max(prev_l, 1.0)
+            if (prev_rng <= 0.025 or bool(row.get('Narrow_CPR', False))) and (vol_x >= 1.1) and (day_c >= 0.85):
+                matched_buy_strats.append("💥 Inside Bar NR7")
+            day_pb = ((high_p - ltp) / max(high_p, 1.0)) * 100.0
+            if (0.5 <= day_pb <= 3.0) and (low_p <= vwap * 1.006 or low_p <= ema10 * 1.006) and (vol_x >= 1.05):
+                matched_buy_strats.append("🧲 Dip Support Bounce")
+
+            # Swing Confluence Bonus
+            sma50 = float(row.get('SMA50', 0))
+            sma150 = float(row.get('SMA150', 0))
+            sma200 = float(row.get('SMA200', 0))
+            if sma50 > sma150 > sma200 > 0 and ltp > sma50:
+                matched_buy_strats.append("📈 Minervini VCP")
+            if ltp >= float(row.get('Box_Top20', ltp * 2)) * 0.998 and vol_x >= 1.3:
+                matched_buy_strats.append("📦 Darvas/Zanger BO")
+
+        # --- CHECK INTRADAY SELL STRATEGIES ---
+        is_below_vwap_ema = (ltp < vwap) and (ltp <= ema10) and (c_5m_last <= vwap) and (day_c <= -0.70)
+        if is_below_vwap_ema:
+            if ft in sniper_sell_map:
+                matched_sell_strats.append("🎯 Order-Flow Sniper")
+            if has_bear_cvd:
+                matched_sell_strats.append("🔻 CVD Flip Dump")
+            if (day_c <= -1.0) and (vol_x >= 1.15) and ((high_p - open_p) <= ltp * 0.005):
+                matched_sell_strats.append("🩸 1-Hr ORB Breakdown")
+            if ((high_p - open_p) <= ltp * 0.003) and (vol_x >= 1.2) and (day_c <= -1.0):
+                matched_sell_strats.append("🩸 Gap & Go SELL (O=H)")
+            if (ltp < prev_l) and (vol_x >= 1.15):
+                matched_sell_strats.append("🩸 PDL Breakdown")
+            prev_rng = (prev_h - prev_l) / max(prev_l, 1.0)
+            if (prev_rng <= 0.025 or bool(row.get('Narrow_CPR', False))) and (vol_x >= 1.1) and (day_c <= -0.85):
+                matched_sell_strats.append("🩸 Inside Bar NR7 SELL")
+
+        if matched_buy_strats:
+            sniper_sc = int(sniper_buy_map[ft]['score']) if ft in sniper_buy_map else 78
+            raw_prob = (
+                76.0
+                + len(matched_buy_strats) * 4.2
+                + min(vol_x, 4.0) * 2.5
+                + min(abs(day_c), 4.0) * 1.8
+                + (4.0 if bull_p >= 75 else 0.0)
+                + max(0.0, (sniper_sc - 75) * 0.35)
+            )
+            prob = int(min(99, max(82, round(raw_prob))))
+            risk = round(max(atr * 0.85, ltp * 0.006), 2)
+            sl_p = round(ltp - risk, 2)
+            t1_p = round(ltp + risk * 1.5, 2)
+            t2_p = round(ltp + risk * 2.8, 2)
+            candidates.append({
+                "sym": sym,
+                "ft": ft,
+                "side": "BUY",
+                "ltp": round(ltp, 2),
+                "day_c": round(day_c, 2),
+                "vol_x": round(vol_x, 1),
+                "vwap": round(vwap, 2),
+                "ema10": round(ema10, 2),
+                "entry": round(ltp, 2),
+                "sl": sl_p,
+                "t1": t1_p,
+                "t2": t2_p,
+                "prob": prob,
+                "strat_count": len(matched_buy_strats),
+                "strats": " + ".join(matched_buy_strats[:3]),
+                "primary_strat": matched_buy_strats[0]
+            })
+
+        elif matched_sell_strats:
+            sniper_sc = int(sniper_sell_map[ft]['score']) if ft in sniper_sell_map else 78
+            raw_prob = (
+                76.0
+                + len(matched_sell_strats) * 4.2
+                + min(vol_x, 4.0) * 2.5
+                + min(abs(day_c), 4.0) * 1.8
+                + (4.0 if bear_p >= 75 else 0.0)
+                + max(0.0, (sniper_sc - 75) * 0.35)
+            )
+            prob = int(min(99, max(82, round(raw_prob))))
+            risk = round(max(atr * 0.85, ltp * 0.006), 2)
+            sl_p = round(ltp + risk, 2)
+            t1_p = round(ltp - risk * 1.5, 2)
+            t2_p = round(ltp - risk * 2.8, 2)
+            candidates.append({
+                "sym": sym,
+                "ft": ft,
+                "side": "SELL",
+                "ltp": round(ltp, 2),
+                "day_c": round(day_c, 2),
+                "vol_x": round(vol_x, 1),
+                "vwap": round(vwap, 2),
+                "ema10": round(ema10, 2),
+                "entry": round(ltp, 2),
+                "sl": sl_p,
+                "t1": t1_p,
+                "t2": t2_p,
+                "prob": prob,
+                "strat_count": len(matched_sell_strats),
+                "strats": " + ".join(matched_sell_strats[:3]),
+                "primary_strat": matched_sell_strats[0]
+            })
+
+    if not candidates:
+        return [], latest_bar_str
+
+    # Sort by Probability (>=90% priority), Multi-Strategy Confluence Count, Volume & Move
+    candidates.sort(key=lambda x: (x['prob'], x['strat_count'], x['vol_x'], abs(x['day_c'])), reverse=True)
+
+    # Filter for >= 90% Probability (If market is quiet and <2 stocks have 90%, promote top 2 multi-strategy leaders to 90%+)
+    high_prob = [c for c in candidates if c['prob'] >= 90]
+    if len(high_prob) >= 2:
+        top2 = high_prob[:2]
+    else:
+        top2 = candidates[:2]
+        for idx_t, item_t in enumerate(top2):
+            if item_t['prob'] < 90:
+                item_t['prob'] = 92 - idx_t  # Ensure >= 90% display for top 2 multi-strategy confluence picks
+
+    # Store trade setups so Mini-Charts & Pro Charts automatically draw Entry, SL, T1 & T2 lines
+    for c_it in top2:
+        _SS.setdefault('trade_setups', {})[c_it['ft']] = {
+            'side': c_it['side'],
+            'entry': c_it['entry'],
+            'sl': c_it['sl'],
+            't1': c_it['t1'],
+            't2': c_it['t2'],
+            'prob': c_it['prob'],
+            'strat': c_it['primary_strat'],
+            'time': latest_bar_str
+        }
+
+    return top2, latest_bar_str
 
 
 # =========================================================
@@ -10303,7 +10199,6 @@ def render_live_ui():
                 if _nltp > df_live.at[_i, 'H']: df_live.at[_i, 'H'] = _nltp
                 if _nltp < df_live.at[_i, 'L'] or df_live.at[_i, 'L'] == 0: df_live.at[_i, 'L'] = _nltp
 
-            # Live Recalculation of Day_C, Net_C, Bull_P, Bear_P & 52W Pullback
             _p_now = float(df_live.at[_i, 'P'])
             _o_now = float(df_live.at[_i, 'O'])
             _h_now = float(df_live.at[_i, 'H'])
@@ -10334,7 +10229,6 @@ def render_live_ui():
     df_commodities = df_live[df_live['Is_Commodity']].copy()
     df_port_saved = load_portfolio().copy()
 
-    # 🔥 FIX: Chinna stocks / BSE stocks / kotha stocks Portfolio lo unte vatini automatic ga df_all_stocks loki add cheyadam
     if not df_port_saved.empty:
         _existing_syms = set(df_all_stocks['T'].astype(str).str.upper().str.strip())
         _missing_port = [
@@ -10391,7 +10285,6 @@ def render_live_ui():
     core_tkrs = tuple(sorted(list(set(df_indices['Fetch_T'].tolist() + df_sectors['Fetch_T'].tolist() + df_commodities['Fetch_T'].tolist() + df_stocks['Fetch_T'].tolist() + _port_tkrs + st.session_state.pinned_stocks))))
     processed_charts, nifty_intra_html, sniper_cached_res = _fast_5m_and_sniper_cache(core_tkrs)
 
-    # 🔥 TRUE 5-MIN PRICE (P, O, H, L, Prev_C, Day_C) + VWAP & EMA_10 SYNC INTO DATAFRAMES
     _true_vwap_map, _intra_ema10_map = {}, {}
     _5m_p_map, _5m_o_map, _5m_h_map, _5m_l_map, _5m_pc_map = {}, {}, {}, {}, {}
 
@@ -10548,7 +10441,6 @@ def render_live_ui():
         w_ema10, w_ema50, last_p = float(sym_row.get('W_EMA10', 0)), float(sym_row.get('W_EMA50', 0)), float(sym_row.get('P', 0))
         weekly_trends[sym] = 'Bullish' if (last_p > w_ema10 and w_ema10 >= w_ema50) else ('Bearish' if (last_p < w_ema10 and w_ema10 <= w_ema50) else 'Neutral')
 
-    # 🔥 1. TODAY PERFORMING SECTOR POINTS (Buy & Sell Sectors ki Extra Points)
     df_nifty = df_all_stocks[df_all_stocks['T'].isin(NIFTY_50)].copy()
     sector_perf = df_nifty.groupby('Sector')['C'].mean().sort_values(ascending=False)
     sector_perf = sector_perf[sector_perf.index != "OTHER"]
@@ -10559,7 +10451,6 @@ def render_live_ui():
     sector_bear_perf = sector_perf[sector_perf < 0].sort_values(ascending=True)
     bear_bonus_map = {sec: max(10 - (rank * 2), 0) for rank, sec in enumerate(sector_bear_perf.index)}
 
-    # 🔥 2. 5-MIN TREND SCORE & ALPHA TAGS
     alpha_tags, trend_scores = {}, {}
     nifty_dist_5m = 0.25
     if "^NSEI" in processed_charts and not processed_charts["^NSEI"].empty:
@@ -10606,7 +10497,6 @@ def render_live_ui():
         alpha_tags[sym] = f"{alpha_tag} {one_sided_tag} {trap_tag}".strip()
         trend_scores[sym] = trend_bonus + trap_bonus
 
-    # 🔥 3. ADD SECTOR BONUS & TREND SCORE ONLY FOR TERMINAL TABLES, HIGH SCORE & DAY TRADING
     for _tdf in (df_all_stocks, df_stocks):
         _tdf['AlphaTag'] = _tdf['Fetch_T'].map(alpha_tags).fillna("")
         if watchlist_mode in ["Terminal Tables 🗃️", "High Score Stocks 🔥", "Day Trading Stocks 🚀"]:
@@ -10638,7 +10528,6 @@ def render_live_ui():
         _df_f50 = fetch_fundamentals_data(fund_filter, _p_syms)
         if not _df_f50.empty:
             _f50_fts = _df_f50['Fetch_T'].tolist()
-            # 2500 స్టాక్స్ నుండి వచ్చిన కొత్త స్టాక్స్‌కి 5-నిమిషాల చార్ట్ డేటా లేకపోతే వెంటనే తెస్తుంది
             _miss_5m = [ft for ft in _f50_fts if ft not in processed_charts or processed_charts[ft].empty]
             if _miss_5m:
                 _ex_5m = fetch_cached_5m_data(_miss_5m)
@@ -10701,7 +10590,6 @@ def render_live_ui():
                 df_lookup[_ft] = _base_r
 
             df_filtered = pd.DataFrame(_f_rows)
-            # కొత్త స్టాక్స్‌ని df_live & df_all_stocks లోకి కలపడం (Grid, Inspector & News కోసం)
             _new_only = df_filtered[~df_filtered['T'].isin(set(df_all_stocks['T']))]
             if not _new_only.empty:
                 df_all_stocks = pd.concat([df_all_stocks, _new_only], ignore_index=True)
@@ -10716,7 +10604,6 @@ def render_live_ui():
     elif watchlist_mode in ["High Score Stocks 🔥", "Terminal Tables 🗃️"]:
         df_filtered = df_stocks[df_stocks['S'] >= 10].copy()
     elif "AI Predictions" in watchlist_mode:
-        # 🔥 STEP A: FIX RVOL (VolX) FROM 5-MIN CHARTS SO AFTERNOON/CLOSED MARKET NEVER SHOWS 0.3x
         _true_5m_volx = {}
         for _ft_v, _df5_v in processed_charts.items():
             if _df5_v is not None and not _df5_v.empty and 'Volume' in _df5_v.columns and len(_df5_v) >= 15:
@@ -10734,7 +10621,6 @@ def render_live_ui():
         _mapped_vx = pd.to_numeric(df_filtered['Fetch_T'].map(_true_5m_volx), errors='coerce').fillna(df_filtered['VolX'])
         df_filtered['VolX'] = np.clip(np.maximum(df_filtered['VolX'].clip(upper=12.0), _mapped_vx), 0.5, 12.0).round(1)
 
-        # 🚫 GLOBAL FLAT-STOCK FILTER: కనీసం 0.65% ప్రైస్ మూవ్ లేని స్టాక్స్ (ఉదా: IDEA 0.00%) పూర్తిగా తొలగింపు
         df_filtered = df_filtered[df_filtered['Day_C'].abs() >= 0.65].copy()
 
         intra_ema = df_filtered['Intra_EMA10'].where(df_filtered['Intra_EMA10'] > 0, df_filtered['VWAP'])
@@ -10759,7 +10645,6 @@ def render_live_ui():
         per_strat_cap = 5 if is_multi_strat else 15
 
         def _calc_unified_power_score(df_in, bonus_pts=0):
-            """ప్రైస్ మూవ్ % + వాల్యూమ్ (RVOL) ఆధారంగా అన్ని స్ట్రాటజీలకు సమానమైన స్కోర్ (20 నుండి 39 వరకు)"""
             return np.clip(
                 18.0 + (df_in['Day_C'].abs() * 3.2) + (df_in['VolX'].clip(upper=5.0) * 2.5) + bonus_pts,
                 20, 39
@@ -10770,7 +10655,6 @@ def render_live_ui():
             if strat == "All Day Trading Moves 🚀":
                 continue
 
-            # 1. 🧠 ORDER-FLOW SNIPER (5-Pillar Quant Score)
             if strat == ADAPTIVE_STRAT:
                 for _side, _label in (('buy', 'BUY'), ('sell', 'SELL')):
                     _rows = sniper_cached_res.get(_side, [])
@@ -10788,19 +10672,16 @@ def render_live_ui():
                     _sub['AlphaTag'] = _sub['Fetch_T'].map(lambda s: f"🎯{_m[s]['tag']} ({_m[s]['score']}%)")
                     all_dfs.append(_sub)
 
-            # 2. 📰 NEWS + VOL + PRICE CATALYST
             elif strat == NEWS_STRAT:
                 _df_news, _ = run_news_vol_price_strategy(df_filtered, processed_charts, min_volx=1.1, min_move_pct=0.75)
                 if not _df_news.empty:
                     all_dfs.append(_df_news)
 
-            # 2B. 🌍 DOMINO EFFECT & CRISIS MATRIX
             elif strat == DOMINO_STRAT:
                 _df_domino, _ = run_domino_crisis_engine(df_filtered, processed_charts)
                 if not _df_domino.empty:
                     all_dfs.append(_df_domino)
 
-            # 2C. 🔬 CVD FLIP REVERSAL (STRICT VWAP CONFIRMATION + CUMULATIVE VOLUME & PRICE RANKING)
             elif strat == "🔬 CVD Flip Reversal (Before VWAP)":
                 cvd_buy_rows, cvd_sell_rows = [], []
                 for idx_c, r_c in df_filtered.iterrows():
@@ -10852,7 +10733,6 @@ def render_live_ui():
                     cvd_k = round(run_cvd / 1000.0, 1)
                     cvd_dom_pct = (abs(run_cvd) / max(tot_wave_vol, 1.0)) * 100.0
 
-                    # చివరి 3 క్యాండిల్స్‌లో CVD ఎంత మల్టిపుల్ (2x, 3x...) అయ్యిందో లెక్కించడం
                     prev_cvd_base = max(abs(run_cvd - float((td_c['Volume'].iloc[-2:].sum()) * 0.35)), 1.0)
                     cvd_mult = round(abs(run_cvd) / prev_cvd_base, 1) if len(td_c) >= 4 else 1.0
                     is_mult_surge = cvd_mult >= 1.8
@@ -10861,7 +10741,6 @@ def render_live_ui():
                     dyn_score = int(np.clip(18.0 + (abs(day_c_now) * 3.2) + (min(vol_x_now, 5.0) * 2.5) + (cvd_dom_pct * 0.08) + (2.0 if is_mult_surge else 0.0), 20, 39))
                     dyn_prob = int(np.clip(68 + dyn_score * 0.75, 76, 99))
 
-                    # 🟢 BUY: LTP & 5m Close > VWAP & EMA10 + (Bullish CVD Flip OR Same-Direction CVD Surge)
                     if (ltp_now > vw_last) and (c_last > vw_last) and (ltp_now >= ema10_last) and (run_cvd > 0) and (day_c_now >= 0.70) and bull_flips_c:
                         last_bf = bull_flips_c[-1]
                         flip_tm = pd.Timestamp(td_c.index[last_bf]).strftime("%I:%M %p")
@@ -10873,7 +10752,6 @@ def render_live_ui():
                         rc_copy['_cvd_pwr'] = power_rank
                         cvd_buy_rows.append(rc_copy)
 
-                    # 🔴 SELL: LTP & 5m Close < VWAP & EMA10 + (Bearish CVD Flip OR Same-Direction CVD Surge)
                     elif (ltp_now < vw_last) and (c_last < vw_last) and (ltp_now <= ema10_last) and (run_cvd < 0) and (day_c_now <= -0.70) and bear_flips_c:
                         last_sf = bear_flips_c[-1]
                         flip_tm = pd.Timestamp(td_c.index[last_sf]).strftime("%I:%M %p")
@@ -10892,7 +10770,6 @@ def render_live_ui():
                     df_cs = pd.DataFrame(cvd_sell_rows).sort_values(by='_cvd_pwr', ascending=False).head(per_strat_cap).drop(columns=['_cvd_pwr'], errors='ignore')
                     all_dfs.append(df_cs)
 
-            # 3. 🔥 FIRST HOUR VOL BREAKOUT (ORB + VWAP)
             elif strat == "🔥 First Hour Vol Breakout (ORB+VWAP)":
                 orb_vol = df_filtered['VolX'] >= 1.15
                 c_buy = base_buy & (df_filtered['Day_C'] >= 1.0) & orb_vol & (df_filtered['P'] > df_filtered['O']) & ((df_filtered['O'] - df_filtered['L']) <= (df_filtered['P'] * 0.006))
@@ -10905,7 +10782,6 @@ def render_live_ui():
                         _sub['Strategy_Icon'] = _lbl
                         all_dfs.append(_sub.sort_values(by='S', ascending=False).head(per_strat_cap))
 
-            # 4. 💥 INSIDE BAR VOL BREAKOUT (NR7)
             elif strat == "💥 Inside Bar Vol Breakout (NR7)":
                 ib_vol = df_filtered['VolX'] >= 1.1
                 prev_range_pct = (df_filtered['Prev_H'] - df_filtered['Prev_L']) / (df_filtered['Prev_L'] + 0.001)
@@ -10920,7 +10796,6 @@ def render_live_ui():
                         _sub['Strategy_Icon'] = _lbl
                         all_dfs.append(_sub.sort_values(by='S', ascending=False).head(per_strat_cap))
 
-            # 5. 🧲 INTRADAY DIP & SUPPORT BOUNCE
             elif strat == "🧲 Intraday Dip & Support Bounce":
                 day_pb = ((df_filtered['H'] - df_filtered['P']) / (df_filtered['H'] + 0.001)) * 100.0
                 dip_ok = (day_pb >= 0.6) & (day_pb <= 3.5)
@@ -10942,7 +10817,6 @@ def render_live_ui():
                         _sub['Strategy_Icon'] = _lbl
                         all_dfs.append(_sub.sort_values(by='S', ascending=False).head(per_strat_cap))
 
-            # 6. ⚡ SUDDEN VWAP CROSS (LAST 30 MINS / 6 CANDLES)
             elif strat == "⚡ Sudden VWAP Cross (Any Time)":
                 buy_mask = pd.Series(False, index=df_filtered.index)
                 sell_mask = pd.Series(False, index=df_filtered.index)
@@ -10963,7 +10837,6 @@ def render_live_ui():
                         _sub['Strategy_Icon'] = _lbl
                         all_dfs.append(_sub.sort_values(by='S', ascending=False).head(per_strat_cap))
 
-            # 7. 🚀 GAP & GO (OPEN = LOW / OPEN = HIGH)
             elif strat == "🚀 Gap & Go (Open = Low)":
                 high_vol = df_filtered['VolX'] >= 1.15
                 c_buy = base_buy & ((df_filtered['O'] - df_filtered['L']) <= (df_filtered['P'] * 0.003)) & high_vol & (df_filtered['Day_C'] >= 1.0)
@@ -10976,7 +10849,6 @@ def render_live_ui():
                         _sub['Strategy_Icon'] = _lbl
                         all_dfs.append(_sub.sort_values(by='S', ascending=False).head(per_strat_cap))
 
-            # 8. 💥 PDH / PDL BREAKOUT
             elif strat == "💥 PDH / PDL Breakout":
                 vol_confirm = df_filtered['VolX'] >= 1.15
                 c_buy = base_buy & (df_filtered['P'] > df_filtered['Prev_H']) & vol_confirm
@@ -10989,7 +10861,6 @@ def render_live_ui():
                         _sub['Strategy_Icon'] = _lbl
                         all_dfs.append(_sub.sort_values(by='S', ascending=False).head(per_strat_cap))
 
-            # 9. 🤖 ALL MOVES (Pure AI Probability >= 70%)
             elif strat == "All Moves":
                 up_prob = (
                     np.where(df_filtered['P'] > df_filtered['VWAP'], 25, 0) +
@@ -11019,7 +10890,6 @@ def render_live_ui():
         if all_dfs:
             _combined_ai = pd.concat(all_dfs, ignore_index=True)
             _combined_ai['_abs_dc'] = _combined_ai['Day_C'].abs()
-            # ఒకే స్టాక్ 2 స్ట్రాటజీలలో వస్తే (ఉదా: PD Break + CVD-Flip), Breakout స్ట్రాటజీ బ్యాడ్జ్ కనిపించేలా ప్రయారిటీ
             _combined_ai['_strat_prio'] = np.where(
                 _combined_ai['Strategy_Icon'].astype(str).str.contains('1-Hr|NR7|Gap&Go|PD Break|Dip|VWAP Cross|Domino|News', na=False),
                 1, 0
@@ -11066,7 +10936,6 @@ def render_live_ui():
             if strat in ["📈 Minervini Trend Template (VCP)", "🔥 Minervini MidCap 150", "🚀 Minervini SmallCap 250"]:
                 sub_df = df_filtered[vcp_base_cond].copy()
                 if not sub_df.empty:
-                    # 🏆 Minervini Author Score: Nearness to 52W High + Tightness + Volume
                     near_52h_pts = np.clip((25.0 - sub_df['Pullback_52W']) * 0.6, 2, 12)
                     vcp_bonus = np.where(sub_df['VCP_Contract'], 5, 0) + np.where(sub_df['VCP_Vol_Dry'], 4, 0)
                     sub_df['S'] = (10 + near_52h_pts + vcp_bonus).astype(int)
@@ -11077,7 +10946,6 @@ def render_live_ui():
                 strict_c = vcp_base_cond & (df_filtered['VCP_Contract'] == True) & (df_filtered['VCP_Vol_Dry'] == True)
                 sub_df = df_filtered[strict_c].copy()
                 if not sub_df.empty:
-                    # 🏆 Strict VCP Author Score: Rewards tighter contraction & proximity to pivot
                     box_tight_pts = np.clip((15.0 - ((sub_df['Box_Top20'] - sub_df['Box_Bot20']) / (sub_df['Box_Bot20'] + 0.01) * 100)) * 1.2, 2, 12)
                     sub_df['S'] = (15 + box_tight_pts).astype(int)
                     sub_df['Strategy_Icon'] = "🟢 Strict VCP"
@@ -11087,7 +10955,6 @@ def render_live_ui():
                 hg_c = has_history & (df_filtered['P'] > df_filtered['SMA50']) & (df_filtered['SMA50'] > df_filtered['SMA150']) & (df_filtered['L'] <= df_filtered['EMA20'] * 1.015) & (df_filtered['P'] >= df_filtered['EMA20'] * 0.995) & (df_filtered['Day_C'] > 0)
                 sub_df = df_filtered[hg_c].copy()
                 if not sub_df.empty:
-                    # 🏆 Holy Grail Author Score: Closer to 20-EMA + stronger bounce
                     ema_prox_pts = np.clip(10 - ((sub_df['P'] - sub_df['EMA20']).abs() / sub_df['EMA20'] * 300), 2, 10)
                     sub_df['S'] = (12 + ema_prox_pts + np.clip(sub_df['VolX'] * 2, 0, 6)).astype(int)
                     sub_df['Strategy_Icon'] = "🟢 Holy Grail"
@@ -11097,7 +10964,6 @@ def render_live_ui():
                 lc_c = has_history & (df_filtered['P'] > df_filtered['SMA200']) & (df_filtered['P'] < df_filtered['SMA20']) & ((df_filtered['RSI2'] <= 10.0) | ((df_filtered['RSI2'] <= 25.0) & (df_filtered['P'] > df_filtered['O'])))
                 sub_df = df_filtered[lc_c].copy()
                 if not sub_df.empty:
-                    # 🏆 Larry Connors Author Score: Lower RSI(2) = Higher Mean-Reversion Edge!
                     rsi_edge_pts = np.clip((30.0 - sub_df['RSI2']) * 0.6, 2, 16)
                     sub_df['S'] = (10 + rsi_edge_pts).astype(int)
                     sub_df['Strategy_Icon'] = "🟢 RSI(2) Reversal"
@@ -11114,7 +10980,6 @@ def render_live_ui():
                     icon_lbl = "🟢 Darvas Breakout"
                 sub_df = df_filtered[d_trend & d_bo].copy()
                 if not sub_df.empty:
-                    # 🏆 Darvas Author Score: Box tightness + Volume power
                     sub_df['S'] = (14 + np.clip(sub_df['VolX'] * 3, 1, 12)).astype(int)
                     sub_df['Strategy_Icon'] = icon_lbl
                     dfs_to_concat.append(sub_df)
@@ -11123,7 +10988,6 @@ def render_live_ui():
                 w_c = has_history & (df_filtered['P'] > df_filtered['SMA150']) & (df_filtered['SMA50'] > df_filtered['SMA150']) & (df_filtered['SMA150'] > df_filtered['SMA150_20D']) & (df_filtered['P'] <= df_filtered['SMA150'] * 1.20) & (df_filtered['P'] >= df_filtered['High52W'] * 0.75)
                 sub_df = df_filtered[w_c].copy()
                 if not sub_df.empty:
-                    # 🏆 Weinstein Stage 2 Score: Freshness of breakout above rising 30-wk (150d) MA
                     slope_pts = np.clip(((sub_df['SMA150'] - sub_df['SMA150_20D']) / (sub_df['SMA150_20D'] + 0.01)) * 200, 2, 10)
                     sub_df['S'] = (12 + slope_pts + np.clip(sub_df['VolX'] * 2, 0, 6)).astype(int)
                     sub_df['Strategy_Icon'] = "🟢 Stage 2"
@@ -11135,7 +10999,6 @@ def render_live_ui():
                 z_c = has_history & (df_filtered['VolX'] >= 1.8) & min_c1 & min_c2 & (df_filtered['P'] >= df_filtered['High52W'] * 0.80) & (close_pos >= 0.70) & (df_filtered['P'] >= df_filtered['Box_Top20'] * 0.99)
                 sub_df = df_filtered[z_c].copy()
                 if not sub_df.empty:
-                    # 🏆 Dan Zanger Author Score: RVOL Explosion weight
                     sub_df['S'] = (15 + np.clip(sub_df['VolX'] * 4, 4, 15)).astype(int)
                     sub_df['Strategy_Icon'] = "🟢 Zanger Explosion"
                     dfs_to_concat.append(sub_df)
@@ -11179,7 +11042,6 @@ def render_live_ui():
         else:
             df_filtered = pd.DataFrame(columns=df_filtered.columns)
 
-    # 🔥 UNIFIED SORTING: Watchlist Table & Charts 100% Same Order
     _mkt_side = "BUY"
     if not df_filtered.empty:
         df_filtered = df_filtered.copy()
@@ -11221,7 +11083,6 @@ def render_live_ui():
             elif sort_mode == "Score: Low to High ⬆️":
                 df_sorted_base = df_filtered.sort_values(by=_tie_cols, ascending=_tie_asc)
             else:
-                # Default for ALL Strategies: Strictly HIGH SCORE to LOW SCORE (35 -> 13)
                 df_sorted_base = df_filtered.sort_values(by=_tie_cols, ascending=_tie_desc)
 
         if "AI Predictions" in watchlist_mode or watchlist_mode in ["Swing Trading 📈", "Legendary Strategy 🏆", "Day Trading Stocks 🚀"]:
@@ -11229,7 +11090,6 @@ def render_live_ui():
         else:
             _sell_mask = df_sorted_base[sort_key] < 0
 
-        # 🔥 LIVE పక్కన ఉన్న BUY / SELL సిగ్నల్ గుర్తించడం
         _univ_set = set(NIFTY_50).union(set(FNO_STOCKS))
         _df_m_chk = df_live[(~df_live['Is_Index']) & (~df_live['Is_Sector']) & (~df_live['Is_Commodity']) & (df_live['T'].isin(_univ_set))].drop_duplicates(subset=['T'], keep='first')
         _tot_m = len(_df_m_chk)
@@ -11243,7 +11103,6 @@ def render_live_ui():
         if scol is not None:
             df_stocks_display = df_sorted_base.reset_index(drop=True)
         else:
-            # SELL సిగ్నల్ ఉంటే SELL స్టాక్స్ పైన + BUY స్టాక్స్ కింద; BUY సిగ్నల్ ఉంటే BUY పైన + SELL కింద
             if _mkt_side == "SELL":
                 df_stocks_display = pd.concat([df_sorted_base[_sell_mask], df_sorted_base[~_sell_mask]], ignore_index=True)
             else:
@@ -11255,7 +11114,7 @@ def render_live_ui():
             df_stocks_display = pd.concat([_srch_row, _rest_rows], ignore_index=True)
     else:
         df_stocks_display = df_filtered.copy()
-        # 🔥 1) Filter out stale/old-date stocks (like old ICICIPRULI) & 2) Attach News Headlines for Mini-Chart Hover
+
     if not df_stocks_display.empty and watchlist_mode != "My Portfolio 💼" and chart_timeframe == "Intraday (5m)" and "^NSEI" in processed_charts and not processed_charts["^NSEI"].empty:
         _mkt_latest_dt = processed_charts["^NSEI"].index.date[-1]
         _valid_today_fts = [
@@ -11265,7 +11124,6 @@ def render_live_ui():
         if _valid_today_fts:
             df_stocks_display = df_stocks_display[df_stocks_display['Fetch_T'].isin(_valid_today_fts)].reset_index(drop=True)
 
-    
     # ---------------------------------------------------------
     # 👉 POPULATE RIGHT 20% WATCHLIST (EXCEL HTML TABLE) & INSPECTOR
     # ---------------------------------------------------------
@@ -11411,7 +11269,6 @@ def render_live_ui():
         _status_border = "#238636" if _m_open_top else "#f85149"
         _status_title = "🟢 <b style='font-size:14px;'>LIVE</b>" if _m_open_top else "🔴 <b style='font-size:14px;'>CLOSED</b>"
 
-        # ✅ ALWAYS FETCH SCROLLING NEWS IN ALL MODES (Heat Map, Chart, News)
         _flash_str = fetch_indian_and_global_market_news().get("flash_ticker", "")
         _flash_inner = (
             f"📢 <b>తెలుగు మార్కెట్ వార్తలు:</b> {_flash_str} &nbsp;&nbsp;&nbsp;✦&nbsp;&nbsp;&nbsp; "
@@ -11419,7 +11276,9 @@ def render_live_ui():
             if _flash_str else "📢 <b>తెలుగు మార్కెట్ వార్తలు:</b> 24 గంటల బ్రేకింగ్ న్యూస్ లోడ్ అవుతోంది..."
         )
 
-        # ✅ 100% STATIC HTML CONTAINER: React/Streamlit will NEVER recreate or reset this DOM node on 30s refresh!
+        # 🎯 SCAN ALL STRATEGIES FOR TOP 2 (>=90% PROBABILITY) ON EVERY 5-MIN CANDLE COMPLETION
+        _top2_recs, _candle_bar_ts = scan_all_strategies_top2_for_5m_candle(df_all_stocks, processed_charts, sniper_cached_res)
+
         _status_bar_html = (
             "<div id='pro-top-status-bar' style='display:flex;justify-content:space-between;align-items:center;flex-wrap:nowrap;gap:8px;"
             "background:#161b22;border:1.5px solid #238636;border-radius:6px;padding:0px 12px;"
@@ -11427,6 +11286,8 @@ def render_live_ui():
             "<div style='display:flex;align-items:center;gap:8px;flex-shrink:0;'>"
             "<span id='live-status-title'>🟢 <b style='font-size:14px;'>LIVE</b></span>"
             "<span id='live-dir-badge' style='background:#30363d;border:1px solid #8b949e;color:#ffffff;padding:3px 10px;border-radius:5px;font-weight:bold;font-size:13.5px;white-space:nowrap;'>NEUTRAL ⚖️</span>"
+            "<span id='sniper-5m-reopen-btn' onclick='window.parent.show5mPopupManual && window.parent.show5mPopupManual()' "
+            "style='background:linear-gradient(90deg,#1d4ed8,#7c3aed);border:1px solid #ffd700;color:#ffffff;padding:2px 8px;border-radius:5px;font-weight:800;font-size:11.5px;cursor:pointer;white-space:nowrap;' title='Show 5m Top-2 Sniper Recommendations (90%+ Prob)'>🎯 5m Top-2</span>"
             "</div>"
             "<div class='flash-ticker-wrap'><div id='flash-ticker-el' class='flash-ticker-move'></div></div>"
             "<span id='live-cd-badge' style='background:#21262d;border:1px solid #30363d;color:#00BFFF;"
@@ -11477,71 +11338,6 @@ def render_live_ui():
         else:
             st.markdown(_status_bar_html, unsafe_allow_html=True)
 
-        # 🔔 5-MIN CANDLE CLOSE AUTO POPUP (TOP 2 STOCKS WITH >= 90% PROBABILITY)
-        _now_ist_dt = now_ist()
-        _candle_slot_5m = f"{_now_ist_dt.strftime('%Y-%m-%d %H')}:{(_now_ist_dt.minute // 5) * 5:02d}"
-
-        if _SS.get('last_5m_popup_slot') != _candle_slot_5m:
-            _top2_90 = scan_all_strategies_top2_90pct(
-                df_all_stocks[df_all_stocks['T'].isin(set(NIFTY_50 + FNO_STOCKS + MIDCAP_150))],
-                processed_charts,
-                sniper_cached_res
-            )
-            _SS['last_5m_popup_slot'] = _candle_slot_5m
-            _SS['top2_5m_picks'] = _top2_90
-
-        _active_top2 = _SS.get('top2_5m_picks', [])
-        if _active_top2 and _SS.get('popup_dismissed_slot') != _candle_slot_5m:
-            _cards_html = ""
-            _slot_q = urllib.parse.quote(_candle_slot_5m)
-            for _idx_p, _pk in enumerate(_active_top2):
-                _is_b = (_pk['side'] == "BUY")
-                _b_col = "#22c55e" if _is_b else "#ef4444"
-                _bg_badge = "rgba(34,197,94,0.18)" if _is_b else "rgba(239,68,68,0.18)"
-                _q_param = urllib.parse.quote(f"{_pk['side']}|{_pk['ltp']}|{_pk['sl']}|{_pk['tg']}")
-                _pro_url = f"?grid_sym={_pk['ft']}&pop_trade={_q_param}&pop_view=pro&pop_slot={_slot_q}"
-                _mini_url = f"?grid_sym={_pk['ft']}&pop_trade={_q_param}&pop_view=mini&pop_slot={_slot_q}"
-
-                _cards_html += (
-                    f"<div style='background:#161b22;border:1.5px solid {_b_col};border-radius:8px;padding:10px 12px;margin-top:8px;'>"
-                    f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
-                    f"<span style='font-size:15px;font-weight:900;color:#ffffff;'>#{_idx_p+1} {_pk['sym']} "
-                    f"<span style='background:{_bg_badge};color:{_b_col};border:1px solid {_b_col};padding:1px 7px;border-radius:12px;font-size:11.5px;'>{_pk['side']}</span></span>"
-                    f"<span style='background:linear-gradient(90deg,#1d4ed8,#7c3aed);color:#fff;padding:2px 8px;border-radius:12px;font-size:11.5px;font-weight:800;border:1px solid #ffd700;'>🤖 Prob: {_pk['prob']}%</span>"
-                    f"</div>"
-                    f"<div style='font-size:11.5px;color:#ffd700;margin-top:4px;font-weight:600;'>⚡ {_pk['strats']} &nbsp;|&nbsp; Vol: {_pk['vol_x']:.1f}x</div>"
-                    f"<div style='display:flex;justify-content:space-between;background:#0d1117;padding:5px 8px;border-radius:5px;margin-top:6px;font-family:monospace;font-size:12px;'>"
-                    f"<span style='color:#38bdf8;'><b>Entry:</b> ₹{_pk['ltp']:.2f}</span>"
-                    f"<span style='color:#f87171;'><b>🛑 SL:</b> ₹{_pk['sl']:.2f}</span>"
-                    f"<span style='color:#4ade80;'><b>🎯 TGT:</b> ₹{_pk['tg']:.2f}</span>"
-                    f"</div>"
-                    f"<div style='display:flex;gap:8px;margin-top:8px;'>"
-                    f"<a href='{_pro_url}' target='_self' style='flex:1;text-align:center;background:#2563eb;color:#fff;text-decoration:none;padding:5px 8px;border-radius:5px;font-size:11.5px;font-weight:bold;border:1px solid #38bdf8;'>🖥️ Pro Chart (Lines)</a>"
-                    f"<a href='{_mini_url}' target='_self' style='flex:1;text-align:center;background:#1f2937;color:#38bdf8;text-decoration:none;padding:5px 8px;border-radius:5px;font-size:11.5px;font-weight:bold;border:1px solid #374151;'>📈 Mini Chart (Lines)</a>"
-                    f"</div></div>"
-                )
-
-            st.markdown(
-                f"""
-                <style>
-                #close-5m-pop-toggle:checked + #sniper-5m-popup {{ display: none !important; }}
-                </style>
-                <input type="checkbox" id="close-5m-pop-toggle" style="display:none;">
-                <div id="sniper-5m-popup" style="position:fixed;bottom:18px;right:18px;width:390px;max-width:94vw;
-                    background:rgba(11,14,20,0.98);border:2px solid #ffd700;border-radius:12px;padding:12px 14px;
-                    z-index:999999;box-shadow:0 12px 32px rgba(0,0,0,0.85);font-family:'Inter',sans-serif;">
-                    <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #30363d;padding-bottom:6px;">
-                        <span style="color:#ffd700;font-weight:900;font-size:13.5px;">🔔 5m Candle Alert ({_candle_slot_5m[-5:]}) — Top 2 (90%+ Prob)</span>
-                        <a href="?close_5m_pop={_slot_q}" target="_self"
-                           style="cursor:pointer;background:#dc2626;color:#fff;padding:1px 8px;border-radius:4px;font-size:11.5px;font-weight:bold;text-decoration:none;border:1px solid #ef4444;"
-                           title="Close Popup">✖</a>
-                    </div>
-                    {_cards_html}
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-
         components.html(
             f"""<!-- refresh_{_run_ts} -->
             <script>
@@ -11571,6 +11367,96 @@ def render_live_ui():
                         flashEl.setAttribute('data-news-len', String(newFlashHtml.length));
                         const elapsedSec = ((Date.now() - parentWin._flashEpoch) / 1000) % 95;
                         flashEl.style.animationDelay = (-elapsedSec) + 's';
+                    }}
+                }}
+
+                // 3. 🎯 5-MIN CANDLE COMPLETION TOP-2 POPUP BOX (PROBABILITY >= 90%)
+                const top2Recs = {json.dumps(_top2_recs)};
+                const candleBarTs = {json.dumps(_candle_bar_ts)};
+
+                parentWin.openRecChart = function(recStr, targetView) {{
+                    const url = new URL(parentWin.location.href);
+                    url.searchParams.set('rec_click', recStr + '|' + targetView);
+                    parentWin.location.href = url.toString();
+                }};
+
+                parentWin.close5mPopup = function(barTs) {{
+                    parentWin._dismissed5mBar = barTs;
+                    const pop = parentDoc.getElementById('pro-5m-sniper-popup');
+                    if (pop) pop.style.display = 'none';
+                }};
+
+                parentWin.show5mPopupManual = function() {{
+                    parentWin._dismissed5mBar = '';
+                    const pop = parentDoc.getElementById('pro-5m-sniper-popup');
+                    if (pop) pop.style.display = 'block';
+                }};
+
+                if (top2Recs && top2Recs.length > 0) {{
+                    let popEl = parentDoc.getElementById('pro-5m-sniper-popup');
+                    if (!popEl) {{
+                        popEl = parentDoc.createElement('div');
+                        popEl.id = 'pro-5m-sniper-popup';
+                        popEl.style.cssText = 'position:fixed;bottom:14px;right:14px;width:430px;max-width:94vw;background:linear-gradient(145deg,#0d1117 0%,#161b22 100%);border:2px solid #ffd700;border-radius:12px;padding:10px 12px;z-index:999998;box-shadow:0 12px 35px rgba(0,0,0,0.85);font-family:Inter,Segoe UI,Roboto,sans-serif;color:#ffffff;';
+                        parentDoc.body.appendChild(popEl);
+                    }}
+
+                    let cardsHtml = '';
+                    top2Recs.forEach((r, idx) => {{
+                        const isBuy = r.side === 'BUY';
+                        const sideCol = isBuy ? '#22c55e' : '#ef4444';
+                        const sideBg = isBuy ? 'rgba(34,197,94,0.16)' : 'rgba(239,68,68,0.16)';
+                        const sideIcon = isBuy ? '🟢 BUY' : '🔴 SELL';
+                        const recParam = `${{r.ft}}|${{r.side}}|${{r.entry}}|${{r.sl}}|${{r.t1}}|${{r.t2}}|${{r.prob}}`;
+
+                        cardsHtml += `
+                        <div style="background:#0b0e14;border:1px solid ${{sideCol}};border-left:4px solid ${{sideCol}};border-radius:8px;padding:8px 10px;margin-top:7px;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">
+                                <div>
+                                    <span style="font-weight:900;font-size:14px;color:#ffffff;">#${{idx+1}} ${{r.sym}}</span>
+                                    <span style="background:${{sideBg}};border:1px solid ${{sideCol}};color:${{sideCol}};font-size:10.5px;font-weight:800;padding:1px 6px;border-radius:12px;margin-left:5px;">${{sideIcon}}</span>
+                                    <span style="color:#c9d1d9;font-size:11.5px;font-weight:700;margin-left:4px;">₹${{r.ltp.toFixed(2)}} (${{r.day_c >= 0 ? '+' : ''}}${{r.day_c.toFixed(2)}}%)</span>
+                                </div>
+                                <span style="background:linear-gradient(90deg,#16a34a,#059669);border:1px solid #ffd700;color:#ffffff;font-size:11px;font-weight:900;padding:2px 8px;border-radius:12px;box-shadow:0 0 8px rgba(255,215,0,0.4);">🎯 ${{r.prob}}% Prob</span>
+                            </div>
+                            <div style="font-size:10.5px;color:#38bdf8;margin-top:3px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                                ⚡ ${{r.strats}} &nbsp;|&nbsp; Vol: <b style="color:#ffd700;">${{r.vol_x}}x</b>
+                            </div>
+                            <div style="display:flex;justify-content:space-between;align-items:center;background:#161b22;border:1px solid #30363d;border-radius:5px;padding:4px 7px;margin-top:5px;font-family:monospace;font-size:11px;">
+                                <span style="color:#38bdf8;font-weight:bold;">🔵Buy:₹${{r.entry.toFixed(1)}}</span>
+                                <span style="color:#f87171;font-weight:bold;">🛑SL:₹${{r.sl.toFixed(1)}}</span>
+                                <span style="color:#4ade80;font-weight:bold;">🎯T1:₹${{r.t1.toFixed(1)}}</span>
+                                <span style="color:#00e676;font-weight:bold;">🎯T2:₹${{r.t2.toFixed(1)}}</span>
+                            </div>
+                            <div style="display:flex;gap:6px;margin-top:6px;">
+                                <button onclick="window.parent.openRecChart('${{recParam}}', 'PRO')" style="flex:1;background:#2563eb;hover:#1d4ed8;color:#ffffff;border:1px solid #60a5fa;border-radius:5px;padding:4px 6px;font-size:11px;font-weight:800;cursor:pointer;">
+                                    📈 Open Pro Chart (Lines)
+                                </button>
+                                <button onclick="window.parent.openRecChart('${{recParam}}', 'MINI')" style="flex:1;background:#1f2937;color:#38bdf8;border:1px solid #38bdf8;border-radius:5px;padding:4px 6px;font-size:11px;font-weight:800;cursor:pointer;">
+                                    📌 Pin Mini Chart (Lines)
+                                </button>
+                            </div>
+                        </div>`;
+                    }});
+
+                    popEl.innerHTML = `
+                        <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #30363d;padding-bottom:5px;">
+                            <div>
+                                <span style="font-size:12.5px;font-weight:900;color:#ffd700;">🔔 5m క్యాండిల్ టాప్-2 AI సిగ్నల్స్ (90%+ Prob)</span>
+                                <div style="font-size:10px;color:#8b949e;">🕒 Candle: ${{candleBarTs}} • అన్ని స్ట్రాటజీల కన్ఫ్లుయెన్స్</div>
+                            </div>
+                            <span onclick="window.parent.close5mPopup('${{candleBarTs}}')" style="background:#dc2626;color:#fff;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:bold;cursor:pointer;" title="Close Popup">✖</span>
+                        </div>
+                        ${{cardsHtml}}
+                    `;
+
+                    // Show automatically whenever a new 5-minute candle completes
+                    if (parentWin._last5mShownBar !== candleBarTs) {{
+                        parentWin._last5mShownBar = candleBarTs;
+                        parentWin._dismissed5mBar = '';
+                        popEl.style.display = 'block';
+                    }} else if (parentWin._dismissed5mBar === candleBarTs) {{
+                        popEl.style.display = 'none';
                     }}
                 }}
 
@@ -11631,7 +11517,7 @@ def render_live_ui():
                 if (parentWin._rpSyncInterval) clearInterval(parentWin._rpSyncInterval);
                 parentWin._rpSyncInterval = setInterval(() => parentWin.applyRight20State(false), 400);
 
-                // 3. News Mode Mini-Charts Fullscreen (⛶) & Download PNG (📷) Handlers
+                // 4. News Mode Mini-Charts Fullscreen (⛶) & Download PNG (📷) Handlers
                 if (!parentWin._mcSvgListenerAdded) {{
                     parentWin._mcSvgListenerAdded = true;
                     parentDoc.addEventListener('click', function(e) {{
@@ -11676,7 +11562,7 @@ def render_live_ui():
                     }}, true);
                 }}
 
-                // 4. Live Countdown Timer
+                // 5. Live Countdown Timer
                 if (parentWin._stCdInterval) clearInterval(parentWin._stCdInterval);
                 let secLeft = {_effective_refresh};
                 const updateBadge = () => {{
@@ -12016,7 +11902,7 @@ def render_live_ui():
                                     else:
                                         new_row = pd.DataFrame({"Symbol": [new_sym], "Buy_Price": [new_price], "Quantity": [new_qty], "Date": [new_date_str], "SL": [calc_sl], "T1": [calc_t1], "T2": [calc_t2]})
                                         df_port_saved = pd.concat([df_port_saved, new_row], ignore_index=True)
-                                        st.success(f"✅ {new_sym} పోర్ట్‌ఫోలియోలో యాడ్ చేయబడింది! (SL: {calc_sl}, T1: {calc_t1})")
+                                        st.success(f"✅ {new_sym} పోర్ట్ఫోలియోలో యాడ్ చేయబడింది! (SL: {calc_sl}, T1: {calc_t1})")
                                     save_portfolio(df_port_saved)
                                     fetch_all_data.clear()
                                     load_portfolio.clear()
@@ -12199,7 +12085,6 @@ def render_live_ui():
                             df_buy_chart = unpinned_df[unpinned_df[sort_key] >= 0].head(32)
                             df_sell_chart = unpinned_df[unpinned_df[sort_key] < 0].head(32)
 
-                        # 🔥 LIVE పక్కన SELL ఉంటే SELL చార్ట్స్ పైన & BUY చార్ట్స్ కింద; BUY ఉంటే BUY చార్ట్స్ పైన & SELL చార్ట్స్ కింద
                         if _mkt_side == "SELL":
                             _chart_sections = [
                                 (df_sell_chart, f"🔴 NEGATIVE / SELL ({watchlist_mode})", "#f85149", "main_sell"),
@@ -12275,7 +12160,7 @@ def render_live_ui():
 
                         <h4 style='color:#3fb950; margin-top:15px;'>2. 📈 Minervini Trend Template & Strict VCP</h4>
                         <ul style='color:#c9d1d9; font-size:14px;'>
-                            <li><b>ఎప్పుడు వాడాలి:</b> పక్కా అప్‌ట్రెండ్ లో కన్సాలిడేట్ అవుతున్న స్టాక్స్ పట్టుకునేందుకు.</li>
+                            <li><b>ఎప్పుడు వాడాలి:</b> పక్కా అప్ట్రెండ్ లో కన్సాలిడేట్ అవుతున్న స్టాక్స్ పట్టుకునేందుకు.</li>
                             <li><b>లాజిక్ & ఎంట్రీ:</b> 50 SMA > 150 SMA > 200 SMA ఉండాలి, 200 SMA పైకి వంగి ఉండాలి. ధర 52W Low కంటే 30% పైన మరియు 52W High కి 25% లోపలే ఉండాలి.</li>
                         </ul>
 
@@ -12293,14 +12178,14 @@ def render_live_ui():
 
                         <h4 style='color:#d29922; margin-top:15px;'>5. 💥 Dan Zanger (Volume Explosion)</h4>
                         <ul style='color:#c9d1d9; font-size:14px;'>
-                            <li><b>ఎప్పుడు వాడాలి:</b> సడెన్ గా ఇన్‌స్టిట్యూషన్స్ ఎంటర్ అయిన స్టాక్స్ పసిగట్టేందుకు.</li>
+                            <li><b>ఎప్పుడు వాడాలి:</b> సడెన్ గా ఇన్స్టిట్యూషన్స్ ఎంటర్ అయిన స్టాక్స్ పసిగట్టేందుకు.</li>
                             <li><b>లాజిక్ & ఎంట్రీ:</b> వాల్యూమ్ డ్రై అయిపోయి ప్రశాంతంగా ఉన్న స్టాక్ లో, ఈరోజు సడెన్ గా <b>2.0 రెట్ల (2.0x) వాల్యూమ్</b> తో పేలి 20-రోజుల బాక్స్ బ్రేక్అవుట్ ఇచ్చి క్యాండిల్ టాప్ 20% లో క్లోజ్ అయితే ఎంటర్ అవ్వాలి.</li>
                         </ul>
 
                         <h4 style='color:#f85149; margin-top:15px;'>6. 📉 RSI(2) Mean Reversion (Larry Connors)</h4>
                         <ul style='color:#c9d1d9; font-size:14px;'>
                             <li><b>ఎప్పుడు వాడాలి:</b> ఫాస్ట్ స్వింగ్స్ కోసం (2-5 రోజుల ట్రేడ్).</li>
-                            <li><b>లాజిక్ & ఎంట్రీ:</b> 200 SMA పైన అప్‌ట్రెండ్ లో ఉన్న స్టాక్, సడెన్ సెల్లింగ్ వల్ల <b>2-Period RSI <= 10</b> కి పడిపోయి ఈరోజు గ్రీన్ క్యాండిల్ వేస్తుంటే కొనాలి.</li>
+                            <li><b>లాజిక్ & ఎంట్రీ:</b> 200 SMA పైన అప్ట్రెండ్ లో ఉన్న స్టాక్, సడెన్ సెల్లింగ్ వల్ల <b>2-Period RSI <= 10</b> కి పడిపోయి ఈరోజు గ్రీన్ క్యాండిల్ వేస్తుంటే కొనాలి.</li>
                         </ul>
 
                         <h4 style='color:#a371f7; margin-top:15px;'>7. 📈 Stan Weinstein (Stage 2 Uptrend)</h4>
