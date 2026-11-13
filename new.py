@@ -7713,7 +7713,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                 _sess_id = (df_chart.index.to_series().diff() > pd.Timedelta(minutes=120)).cumsum()
                 _today_slice = df_chart[_sess_id == _sess_id.iloc[-1]].copy()
 
-                _is_24h = fetch_sym in {"INR=X", "^GSPC", "^GDAXI", "GC=F", "SI=F", "CL=F", "NG=F", "HG=F"}
+                _is_24h = fetch_sym in {"INR=X", "^GSPC", "^GDAXI", "GC=F", "SI=F", "CL=F", "NG=F", "HG=F", "^VWAP_BS"}
                 if _is_24h or (len(_today_slice) < 12 and _today_slice.index[0].hour != 9) or len(_today_slice) > 90:
                     df_chart = df_chart.tail(75).copy()
                 else:
@@ -7741,6 +7741,9 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                     on_change=_on_pin_checkbox_change, args=(fetch_sym, display_sym, cb_key)
                 )
 
+            df_chart = df_chart.dropna(subset=['Open', 'High', 'Low', 'Close']).copy()
+            if df_chart.empty:
+                return
             _y_lows = [float(df_chart['Low'].min())]
             _y_highs = [float(df_chart['High'].max())]
             if 'VWAP' in df_chart.columns and not df_chart['VWAP'].dropna().empty:
@@ -7878,7 +7881,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                     )
 
                 # 🎯 MINI-CHART CVD FLIP ARROWS (▲ Below Candle on Green Flip | 🔻 Above Candle on Red Flip)
-                bull_flips_mc, bear_flips_mc = _detect_5m_cvd_flips(df_chart)
+                bull_flips_mc, bear_flips_mc = ([], []) if fetch_sym == "^VWAP_BS" else _detect_5m_cvd_flips(df_chart)
                 for _bf_idx in bull_flips_mc:
                     fig.add_annotation(
                         x=_bf_idx, y=float(df_chart['Low'].iloc[_bf_idx]),
