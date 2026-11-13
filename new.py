@@ -7645,15 +7645,7 @@ def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Intraday 
         chart_dict = {}
 
     store_5m = _SS.get('5m_store', {})
-    if "^VWAP_BS" in df_grid['Fetch_T'].values:
-        _d = chart_dict.get("^VWAP_BS")
-        _in_store = "^VWAP_BS" in _SS.get('5m_store', {})
-        st.caption(
-            f"DBG VWAP_BS | tf={timeframe} | in_dict={_d is not None} | "
-            f"rows={0 if _d is None else len(_d)} | in_store={_in_store} | "
-            f"cols={[] if _d is None else list(_d.columns)[:6]} | "
-            f"last={None if (_d is None or _d.empty) else _d.index[-1]}"
-        )
+    
     valid_items = []
     for _, row in df_grid.iterrows():
         ft = row['Fetch_T']
@@ -7691,9 +7683,18 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
     pct_val = float(row.get('W_C', row['Day_C'])) if timeframe == "Weekly Chart" else float(row['Day_C'])
     color_hex = "#da3633" if pct_val < 0 else "#2ea043"
     sign = "+" if pct_val > 0 else ""
-    tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
+    if fetch_sym == "^VWAP_BS":
+        tv_link = "https://in.tradingview.com/"
+        display_title = "VWAP Buy/Sell"
+    else:
+        tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
+        display_title = display_sym
 
-    strat_tag = f" <span style='font-size:9.5px; background:rgba(0,191,255,0.2); border:1px solid #00BFFF; padding:0px 3px; border-radius:3px; color:#00BFFF;'>{row.get('Strategy_Icon', '')}</span>" if row.get('Strategy_Icon') and row.get('Strategy_Icon') != "Neutral" else ""
+    _si = row.get('Strategy_Icon')
+    strat_tag = (
+        f" <span style='font-size:9.5px; background:rgba(0,191,255,0.2); border:1px solid #00BFFF; padding:0px 3px; border-radius:3px; color:#00BFFF;'>{_si}</span>"
+        if isinstance(_si, str) and _si and _si != "Neutral" else ""
+    )
 
     if timeframe == "Intraday (5m)":
         day_high, day_low, ltp_now = float(row.get('H', 0)), float(row.get('L', 0)), float(row.get('P', 0))
@@ -7709,7 +7710,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
 
     title_html = (
         f"<a href='{tv_link}' target='_blank' style='color:#ffffff; text-decoration:none; line-height:1.15;'>"
-        f"<b>{display_sym}</b>{strat_tag}<br>"
+        f"<b>{display_title}</b>{strat_tag}<br>"
         f"<span style='font-size:11px; color:#cccccc;'>₹{row['P']:.2f} "
         f"<span style='color:{color_hex};'>({sign}{pct_val:.2f}%)</span>{pb_tag}</span></a>"
     )
@@ -7917,14 +7918,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
             _right_pad = max(3.5, float(n_bars) * 0.065)
             x_full_range = [-0.8, float(n_bars) + _right_pad]
 
-            if fetch_sym == "^VWAP_BS":
-                st.caption(
-                    f"DBG2 n_bars={n_bars} | min={min_val} max={max_val} pad={y_padding} | "
-                    f"nan_OHLC={int(df_chart[['Open','High','Low','Close']].isna().sum().sum())} | "
-                    f"inf={int(np.isinf(df_chart[['Open','High','Low','Close']].to_numpy(dtype=float)).sum())} | "
-                    f"first={df_chart.index[0]} last={df_chart.index[-1]} | "
-                    f"ltp={row.get('P')} close_last={df_chart['Close'].iloc[-1]}"
-                )
+            
             fig.update_layout(
                 autosize=True,
                 margin=dict(l=2, r=38 if show_crosshair else 12, t=2, b=16 if show_crosshair else 2),
