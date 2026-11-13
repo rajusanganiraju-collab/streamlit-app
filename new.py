@@ -6456,13 +6456,34 @@ st.markdown("""
     }
 
     /* Pro Grid Charts Auto-Scale Height on 22-inch & 15-inch Monitors */
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-grid-1row) iframe {
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-grid-1row) iframe:not([height="0"]) {
         height: calc(92vh - 42px) !important;
         min-height: 550px !important;
     }
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-grid-2row) iframe {
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-grid-2row) iframe:not([height="0"]) {
         height: calc(46vh - 24px) !important;
         min-height: 310px !important;
+    }
+    iframe[height="0"],
+    div[data-testid="stElementContainer"]:has(iframe[height="0"]) {
+        display: none !important;
+        height: 0px !important;
+        min-height: 0px !important;
+        max-height: 0px !important;
+        margin: 0px !important;
+        padding: 0px !important;
+        border: none !important;
+        overflow: hidden !important;
+        position: absolute !important;
+        pointer-events: none !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) > div:has(.pro-mini-board),
+    div[data-testid="stElementContainer"]:has(.pro-mini-board) {
+        display: none !important;
+        height: 0px !important;
+        margin: 0px !important;
+        padding: 0px !important;
+        border: none !important;
     }
 
     /* 4. Right 20% Panel Compact Spacing & Single-Line Pro Grid */
@@ -6627,12 +6648,12 @@ st.markdown("""
             max-height: calc(100dvh - 165px) !important;
             overflow: hidden !important;
         }
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-grid-1row) iframe {
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-grid-1row) iframe:not([height="0"]) {
             height: calc(100dvh - 180px) !important;
             min-height: 340px !important;
             max-height: calc(100dvh - 180px) !important;
         }
-        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-grid-2row) iframe {
+        div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-grid-2row) iframe:not([height="0"]) {
             height: calc(42dvh - 30px) !important;
             min-height: 210px !important;
         }
@@ -7622,13 +7643,28 @@ def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Intraday 
         return
     if chart_dict is None:
         chart_dict = {}
+
+    store_5m = _SS.get('5m_store', {})
+    valid_items = []
+    for _, row in df_grid.iterrows():
+        ft = row['Fetch_T']
+        df_c = chart_dict.get(ft, pd.DataFrame())
+        if df_c is None or df_c.empty or 'Low' not in df_c.columns or 'High' not in df_c.columns:
+            if ft in store_5m and not store_5m[ft].empty:
+                df_c = store_5m[ft] if ft == "^VWAP_BS" else _fix_ist_df(process_5m_data(store_5m[ft]))
+        if df_c is not None and not df_c.empty and 'Low' in df_c.columns and 'High' in df_c.columns:
+            valid_items.append((row, df_c))
+
+    if not valid_items:
+        return
+
     with st.container():
         st.markdown("<div class='pro-mini-board'></div>", unsafe_allow_html=True)
-        for _, row in df_grid.iterrows():
+        for row, df_c in valid_items:
             with st.container():
                 render_chart(
-                    row, chart_dict.get(row['Fetch_T'], pd.DataFrame()),
-                    show_pin=True,
+                    row, df_c,
+                    show_pin=show_pin_option,
                     key_suffix=key_prefix,
                     timeframe=timeframe, show_crosshair=show_crosshair, show_vol=show_vol
                 )
@@ -7636,21 +7672,17 @@ def render_chart_grid(df_grid, show_pin_option, key_prefix, timeframe="Intraday 
                     btn_lbl = "🔽 View Stocks" if st.session_state.active_sec != row['T'] else "🔼 Hide Stocks"
                     if st.button(btn_lbl, key=f"btn_sec_{row['Fetch_T']}", width="stretch"):
                         st.session_state.active_sec = None if st.session_state.active_sec == row['T'] else row['T']
+
 def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intraday (5m)", show_crosshair=False, show_vol=False):
+    if df_chart is None or df_chart.empty or 'Low' not in df_chart.columns or 'High' not in df_chart.columns:
+        return
+
     display_sym = row['T']
     fetch_sym = row['Fetch_T']
     pct_val = float(row.get('W_C', row['Day_C'])) if timeframe == "Weekly Chart" else float(row['Day_C'])
     color_hex = "#da3633" if pct_val < 0 else "#2ea043"
     sign = "+" if pct_val > 0 else ""
     tv_link = f"https://in.tradingview.com/chart/?symbol={TV_INDICES_URL.get(fetch_sym, 'NSE:' + display_sym)}"
-
-    if show_pin:
-        cb_key = f"cb_{fetch_sym}_{key_suffix}" if key_suffix else f"cb_{fetch_sym}"
-        is_pinned = fetch_sym in st.session_state.pinned_stocks
-        st.checkbox(
-            "pin", value=is_pinned, key=cb_key, label_visibility="collapsed",
-            on_change=_on_pin_checkbox_change, args=(fetch_sym, display_sym, cb_key)
-        )
 
     strat_tag = f" <span style='font-size:9.5px; background:rgba(0,191,255,0.2); border:1px solid #00BFFF; padding:0px 3px; border-radius:3px; color:#00BFFF;'>{row.get('Strategy_Icon', '')}</span>" if row.get('Strategy_Icon') and row.get('Strategy_Icon') != "Neutral" else ""
 
@@ -7697,6 +7729,17 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                             df_chart.at[_last_i, 'High'] = _live_p
                         if _live_p < float(df_chart.at[_last_i, 'Low']) or float(df_chart.at[_last_i, 'Low']) <= 0:
                             df_chart.at[_last_i, 'Low'] = _live_p
+
+            if df_chart.empty:
+                return
+
+            if show_pin:
+                cb_key = f"cb_{fetch_sym}_{key_suffix}" if key_suffix else f"cb_{fetch_sym}"
+                is_pinned = fetch_sym in st.session_state.pinned_stocks
+                st.checkbox(
+                    "pin", value=is_pinned, key=cb_key, label_visibility="collapsed",
+                    on_change=_on_pin_checkbox_change, args=(fetch_sym, display_sym, cb_key)
+                )
 
             _y_lows = [float(df_chart['Low'].min())]
             _y_highs = [float(df_chart['High'].max())]
@@ -10091,7 +10134,7 @@ def render_live_ui():
     if _b_close_l:
         _c_mat = pd.concat(_b_close_l, axis=1).sort_index()
         _valid_cnt = _c_mat.notna().sum(axis=1)
-        _keep_ts = _valid_cnt >= max(5, int(_valid_cnt.max() * 0.45))
+        _keep_ts = _valid_cnt >= max(3, int(_valid_cnt.max() * 0.35))
         _c_mat = _c_mat.loc[_keep_ts]
         _valid_cnt = _valid_cnt.loc[_keep_ts].replace(0, np.nan)
 
@@ -10099,17 +10142,17 @@ def render_live_ui():
         _h_mat = pd.concat(_b_high_l, axis=1).reindex(_c_mat.index)
         _l_mat = pd.concat(_b_low_l, axis=1).reindex(_c_mat.index)
 
-        _bo = ((_o_mat.sum(axis=1) / _valid_cnt) * 100.0).round(2)
         _bc = ((_c_mat.sum(axis=1) / _valid_cnt) * 100.0).round(2)
+        _bo_raw = ((_o_mat.sum(axis=1) / _valid_cnt) * 100.0).round(2)
+        _bo = _bc.shift(1).fillna(_bo_raw).round(2)
         _bh = np.maximum(((_h_mat.sum(axis=1) / _valid_cnt) * 100.0).round(2), np.maximum(_bo, _bc))
         _bl = np.minimum(((_l_mat.sum(axis=1) / _valid_cnt) * 100.0).round(2), np.minimum(_bo, _bc))
-        _bv = pd.concat(_b_vol_l, axis=1).reindex(_c_mat.index).sum(axis=1).fillna(0.0) if _b_vol_l else pd.Series(1000.0, index=_c_mat.index)
+        _bv = pd.concat(_b_vol_l, axis=1).reindex(_c_mat.index).sum(axis=1).fillna(1000.0) if _b_vol_l else pd.Series(1000.0, index=_c_mat.index)
 
         _df_vwap_bs = pd.DataFrame({
             'Open': _bo, 'High': _bh, 'Low': _bl, 'Close': _bc, 'Volume': _bv
         }, index=_c_mat.index).dropna()
 
-        # Sync latest 5m candle with exact live VWAP BUY% from df_live
         _df_mkt_now = df_live[(~df_live['Is_Index']) & (~df_live['Is_Sector']) & (~df_live['Is_Commodity']) & (df_live['T'].isin(set(NIFTY_50).union(set(FNO_STOCKS))))].drop_duplicates(subset=['T'])
         if not _df_mkt_now.empty and not _df_vwap_bs.empty:
             _live_bpct = round(float((_df_mkt_now['P'] > _df_mkt_now['VWAP']).sum()) / float(len(_df_mkt_now)) * 100.0, 2)
@@ -10118,9 +10161,31 @@ def render_live_ui():
             _df_vwap_bs.at[_last_ts, 'High'] = max(float(_df_vwap_bs.at[_last_ts, 'High']), _live_bpct)
             _df_vwap_bs.at[_last_ts, 'Low'] = min(float(_df_vwap_bs.at[_last_ts, 'Low']), _live_bpct)
 
-        _df_vwap_bs_proc = _fix_ist_df(process_5m_data(_df_vwap_bs))
+        _df_vwap_bs_proc = _fix_ist_df(_df_vwap_bs).tail(375).copy()
         if not _df_vwap_bs_proc.empty:
+            _df_vwap_bs_proc['EMA_10'] = _df_vwap_bs_proc['Close'].ewm(span=10, adjust=False).mean()
+            _df_vwap_bs_proc['EMA_20'] = _df_vwap_bs_proc['Close'].ewm(span=20, adjust=False).mean()
+            _df_vwap_bs_proc['EMA_50'] = _df_vwap_bs_proc['Close'].ewm(span=50, adjust=False).mean()
+            _df_vwap_bs_proc['EMA_100'] = _df_vwap_bs_proc['Close'].ewm(span=100, adjust=False).mean()
+            _df_vwap_bs_proc['EMA_200'] = _df_vwap_bs_proc['Close'].ewm(span=200, adjust=False).mean()
+            _tr_bs = pd.concat([
+                _df_vwap_bs_proc['High'] - _df_vwap_bs_proc['Low'],
+                (_df_vwap_bs_proc['High'] - _df_vwap_bs_proc['Close'].shift(1)).abs(),
+                (_df_vwap_bs_proc['Low'] - _df_vwap_bs_proc['Close'].shift(1)).abs()
+            ], axis=1).max(axis=1)
+            _df_vwap_bs_proc['ATR_13'] = _tr_bs.ewm(span=13, adjust=False).mean().bfill().fillna(2.0)
+            _tp_bs = (_df_vwap_bs_proc['High'] + _df_vwap_bs_proc['Low'] + _df_vwap_bs_proc['Close']) / 3.0
+            _sdate_bs = _df_vwap_bs_proc.index.date
+            _df_vwap_bs_proc['VWAP'] = _tp_bs.groupby(_sdate_bs).transform(lambda x: x.expanding().mean())
+            _df_vwap_bs_proc['SMA_50'] = _df_vwap_bs_proc['Close'].rolling(20, min_periods=1).mean()
+            _df_vwap_bs_proc['SMA_150'] = _df_vwap_bs_proc['Close'].rolling(50, min_periods=1).mean()
+            _df_vwap_bs_proc['SMA_200'] = _df_vwap_bs_proc['Close'].rolling(100, min_periods=1).mean()
+            _df_vwap_bs_proc['SMA_10'] = _df_vwap_bs_proc['Close'].rolling(10, min_periods=1).mean()
+            _df_vwap_bs_proc['SMA_40'] = _df_vwap_bs_proc['Close'].rolling(40, min_periods=1).mean()
+
             processed_charts["^VWAP_BS"] = _df_vwap_bs_proc
+            _SS.setdefault('5m_store', {})["^VWAP_BS"] = _df_vwap_bs_proc
+
             _sess_bs = (_df_vwap_bs_proc.index.to_series().diff() > pd.Timedelta(minutes=120)).cumsum()
             _td_bs = _df_vwap_bs_proc[_sess_bs == _sess_bs.iloc[-1]]
             _p_bs = float(_td_bs['Close'].iloc[-1])
@@ -10129,7 +10194,7 @@ def render_live_ui():
             _l_bs = float(_td_bs['Low'].min())
             _vw_bs = float(_td_bs['VWAP'].iloc[-1]) if 'VWAP' in _td_bs.columns else _p_bs
             _em_bs = float(_td_bs['EMA_10'].iloc[-1]) if 'EMA_10' in _td_bs.columns else _p_bs
-            _net_dom = round(_p_bs - 50.0, 2)  # +ve = Buy Dominance (>50%), -ve = Sell Dominance (<50%)
+            _net_dom = round(_p_bs - 50.0, 2)
             _bs_icon = "🟢 BUY DOM" if _p_bs >= 53.0 else ("🔴 SELL DOM" if _p_bs <= 47.0 else "⚖️ NEUTRAL")
 
             _bs_row = {
@@ -11245,7 +11310,16 @@ def render_live_ui():
             st.markdown("<div class='left-main-scroll-marker'></div>", unsafe_allow_html=True)
             weekly_charts, daily_charts = {}, {}
             if chart_timeframe in ["Weekly Chart", "Daily Chart"]:
-                display_tkrs = list(set(df_indices['Fetch_T'].tolist() + st.session_state.pinned_stocks + df_stocks_display['Fetch_T'].head(40).tolist()))
+                display_tkrs = [
+                    t for t in set(
+                        df_indices['Fetch_T'].tolist()
+                        + df_sectors['Fetch_T'].tolist()
+                        + df_commodities['Fetch_T'].tolist()
+                        + st.session_state.pinned_stocks
+                        + df_stocks_display['Fetch_T'].head(64).tolist()
+                    )
+                    if t != "^VWAP_BS"
+                ]
                 if display_tkrs:
                     hist_data = fetch_historical_charts_data(display_tkrs, chart_timeframe)
                     for sym in display_tkrs:
@@ -11264,6 +11338,9 @@ def render_live_ui():
                                     daily_charts[sym] = df_h
                         except Exception:
                             pass
+                if "^VWAP_BS" in processed_charts:
+                    daily_charts["^VWAP_BS"] = processed_charts["^VWAP_BS"]
+                    weekly_charts["^VWAP_BS"] = processed_charts["^VWAP_BS"]
 
             chart_dict_to_use = weekly_charts if chart_timeframe == "Weekly Chart" else (daily_charts if chart_timeframe == "Daily Chart" else processed_charts)
 
