@@ -60,7 +60,7 @@ def _call_gemini_api(prompt, json_mode=False):
     candidate_models = _get_working_gemini_models(api_key)
     gen_cfg = {
         "temperature": 0.1 if json_mode else 0.2,
-        "maxOutputTokens": 600
+        "maxOutputTokens": 2500 if json_mode else 600
     }
     if json_mode:
         gen_cfg["responseMimeType"] = "application/json"
