@@ -6361,43 +6361,52 @@ if 'selected_sw_strats' not in st.session_state:
 # --- CSS: ZERO SIDE MARGINS + EXCEL WATCHLIST + COMPACT MULTI-CHART GRID ---
 st.markdown("""
     <style>
-    /* 1. Zero-Gap Top Header & Zero Empty Lines Around Global Indices Expander */
+    /* 1. Zero-Gap Top Header (2nd Screenshot లాగా న్యూస్ బార్ కింద అస్సలు గ్యాప్ లేకుండా) */
     header[data-testid="stHeader"] {
-        height: 32px !important;
-        min-height: 32px !important;
+        height: 30px !important;
+        min-height: 30px !important;
         background: transparent !important;
         border: none !important;
         z-index: 999990 !important;
     }
-    .block-container,
     div[data-testid="stAppViewBlockContainer"],
-    div[data-testid="stMainBlockContainer"],
-    .main .block-container,
     section.main > div {
-        padding-top: 34px !important; /* న్యూస్ స్క్రోల్ కింద ఎలాంటి ఖాళీ లైన్ లేకుండా సెట్ చేస్తుంది */
+        padding-top: 0px !important;
+        padding-bottom: 0px !important;
+        padding-left: 0.15rem !important;
+        padding-right: 0.15rem !important;
+        max-width: 100% !important;
+        width: 100% !important;
+    }
+    .block-container,
+    div[data-testid="stMainBlockContainer"] {
+        padding-top: 32px !important; /* కేవలం ఒకేసారి 32px ప్యాడింగ్ */
         padding-bottom: 0.1rem !important;
         padding-left: 0.15rem !important;
         padding-right: 0.15rem !important;
         max-width: 100% !important;
         width: 100% !important;
     }
-    /* Global Indices Expander పైన & కింద ఉండే ఖాళీ స్థలాన్ని పూర్తిగా తొలగించడం */
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .left-main-scroll-marker) {
-        gap: 2px !important;
-    }
-    div[data-testid="stElementContainer"]:has(#sniper-5m-popup),
-    div[data-testid="stElementContainer"]:has(.sniper-5m-mini-container) {
+    /* పైన ఉన్న <style> బ్లాక్స్ మరియు దాగి ఉన్న Mini-Chart కంటైనర్ల వల్ల వచ్చే ఖాళీ లైన్స్ తొలగింపు */
+    div[data-testid="stElementContainer"]:has(> div > style),
+    div[data-testid="stElementContainer"]:has(> div > div > style),
+    div[data-testid="stElementContainer"]:has(.sniper-5m-mini-container[style*="display:none"]),
+    div[data-testid="stElementContainer"]:has(.sniper-5m-mini-container[style*="display: none"]) {
+        display: none !important;
         margin: 0px !important;
         padding: 0px !important;
-    }
-    div[data-testid="stElementContainer"]:has(#sniper-5m-popup) {
         height: 0px !important;
-        min-height: 0px !important;
-        overflow: visible !important;
+    }
+    /* NEGATIVE / SELL మరియు POSITIVE / BUY హెడ్డింగ్స్ కట్ అవ్వకుండా పూర్తిగా కనిపించేలా */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .left-main-scroll-marker) {
+        gap: 6px !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .left-main-scroll-marker) div[data-testid="stMarkdownContainer"] {
+        margin-bottom: 0px !important;
     }
     div[data-testid="stExpander"] {
         margin-top: 0px !important;
-        margin-bottom: 2px !important;
+        margin-bottom: 0px !important;
     }
     .block-container > div > div > div > hr { display: none !important; }
 
@@ -6516,7 +6525,7 @@ st.markdown("""
     }
     iframe[height="0"],
     div[data-testid="stElementContainer"]:has(iframe[height="0"]) {
-        display: none !important;
+        opacity: 0 !important;
         height: 0px !important;
         min-height: 0px !important;
         max-height: 0px !important;
@@ -11499,15 +11508,10 @@ def render_live_ui():
         _status_bar_html = (
             "<div id='pro-top-status-bar' style='display:flex;justify-content:space-between;align-items:center;flex-wrap:nowrap;gap:8px;"
             "background:#161b22;border:1.5px solid #238636;border-radius:6px;padding:0px 10px;"
-            "height:34px;margin-bottom:2px;font-size:13.5px;overflow-x:auto;overflow-y:hidden;white-space:nowrap;'>"
-            "<div style='display:flex;align-items:center;gap:6px;flex-shrink:0;'>"
+            "height:34px;margin-bottom:0px;font-size:13.5px;overflow-x:auto;overflow-y:hidden;white-space:nowrap;'>"
+            "<div id='live-left-group' style='display:flex;align-items:center;gap:6px;flex-shrink:0;'>"
             "<span id='live-status-title'>🟢 <b style='font-size:13.5px;'>LIVE</b></span>"
             "<span id='live-dir-badge' style='background:#30363d;border:1px solid #8b949e;color:#ffffff;padding:2px 9px;border-radius:5px;font-weight:bold;font-size:12.5px;white-space:nowrap;'>NEUTRAL ⚖️</span>"
-            # 👇 MINIMIZED POPUP BUTTON (Strong Sell / Buy పక్కనే వస్తుంది, క్లిక్ చేస్తే పాపప్ మళ్ళీ ఓపెన్ అవుతుంది!)
-            f"<span id='sniper-5m-min-btn' class='pop-5m-restore-btn' "
-            f"style='display:none;cursor:pointer;background:linear-gradient(90deg,#d97706,#b91c1c);border:1.5px solid #ffd700;color:#ffffff;"
-            f"padding:2px 9px;border-radius:5px;font-weight:800;font-size:12px;white-space:nowrap;box-shadow:0 0 8px rgba(255,215,0,0.45);user-select:none;' "
-            f"title='Click to Re-Open 5m Sniper Alert Popup'>🔔 5m Alert ({len(_active_top2)}) ▴</span>"
             "</div>"
             "<span id='live-cd-badge' style='background:#21262d;border:1px solid #30363d;color:#00BFFF;"
             "padding:2px 8px;border-radius:4px;font-weight:bold;font-size:12.5px;font-family:monospace;flex-shrink:0;margin-left:auto;'>⏳ 30s</span>"
@@ -11545,7 +11549,8 @@ def render_live_ui():
         else:
             st.markdown(_status_bar_html, unsafe_allow_html=True)
 
-        # 🔔 RENDER POPUP BOX (USES CLASS-BASED EVENT DELEGATION SO STREAMLIT SANITIZER NEVER BLOCKS IT)
+        # 🔔 BUILD POPUP HTML FOR PURE JS INJECTION (ZERO STREAMLIT SANITIZER OR LAYOUT GAP)
+        _popup_inner_html = ""
         if _active_top2:
             _cards_html = ""
             for _idx_p, _pk in enumerate(_active_top2):
@@ -11575,26 +11580,19 @@ def render_live_ui():
                     f"<span style='color:#4ade80;'><b>🎯 TGT:</b> ₹{_tg_e:.2f}</span>"
                     f"</div>"
                     f"<div style='display:flex;gap:8px;margin-top:8px;'>"
-                    f"<span class='pop-5m-open-mini' data-sym='{_sym_js}' "
-                    f"style='flex:1;cursor:pointer;text-align:center;background:#16a34a;color:#fff;padding:7px 8px;border-radius:5px;font-size:12px;font-weight:bold;border:1px solid #4ade80;user-select:none;'>📈 Show Mini Chart Below Global Indices</span>"
+                    f"<button type='button' class='pop-5m-open-mini' data-sym='{_sym_js}' "
+                    f"style='flex:1;cursor:pointer;text-align:center;background:#16a34a;color:#fff;padding:7px 8px;border-radius:5px;font-size:12px;font-weight:bold;border:1px solid #4ade80;user-select:none;touch-action:manipulation;'>📈 Show Mini Chart Below Global Indices</button>"
                     f"</div></div>"
                 )
 
-            st.markdown(
-                f"""
-                <div id="sniper-5m-popup" data-slot="{_candle_slot_5m}" style="position:fixed;bottom:18px;right:18px;width:400px;max-width:94vw;
-                    background:rgba(11,14,20,0.98);border:2px solid #ffd700;border-radius:12px;padding:12px 14px;
-                    z-index:999999;box-shadow:0 12px 32px rgba(0,0,0,0.85);font-family:'Inter',sans-serif;">
-                    <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #30363d;padding-bottom:8px;">
-                        <span style="color:#ffd700;font-weight:900;font-size:13.5px;">🔔 5m Candle Alert ({_candle_slot_5m[-8:-3]}) — Top 2 (90%+ Prob)</span>
-                        <span id="pop-5m-x-btn" class="pop-5m-close-btn"
-                              style="cursor:pointer;background:#dc2626;color:#fff;padding:4px 12px;border-radius:6px;font-size:13px;font-weight:900;border:1px solid #ef4444;user-select:none;"
-                              title="Minimize Popup to Top Bar">✖</span>
-                    </div>
-                    {_cards_html}
-                </div>
-                """,
-                unsafe_allow_html=True
+            _popup_inner_html = (
+                f"<div style='display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #30363d;padding-bottom:8px;'>"
+                f"<span style='color:#ffd700;font-weight:900;font-size:13.5px;'>🔔 5m Candle Alert ({_candle_slot_5m[-8:-3]}) — Top 2 (90%+ Prob)</span>"
+                f"<button type='button' id='pop-5m-x-btn' "
+                f"style='cursor:pointer;background:#dc2626;color:#fff;padding:4px 12px;border-radius:6px;font-size:14px;font-weight:900;border:1px solid #ef4444;user-select:none;touch-action:manipulation;' "
+                f"title='Minimize Popup'>✖</button>"
+                f"</div>"
+                f"{_cards_html}"
             )
 
         components.html(
@@ -11605,95 +11603,10 @@ def render_live_ui():
                 const parentDoc = parentWin.document;
                 const curSlot = {json.dumps(_candle_slot_5m)};
                 const hasPicks = {json.dumps(_has_5m_picks)};
+                const picksCount = {len(_active_top2)};
+                const popupInnerHtml = {json.dumps(_popup_inner_html)};
 
-                // 1. Sync Popup & Minimized Button State
-                parentWin._cur5mSlot = curSlot;
-                parentWin._has5mPicks = hasPicks;
-
-                parentWin.sync5mPopupState = function() {{
-                    const popEl = parentDoc.getElementById('sniper-5m-popup');
-                    const minBtn = parentDoc.getElementById('sniper-5m-min-btn');
-                    const isMinimized = (parentWin._dismissed5mSlot === parentWin._cur5mSlot);
-
-                    if (popEl) {{
-                        popEl.style.setProperty('display', isMinimized ? 'none' : 'block', 'important');
-                    }}
-                    if (minBtn) {{
-                        minBtn.style.setProperty('display', (parentWin._has5mPicks && isMinimized) ? 'inline-flex' : 'none', 'important');
-                    }}
-                }};
-
-                parentWin.sync5mPopupState();
-
-                if (parentWin._selected5mSym) {{
-                    const boxEl = parentDoc.getElementById('sniper-mini-box-' + parentWin._selected5mSym);
-                    if (boxEl) boxEl.style.display = 'block';
-                }}
-
-                // 2. Attach Universal Desktop + Mobile Event Handler (Works even when Streamlit strips inline onclick!)
-                if (!parentWin._pop5mUniversalHandler) {{
-                    parentWin._pop5mUniversalHandler = function(e) {{
-                        const t = e.target;
-                        if (!t || typeof t.closest !== 'function') return;
-
-                        // A. Close (✖) Button Clicked -> Minimize Popup & Show Top Badge next to STRONG SELL / BUY
-                        const closeBtn = t.closest('.pop-5m-close-btn, #pop-5m-x-btn');
-                        if (closeBtn) {{
-                            e.preventDefault();
-                            e.stopPropagation();
-                            parentWin._dismissed5mSlot = parentWin._cur5mSlot;
-                            parentWin.sync5mPopupState();
-                            return;
-                        }}
-
-                        // B. Minimized Top Badge (🔔 5m Alert) Clicked -> Re-Open Popup Box
-                        const restoreBtn = t.closest('.pop-5m-restore-btn, #sniper-5m-min-btn');
-                        if (restoreBtn) {{
-                            e.preventDefault();
-                            e.stopPropagation();
-                            parentWin._dismissed5mSlot = '';
-                            parentWin.sync5mPopupState();
-                            return;
-                        }}
-
-                        // C. Show Mini Chart Button Clicked
-                        const openMini = t.closest('.pop-5m-open-mini');
-                        if (openMini) {{
-                            e.preventDefault();
-                            e.stopPropagation();
-                            const sym = openMini.getAttribute('data-sym');
-                            parentWin._selected5mSym = sym;
-                            parentWin._dismissed5mSlot = parentWin._cur5mSlot;
-                            parentWin.sync5mPopupState();
-                            parentDoc.querySelectorAll('.sniper-5m-mini-container').forEach(el => {{
-                                el.style.display = 'none';
-                            }});
-                            const targetBox = parentDoc.getElementById('sniper-mini-box-' + sym);
-                            if (targetBox) {{
-                                targetBox.style.display = 'block';
-                                targetBox.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
-                                setTimeout(() => parentWin.dispatchEvent(new Event('resize')), 60);
-                            }}
-                            return;
-                        }}
-
-                        // D. Hide Mini Chart Button Clicked
-                        const closeMini = t.closest('.sniper-mini-hide-btn');
-                        if (closeMini) {{
-                            e.preventDefault();
-                            e.stopPropagation();
-                            parentWin._selected5mSym = '';
-                            parentDoc.querySelectorAll('.sniper-5m-mini-container').forEach(el => {{
-                                el.style.display = 'none';
-                            }});
-                            return;
-                        }}
-                    }};
-                    parentDoc.addEventListener('pointerdown', parentWin._pop5mUniversalHandler, true);
-                    parentDoc.addEventListener('click', parentWin._pop5mUniversalHandler, true);
-                }}
-
-                // 3. Update Status & Strong Sell / Buy Badge
+                // 1. Update Status & Strong Sell / Buy Badge
                 const topBar = parentDoc.getElementById('pro-top-status-bar');
                 if (topBar) topBar.style.borderColor = {json.dumps(_status_border)};
                 const stTitle = parentDoc.getElementById('live-status-title');
@@ -11705,7 +11618,125 @@ def render_live_ui():
                     dirBadge.style.borderColor = {json.dumps(_mkt_dir_border)};
                 }}
 
-                // 4. Top Header News Ticker (Docked to the Left of Share Button at Top Right)
+                // 2. Pure JS Popup & Minimized Button (Next to STRONG SELL / BUY)
+                let minBtn = parentDoc.getElementById('sniper-5m-min-btn');
+                const leftGrp = parentDoc.getElementById('live-left-group');
+                if (!minBtn && leftGrp) {{
+                    minBtn = parentDoc.createElement('button');
+                    minBtn.type = 'button';
+                    minBtn.id = 'sniper-5m-min-btn';
+                    minBtn.style.cssText = 'display:none;cursor:pointer;background:linear-gradient(90deg,#d97706,#b91c1c);border:1.5px solid #ffd700;color:#ffffff;padding:2px 9px;border-radius:5px;font-weight:800;font-size:12px;white-space:nowrap;box-shadow:0 0 8px rgba(255,215,0,0.45);user-select:none;touch-action:manipulation;align-items:center;';
+                    leftGrp.appendChild(minBtn);
+                }}
+                if (minBtn) {{
+                    minBtn.innerHTML = '🔔 5m Alert (' + picksCount + ') ▴';
+                }}
+
+                let popEl = parentDoc.getElementById('sniper-5m-popup');
+                if (hasPicks) {{
+                    if (!popEl) {{
+                        popEl = parentDoc.createElement('div');
+                        popEl.id = 'sniper-5m-popup';
+                        popEl.style.cssText = 'position:fixed;bottom:18px;right:18px;width:400px;max-width:94vw;background:rgba(11,14,20,0.98);border:2px solid #ffd700;border-radius:12px;padding:12px 14px;z-index:999999;box-shadow:0 12px 32px rgba(0,0,0,0.85);font-family:Inter,sans-serif;';
+                        parentDoc.body.appendChild(popEl);
+                    }}
+                    if (popEl.getAttribute('data-slot') !== curSlot || !popEl.innerHTML) {{
+                        popEl.innerHTML = popupInnerHtml;
+                        popEl.setAttribute('data-slot', curSlot);
+                    }}
+                }} else if (popEl) {{
+                    popEl.style.display = 'none';
+                }}
+
+                function isSlotDismissed() {{
+                    try {{
+                        return (parentWin._dismissed5mSlot === curSlot) || (parentWin.sessionStorage.getItem('dismissed_5m_slot') === curSlot);
+                    }} catch (e) {{
+                        return parentWin._dismissed5mSlot === curSlot;
+                    }}
+                }}
+
+                function setSlotDismissed(val) {{
+                    parentWin._dismissed5mSlot = val ? curSlot : '';
+                    try {{
+                        if (val) parentWin.sessionStorage.setItem('dismissed_5m_slot', curSlot);
+                        else parentWin.sessionStorage.removeItem('dismissed_5m_slot');
+                    }} catch (e) {{}}
+                }}
+
+                parentWin.sync5mPopupUI = function() {{
+                    const p = parentDoc.getElementById('sniper-5m-popup');
+                    const m = parentDoc.getElementById('sniper-5m-min-btn');
+                    const minimized = isSlotDismissed();
+                    if (p) p.style.setProperty('display', (hasPicks && !minimized) ? 'block' : 'none', 'important');
+                    if (m) m.style.setProperty('display', (hasPicks && minimized) ? 'inline-flex' : 'none', 'important');
+                }};
+
+                // Bind Direct Click + Touch Handlers to Close (✖), Restore (🔔) and Show Mini Chart
+                const xBtn = parentDoc.getElementById('pop-5m-x-btn');
+                if (xBtn) {{
+                    const doClose = function(e) {{
+                        if (e) {{ e.preventDefault(); e.stopPropagation(); }}
+                        setSlotDismissed(true);
+                        parentWin.sync5mPopupUI();
+                    }};
+                    xBtn.onclick = doClose;
+                    xBtn.ontouchend = doClose;
+                }}
+
+                if (minBtn) {{
+                    const doRestore = function(e) {{
+                        if (e) {{ e.preventDefault(); e.stopPropagation(); }}
+                        setSlotDismissed(false);
+                        parentWin.sync5mPopupUI();
+                    }};
+                    minBtn.onclick = doRestore;
+                    minBtn.ontouchend = doRestore;
+                }}
+
+                if (popEl) {{
+                    popEl.querySelectorAll('.pop-5m-open-mini').forEach(btn => {{
+                        const doOpenMini = function(e) {{
+                            if (e) {{ e.preventDefault(); e.stopPropagation(); }}
+                            const sym = btn.getAttribute('data-sym');
+                            parentWin._selected5mSym = sym;
+                            setSlotDismissed(true);
+                            parentWin.sync5mPopupUI();
+                            parentDoc.querySelectorAll('.sniper-5m-mini-container').forEach(el => {{
+                                el.style.display = 'none';
+                            }});
+                            const targetBox = parentDoc.getElementById('sniper-mini-box-' + sym);
+                            if (targetBox) {{
+                                targetBox.style.display = 'block';
+                                targetBox.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
+                                setTimeout(() => parentWin.dispatchEvent(new Event('resize')), 60);
+                            }}
+                        }};
+                        btn.onclick = doOpenMini;
+                        btn.ontouchend = doOpenMini;
+                    }});
+                }}
+
+                parentDoc.querySelectorAll('.sniper-mini-hide-btn').forEach(hBtn => {{
+                    const doHideMini = function(e) {{
+                        if (e) {{ e.preventDefault(); e.stopPropagation(); }}
+                        parentWin._selected5mSym = '';
+                        parentDoc.querySelectorAll('.sniper-5m-mini-container').forEach(el => {{
+                            el.style.display = 'none';
+                        }});
+                    }};
+                    hBtn.onclick = doHideMini;
+                    hBtn.ontouchend = doHideMini;
+                }});
+
+                parentWin.sync5mPopupUI();
+
+                if (parentWin._selected5mSym) {{
+                    const boxEl = parentDoc.getElementById('sniper-mini-box-' + parentWin._selected5mSym);
+                    if (boxEl) boxEl.style.display = 'block';
+                }}
+
+                // 3. Top Header News Ticker (Docked to the Left of Share Button at Top Right)
                 if (!parentWin._flashEpoch) parentWin._flashEpoch = Date.now();
                 let hdrNewsBar = parentDoc.getElementById('top-header-news-bar');
                 if (!hdrNewsBar) {{
@@ -11725,7 +11756,7 @@ def render_live_ui():
                     }}
                 }}
 
-                // 5. Right 20% Panel Toggle Logic
+                // 4. Right 20% Panel Toggle Logic
                 parentWin._isRight20Hidden = !!parentWin._isRight20Hidden;
                 parentWin.applyRight20State = function(forceResize) {{
                     const hidden = !!parentWin._isRight20Hidden;
@@ -11781,52 +11812,8 @@ def render_live_ui():
                 if (parentWin._rpSyncInterval) clearInterval(parentWin._rpSyncInterval);
                 parentWin._rpSyncInterval = setInterval(() => {{
                     parentWin.applyRight20State(false);
-                    parentWin.sync5mPopupState();
+                    parentWin.sync5mPopupUI();
                 }}, 300);
-
-                if (!parentWin._mcSvgListenerAdded) {{
-                    parentWin._mcSvgListenerAdded = true;
-                    parentDoc.addEventListener('click', function(e) {{
-                        const fsBtn = e.target.closest('.mc-svg-fs-btn');
-                        if (fsBtn) {{
-                            e.preventDefault();
-                            e.stopPropagation();
-                            const card = fsBtn.closest('.mc-inline-card');
-                            if (!card) return;
-                            if (!parentDoc.fullscreenElement) {{
-                                card.requestFullscreen().catch(() => {{}});
-                            }} else {{
-                                parentDoc.exitFullscreen().catch(() => {{}});
-                            }}
-                            return;
-                        }}
-                        const pngBtn = e.target.closest('.mc-svg-png-btn');
-                        if (pngBtn) {{
-                            e.preventDefault();
-                            e.stopPropagation();
-                            const card = pngBtn.closest('.mc-inline-card');
-                            const svgEl = card ? card.querySelector('svg') : null;
-                            if (!svgEl) return;
-                            const sym = pngBtn.getAttribute('data-sym') || 'chart';
-                            const xml = new XMLSerializer().serializeToString(svgEl);
-                            const img = new Image();
-                            img.onload = function() {{
-                                const canvas = parentDoc.createElement('canvas');
-                                canvas.width = 1050;
-                                canvas.height = 500;
-                                const ctx = canvas.getContext('2d');
-                                ctx.fillStyle = '#0b0e14';
-                                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                                const a = parentDoc.createElement('a');
-                                a.download = sym + '_5m_chart.png';
-                                a.href = canvas.toDataURL('image/png');
-                                a.click();
-                            }};
-                            img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(xml)));
-                        }}
-                    }}, true);
-                }}
 
                 if (parentWin._stCdInterval) clearInterval(parentWin._stCdInterval);
                 let secLeft = {_effective_refresh};
