@@ -8311,7 +8311,7 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
                         fig.add_hline(
                             y=_lvl_p, line_dash="dash", line_color=_lvl_col, line_width=1.4,
                             annotation_text=_lvl_txt, annotation_position="top left",
-                            annotation_font=dict(size=8.5, color="#ffffff"),
+                            annotation_font=dict(size=9, color="#000000", family="monospace", weight="bold"),
                             annotation_bgcolor=_lvl_col, **rc
                         )
                         min_val = min(min_val, _lvl_p)
@@ -12376,7 +12376,7 @@ def render_live_ui():
                                 ]:
                                     _ly = _py(_lp)
                                     _svg_parts.append(f"<line x1='8' y1='{_ly}' x2='{_W - 8}' y2='{_ly}' stroke='{_lcol}' stroke-width='1.6' stroke-dasharray='5,3'/>")
-                                    _svg_parts.append(f"<rect x='{_W - 115}' y='{_ly - 8}' width='110' height='15' rx='3' fill='{_lcol}'/><text x='{_W - 60}' y='{_ly + 3}' fill='#fff' font-size='9.5' font-family='monospace' font-weight='bold' text-anchor='middle'>{_llbl}</text>")
+                                    _svg_parts.append(f"<rect x='{_W - 115}' y='{_ly - 8}' width='110' height='15' rx='3' fill='{_lcol}'/><text x='{_W - 60}' y='{_ly + 3}' fill='#000000' font-size='9.5' font-family='monospace' font-weight='bold' text-anchor='middle'>{_llbl}</text>")
 
                                 _custom_svg = f"<svg width='100%' height='{_H}' viewBox='0 0 {_W} {_H}' preserveAspectRatio='none' style='background:#0b0e14;border:1px solid #30363d;border-radius:6px;display:block;'>{''.join(_svg_parts)}</svg>"
                             else:
