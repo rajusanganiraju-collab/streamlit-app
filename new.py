@@ -6362,8 +6362,14 @@ if 'selected_sw_strats' not in st.session_state:
 # --- CSS: ZERO SIDE MARGINS + EXCEL WATCHLIST + COMPACT MULTI-CHART GRID ---
 st.markdown("""
     <style>
-    /* 1. Eliminate 1-inch Left & Right Margins across all Streamlit containers */
-    header[data-testid="stHeader"] { height: 0.5rem !important; background: transparent !important; }
+    /* 1. Top Header Bar visible with space on left of Share button for News Ticker */
+    header[data-testid="stHeader"] {
+        height: 2.4rem !important;
+        min-height: 36px !important;
+        background: #0b0e14 !important;
+        border-bottom: 1px solid #21262d !important;
+        z-index: 999990 !important;
+    }
     .block-container,
     div[data-testid="stAppViewBlockContainer"],
     div[data-testid="stMainBlockContainer"],
@@ -6969,29 +6975,43 @@ st.markdown("""
         0% { transform: translateX(0%); }
         100% { transform: translateX(-50%); }
     }
-    .flash-ticker-wrap {
-        flex: 1 1 100% !important;
-        width: 100% !important;
-        max-width: 100% !important;
-        overflow: hidden;
-        white-space: nowrap;
-        background: rgba(255, 215, 0, 0.10);
-        border-left: 3px solid #ffd700;
-        border-right: 3px solid #ffd700;
-        border-radius: 4px;
-        padding: 3px 12px;
-        margin: 0 6px;
+    /* Top Header Bar News Ticker (Left side of Share button) */
+    #top-header-news-bar {
+        position: fixed !important;
+        top: 3px !important;
+        left: 12px !important;
+        right: 145px !important; /* Share & 3-dots menu ki space vadili */
+        height: 28px !important;
+        z-index: 999995 !important;
+        display: flex !important;
+        align-items: center !important;
+        overflow: hidden !important;
+        white-space: nowrap !important;
+        background: rgba(22, 27, 34, 0.95) !important;
+        border: 1px solid #30363d !important;
+        border-left: 3px solid #ffd700 !important;
+        border-right: 3px solid #ffd700 !important;
+        border-radius: 5px !important;
+        padding: 0 10px !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.6) !important;
+    }
+    @media screen and (max-width: 768px) {
+        #top-header-news-bar {
+            left: 6px !important;
+            right: 95px !important;
+            height: 26px !important;
+        }
     }
     .flash-ticker-move {
         display: inline-block;
-        /* 95s valla news chala slow ga, chadavadaniki spastanga scroll avutundi */
         animation: flashScroll 95s linear infinite;
-        font-size: 14.5px !important;
+        font-size: 13px !important;
         font-weight: 700 !important;
         color: #ffffff;
         letter-spacing: 0.3px;
+        line-height: 26px !important;
     }
-    .flash-ticker-wrap:hover .flash-ticker-move {
+    #top-header-news-bar:hover .flash-ticker-move {
         animation-play-state: paused;
     }
     /* Top Action Bar height kuda 38px ki penchadam */
@@ -11442,18 +11462,38 @@ def render_live_ui():
             if _flash_str else "📢 <b>తెలుగు మార్కెట్ వార్తలు:</b> 24 గంటల బ్రేకింగ్ న్యూస్ లోడ్ అవుతోంది..."
         )
 
-        # ✅ 100% STATIC HTML CONTAINER: React/Streamlit will NEVER recreate or reset this DOM node on 30s refresh!
+        # 🔔 5-MIN CANDLE CLOSE AUTO POPUP CALCULATION (BEFORE STATUS BAR SO MINIMIZED BADGE WORKS)
+        _now_ist_dt = now_ist()
+        _candle_slot_5m = f"{_now_ist_dt.strftime('%Y-%m-%d %H')}:{(_now_ist_dt.minute // 5) * 5:02d}_v2"
+
+        if _SS.get('last_5m_popup_slot') != _candle_slot_5m:
+            _top2_90 = scan_all_strategies_top2_90pct(
+                df_all_stocks[df_all_stocks['T'].isin(set(NIFTY_50 + FNO_STOCKS + MIDCAP_150))],
+                processed_charts,
+                sniper_cached_res
+            )
+            _SS['last_5m_popup_slot'] = _candle_slot_5m
+            _SS['top2_5m_picks'] = _top2_90
+
+        _active_top2 = _SS.get('top2_5m_picks', [])
+        _has_5m_picks = len(_active_top2) > 0
+
+        # ✅ TOP STATUS BAR: Left side has LIVE/CLOSED + STRONG SELL/BUY + Minimized Popup Button (🔔 5m Alert)
         _status_bar_html = (
             "<div id='pro-top-status-bar' style='display:flex;justify-content:space-between;align-items:center;flex-wrap:nowrap;gap:8px;"
-            "background:#161b22;border:1.5px solid #238636;border-radius:6px;padding:0px 12px;"
-            "height:38px;margin-bottom:4px;font-size:14px;overflow:hidden;white-space:nowrap;'>"
-            "<div style='display:flex;align-items:center;gap:8px;flex-shrink:0;'>"
-            "<span id='live-status-title'>🟢 <b style='font-size:14px;'>LIVE</b></span>"
-            "<span id='live-dir-badge' style='background:#30363d;border:1px solid #8b949e;color:#ffffff;padding:3px 10px;border-radius:5px;font-weight:bold;font-size:13.5px;white-space:nowrap;'>NEUTRAL ⚖️</span>"
+            "background:#161b22;border:1.5px solid #238636;border-radius:6px;padding:0px 10px;"
+            "height:38px;margin-bottom:4px;font-size:13.5px;overflow-x:auto;overflow-y:hidden;white-space:nowrap;'>"
+            "<div style='display:flex;align-items:center;gap:6px;flex-shrink:0;'>"
+            "<span id='live-status-title'>🟢 <b style='font-size:13.5px;'>LIVE</b></span>"
+            "<span id='live-dir-badge' style='background:#30363d;border:1px solid #8b949e;color:#ffffff;padding:3px 9px;border-radius:5px;font-weight:bold;font-size:12.5px;white-space:nowrap;'>NEUTRAL ⚖️</span>"
+            # 👇 MINIMIZED POPUP BUTTON (Strong Sell / Buy పక్కనే వస్తుంది, క్లిక్ చేస్తే పాపప్ మళ్ళీ ఓపెన్ అవుతుంది!)
+            f"<span id='sniper-5m-min-btn' onclick='if(window.parent.open5mPopup) window.parent.open5mPopup(event);' ontouchend='if(window.parent.open5mPopup) window.parent.open5mPopup(event);' "
+            f"style='display:none;cursor:pointer;background:linear-gradient(90deg,#d97706,#b91c1c);border:1.5px solid #ffd700;color:#ffffff;"
+            f"padding:3px 9px;border-radius:5px;font-weight:800;font-size:12px;white-space:nowrap;box-shadow:0 0 8px rgba(255,215,0,0.45);user-select:none;' "
+            f"title='Click to Re-Open 5m Sniper Alert Popup'>🔔 5m Alert ({len(_active_top2)}) ▴</span>"
             "</div>"
-            "<div class='flash-ticker-wrap'><div id='flash-ticker-el' class='flash-ticker-move'></div></div>"
             "<span id='live-cd-badge' style='background:#21262d;border:1px solid #30363d;color:#00BFFF;"
-            "padding:2px 8px;border-radius:4px;font-weight:bold;font-size:13px;font-family:monospace;flex-shrink:0;'>⏳ 30s</span>"
+            "padding:2px 8px;border-radius:4px;font-weight:bold;font-size:12.5px;font-family:monospace;flex-shrink:0;margin-left:auto;'>⏳ 30s</span>"
             "</div>"
         )
 
@@ -11488,20 +11528,7 @@ def render_live_ui():
         else:
             st.markdown(_status_bar_html, unsafe_allow_html=True)
 
-        # 🔔 5-MIN CANDLE CLOSE AUTO POPUP (ZERO-REFRESH CLOSE & INSTANT CHART OPEN)
-        _now_ist_dt = now_ist()
-        _candle_slot_5m = f"{_now_ist_dt.strftime('%Y-%m-%d %H')}:{(_now_ist_dt.minute // 5) * 5:02d}_v2"
-
-        if _SS.get('last_5m_popup_slot') != _candle_slot_5m:
-            _top2_90 = scan_all_strategies_top2_90pct(
-                df_all_stocks[df_all_stocks['T'].isin(set(NIFTY_50 + FNO_STOCKS + MIDCAP_150))],
-                processed_charts,
-                sniper_cached_res
-            )
-            _SS['last_5m_popup_slot'] = _candle_slot_5m
-            _SS['top2_5m_picks'] = _top2_90
-
-        _active_top2 = _SS.get('top2_5m_picks', [])
+        # 🔔 RENDER POPUP BOX (WITH MOBILE-SAFE INLINE ONCLICK & ONTOUCHEND HANDLERS)
         if _active_top2:
             _cards_html = ""
             for _idx_p, _pk in enumerate(_active_top2):
@@ -11514,11 +11541,12 @@ def render_live_ui():
                 _ltp_e = float(_pk.get('ltp', _opt_e))
                 _rr_e = _pk.get('rr', 2.0)
                 _enote = _pk.get('entry_note', f"{_pk.get('side', 'BUY')} @ ₹{_opt_e:.2f}")
+                _sym_js = _pk['sym']
 
                 _cards_html += (
                     f"<div style='background:#161b22;border:1.5px solid {_b_col};border-radius:8px;padding:10px 12px;margin-top:8px;'>"
                     f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
-                    f"<span style='font-size:15px;font-weight:900;color:#ffffff;'>#{_idx_p+1} {_pk['sym']} "
+                    f"<span style='font-size:15px;font-weight:900;color:#ffffff;'>#{_idx_p+1} {_sym_js} "
                     f"<span style='background:{_bg_badge};color:{_b_col};border:1px solid {_b_col};padding:1px 7px;border-radius:12px;font-size:11.5px;'>{_pk['side']}</span></span>"
                     f"<span style='background:linear-gradient(90deg,#1d4ed8,#7c3aed);color:#fff;padding:2px 8px;border-radius:12px;font-size:11.5px;font-weight:800;border:1px solid #ffd700;'>🤖 Prob: {_pk['prob']}% (1:{_rr_e} RR)</span>"
                     f"</div>"
@@ -11530,7 +11558,10 @@ def render_live_ui():
                     f"<span style='color:#4ade80;'><b>🎯 TGT:</b> ₹{_tg_e:.2f}</span>"
                     f"</div>"
                     f"<div style='display:flex;gap:8px;margin-top:8px;'>"
-                    f"<span class='pop-5m-open-mini' data-sym='{_pk['sym']}' style='flex:1;cursor:pointer;text-align:center;background:#16a34a;color:#fff;padding:6px 8px;border-radius:5px;font-size:12px;font-weight:bold;border:1px solid #4ade80;'>📈 Show Mini Chart Below Global Indices (No Reload)</span>"
+                    f"<span class='pop-5m-open-mini' data-sym='{_sym_js}' "
+                    f"onclick=\"if(window.parent.open5mMiniChart) window.parent.open5mMiniChart('{_sym_js}', event);\" "
+                    f"ontouchend=\"if(window.parent.open5mMiniChart) window.parent.open5mMiniChart('{_sym_js}', event);\" "
+                    f"style='flex:1;cursor:pointer;text-align:center;background:#16a34a;color:#fff;padding:7px 8px;border-radius:5px;font-size:12px;font-weight:bold;border:1px solid #4ade80;user-select:none;touch-action:manipulation;'>📈 Show Mini Chart Below Global Indices</span>"
                     f"</div></div>"
                 )
 
@@ -11539,11 +11570,13 @@ def render_live_ui():
                 <div id="sniper-5m-popup" data-slot="{_candle_slot_5m}" style="position:fixed;bottom:18px;right:18px;width:400px;max-width:94vw;
                     background:rgba(11,14,20,0.98);border:2px solid #ffd700;border-radius:12px;padding:12px 14px;
                     z-index:999999;box-shadow:0 12px 32px rgba(0,0,0,0.85);font-family:'Inter',sans-serif;">
-                    <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #30363d;padding-bottom:6px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #30363d;padding-bottom:8px;">
                         <span style="color:#ffd700;font-weight:900;font-size:13.5px;">🔔 5m Candle Alert ({_candle_slot_5m[-8:-3]}) — Top 2 (90%+ Prob)</span>
                         <span class="pop-5m-close-btn"
-                              style="cursor:pointer;background:#dc2626;color:#fff;padding:1px 8px;border-radius:4px;font-size:12px;font-weight:bold;border:1px solid #ef4444;"
-                              title="Close Popup (No Reload)">✖</span>
+                              onclick="if(window.parent.minimize5mPopup) window.parent.minimize5mPopup(event);"
+                              ontouchend="if(window.parent.minimize5mPopup) window.parent.minimize5mPopup(event);"
+                              style="cursor:pointer;background:#dc2626;color:#fff;padding:4px 12px;border-radius:6px;font-size:13px;font-weight:900;border:1px solid #ef4444;user-select:none;touch-action:manipulation;"
+                              title="Minimize Popup to Top Bar">✖</span>
                     </div>
                     {_cards_html}
                 </div>
@@ -11558,11 +11591,52 @@ def render_live_ui():
                 const parentWin = window.parent;
                 const parentDoc = parentWin.document;
                 const curSlot = {json.dumps(_candle_slot_5m)};
+                const hasPicks = {json.dumps(_has_5m_picks)};
 
-                const popEl = parentDoc.getElementById('sniper-5m-popup');
-                if (popEl && parentWin._dismissed5mSlot === curSlot) {{
-                    popEl.style.display = 'none';
-                }}
+                // 1. Mobile & Desktop Minimize / Restore Functions for 5m Popup
+                parentWin.sync5mPopupState = function() {{
+                    const popEl = parentDoc.getElementById('sniper-5m-popup');
+                    const minBtn = parentDoc.getElementById('sniper-5m-min-btn');
+                    const isMinimized = (parentWin._dismissed5mSlot === curSlot);
+
+                    if (popEl) {{
+                        popEl.style.setProperty('display', isMinimized ? 'none' : 'block', 'important');
+                    }}
+                    if (minBtn) {{
+                        minBtn.style.setProperty('display', (hasPicks && isMinimized) ? 'inline-flex' : 'none', 'important');
+                    }}
+                }};
+
+                parentWin.minimize5mPopup = function(e) {{
+                    if (e) {{ e.preventDefault(); e.stopPropagation(); }}
+                    const popEl = parentDoc.getElementById('sniper-5m-popup');
+                    parentWin._dismissed5mSlot = (popEl && popEl.getAttribute('data-slot')) ? popEl.getAttribute('data-slot') : curSlot;
+                    parentWin.sync5mPopupState();
+                }};
+
+                parentWin.open5mPopup = function(e) {{
+                    if (e) {{ e.preventDefault(); e.stopPropagation(); }}
+                    parentWin._dismissed5mSlot = '';
+                    parentWin.sync5mPopupState();
+                }};
+
+                parentWin.open5mMiniChart = function(sym, e) {{
+                    if (e) {{ e.preventDefault(); e.stopPropagation(); }}
+                    parentWin._selected5mSym = sym;
+                    parentWin.minimize5mPopup();
+                    parentDoc.querySelectorAll('.sniper-5m-mini-container').forEach(el => {{
+                        el.style.display = 'none';
+                    }});
+                    const targetBox = parentDoc.getElementById('sniper-mini-box-' + sym);
+                    if (targetBox) {{
+                        targetBox.style.display = 'block';
+                        targetBox.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
+                        setTimeout(() => parentWin.dispatchEvent(new Event('resize')), 60);
+                    }}
+                }};
+
+                parentWin.sync5mPopupState();
+
                 if (parentWin._selected5mSym) {{
                     const boxEl = parentDoc.getElementById('sniper-mini-box-' + parentWin._selected5mSym);
                     if (boxEl) boxEl.style.display = 'block';
@@ -11571,39 +11645,6 @@ def render_live_ui():
                 if (!parentWin._pop5mClickBound) {{
                     parentWin._pop5mClickBound = true;
                     parentDoc.addEventListener('click', function(e) {{
-                        const closeBtn = e.target.closest('.pop-5m-close-btn');
-                        if (closeBtn) {{
-                            e.preventDefault();
-                            e.stopPropagation();
-                            const p = parentDoc.getElementById('sniper-5m-popup');
-                            if (p) {{
-                                parentWin._dismissed5mSlot = p.getAttribute('data-slot') || '';
-                                p.style.display = 'none';
-                            }}
-                            return;
-                        }}
-                        const openMini = e.target.closest('.pop-5m-open-mini');
-                        if (openMini) {{
-                            e.preventDefault();
-                            e.stopPropagation();
-                            const sym = openMini.getAttribute('data-sym');
-                            parentWin._selected5mSym = sym;
-                            const p = parentDoc.getElementById('sniper-5m-popup');
-                            if (p) {{
-                                parentWin._dismissed5mSlot = p.getAttribute('data-slot') || '';
-                                p.style.display = 'none';
-                            }}
-                            parentDoc.querySelectorAll('.sniper-5m-mini-container').forEach(el => {{
-                                el.style.display = 'none';
-                            }});
-                            const targetBox = parentDoc.getElementById('sniper-mini-box-' + sym);
-                            if (targetBox) {{
-                                targetBox.style.display = 'block';
-                                targetBox.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
-                                setTimeout(() => parentWin.dispatchEvent(new Event('resize')), 60);
-                            }}
-                            return;
-                        }}
                         const closeMini = e.target.closest('.sniper-mini-hide-btn');
                         if (closeMini) {{
                             e.preventDefault();
@@ -11617,6 +11658,7 @@ def render_live_ui():
                     }}, true);
                 }}
 
+                // 2. Update Status & Strong Sell / Buy Badge
                 const topBar = parentDoc.getElementById('pro-top-status-bar');
                 if (topBar) topBar.style.borderColor = {json.dumps(_status_border)};
                 const stTitle = parentDoc.getElementById('live-status-title');
@@ -11628,7 +11670,15 @@ def render_live_ui():
                     dirBadge.style.borderColor = {json.dumps(_mkt_dir_border)};
                 }}
 
+                // 3. Top Header News Ticker (Docked to the Left of Share Button at Top Right)
                 if (!parentWin._flashEpoch) parentWin._flashEpoch = Date.now();
+                let hdrNewsBar = parentDoc.getElementById('top-header-news-bar');
+                if (!hdrNewsBar) {{
+                    hdrNewsBar = parentDoc.createElement('div');
+                    hdrNewsBar.id = 'top-header-news-bar';
+                    hdrNewsBar.innerHTML = '<div id="flash-ticker-el" class="flash-ticker-move"></div>';
+                    parentDoc.body.appendChild(hdrNewsBar);
+                }}
                 const flashEl = parentDoc.getElementById('flash-ticker-el');
                 const newFlashHtml = {json.dumps(_flash_inner)};
                 if (flashEl) {{
@@ -11640,6 +11690,7 @@ def render_live_ui():
                     }}
                 }}
 
+                // 4. Right 20% Panel Toggle Logic
                 parentWin._isRight20Hidden = !!parentWin._isRight20Hidden;
                 parentWin.applyRight20State = function(forceResize) {{
                     const hidden = !!parentWin._isRight20Hidden;
@@ -11693,7 +11744,10 @@ def render_live_ui():
 
                 parentWin.applyRight20State(true);
                 if (parentWin._rpSyncInterval) clearInterval(parentWin._rpSyncInterval);
-                parentWin._rpSyncInterval = setInterval(() => parentWin.applyRight20State(false), 400);
+                parentWin._rpSyncInterval = setInterval(() => {{
+                    parentWin.applyRight20State(false);
+                    parentWin.sync5mPopupState();
+                }}, 400);
 
                 if (!parentWin._mcSvgListenerAdded) {{
                     parentWin._mcSvgListenerAdded = true;
