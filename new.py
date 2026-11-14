@@ -6361,7 +6361,7 @@ if 'selected_sw_strats' not in st.session_state:
 # --- CSS: ZERO SIDE MARGINS + EXCEL WATCHLIST + COMPACT MULTI-CHART GRID ---
 st.markdown("""
     <style>
-    /* 1. Zero-Gap Top Header (2nd Screenshot లాగా న్యూస్ బార్ కింద అస్సలు గ్యాప్ లేకుండా) */
+    /* 1. Zero-Gap Top Header (న్యూస్ స్క్రోలింగ్ కింద అస్సలు గ్యాప్ రాకుండా) */
     header[data-testid="stHeader"] {
         height: 30px !important;
         min-height: 30px !important;
@@ -6380,16 +6380,16 @@ st.markdown("""
     }
     .block-container,
     div[data-testid="stMainBlockContainer"] {
-        padding-top: 32px !important; /* కేవలం ఒకేసారి 32px ప్యాడింగ్ */
+        padding-top: 26px !important;
         padding-bottom: 0.1rem !important;
         padding-left: 0.15rem !important;
         padding-right: 0.15rem !important;
         max-width: 100% !important;
         width: 100% !important;
     }
-    /* పైన ఉన్న <style> బ్లాక్స్ మరియు దాగి ఉన్న Mini-Chart కంటైనర్ల వల్ల వచ్చే ఖాళీ లైన్స్ తొలగింపు */
-    div[data-testid="stElementContainer"]:has(> div > style),
-    div[data-testid="stElementContainer"]:has(> div > div > style),
+    /* పైన ఉన్న అన్ని <style>, <hr> బ్లాక్స్ ని Flexbox gap నుండి పూర్తిగా తొలగించడం */
+    div[data-testid="stElementContainer"]:has(style),
+    div[data-testid="stElementContainer"]:has(hr),
     div[data-testid="stElementContainer"]:has(.sniper-5m-mini-container[style*="display:none"]),
     div[data-testid="stElementContainer"]:has(.sniper-5m-mini-container[style*="display: none"]) {
         display: none !important;
@@ -6932,18 +6932,18 @@ st.markdown("""
         border-radius: 4px !important;
     }
 
-    /* 🔥 Unified Top Bar (LIVE/CLOSED + AI Predictions + Select Strategies + 30s Refresh ఒకే లైన్‌లో) */
-    div[data-testid="stHorizontalBlock"]:has(.top-bar-row-marker) {
+    /* 🔥 Unified Top Bar (LIVE/CLOSED + VWAP Rec + 🔔 5m Alert + AI Predictions + Select Strategies + 30s Refresh అన్నీ ఒకే లైన్‌లో) */
+    div[data-testid="stHorizontalBlock"]:has(#live-left-group) {
         background: #161b22 !important;
         border: 1.5px solid #238636 !important;
         border-radius: 6px !important;
         padding: 2px 8px !important;
+        margin-top: 0px !important;
         margin-bottom: 4px !important;
         min-height: 36px !important;
         align-items: center !important;
         gap: 6px !important;
     }
-    div[data-testid="stElementContainer"]:has(.top-bar-row-marker) { display: none !important; }
     div[data-testid="stColumn"]:has(.pro-ActionBar) div[data-testid="stPopover"] > div > button {
         min-height: 30px !important;
         height: 30px !important;
@@ -11615,32 +11615,6 @@ def render_live_ui():
             tb_status, tb_mode, tb_qty, tb_back, tb_theme, tb_clear = st.columns([5.5, 1.1, 0.65, 0.75, 0.9, 0.7], gap="small")
             with tb_status:
                 st.markdown(_status_bar_html, unsafe_allow_html=True)
-            with tb_mode:
-                st.markdown("<div class='pro-ActionBar'></div>", unsafe_allow_html=True)
-                _t_modes = ["📝 Paper Trading", "⚡ Dhan Live Order", "🚀 Dhan Super Order (SL+TGT)"]
-                _cur_tm = _UI.get('trade_mode', "📝 Paper Trading")
-                _tm_idx = _t_modes.index(_cur_tm) if _cur_tm in _t_modes else 0
-                st.selectbox(
-                    "Trade Mode", _t_modes,
-                    index=_tm_idx,
-                    key="tr_mode_key",
-                    label_visibility="collapsed",
-                    on_change=_on_trade_cfg_change
-                )
-            with tb_qty:
-                st.markdown("<div class='pro-ActionBar'></div>", unsafe_allow_html=True)
-                st.selectbox(
-                    "Qty", [1, 5, 10, 25, 50, 100, 250, 500],
-                    index=[1, 5, 10, 25, 50, 100, 250, 500].index(_UI.get('trade_qty', 10)) if _UI.get('trade_qty', 10) in [1, 5, 10, 25, 50, 100, 250, 500] else 2,
-                    key="tr_qty_key",
-                    label_visibility="collapsed",
-                    on_change=_on_trade_cfg_change
-                )
-            with tb_clear:
-                st.markdown("<div class='pro-ActionBar'></div>", unsafe_allow_html=True)
-                st.button("🗑️ Clear", key="btn_clear_all", width="stretch", on_click=_clear_all_pro_charts)
-        else:
-            st.markdown(_status_bar_html, unsafe_allow_html=True)
 
         # 🔔 BUILD POPUP HTML FOR PURE JS INJECTION (ZERO STREAMLIT SANITIZER OR LAYOUT GAP)
         _popup_inner_html = ""
@@ -11699,9 +11673,10 @@ def render_live_ui():
                 const picksCount = {len(_active_top2)};
                 const popupInnerHtml = {json.dumps(_popup_inner_html)};
 
-                // 1. Update Status & Strong Sell / Buy Badge
-                const topBar = parentDoc.getElementById('pro-top-status-bar');
-                if (topBar) topBar.style.borderColor = {json.dumps(_status_border)};
+                // 1. Update Status & Strong Sell / Buy Badge in the Single Unified Top Bar
+                const leftGrpEl = parentDoc.getElementById('live-left-group');
+                const topBar = leftGrpEl ? leftGrpEl.closest('[data-testid="stHorizontalBlock"]') : null;
+                if (topBar) topBar.style.setProperty('border-color', {json.dumps(_status_border)}, 'important');
                 const stTitle = parentDoc.getElementById('live-status-title');
                 if (stTitle) stTitle.innerHTML = {json.dumps(_status_title)};
                 const dirBadge = parentDoc.getElementById('live-dir-badge');
