@@ -6044,7 +6044,7 @@ def render_portfolio_table(df_port, df_stocks, weekly_trends, port_sort="Default
     elif port_sort == "Days Held ⬆️": rows_data.sort(key=lambda x: x['days_held'], reverse=True)
     elif port_sort == "Days Held ⬇️": rows_data.sort(key=lambda x: x['days_held'], reverse=False)
 
-    html = f'<table class="term-table"><thead><tr><th colspan="11" class="term-head-port">💼 LIVE PORTFOLIO TERMINAL</th></tr><tr style="background-color: #21262d;"><th style="text-align:left; width:11%;">STOCK</th><th style="width:9%;">BUY DATE</th><th style="width:6%; color:#ffd700;">DAYS</th><th style="width:5%;">QTY</th><th style="width:8%;">AVG</th><th style="width:8%;">LTP</th><th style="width:10%;">WK TREND</th><th style="width:12%;">INVESTED (₹)</th><th style="width:10%;">DAY P&L</th><th style="width:11%;">TOT P&L</th><th style="width:10%;">P&L %</th></tr></thead><tbody>'
+    html = '<table id="live-portfolio-table" class="term-table"><thead><tr><th colspan="11" class="term-head-port">💼 LIVE PORTFOLIO TERMINAL (Click Any Column Header Below to Sort ⇅)</th></tr><tr style="background-color: #21262d;"><th class="port-sort-th" data-col="0" data-type="str" style="text-align:left; width:11%;">STOCK ⇅</th><th class="port-sort-th" data-col="1" data-type="date" style="width:9%;">BUY DATE ⇅</th><th class="port-sort-th" data-col="2" data-type="num" style="width:6%; color:#ffd700;">DAYS ⇅</th><th class="port-sort-th" data-col="3" data-type="num" style="width:5%;">QTY ⇅</th><th class="port-sort-th" data-col="4" data-type="num" style="width:8%;">AVG ⇅</th><th class="port-sort-th" data-col="5" data-type="num" style="width:8%;">LTP ⇅</th><th class="port-sort-th" data-col="6" data-type="str" style="width:10%;">WK TREND ⇅</th><th class="port-sort-th" data-col="7" data-type="num" style="width:12%;">INVESTED (₹) ⇅</th><th class="port-sort-th" data-col="8" data-type="num" style="width:10%;">DAY P&L ⇅</th><th class="port-sort-th" data-col="9" data-type="num" style="width:11%;">TOT P&L ⇅</th><th class="port-sort-th" data-col="10" data-type="num" style="width:10%;">P&L % ⇅</th></tr></thead><tbody>'
     
     for i, rd in enumerate(rows_data):
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
@@ -6908,21 +6908,66 @@ st.markdown("""
         cursor: pointer !important;
         background: transparent !important;
     }
-    /* 🔥 Stock Name pakkana Right Side lo 📷 PNG & ⛶ Full Screen buttons eppudu hide avvakunda kanipinchela */
+    /* 🔥 Mini-Chart లో 📷 PNG & ⛶ Full Screen బటన్లు మధ్యలో రాకుండా ఎడమవైపు చివరన (Left Side End) కనిపించేలా */
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) div[data-testid="stElementToolbar"] {
         position: absolute !important;
-        top: 2px !important;
-        right: 2px !important;
+        bottom: 2px !important;
+        left: 2px !important;
+        top: auto !important;
+        right: auto !important;
         z-index: 105 !important;
-        background: rgba(11, 14, 20, 0.85) !important;
+        background: rgba(11, 14, 20, 0.88) !important;
         border-radius: 4px !important;
         padding: 0px !important;
     }
     div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .pro-mini-board) .js-plotly-plot .plotly .modebar {
-        top: 2px !important;
-        right: 30px !important;
+        position: absolute !important;
+        bottom: 2px !important;
+        left: 28px !important;
+        top: auto !important;
+        right: auto !important;
+        width: auto !important;
         z-index: 105 !important;
-        background: transparent !important;
+        background: rgba(11, 14, 20, 0.88) !important;
+        border-radius: 4px !important;
+    }
+
+    /* 🔥 Unified Top Bar (LIVE/CLOSED + AI Predictions + Select Strategies + 30s Refresh ఒకే లైన్‌లో) */
+    div[data-testid="stHorizontalBlock"]:has(.top-bar-row-marker) {
+        background: #161b22 !important;
+        border: 1.5px solid #238636 !important;
+        border-radius: 6px !important;
+        padding: 2px 8px !important;
+        margin-bottom: 4px !important;
+        min-height: 36px !important;
+        align-items: center !important;
+        gap: 6px !important;
+    }
+    div[data-testid="stElementContainer"]:has(.top-bar-row-marker) { display: none !important; }
+    div[data-testid="stColumn"]:has(.pro-ActionBar) div[data-testid="stPopover"] > div > button {
+        min-height: 30px !important;
+        height: 30px !important;
+        padding: 0px 8px !important;
+        background-color: #0d1117 !important;
+        border: 1px solid #30363d !important;
+        border-radius: 5px !important;
+        font-size: 12px !important;
+    }
+    div[data-testid="stColumn"]:has(.pro-ActionBar) div[data-testid="stSelectbox"] > div > div {
+        min-height: 30px !important;
+        height: 30px !important;
+        background-color: #0d1117 !important;
+        font-size: 12px !important;
+    }
+    /* Portfolio Table Sortable Headers */
+    th.port-sort-th {
+        cursor: pointer !important;
+        user-select: none !important;
+        transition: background 0.15s !important;
+    }
+    th.port-sort-th:hover {
+        background-color: #30363d !important;
+        color: #58a6ff !important;
     }
     /* 🔥 Full Screen (⛶) nokkinappudu MATRAME Mini-Chart peddaga (88vh) kanipinchela */
     div[data-testid="stFullScreenFrame"]:fullscreen div[data-testid="stPlotlyChart"],
@@ -10195,37 +10240,53 @@ def render_live_ui():
     col_main_80, col_side_20 = st.columns([4.02, 1.22], gap="small")
 
     # ---------------------------------------------------------
-    # 👉 RIGHT 20% PANEL: COMPACT CONTROLS + EXCEL WATCHLIST
+    # 👉 TOP BAR IN LEFT 80% PANEL: STATUS + AI PREDICTIONS + SELECT STRATEGIES + 30s REFRESH
     # ---------------------------------------------------------
-    with col_side_20:
-        right_panel_box = st.container(height=720, border=True)
-        with right_panel_box:
-            st.markdown("<div class='right-panel-marker'></div>", unsafe_allow_html=True)
-            _wl_modes = [
-                "🤖 AI Predictions (F&O)",
-                "🤖 AI Predictions (Mid Cap)",
-                "🤖 AI Predictions (Small Cap)",
-                "High Score Stocks 🔥",
-                "Day Trading Stocks 🚀",
-                "Swing Trading 📈",
-                "Legendary Strategy 🏆",
-                "F&O + Top 200 Heatmap 🗺️",
-                "Terminal Tables 🗃️",
-                "My Portfolio 💼",
-                "📝 Paper Trading 💼",
-                "Commodity 🛢️",
-                "Fundamentals 🏢",
-                "Mutual Funds 📈",
-                "Month Effect Advantage 📅"
-            ]
-            _saved_wl = _UI.get('watchlist_mode', _wl_modes[0])
-            _wl_idx = _wl_modes.index(_saved_wl) if _saved_wl in _wl_modes else 0
+    with col_main_80:
+        _wl_modes = [
+            "🤖 AI Predictions (F&O)",
+            "🤖 AI Predictions (Mid Cap)",
+            "🤖 AI Predictions (Small Cap)",
+            "High Score Stocks 🔥",
+            "Day Trading Stocks 🚀",
+            "Swing Trading 📈",
+            "Legendary Strategy 🏆",
+            "F&O + Top 200 Heatmap 🗺️",
+            "Terminal Tables 🗃️",
+            "My Portfolio 💼",
+            "📝 Paper Trading 💼",
+            "Commodity 🛢️",
+            "Fundamentals 🏢",
+            "Mutual Funds 📈",
+            "Month Effect Advantage 📅"
+        ]
+        _saved_wl = _UI.get('watchlist_mode', _wl_modes[0])
+        _wl_idx = _wl_modes.index(_saved_wl) if _saved_wl in _wl_modes else 0
+        move_type_filter = ["All Day Trading Moves 🚀"]
+        fund_filter = "Top Ranked Stocks ⭐"
+
+        if st.session_state.grid_layout_mode != "Off":
+            tb_left, tb_wl, tb_strat, tb_mode, tb_qty, tb_clear, tb_timer = st.columns([2.5, 1.35, 1.45, 1.0, 0.55, 0.55, 0.55], gap="small")
+        else:
+            tb_left, tb_wl, tb_strat, tb_timer = st.columns([3.2, 1.5, 1.6, 0.6], gap="small")
+
+        with tb_left:
+            st.markdown(
+                "<div class='top-bar-row-marker'></div>"
+                "<div id='live-left-group' style='display:flex;align-items:center;gap:6px;height:30px;overflow-x:auto;overflow-y:hidden;white-space:nowrap;'>"
+                "<span id='live-status-title'>🟢 <b style='font-size:13.5px;'>LIVE</b></span>"
+                "<span id='live-dir-badge' style='background:#30363d;border:1px solid #8b949e;color:#ffffff;padding:2px 9px;border-radius:5px;font-weight:bold;font-size:12.5px;white-space:nowrap;'>NEUTRAL ⚖️</span>"
+                "</div>",
+                unsafe_allow_html=True
+            )
+
+        with tb_wl:
+            st.markdown("<div class='pro-ActionBar'></div>", unsafe_allow_html=True)
             watchlist_mode = st.selectbox("Watchlist / Strategy", _wl_modes, index=_wl_idx, label_visibility="collapsed")
             _UI['watchlist_mode'] = watchlist_mode
 
-            move_type_filter = ["All Day Trading Moves 🚀"]
-            fund_filter = "Top Ranked Stocks ⭐"
-
+        with tb_strat:
+            st.markdown("<div class='pro-ActionBar'></div>", unsafe_allow_html=True)
             if "AI Predictions" in watchlist_mode:
                 ai_strat_options = [
                     ADAPTIVE_STRAT,
@@ -10293,7 +10354,39 @@ def render_live_ui():
 
             elif watchlist_mode == "Fundamentals 🏢":
                 fund_filter = st.selectbox("Fundamentals Filter", ["Top Ranked Stocks ⭐", "🦅 Warren Buffett Value Stocks", "Swing Trading Candidates 📈", "Nifty 50 Stocks", "My Portfolio 💼"], index=0, label_visibility="collapsed")
+            else:
+                st.markdown(f"<div style='color:#8b949e;font-size:11.5px;height:30px;display:flex;align-items:center;padding-left:6px;'>📌 {watchlist_mode}</div>", unsafe_allow_html=True)
 
+        if st.session_state.grid_layout_mode != "Off":
+            with tb_mode:
+                st.markdown("<div class='pro-ActionBar'></div>", unsafe_allow_html=True)
+                _t_modes = ["📝 Paper Trading", "⚡ Dhan Live Order", "🚀 Dhan Super Order (SL+TGT)"]
+                _cur_tm = _UI.get('trade_mode', "📝 Paper Trading")
+                _tm_idx = _t_modes.index(_cur_tm) if _cur_tm in _t_modes else 0
+                st.selectbox("Trade Mode", _t_modes, index=_tm_idx, key="tr_mode_key", label_visibility="collapsed", on_change=_on_trade_cfg_change)
+            with tb_qty:
+                st.markdown("<div class='pro-ActionBar'></div>", unsafe_allow_html=True)
+                st.selectbox("Qty", [1, 5, 10, 25, 50, 100, 250, 500], index=[1, 5, 10, 25, 50, 100, 250, 500].index(_UI.get('trade_qty', 10)) if _UI.get('trade_qty', 10) in [1, 5, 10, 25, 50, 100, 250, 500] else 2, key="tr_qty_key", label_visibility="collapsed", on_change=_on_trade_cfg_change)
+            with tb_clear:
+                st.markdown("<div class='pro-ActionBar'></div>", unsafe_allow_html=True)
+                st.button("🗑️ Clear", key="btn_clear_all", width="stretch", on_click=_clear_all_pro_charts)
+
+        with tb_timer:
+            st.markdown(
+                "<div style='display:flex;justify-content:flex-end;align-items:center;height:30px;'>"
+                "<span id='live-cd-badge' style='background:#21262d;border:1px solid #30363d;color:#00BFFF;"
+                "padding:2px 8px;border-radius:4px;font-weight:bold;font-size:12.5px;font-family:monospace;white-space:nowrap;'>⏳ 30s</span>"
+                "</div>",
+                unsafe_allow_html=True
+            )
+
+    # ---------------------------------------------------------
+    # 👉 RIGHT 20% PANEL: MODE, GRID, FILTERS & EXCEL WATCHLIST
+    # ---------------------------------------------------------
+    with col_side_20:
+        right_panel_box = st.container(height=720, border=True)
+        with right_panel_box:
+            st.markdown("<div class='right-panel-marker'></div>", unsafe_allow_html=True)
             default_view_idx = 0 if watchlist_mode in ["My Portfolio 💼", "F&O + Top 200 Heatmap 🗺️"] else 1
             view_mode = st.radio("Mode:", ["Heat Map", "Chart 📈", "News 📰"], index=default_view_idx, horizontal=True)
             _UI['view_mode'] = view_mode
