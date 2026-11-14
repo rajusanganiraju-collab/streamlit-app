@@ -6312,7 +6312,6 @@ def render_closed_trades_table(df_closed):
     return html
 
 # --- 6. FETCH DATA ---
-st.markdown("<hr style='margin:10px 0; border-color:#30363d;'>", unsafe_allow_html=True)
 
 df = fetch_all_data()
 
@@ -6362,12 +6361,12 @@ if 'selected_sw_strats' not in st.session_state:
 # --- CSS: ZERO SIDE MARGINS + EXCEL WATCHLIST + COMPACT MULTI-CHART GRID ---
 st.markdown("""
     <style>
-    /* 1. Top Header Bar visible with space on left of Share button for News Ticker */
+    /* 1. Zero-Gap Top Header & Zero Empty Lines Around Global Indices Expander */
     header[data-testid="stHeader"] {
-        height: 2.4rem !important;
-        min-height: 36px !important;
-        background: #0b0e14 !important;
-        border-bottom: 1px solid #21262d !important;
+        height: 32px !important;
+        min-height: 32px !important;
+        background: transparent !important;
+        border: none !important;
         z-index: 999990 !important;
     }
     .block-container,
@@ -6375,12 +6374,30 @@ st.markdown("""
     div[data-testid="stMainBlockContainer"],
     .main .block-container,
     section.main > div {
-        padding-top: 0.15rem !important;
-        padding-bottom: 0.15rem !important;
+        padding-top: 34px !important; /* న్యూస్ స్క్రోల్ కింద ఎలాంటి ఖాళీ లైన్ లేకుండా సెట్ చేస్తుంది */
+        padding-bottom: 0.1rem !important;
         padding-left: 0.15rem !important;
         padding-right: 0.15rem !important;
         max-width: 100% !important;
         width: 100% !important;
+    }
+    /* Global Indices Expander పైన & కింద ఉండే ఖాళీ స్థలాన్ని పూర్తిగా తొలగించడం */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .left-main-scroll-marker) {
+        gap: 2px !important;
+    }
+    div[data-testid="stElementContainer"]:has(#sniper-5m-popup),
+    div[data-testid="stElementContainer"]:has(.sniper-5m-mini-container) {
+        margin: 0px !important;
+        padding: 0px !important;
+    }
+    div[data-testid="stElementContainer"]:has(#sniper-5m-popup) {
+        height: 0px !important;
+        min-height: 0px !important;
+        overflow: visible !important;
+    }
+    div[data-testid="stExpander"] {
+        margin-top: 0px !important;
+        margin-bottom: 2px !important;
     }
     .block-container > div > div > div > hr { display: none !important; }
 
@@ -11482,14 +11499,14 @@ def render_live_ui():
         _status_bar_html = (
             "<div id='pro-top-status-bar' style='display:flex;justify-content:space-between;align-items:center;flex-wrap:nowrap;gap:8px;"
             "background:#161b22;border:1.5px solid #238636;border-radius:6px;padding:0px 10px;"
-            "height:38px;margin-bottom:4px;font-size:13.5px;overflow-x:auto;overflow-y:hidden;white-space:nowrap;'>"
+            "height:34px;margin-bottom:2px;font-size:13.5px;overflow-x:auto;overflow-y:hidden;white-space:nowrap;'>"
             "<div style='display:flex;align-items:center;gap:6px;flex-shrink:0;'>"
             "<span id='live-status-title'>🟢 <b style='font-size:13.5px;'>LIVE</b></span>"
-            "<span id='live-dir-badge' style='background:#30363d;border:1px solid #8b949e;color:#ffffff;padding:3px 9px;border-radius:5px;font-weight:bold;font-size:12.5px;white-space:nowrap;'>NEUTRAL ⚖️</span>"
+            "<span id='live-dir-badge' style='background:#30363d;border:1px solid #8b949e;color:#ffffff;padding:2px 9px;border-radius:5px;font-weight:bold;font-size:12.5px;white-space:nowrap;'>NEUTRAL ⚖️</span>"
             # 👇 MINIMIZED POPUP BUTTON (Strong Sell / Buy పక్కనే వస్తుంది, క్లిక్ చేస్తే పాపప్ మళ్ళీ ఓపెన్ అవుతుంది!)
-            f"<span id='sniper-5m-min-btn' onclick='if(window.parent.open5mPopup) window.parent.open5mPopup(event);' ontouchend='if(window.parent.open5mPopup) window.parent.open5mPopup(event);' "
+            f"<span id='sniper-5m-min-btn' class='pop-5m-restore-btn' "
             f"style='display:none;cursor:pointer;background:linear-gradient(90deg,#d97706,#b91c1c);border:1.5px solid #ffd700;color:#ffffff;"
-            f"padding:3px 9px;border-radius:5px;font-weight:800;font-size:12px;white-space:nowrap;box-shadow:0 0 8px rgba(255,215,0,0.45);user-select:none;' "
+            f"padding:2px 9px;border-radius:5px;font-weight:800;font-size:12px;white-space:nowrap;box-shadow:0 0 8px rgba(255,215,0,0.45);user-select:none;' "
             f"title='Click to Re-Open 5m Sniper Alert Popup'>🔔 5m Alert ({len(_active_top2)}) ▴</span>"
             "</div>"
             "<span id='live-cd-badge' style='background:#21262d;border:1px solid #30363d;color:#00BFFF;"
@@ -11528,7 +11545,7 @@ def render_live_ui():
         else:
             st.markdown(_status_bar_html, unsafe_allow_html=True)
 
-        # 🔔 RENDER POPUP BOX (WITH MOBILE-SAFE INLINE ONCLICK & ONTOUCHEND HANDLERS)
+        # 🔔 RENDER POPUP BOX (USES CLASS-BASED EVENT DELEGATION SO STREAMLIT SANITIZER NEVER BLOCKS IT)
         if _active_top2:
             _cards_html = ""
             for _idx_p, _pk in enumerate(_active_top2):
@@ -11559,9 +11576,7 @@ def render_live_ui():
                     f"</div>"
                     f"<div style='display:flex;gap:8px;margin-top:8px;'>"
                     f"<span class='pop-5m-open-mini' data-sym='{_sym_js}' "
-                    f"onclick=\"if(window.parent.open5mMiniChart) window.parent.open5mMiniChart('{_sym_js}', event);\" "
-                    f"ontouchend=\"if(window.parent.open5mMiniChart) window.parent.open5mMiniChart('{_sym_js}', event);\" "
-                    f"style='flex:1;cursor:pointer;text-align:center;background:#16a34a;color:#fff;padding:7px 8px;border-radius:5px;font-size:12px;font-weight:bold;border:1px solid #4ade80;user-select:none;touch-action:manipulation;'>📈 Show Mini Chart Below Global Indices</span>"
+                    f"style='flex:1;cursor:pointer;text-align:center;background:#16a34a;color:#fff;padding:7px 8px;border-radius:5px;font-size:12px;font-weight:bold;border:1px solid #4ade80;user-select:none;'>📈 Show Mini Chart Below Global Indices</span>"
                     f"</div></div>"
                 )
 
@@ -11572,10 +11587,8 @@ def render_live_ui():
                     z-index:999999;box-shadow:0 12px 32px rgba(0,0,0,0.85);font-family:'Inter',sans-serif;">
                     <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #30363d;padding-bottom:8px;">
                         <span style="color:#ffd700;font-weight:900;font-size:13.5px;">🔔 5m Candle Alert ({_candle_slot_5m[-8:-3]}) — Top 2 (90%+ Prob)</span>
-                        <span class="pop-5m-close-btn"
-                              onclick="if(window.parent.minimize5mPopup) window.parent.minimize5mPopup(event);"
-                              ontouchend="if(window.parent.minimize5mPopup) window.parent.minimize5mPopup(event);"
-                              style="cursor:pointer;background:#dc2626;color:#fff;padding:4px 12px;border-radius:6px;font-size:13px;font-weight:900;border:1px solid #ef4444;user-select:none;touch-action:manipulation;"
+                        <span id="pop-5m-x-btn" class="pop-5m-close-btn"
+                              style="cursor:pointer;background:#dc2626;color:#fff;padding:4px 12px;border-radius:6px;font-size:13px;font-weight:900;border:1px solid #ef4444;user-select:none;"
                               title="Minimize Popup to Top Bar">✖</span>
                     </div>
                     {_cards_html}
@@ -11593,45 +11606,20 @@ def render_live_ui():
                 const curSlot = {json.dumps(_candle_slot_5m)};
                 const hasPicks = {json.dumps(_has_5m_picks)};
 
-                // 1. Mobile & Desktop Minimize / Restore Functions for 5m Popup
+                // 1. Sync Popup & Minimized Button State
+                parentWin._cur5mSlot = curSlot;
+                parentWin._has5mPicks = hasPicks;
+
                 parentWin.sync5mPopupState = function() {{
                     const popEl = parentDoc.getElementById('sniper-5m-popup');
                     const minBtn = parentDoc.getElementById('sniper-5m-min-btn');
-                    const isMinimized = (parentWin._dismissed5mSlot === curSlot);
+                    const isMinimized = (parentWin._dismissed5mSlot === parentWin._cur5mSlot);
 
                     if (popEl) {{
                         popEl.style.setProperty('display', isMinimized ? 'none' : 'block', 'important');
                     }}
                     if (minBtn) {{
-                        minBtn.style.setProperty('display', (hasPicks && isMinimized) ? 'inline-flex' : 'none', 'important');
-                    }}
-                }};
-
-                parentWin.minimize5mPopup = function(e) {{
-                    if (e) {{ e.preventDefault(); e.stopPropagation(); }}
-                    const popEl = parentDoc.getElementById('sniper-5m-popup');
-                    parentWin._dismissed5mSlot = (popEl && popEl.getAttribute('data-slot')) ? popEl.getAttribute('data-slot') : curSlot;
-                    parentWin.sync5mPopupState();
-                }};
-
-                parentWin.open5mPopup = function(e) {{
-                    if (e) {{ e.preventDefault(); e.stopPropagation(); }}
-                    parentWin._dismissed5mSlot = '';
-                    parentWin.sync5mPopupState();
-                }};
-
-                parentWin.open5mMiniChart = function(sym, e) {{
-                    if (e) {{ e.preventDefault(); e.stopPropagation(); }}
-                    parentWin._selected5mSym = sym;
-                    parentWin.minimize5mPopup();
-                    parentDoc.querySelectorAll('.sniper-5m-mini-container').forEach(el => {{
-                        el.style.display = 'none';
-                    }});
-                    const targetBox = parentDoc.getElementById('sniper-mini-box-' + sym);
-                    if (targetBox) {{
-                        targetBox.style.display = 'block';
-                        targetBox.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
-                        setTimeout(() => parentWin.dispatchEvent(new Event('resize')), 60);
+                        minBtn.style.setProperty('display', (parentWin._has5mPicks && isMinimized) ? 'inline-flex' : 'none', 'important');
                     }}
                 }};
 
@@ -11642,10 +11630,55 @@ def render_live_ui():
                     if (boxEl) boxEl.style.display = 'block';
                 }}
 
-                if (!parentWin._pop5mClickBound) {{
-                    parentWin._pop5mClickBound = true;
-                    parentDoc.addEventListener('click', function(e) {{
-                        const closeMini = e.target.closest('.sniper-mini-hide-btn');
+                // 2. Attach Universal Desktop + Mobile Event Handler (Works even when Streamlit strips inline onclick!)
+                if (!parentWin._pop5mUniversalHandler) {{
+                    parentWin._pop5mUniversalHandler = function(e) {{
+                        const t = e.target;
+                        if (!t || typeof t.closest !== 'function') return;
+
+                        // A. Close (✖) Button Clicked -> Minimize Popup & Show Top Badge next to STRONG SELL / BUY
+                        const closeBtn = t.closest('.pop-5m-close-btn, #pop-5m-x-btn');
+                        if (closeBtn) {{
+                            e.preventDefault();
+                            e.stopPropagation();
+                            parentWin._dismissed5mSlot = parentWin._cur5mSlot;
+                            parentWin.sync5mPopupState();
+                            return;
+                        }}
+
+                        // B. Minimized Top Badge (🔔 5m Alert) Clicked -> Re-Open Popup Box
+                        const restoreBtn = t.closest('.pop-5m-restore-btn, #sniper-5m-min-btn');
+                        if (restoreBtn) {{
+                            e.preventDefault();
+                            e.stopPropagation();
+                            parentWin._dismissed5mSlot = '';
+                            parentWin.sync5mPopupState();
+                            return;
+                        }}
+
+                        // C. Show Mini Chart Button Clicked
+                        const openMini = t.closest('.pop-5m-open-mini');
+                        if (openMini) {{
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const sym = openMini.getAttribute('data-sym');
+                            parentWin._selected5mSym = sym;
+                            parentWin._dismissed5mSlot = parentWin._cur5mSlot;
+                            parentWin.sync5mPopupState();
+                            parentDoc.querySelectorAll('.sniper-5m-mini-container').forEach(el => {{
+                                el.style.display = 'none';
+                            }});
+                            const targetBox = parentDoc.getElementById('sniper-mini-box-' + sym);
+                            if (targetBox) {{
+                                targetBox.style.display = 'block';
+                                targetBox.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
+                                setTimeout(() => parentWin.dispatchEvent(new Event('resize')), 60);
+                            }}
+                            return;
+                        }}
+
+                        // D. Hide Mini Chart Button Clicked
+                        const closeMini = t.closest('.sniper-mini-hide-btn');
                         if (closeMini) {{
                             e.preventDefault();
                             e.stopPropagation();
@@ -11655,10 +11688,12 @@ def render_live_ui():
                             }});
                             return;
                         }}
-                    }}, true);
+                    }};
+                    parentDoc.addEventListener('pointerdown', parentWin._pop5mUniversalHandler, true);
+                    parentDoc.addEventListener('click', parentWin._pop5mUniversalHandler, true);
                 }}
 
-                // 2. Update Status & Strong Sell / Buy Badge
+                // 3. Update Status & Strong Sell / Buy Badge
                 const topBar = parentDoc.getElementById('pro-top-status-bar');
                 if (topBar) topBar.style.borderColor = {json.dumps(_status_border)};
                 const stTitle = parentDoc.getElementById('live-status-title');
@@ -11670,7 +11705,7 @@ def render_live_ui():
                     dirBadge.style.borderColor = {json.dumps(_mkt_dir_border)};
                 }}
 
-                // 3. Top Header News Ticker (Docked to the Left of Share Button at Top Right)
+                // 4. Top Header News Ticker (Docked to the Left of Share Button at Top Right)
                 if (!parentWin._flashEpoch) parentWin._flashEpoch = Date.now();
                 let hdrNewsBar = parentDoc.getElementById('top-header-news-bar');
                 if (!hdrNewsBar) {{
@@ -11690,7 +11725,7 @@ def render_live_ui():
                     }}
                 }}
 
-                // 4. Right 20% Panel Toggle Logic
+                // 5. Right 20% Panel Toggle Logic
                 parentWin._isRight20Hidden = !!parentWin._isRight20Hidden;
                 parentWin.applyRight20State = function(forceResize) {{
                     const hidden = !!parentWin._isRight20Hidden;
@@ -11747,7 +11782,7 @@ def render_live_ui():
                 parentWin._rpSyncInterval = setInterval(() => {{
                     parentWin.applyRight20State(false);
                     parentWin.sync5mPopupState();
-                }}, 400);
+                }}, 300);
 
                 if (!parentWin._mcSvgListenerAdded) {{
                     parentWin._mcSvgListenerAdded = true;
