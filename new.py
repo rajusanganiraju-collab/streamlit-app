@@ -5638,7 +5638,7 @@ def generate_status(row):
     return status.strip()
 
 @st.cache_data(ttl=1800, show_spinner=False)
-def fetch_fundamentals_data(filter_mode="Top Ranked Stocks ⭐", custom_symbols=None):
+def fetch_fundamentals_data(filter_mode="Top Ranked Stocks ⭐", custom_symbols=None, _v=2):
     """
     🏛️ INSTITUTIONAL 2500+ NSE STOCKS SCREENER:
     మొత్తం NSE మార్కెట్‌లోని 2500+ స్టాక్స్‌ని 1 సెకనులో స్కాన్ చేసి, కఠినమైన ఇన్‌స్టిట్యూషనల్ ఫిల్టర్లతో
@@ -5762,7 +5762,8 @@ def fetch_fundamentals_data(filter_mode="Top Ranked Stocks ⭐", custom_symbols=
                     "Div Yield %": div_y,
                     "52W High": h52,
                     "52W Low": l52,
-                    "Dist_52H": dist_52h
+                    "Dist_52H": dist_52h,
+                    "PEG": round(pe / eps_g, 2) if (pe > 0 and eps_g > 0) else 99.0
                 })
     except Exception:
         pass
@@ -5776,9 +5777,34 @@ def fetch_fundamentals_data(filter_mode="Top Ranked Stocks ⭐", custom_symbols=
         return df_out.sort_values(by="Inst_Score", ascending=False).reset_index(drop=True)
 
     elif filter_mode == "🦅 Warren Buffett Value Stocks":
-        # High ROE (>=16%), Low Debt (<=0.5), Reasonable P/E (5 to 28), Good OPM (>=12%)
-        cond = (df_out["ROE %"] >= 16.0) & (df_out["Debt/Equity"] <= 0.50) & (df_out["P/E Ratio"] > 4.0) & (df_out["P/E Ratio"] <= 28.0) & (df_out["OPM %"] >= 12.0)
-        df_sub = df_out[cond].sort_values(by=["Inst_Score", "ROE %"], ascending=[False, False])
+        # 🦅 Buffett + Value Trap Guard: High ROE (>=16%), ROCE (>=14%), Low Debt (<=0.5), P/E (5-28), OPM (>=12%), EPS Gr (>=10%), Sales Gr (>=8%), PEG (<=1.8)
+        cond_strict = (
+            (df_out["ROE %"] >= 16.0) &
+            (df_out["ROCE %"] >= 14.0) &
+            (df_out["Debt/Equity"] <= 0.50) &
+            (df_out["P/E Ratio"] >= 5.0) &
+            (df_out["P/E Ratio"] <= 28.0) &
+            (df_out["OPM %"] >= 12.0) &
+            (df_out["EPS Gr %"] >= 10.0) &
+            (df_out["Sales Gr %"] >= 8.0) &
+            (df_out["PEG"] <= 1.8)
+        )
+        df_sub = df_out[cond_strict]
+        if len(df_sub) < 10:
+            # స్లో క్వార్టర్స్‌లో కనీసం 10 క్వాలిటీ వాల్యూ స్టాక్స్ వచ్చేలా సేఫ్ ఫాల్‌బ్యాక్
+            cond_fb = (
+                (df_out["ROE %"] >= 15.0) &
+                (df_out["ROCE %"] >= 12.0) &
+                (df_out["Debt/Equity"] <= 0.50) &
+                (df_out["P/E Ratio"] >= 5.0) &
+                (df_out["P/E Ratio"] <= 28.0) &
+                (df_out["OPM %"] >= 12.0) &
+                (df_out["EPS Gr %"] >= 5.0) &
+                (df_out["Sales Gr %"] >= 5.0) &
+                (df_out["PEG"] <= 2.4)
+            )
+            df_sub = df_out[cond_fb]
+        df_sub = df_sub.sort_values(by=["Inst_Score", "PEG", "ROE %"], ascending=[False, True, False])
         return df_sub.head(50).reset_index(drop=True)
 
     elif filter_mode == "Swing Trading Candidates 📈":
