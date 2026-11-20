@@ -7226,8 +7226,76 @@ if "grid_sym" in st.query_params:
 def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_res):
     if df_universe is None or df_universe.empty:
         return []
-    df_u = df_universe.drop_duplicates(subset=['Fetch_T']).copy()
-    df_u = df_u[df_u['Day_C'].abs() >= 0.65].copy()
+
+    now_dt = now_ist()
+    now_t = now_dt.time()
+    mkt_open_now = is_market_open()
+
+    # 1. Daily Signal Lock Memory Reset
+    saved_locks = _SS.setdefault('popup_locked_stocks', {})
+    today_str = now_dt.strftime('%Y-%m-%d')
+    if _SS.get('popup_lock_date') != today_str:
+        saved_locks.clear()
+        _SS['popup_lock_date'] = today_str
+
+    df_u_all = df_universe.drop_duplicates(subset=['Fetch_T']).copy()
+    live_lookup = {str(r['T']).strip(): r for _, r in df_u_all.iterrows()}
+
+    # Helper: Update live LTP & Trade Status on already-locked stocks without changing Entry/SL/TGT
+    def _refresh_locked_pick(locked_item):
+        sym_k = locked_item['sym']
+        r_now = live_lookup.get(sym_k)
+        if r_now is None:
+            return locked_item
+        cur_p = round(float(r_now['P']), 2)
+        cur_dc = round(float(r_now['Day_C']), 2)
+        cur_vx = round(float(r_now['VolX']), 1)
+        ent = float(locked_item['opt_entry'])
+        sl = float(locked_item['sl'])
+        tg = float(locked_item['tg'])
+        is_buy_l = (locked_item['side'] == 'BUY')
+
+        if not locked_item.get('triggered', False):
+            if (is_buy_l and cur_p <= ent) or ((not is_buy_l) and cur_p >= ent):
+                locked_item['triggered'] = True
+
+        if locked_item.get('triggered', False):
+            if is_buy_l:
+                status_txt = "🎯 TGT HIT" if cur_p >= tg else ("🛑 SL HIT" if cur_p <= sl else "🟢 ACTIVE")
+            else:
+                status_txt = "🎯 TGT HIT" if cur_p <= tg else ("🛑 SL HIT" if cur_p >= sl else "🔴 ACTIVE")
+        else:
+            status_txt = "⏳ WAITING ENTRY"
+
+        locked_item['ltp'] = cur_p
+        locked_item['day_c'] = cur_dc
+        locked_item['vol_x'] = cur_vx
+        locked_item['status'] = status_txt
+        locked_item['entry_note'] = f"🔒 {locked_item.get('lock_time', '')} | {status_txt} | {locked_item.get('base_note', '')}"
+        return locked_item
+
+    # 2. Time-of-Day Guard (Only during live market; off-market testing still works)
+    if mkt_open_now:
+        if now_t < dt_time(9, 20):
+            return []
+        if now_t > dt_time(14, 45):
+            # 2:45 PM taruvata kotha alerts aapesi, already lock ayina trades matrame live status tho chupistundi
+            existing = [_refresh_locked_pick(v) for v in saved_locks.values()]
+            existing.sort(key=lambda x: (-x['prob'], -x['score']))
+            return existing[:2]
+
+    # 3. Market Breadth Alignment on FULL Universe (Day_C filter ki mundu calculate cheyali)
+    _univ_set = set(NIFTY_50).union(set(FNO_STOCKS))
+    _df_m_chk = df_u_all[df_u_all['T'].isin(_univ_set)]
+    allow_buy, allow_sell = True, True
+    if not _df_m_chk.empty:
+        _buy_ratio = float((_df_m_chk['P'] > _df_m_chk['VWAP']).sum()) / float(len(_df_m_chk))
+        if _buy_ratio >= 0.60:
+            allow_sell = False
+        elif _buy_ratio <= 0.40:
+            allow_buy = False
+
+    df_u = df_u_all[df_u_all['Day_C'].abs() >= 0.65].copy()
     if df_u.empty:
         return []
 
@@ -7240,6 +7308,9 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
         for item in sniper_cached_res.get(side_k, []):
             sniper_map[item['sym']] = item
 
+    is_morning_session = (not mkt_open_now) or (now_t <= dt_time(10, 45))
+    is_lunch_chop = mkt_open_now and (dt_time(11, 30) <= now_t <= dt_time(13, 15))
+
     candidates = []
     for _, row in df_u.iterrows():
         ft = row['Fetch_T']
@@ -7251,21 +7322,25 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
         prev_h, prev_l = float(row.get('Prev_H', hi)), float(row.get('Prev_L', lo))
         bull_p, bear_p = float(row.get('Bull_P', 50.0)), float(row.get('Bear_P', 50.0))
 
-        is_b = bool(base_buy.loc[row.name])
-        is_s = bool(base_sell.loc[row.name])
+        is_b = bool(base_buy.loc[row.name]) and allow_buy
+        is_s = bool(base_sell.loc[row.name]) and allow_sell
         if not (is_b or is_s):
             continue
 
         side = "BUY" if is_b else "SELL"
         matched_strats = []
         bonus_prob = 0
+        has_breakout = False
+        has_pullback = False
 
+        # Strategy 1: Order-Flow Sniper
         if ft in sniper_map:
             sn = sniper_map[ft]
             if (sn['side'] == 'buy' and is_b) or (sn['side'] == 'sell' and is_s):
                 matched_strats.append(f"🎯Sniper({sn['score']}%)")
                 bonus_prob += 8
 
+        # Strategy 2 & 3: 5m CVD-Flip & Sudden VWAP Cross
         df_5m = processed_charts.get(ft, pd.DataFrame())
         td_5m = pd.DataFrame()
         if df_5m is not None and not df_5m.empty and len(df_5m) >= 4:
@@ -7275,59 +7350,78 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
             if is_b and b_flips and (len(td_5m) - b_flips[-1]) <= 3:
                 matched_strats.append("🔬CVD-Flip BUY")
                 bonus_prob += 7
+                has_pullback = True
             elif is_s and s_flips and (len(td_5m) - s_flips[-1]) <= 3:
                 matched_strats.append("🔬CVD-Flip SELL")
                 bonus_prob += 7
+                has_pullback = True
 
             rec6 = td_5m.tail(6)
             if len(rec6) >= 3 and 'VWAP' in rec6.columns:
                 if is_b and (rec6['Low'].iloc[:-1] <= rec6['VWAP'].iloc[:-1]).any():
                     matched_strats.append("⚡VWAP-Cross")
                     bonus_prob += 5
+                    has_pullback = True
                 elif is_s and (rec6['High'].iloc[:-1] >= rec6['VWAP'].iloc[:-1]).any():
                     matched_strats.append("⚡VWAP-Cross")
                     bonus_prob += 5
+                    has_pullback = True
 
-        if vol_x >= 1.15 and abs(day_c) >= 1.0:
+        # Strategy 4: First Hour ORB (Morning session lo matrame)
+        if is_morning_session and vol_x >= 1.15 and abs(day_c) >= 1.0:
             if is_b and ltp > op and (op - lo) <= (ltp * 0.006):
                 matched_strats.append("🔥1Hr-ORB")
                 bonus_prob += 6
+                has_breakout = True
             elif is_s and ltp < op and (hi - op) <= (ltp * 0.006):
                 matched_strats.append("🔥1Hr-ORB")
                 bonus_prob += 6
+                has_breakout = True
 
-        prev_rng = (prev_h - prev_l) / max(prev_l, 1.0)
-        if vol_x >= 1.1 and (prev_rng <= 0.025 or bool(row.get('Narrow_CPR', False))):
-            if (is_b and ltp > op) or (is_s and ltp < op):
-                matched_strats.append("💥NR7-BO")
-                bonus_prob += 5
+        # Strategy 5: Inside Bar / NR7 Breakout (Lunch chop lo avoid)
+        if not is_lunch_chop:
+            prev_rng = (prev_h - prev_l) / max(prev_l, 1.0)
+            if vol_x >= 1.1 and (prev_rng <= 0.025 or bool(row.get('Narrow_CPR', False))):
+                if (is_b and ltp > op) or (is_s and ltp < op):
+                    matched_strats.append("💥NR7-BO")
+                    bonus_prob += 5
+                    has_breakout = True
 
-        if vol_x >= 1.15 and abs(day_c) >= 1.0:
+        # Strategy 6: Gap & Go (Morning session lo matrame)
+        if is_morning_session and vol_x >= 1.15 and abs(day_c) >= 1.0:
             if is_b and (op - lo) <= (ltp * 0.003):
                 matched_strats.append("🚀Gap&Go")
                 bonus_prob += 7
+                has_breakout = True
             elif is_s and (hi - op) <= (ltp * 0.003):
                 matched_strats.append("🩸Gap&Go")
                 bonus_prob += 7
+                has_breakout = True
 
-        if vol_x >= 1.15:
+        # Strategy 7: PDH / PDL Breakout (Lunch chop lo avoid)
+        if not is_lunch_chop and vol_x >= 1.15:
             if is_b and ltp > prev_h:
                 matched_strats.append("💥PDH-BO")
                 bonus_prob += 6
+                has_breakout = True
             elif is_s and ltp < prev_l:
                 matched_strats.append("🩸PDL-BO")
                 bonus_prob += 6
+                has_breakout = True
 
+        # Strategy 8: Intraday Dip-Bounce / Rally-Reject
         if is_b:
             day_pb = ((hi - ltp) / max(hi, 1.0)) * 100.0
             if 0.6 <= day_pb <= 3.5 and (lo <= vwap * 1.005 or lo <= ema10 * 1.005) and vol_x >= 1.05:
                 matched_strats.append("🧲Dip-Bounce")
                 bonus_prob += 5
+                has_pullback = True
         else:
             day_rl = ((ltp - lo) / max(lo, 1.0)) * 100.0
             if 0.6 <= day_rl <= 3.5 and (hi >= vwap * 0.995 or hi >= ema10 * 0.995) and vol_x >= 1.05:
                 matched_strats.append("🧲Rally-Reject")
                 bonus_prob += 5
+                has_pullback = True
 
         if not matched_strats:
             continue
@@ -7341,7 +7435,12 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
         if raw_prob < 90:
             continue
 
-        # 🎯 OPTIMAL HIGH-PROFITABILITY ENTRY + SWING HIGH/LOW & 5M ATR SL/TARGET
+        # Already locked stock aithe malli SL/TGT recalculate cheyakunda live status update chesi use cheyadam
+        if sym in saved_locks:
+            candidates.append(_refresh_locked_pick(saved_locks[sym]))
+            continue
+
+        # 5m ATR & Swing Levels Calculation
         if not td_5m.empty and len(td_5m) >= 3:
             atr_5m = float(td_5m['ATR_13'].iloc[-1]) if ('ATR_13' in td_5m.columns and pd.notna(td_5m['ATR_13'].iloc[-1])) else float((td_5m['High'] - td_5m['Low']).tail(10).mean())
             atr_5m = max(atr_5m, ltp * 0.0025)
@@ -7356,31 +7455,47 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
             prev_swing_high = ltp + (1.2 * atr_5m)
             imp_hi, imp_lo = hi, lo
 
+        # Mode A (Pure Breakout) -> Direct LTP Entry | Mode B (Pullback/Reversal) -> EMA/VWAP/Fib Entry
+        use_direct_entry = has_breakout and (not has_pullback)
+        lock_tm_str = now_dt.strftime('%I:%M %p')
+
         if is_b:
-            # 🟢 Optimal Buy Entry: 10-EMA / 38.2% Pullback Zone (అత్యధిక లాభం ఇచ్చే ఎంట్రీ ధర)
-            fib_382_b = imp_hi - 0.382 * (imp_hi - imp_lo)
-            pullback_sup = max(ema10, vwap, fib_382_b)
-            if (ltp - pullback_sup) > (0.6 * atr_5m):
-                opt_entry = round(max(pullback_sup, ltp - 0.5 * atr_5m), 2)
-                entry_note = f"Pullback Buy @ ₹{opt_entry:.1f} (10-EMA/VWAP Support)"
-            else:
+            if use_direct_entry:
                 opt_entry = round(ltp, 2)
-                entry_note = f"Breakout Buy @ ₹{opt_entry:.1f}"
+                base_note = f"Breakout Buy @ ₹{opt_entry:.1f}"
+                is_trig = True
+            else:
+                fib_382_b = imp_hi - 0.382 * (imp_hi - imp_lo)
+                pullback_sup = max(ema10, vwap, fib_382_b)
+                if (ltp - pullback_sup) > (0.6 * atr_5m):
+                    opt_entry = round(max(pullback_sup, ltp - 0.5 * atr_5m), 2)
+                    base_note = f"Pullback Buy @ ₹{opt_entry:.1f} (10-EMA/VWAP)"
+                    is_trig = False
+                else:
+                    opt_entry = round(ltp, 2)
+                    base_note = f"Buy @ ₹{opt_entry:.1f}"
+                    is_trig = True
 
             raw_sl = min(prev_swing_low - (0.25 * atr_5m), opt_entry - (1.1 * atr_5m))
             risk_pts = float(np.clip(opt_entry - raw_sl, max(0.8 * atr_5m, opt_entry * 0.0035), min(2.4 * atr_5m, opt_entry * 0.014)))
             sl_p = round(opt_entry - risk_pts, 2)
             tg_p = round(max(opt_entry + (risk_pts * 2.2), hi if (hi - opt_entry) >= risk_pts * 1.4 else 0), 2)
         else:
-            # 🔴 Optimal Sell Entry: 10-EMA / 38.2% Bounce Rejection Zone
-            fib_382_s = imp_lo + 0.382 * (imp_hi - imp_lo)
-            bounce_res = min(ema10, vwap, fib_382_s)
-            if (bounce_res - ltp) > (0.6 * atr_5m):
-                opt_entry = round(min(bounce_res, ltp + 0.5 * atr_5m), 2)
-                entry_note = f"Bounce Sell @ ₹{opt_entry:.1f} (10-EMA/VWAP Reject)"
-            else:
+            if use_direct_entry:
                 opt_entry = round(ltp, 2)
-                entry_note = f"Breakdown Sell @ ₹{opt_entry:.1f}"
+                base_note = f"Breakdown Sell @ ₹{opt_entry:.1f}"
+                is_trig = True
+            else:
+                fib_382_s = imp_lo + 0.382 * (imp_hi - imp_lo)
+                bounce_res = min(ema10, vwap, fib_382_s)
+                if (bounce_res - ltp) > (0.6 * atr_5m):
+                    opt_entry = round(min(bounce_res, ltp + 0.5 * atr_5m), 2)
+                    base_note = f"Bounce Sell @ ₹{opt_entry:.1f} (10-EMA/VWAP)"
+                    is_trig = False
+                else:
+                    opt_entry = round(ltp, 2)
+                    base_note = f"Sell @ ₹{opt_entry:.1f}"
+                    is_trig = True
 
             raw_sl = max(prev_swing_high + (0.25 * atr_5m), opt_entry + (1.1 * atr_5m))
             risk_pts = float(np.clip(raw_sl - opt_entry, max(0.8 * atr_5m, opt_entry * 0.0035), min(2.4 * atr_5m, opt_entry * 0.014)))
@@ -7388,19 +7503,32 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
             tg_p = round(min(opt_entry - (risk_pts * 2.2), lo if (opt_entry - lo) >= risk_pts * 1.4 else 999999), 2)
 
         rr_ratio = round(abs(tg_p - opt_entry) / max(abs(opt_entry - sl_p), 0.01), 1)
-        row_dict = row.to_dict()
+        init_status = ("🟢 ACTIVE" if is_b else "🔴 ACTIVE") if is_trig else "⏳ WAITING ENTRY"
 
         candidates.append({
             "sym": sym, "ft": ft, "side": side, "ltp": round(ltp, 2),
-            "opt_entry": opt_entry, "entry_note": entry_note, "rr": rr_ratio,
-            "day_c": round(day_c, 2), "vol_x": round(vol_x, 1),
+            "opt_entry": opt_entry, "base_note": base_note,
+            "lock_time": lock_tm_str, "triggered": is_trig, "status": init_status,
+            "entry_note": f"🔒 {lock_tm_str} | {init_status} | {base_note}",
+            "rr": rr_ratio, "day_c": round(day_c, 2), "vol_x": round(vol_x, 1),
             "prob": raw_prob, "score": int(min(39, round(pwr_score))),
             "strats": " + ".join(matched_strats[:3]),
-            "sl": sl_p, "tg": tg_p, "row": row_dict
+            "sl": sl_p, "tg": tg_p, "row": row.to_dict()
         })
 
     candidates.sort(key=lambda x: (-x["prob"], -x["score"], -x["vol_x"], -abs(x["day_c"])))
-    return candidates[:2]
+
+    # Strict Top-2 Lock: Oka sari Top 2 loki vachaka Entry/SL/TGT aa roju mottam freeze avtayi
+    final_top2 = []
+    for c in candidates:
+        if len(final_top2) >= 2:
+            break
+        s_name = c['sym']
+        if s_name not in saved_locks:
+            saved_locks[s_name] = c
+        final_top2.append(saved_locks[s_name])
+
+    return final_top2
 
 def _toggle_wl_stock(s_ft, s_disp):
     st.session_state.inspected_stock = s_disp
