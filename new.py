@@ -6442,7 +6442,7 @@ def render_portfolio_swing_advice_table(df_port, df_stocks, weekly_trends):
 def render_swing_terminal_table(df_subset):
     if df_subset.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>No Swing Trading Setups found right now.</div>"
     df_sorted = df_subset.reset_index(drop=True)
-    html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-swing">🌊 SWING TRADING RADAR (RANKED ALGORITHM)</th></tr><tr style="background-color: #21262d;"><th style="width:4%;">RANK</th><th style="text-align:left; width:13%;">STOCK</th><th style="width:9%;">LTP</th><th style="width:9%;">DAY%</th><th style="width:8%;">VOL</th><th style="width:17%;">STATUS</th><th style="width:11%; color:#f85149;">🛑 STOP LOSS</th><th style="width:11%; color:#3fb950;">🎯 TARGET 1</th><th style="width:11%; color:#3fb950;">🎯 TARGET 2</th><th style="width:7%;">SCORE</th></tr></thead><tbody>'
+    html = f'<table class="term-table"><thead><tr><th colspan="10" class="term-head-swing">🌊 SWING TRADING RADAR (RANKED ALGORITHM)</th></tr><tr style="background-color: #21262d;"><th style="width:4%;">RANK</th><th style="text-align:left; width:9%;">STOCK</th><th style="width:7%;">LTP</th><th style="width:6%;">DAY%</th><th style="width:5%;">VOL</th><th style="text-align:left; width:41%; padding-left:8px;">STATUS</th><th style="width:8%; color:#f85149;">🛑 SL</th><th style="width:8%; color:#3fb950;">🎯 T1</th><th style="width:8%; color:#3fb950;">🎯 T2</th><th style="width:4%;">SCR</th></tr></thead><tbody>'
     for i, row in df_sorted.iterrows():
         bg_class = "row-dark" if i % 2 == 0 else "row-light"
         day_color = "text-green" if row['Day_C'] >= 0 else "text-red"
@@ -6467,7 +6467,7 @@ def render_swing_terminal_table(df_subset):
         t2_val = row.get('T2', default_t2)
         rank_badge = f"🏆 1" if i == 0 else f"{i+1}"
         row_str = f'<tr class="{bg_class}"><td><b>{rank_badge}</b></td><td class="t-symbol"><a href="https://in.tradingview.com/chart/?symbol=NSE:{row["T"]}" target="_blank">{row["T"]}</a></td>'
-        row_str += f'<td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:10px; cursor:help;" title="{custom_status}">{custom_status}</td>'
+        row_str += f'<td>{row["P"]:.2f}</td><td class="{day_color}">{row["Day_C"]:.2f}%</td><td>{row["VolX"]:.1f}x</td><td style="font-size:11px; text-align:left; white-space:normal; line-height:1.35; padding:6px 8px; cursor:help;" title="{custom_status}">{custom_status}</td>'
         row_str += f'<td style="color:#f85149; font-weight:bold;">{sl_val:.2f}</td><td style="color:#3fb950; font-weight:bold;">{t1_val:.2f}</td>'
         row_str += f'<td style="color:#3fb950; font-weight:bold;">{t2_val:.2f}</td><td style="color:#ffd700;">{int(row["S"])}</td></tr>'
         html += row_str 
