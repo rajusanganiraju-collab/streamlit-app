@@ -7223,7 +7223,77 @@ if "grid_sym" in st.query_params:
         st.session_state.pro_grid_radio_key = _new_m
 
 
+def _refresh_locked_alerts_live(df_universe):
+    """Updates live LTP & trade status for all locked stocks without changing locked Entry/SL/TGT."""
+    saved_locks = _SS.setdefault('popup_locked_stocks', {})
+    today_str = now_ist().strftime('%Y-%m-%d')
+    if _SS.get('popup_lock_date') != today_str:
+        saved_locks.clear()
+        _SS['popup_lock_date'] = today_str
+        _SS['fresh_5m_picks'] = []
+
+    if not saved_locks or df_universe is None or df_universe.empty:
+        return []
+
+    df_u_all = df_universe.drop_duplicates(subset=['Fetch_T'])
+    live_lookup = {str(r['T']).strip(): r for _, r in df_u_all.iterrows()}
+    hit_tm = now_ist().strftime('%I:%M %p')
+
+    for sym_k, item in saved_locks.items():
+        r_now = live_lookup.get(sym_k)
+        if r_now is None:
+            continue
+        cur_p = round(float(r_now['P']), 2)
+        cur_dc = round(float(r_now['Day_C']), 2)
+        cur_vx = round(float(r_now['VolX']), 1)
+        ent = float(item['opt_entry'])
+        sl = float(item['sl'])
+        tg = float(item['tg'])
+        is_buy_l = (item['side'] == 'BUY')
+
+        if not item.get('triggered', False):
+            if (is_buy_l and cur_p <= ent) or ((not is_buy_l) and cur_p >= ent):
+                item['triggered'] = True
+
+        if item.get('final_outcome'):
+            status_txt = item['final_outcome']
+        elif item.get('triggered', False):
+            if is_buy_l:
+                if cur_p >= tg:
+                    status_txt = f"🎯 TGT HIT ({hit_tm})"
+                    item['final_outcome'] = status_txt
+                elif cur_p <= sl:
+                    status_txt = f"🛑 SL HIT ({hit_tm})"
+                    item['final_outcome'] = status_txt
+                else:
+                    status_txt = "🟢 ACTIVE"
+            else:
+                if cur_p <= tg:
+                    status_txt = f"🎯 TGT HIT ({hit_tm})"
+                    item['final_outcome'] = status_txt
+                elif cur_p >= sl:
+                    status_txt = f"🛑 SL HIT ({hit_tm})"
+                    item['final_outcome'] = status_txt
+                else:
+                    status_txt = "🔴 ACTIVE"
+        else:
+            status_txt = "⏳ WAITING ENTRY"
+
+        item['ltp'] = cur_p
+        item['day_c'] = cur_dc
+        item['vol_x'] = cur_vx
+        item['status'] = status_txt
+        item['entry_note'] = f"🔒 {item.get('lock_time', '')} | {status_txt} | {item.get('base_note', '')}"
+
+    all_sorted = sorted(
+        saved_locks.values(),
+        key=lambda x: (-float(x.get('lock_ts', 0)), -x.get('prob', 0))
+    )
+    return all_sorted
+
+
 def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_res):
+    """Scans all 8 strategies and returns ONLY brand-new stocks locked in this 5-min slot."""
     if df_universe is None or df_universe.empty:
         return []
 
@@ -7231,60 +7301,19 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
     now_t = now_dt.time()
     mkt_open_now = is_market_open()
 
-    # 1. Daily Signal Lock Memory Reset
     saved_locks = _SS.setdefault('popup_locked_stocks', {})
     today_str = now_dt.strftime('%Y-%m-%d')
     if _SS.get('popup_lock_date') != today_str:
         saved_locks.clear()
         _SS['popup_lock_date'] = today_str
 
+    # Live market time guard: 9:20 AM mundu & 2:45 PM taruvata kotha alerts generate cheyadu
+    if mkt_open_now and (now_t < dt_time(9, 20) or now_t > dt_time(14, 45)):
+        return []
+
     df_u_all = df_universe.drop_duplicates(subset=['Fetch_T']).copy()
-    live_lookup = {str(r['T']).strip(): r for _, r in df_u_all.iterrows()}
 
-    # Helper: Update live LTP & Trade Status on already-locked stocks without changing Entry/SL/TGT
-    def _refresh_locked_pick(locked_item):
-        sym_k = locked_item['sym']
-        r_now = live_lookup.get(sym_k)
-        if r_now is None:
-            return locked_item
-        cur_p = round(float(r_now['P']), 2)
-        cur_dc = round(float(r_now['Day_C']), 2)
-        cur_vx = round(float(r_now['VolX']), 1)
-        ent = float(locked_item['opt_entry'])
-        sl = float(locked_item['sl'])
-        tg = float(locked_item['tg'])
-        is_buy_l = (locked_item['side'] == 'BUY')
-
-        if not locked_item.get('triggered', False):
-            if (is_buy_l and cur_p <= ent) or ((not is_buy_l) and cur_p >= ent):
-                locked_item['triggered'] = True
-
-        if locked_item.get('triggered', False):
-            if is_buy_l:
-                status_txt = "🎯 TGT HIT" if cur_p >= tg else ("🛑 SL HIT" if cur_p <= sl else "🟢 ACTIVE")
-            else:
-                status_txt = "🎯 TGT HIT" if cur_p <= tg else ("🛑 SL HIT" if cur_p >= sl else "🔴 ACTIVE")
-        else:
-            status_txt = "⏳ WAITING ENTRY"
-
-        locked_item['ltp'] = cur_p
-        locked_item['day_c'] = cur_dc
-        locked_item['vol_x'] = cur_vx
-        locked_item['status'] = status_txt
-        locked_item['entry_note'] = f"🔒 {locked_item.get('lock_time', '')} | {status_txt} | {locked_item.get('base_note', '')}"
-        return locked_item
-
-    # 2. Time-of-Day Guard (Only during live market; off-market testing still works)
-    if mkt_open_now:
-        if now_t < dt_time(9, 20):
-            return []
-        if now_t > dt_time(14, 45):
-            # 2:45 PM taruvata kotha alerts aapesi, already lock ayina trades matrame live status tho chupistundi
-            existing = [_refresh_locked_pick(v) for v in saved_locks.values()]
-            existing.sort(key=lambda x: (-x['prob'], -x['score']))
-            return existing[:2]
-
-    # 3. Market Breadth Alignment on FULL Universe (Day_C filter ki mundu calculate cheyali)
+    # Market breadth alignment on FULL universe
     _univ_set = set(NIFTY_50).union(set(FNO_STOCKS))
     _df_m_chk = df_u_all[df_u_all['T'].isin(_univ_set)]
     allow_buy, allow_sell = True, True
@@ -7311,10 +7340,15 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
     is_morning_session = (not mkt_open_now) or (now_t <= dt_time(10, 45))
     is_lunch_chop = mkt_open_now and (dt_time(11, 30) <= now_t <= dt_time(13, 15))
 
-    candidates = []
+    fresh_candidates = []
     for _, row in df_u.iterrows():
         ft = row['Fetch_T']
         sym = str(row['T']).strip()
+
+        # Already locked ayina stock ni skip cheyadam (adi 5m Alert history lo untundi)
+        if sym in saved_locks:
+            continue
+
         ltp, op, hi, lo = float(row['P']), float(row['O']), float(row['H']), float(row['L'])
         vwap = float(row['VWAP'])
         ema10 = float(row.get('Intra_EMA10', vwap) or vwap)
@@ -7333,14 +7367,14 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
         has_breakout = False
         has_pullback = False
 
-        # Strategy 1: Order-Flow Sniper
+        # 1. Order-Flow Sniper
         if ft in sniper_map:
             sn = sniper_map[ft]
             if (sn['side'] == 'buy' and is_b) or (sn['side'] == 'sell' and is_s):
                 matched_strats.append(f"🎯Sniper({sn['score']}%)")
                 bonus_prob += 8
 
-        # Strategy 2 & 3: 5m CVD-Flip & Sudden VWAP Cross
+        # 2 & 3. 5m CVD-Flip & Sudden VWAP Cross
         df_5m = processed_charts.get(ft, pd.DataFrame())
         td_5m = pd.DataFrame()
         if df_5m is not None and not df_5m.empty and len(df_5m) >= 4:
@@ -7367,7 +7401,7 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
                     bonus_prob += 5
                     has_pullback = True
 
-        # Strategy 4: First Hour ORB (Morning session lo matrame)
+        # 4. First Hour ORB
         if is_morning_session and vol_x >= 1.15 and abs(day_c) >= 1.0:
             if is_b and ltp > op and (op - lo) <= (ltp * 0.006):
                 matched_strats.append("🔥1Hr-ORB")
@@ -7378,7 +7412,7 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
                 bonus_prob += 6
                 has_breakout = True
 
-        # Strategy 5: Inside Bar / NR7 Breakout (Lunch chop lo avoid)
+        # 5. NR7 / Narrow CPR Breakout
         if not is_lunch_chop:
             prev_rng = (prev_h - prev_l) / max(prev_l, 1.0)
             if vol_x >= 1.1 and (prev_rng <= 0.025 or bool(row.get('Narrow_CPR', False))):
@@ -7387,7 +7421,7 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
                     bonus_prob += 5
                     has_breakout = True
 
-        # Strategy 6: Gap & Go (Morning session lo matrame)
+        # 6. Gap & Go
         if is_morning_session and vol_x >= 1.15 and abs(day_c) >= 1.0:
             if is_b and (op - lo) <= (ltp * 0.003):
                 matched_strats.append("🚀Gap&Go")
@@ -7398,7 +7432,7 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
                 bonus_prob += 7
                 has_breakout = True
 
-        # Strategy 7: PDH / PDL Breakout (Lunch chop lo avoid)
+        # 7. PDH / PDL Breakout
         if not is_lunch_chop and vol_x >= 1.15:
             if is_b and ltp > prev_h:
                 matched_strats.append("💥PDH-BO")
@@ -7409,7 +7443,7 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
                 bonus_prob += 6
                 has_breakout = True
 
-        # Strategy 8: Intraday Dip-Bounce / Rally-Reject
+        # 8. Dip-Bounce / Rally-Reject
         if is_b:
             day_pb = ((hi - ltp) / max(hi, 1.0)) * 100.0
             if 0.6 <= day_pb <= 3.5 and (lo <= vwap * 1.005 or lo <= ema10 * 1.005) and vol_x >= 1.05:
@@ -7435,12 +7469,7 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
         if raw_prob < 90:
             continue
 
-        # Already locked stock aithe malli SL/TGT recalculate cheyakunda live status update chesi use cheyadam
-        if sym in saved_locks:
-            candidates.append(_refresh_locked_pick(saved_locks[sym]))
-            continue
-
-        # 5m ATR & Swing Levels Calculation
+        # 5m ATR & Swing Levels
         if not td_5m.empty and len(td_5m) >= 3:
             atr_5m = float(td_5m['ATR_13'].iloc[-1]) if ('ATR_13' in td_5m.columns and pd.notna(td_5m['ATR_13'].iloc[-1])) else float((td_5m['High'] - td_5m['Low']).tail(10).mean())
             atr_5m = max(atr_5m, ltp * 0.0025)
@@ -7455,9 +7484,9 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
             prev_swing_high = ltp + (1.2 * atr_5m)
             imp_hi, imp_lo = hi, lo
 
-        # Mode A (Pure Breakout) -> Direct LTP Entry | Mode B (Pullback/Reversal) -> EMA/VWAP/Fib Entry
         use_direct_entry = has_breakout and (not has_pullback)
         lock_tm_str = now_dt.strftime('%I:%M %p')
+        lock_ts_val = time.time()
 
         if is_b:
             if use_direct_entry:
@@ -7505,10 +7534,11 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
         rr_ratio = round(abs(tg_p - opt_entry) / max(abs(opt_entry - sl_p), 0.01), 1)
         init_status = ("🟢 ACTIVE" if is_b else "🔴 ACTIVE") if is_trig else "⏳ WAITING ENTRY"
 
-        candidates.append({
+        fresh_candidates.append({
             "sym": sym, "ft": ft, "side": side, "ltp": round(ltp, 2),
             "opt_entry": opt_entry, "base_note": base_note,
-            "lock_time": lock_tm_str, "triggered": is_trig, "status": init_status,
+            "lock_time": lock_tm_str, "lock_ts": lock_ts_val,
+            "triggered": is_trig, "final_outcome": "", "status": init_status,
             "entry_note": f"🔒 {lock_tm_str} | {init_status} | {base_note}",
             "rr": rr_ratio, "day_c": round(day_c, 2), "vol_x": round(vol_x, 1),
             "prob": raw_prob, "score": int(min(39, round(pwr_score))),
@@ -7516,19 +7546,15 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
             "sl": sl_p, "tg": tg_p, "row": row.to_dict()
         })
 
-    candidates.sort(key=lambda x: (-x["prob"], -x["score"], -x["vol_x"], -abs(x["day_c"])))
+    fresh_candidates.sort(key=lambda x: (-x["prob"], -x["score"], -x["vol_x"], -abs(x["day_c"])))
+    new_top2 = fresh_candidates[:2]
 
-    # Strict Top-2 Lock: Oka sari Top 2 loki vachaka Entry/SL/TGT aa roju mottam freeze avtayi
-    final_top2 = []
-    for c in candidates:
-        if len(final_top2) >= 2:
-            break
-        s_name = c['sym']
-        if s_name not in saved_locks:
-            saved_locks[s_name] = c
-        final_top2.append(saved_locks[s_name])
+    # Lock newly found stocks permanently for today
+    for idx_n, nc in enumerate(new_top2):
+        nc["lock_ts"] = time.time() - (idx_n * 0.001)
+        saved_locks[nc["sym"]] = nc
 
-    return final_top2
+    return new_top2
 
 def _toggle_wl_stock(s_ft, s_disp):
     st.session_state.inspected_stock = s_disp
@@ -11616,21 +11642,24 @@ def render_live_ui():
             if _flash_str else "📢 <b>తెలుగు మార్కెట్ వార్తలు:</b> 24 గంటల బ్రేకింగ్ న్యూస్ లోడ్ అవుతోంది..."
         )
 
-        # 🔔 5-MIN CANDLE CLOSE AUTO POPUP CALCULATION (BEFORE STATUS BAR SO MINIMIZED BADGE WORKS)
+        # 🔔 5-MIN CANDLE CLOSE AUTO POPUP CALCULATION (FRESH STOCKS FOR POPUP + ALL LOCKED FOR ALERT BUTTON)
         _now_ist_dt = now_ist()
         _candle_slot_5m = f"{_now_ist_dt.strftime('%Y-%m-%d %H')}:{(_now_ist_dt.minute // 5) * 5:02d}_v2"
+        _scan_univ_df = df_all_stocks[df_all_stocks['T'].isin(set(NIFTY_50 + FNO_STOCKS + MIDCAP_150))]
 
         if _SS.get('last_5m_popup_slot') != _candle_slot_5m:
-            _top2_90 = scan_all_strategies_top2_90pct(
-                df_all_stocks[df_all_stocks['T'].isin(set(NIFTY_50 + FNO_STOCKS + MIDCAP_150))],
+            _fresh_new = scan_all_strategies_top2_90pct(
+                _scan_univ_df,
                 processed_charts,
                 sniper_cached_res
             )
             _SS['last_5m_popup_slot'] = _candle_slot_5m
-            _SS['top2_5m_picks'] = _top2_90
+            _SS['fresh_5m_picks'] = [x['sym'] for x in _fresh_new]
 
-        _active_top2 = _SS.get('top2_5m_picks', [])
-        _has_5m_picks = len(_active_top2) > 0
+        _all_locked_alerts = _refresh_locked_alerts_live(_scan_univ_df)
+        _locked_by_sym = {x['sym']: x for x in _all_locked_alerts}
+        _fresh_5m_picks = [_locked_by_sym[s] for s in _SS.get('fresh_5m_picks', []) if s in _locked_by_sym]
+        _has_fresh_picks = len(_fresh_5m_picks) > 0
 
         # ✅ TOP STATUS BAR: Left side has LIVE/CLOSED + STRONG SELL/BUY + Minimized Popup Button (🔔 5m Alert)
         _status_bar_html = (
@@ -11677,11 +11706,10 @@ def render_live_ui():
         else:
             st.markdown(_status_bar_html, unsafe_allow_html=True)
 
-        # 🔔 BUILD POPUP HTML FOR PURE JS INJECTION (ZERO STREAMLIT SANITIZER OR LAYOUT GAP)
-        _popup_inner_html = ""
-        if _active_top2:
-            _cards_html = ""
-            for _idx_p, _pk in enumerate(_active_top2):
+        # 🔔 BUILD POPUP HTML (1: FRESH LAST 5M STOCKS AUTO-POPUP | 2: ALL LOCKED STOCKS TIME-WISE LIST)
+        def _build_alert_cards_html(picks_list, is_fresh_mode=False):
+            c_html = ""
+            for _idx_p, _pk in enumerate(picks_list):
                 _is_b = (_pk.get('side') == "BUY")
                 _b_col = "#22c55e" if _is_b else "#ef4444"
                 _bg_badge = "rgba(34,197,94,0.18)" if _is_b else "rgba(239,68,68,0.18)"
@@ -11690,37 +11718,68 @@ def render_live_ui():
                 _tg_e = float(_pk.get('tg', 0.0))
                 _ltp_e = float(_pk.get('ltp', _opt_e))
                 _rr_e = _pk.get('rr', 2.0)
-                _enote = _pk.get('entry_note', f"{_pk.get('side', 'BUY')} @ ₹{_opt_e:.2f}")
+                _ltm = _pk.get('lock_time', '')
+                _lts = float(_pk.get('lock_ts', 0.0))
+                _st_txt = _pk.get('status', 'ACTIVE')
+                _enote = _pk.get('base_note', f"{_pk.get('side', 'BUY')} @ ₹{_opt_e:.2f}")
                 _sym_js = _pk['sym']
+                _new_tag = "<span style='background:#2563eb;color:#fff;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:800;margin-left:4px;'>NEW</span>" if is_fresh_mode else ""
 
-                _cards_html += (
-                    f"<div style='background:#161b22;border:1.5px solid {_b_col};border-radius:8px;padding:10px 12px;margin-top:8px;'>"
-                    f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
-                    f"<span style='font-size:15px;font-weight:900;color:#ffffff;'>#{_idx_p+1} {_sym_js} "
-                    f"<span style='background:{_bg_badge};color:{_b_col};border:1px solid {_b_col};padding:1px 7px;border-radius:12px;font-size:11.5px;'>{_pk['side']}</span></span>"
-                    f"<span style='background:linear-gradient(90deg,#1d4ed8,#7c3aed);color:#fff;padding:2px 8px;border-radius:12px;font-size:11.5px;font-weight:800;border:1px solid #ffd700;'>🤖 Prob: {_pk['prob']}% (1:{_rr_e} RR)</span>"
+                c_html += (
+                    f"<div class='alert-stock-card' data-ts='{_lts:.3f}' style='background:#161b22;border:1.5px solid {_b_col};border-radius:8px;padding:9px 11px;margin-top:8px;'>"
+                    f"<div style='display:flex;justify-content:space-between;align-items:center;gap:4px;flex-wrap:wrap;'>"
+                    f"<span style='font-size:14.5px;font-weight:900;color:#ffffff;'>#{_idx_p+1} {_sym_js} "
+                    f"<span style='background:{_bg_badge};color:{_b_col};border:1px solid {_b_col};padding:1px 6px;border-radius:12px;font-size:11px;'>{_pk['side']}</span>{_new_tag}</span>"
+                    f"<span style='background:#0f172a;color:#ffd700;padding:1px 7px;border-radius:10px;font-size:10.5px;font-weight:700;border:1px solid #334155;'>🕒 {_ltm}</span>"
+                    f"<span style='background:linear-gradient(90deg,#1d4ed8,#7c3aed);color:#fff;padding:1px 7px;border-radius:12px;font-size:11px;font-weight:800;border:1px solid #ffd700;'>🤖 {_pk['prob']}% (1:{_rr_e})</span>"
                     f"</div>"
-                    f"<div style='font-size:11.5px;color:#ffd700;margin-top:4px;font-weight:600;'>⚡ {_pk['strats']} &nbsp;|&nbsp; Vol: {_pk['vol_x']:.1f}x</div>"
-                    f"<div style='font-size:11px;color:#38bdf8;margin-top:2px;'>💡 <b>High-Profit Zone:</b> {_enote} (LTP: ₹{_ltp_e:.2f})</div>"
-                    f"<div style='display:flex;justify-content:space-between;background:#0d1117;padding:5px 8px;border-radius:5px;margin-top:5px;font-family:monospace;font-size:12px;'>"
-                    f"<span style='color:#38bdf8;'><b>Buy/Sell:</b> ₹{_opt_e:.2f}</span>"
+                    f"<div style='display:flex;justify-content:space-between;align-items:center;font-size:11px;margin-top:4px;'>"
+                    f"<span style='color:#ffd700;font-weight:600;'>⚡ {_pk['strats']} | Vol: {_pk['vol_x']:.1f}x</span>"
+                    f"<span style='color:#e2e8f0;font-weight:800;'>{_st_txt}</span>"
+                    f"</div>"
+                    f"<div style='font-size:11px;color:#38bdf8;margin-top:2px;'>💡 {_enote} &nbsp;|&nbsp; <b>Live LTP: ₹{_ltp_e:.2f}</b> ({_pk.get('day_c', 0):+.2f}%)</div>"
+                    f"<div style='display:flex;justify-content:space-between;background:#0d1117;padding:5px 8px;border-radius:5px;margin-top:5px;font-family:monospace;font-size:11.5px;'>"
+                    f"<span style='color:#38bdf8;'><b>Entry:</b> ₹{_opt_e:.2f}</span>"
                     f"<span style='color:#f87171;'><b>🛑 SL:</b> ₹{_sl_e:.2f}</span>"
                     f"<span style='color:#4ade80;'><b>🎯 TGT:</b> ₹{_tg_e:.2f}</span>"
                     f"</div>"
-                    f"<div style='display:flex;gap:8px;margin-top:8px;'>"
+                    f"<div style='display:flex;gap:8px;margin-top:7px;'>"
                     f"<button type='button' class='pop-5m-open-mini' data-sym='{_sym_js}' "
-                    f"style='flex:1;cursor:pointer;text-align:center;background:#16a34a;color:#fff;padding:7px 8px;border-radius:5px;font-size:12px;font-weight:bold;border:1px solid #4ade80;user-select:none;touch-action:manipulation;'>📈 Show Mini Chart Below Global Indices</button>"
+                    f"style='flex:1;cursor:pointer;text-align:center;background:#16a34a;color:#fff;padding:6px 8px;border-radius:5px;font-size:11.5px;font-weight:bold;border:1px solid #4ade80;user-select:none;touch-action:manipulation;'>📈 Show Mini Chart Below Global Indices</button>"
                     f"</div></div>"
                 )
+            return c_html
 
-            _popup_inner_html = (
-                f"<div style='display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #30363d;padding-bottom:8px;'>"
-                f"<span style='color:#ffd700;font-weight:900;font-size:13.5px;'>🔔 5m Candle Alert ({_candle_slot_5m[-8:-3]}) — Top 2 (90%+ Prob)</span>"
+        _fresh_popup_html = ""
+        if _fresh_5m_picks:
+            _fresh_popup_html = (
+                f"<div style='display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #30363d;padding-bottom:8px;gap:6px;'>"
+                f"<span style='color:#ffd700;font-weight:900;font-size:13px;'>🆕 New 5m Alert ({_candle_slot_5m[-8:-3]}) — {len(_fresh_5m_picks)} Fresh</span>"
+                f"<div style='display:flex;gap:5px;align-items:center;'>"
+                f"<button type='button' id='pop-5m-view-all-btn' "
+                f"style='cursor:pointer;background:#1e293b;color:#38bdf8;padding:3px 8px;border-radius:5px;font-size:11px;font-weight:800;border:1px solid #38bdf8;touch-action:manipulation;'>📋 All ({len(_all_locked_alerts)})</button>"
                 f"<button type='button' id='pop-5m-x-btn' "
-                f"style='cursor:pointer;background:#dc2626;color:#fff;padding:4px 12px;border-radius:6px;font-size:14px;font-weight:900;border:1px solid #ef4444;user-select:none;touch-action:manipulation;' "
-                f"title='Minimize Popup'>✖</button>"
+                f"style='cursor:pointer;background:#dc2626;color:#fff;padding:3px 10px;border-radius:6px;font-size:13px;font-weight:900;border:1px solid #ef4444;touch-action:manipulation;' title='Close Popup'>✖</button>"
+                f"</div></div>"
+                f"<div id='popup-cards-scroll' style='max-height:66vh;overflow-y:auto;padding-right:2px;'>"
+                f"{_build_alert_cards_html(_fresh_5m_picks, is_fresh_mode=True)}"
                 f"</div>"
-                f"{_cards_html}"
+            )
+
+        _all_locked_popup_html = ""
+        if _all_locked_alerts:
+            _all_locked_popup_html = (
+                f"<div style='display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #30363d;padding-bottom:8px;gap:6px;'>"
+                f"<span style='color:#ffd700;font-weight:900;font-size:13px;'>🔔 All Locked Alerts ({len(_all_locked_alerts)})</span>"
+                f"<div style='display:flex;gap:5px;align-items:center;'>"
+                f"<button type='button' id='pop-5m-sort-btn' "
+                f"style='cursor:pointer;background:#1e293b;color:#ffd700;padding:3px 8px;border-radius:5px;font-size:11px;font-weight:800;border:1px solid #ffd700;touch-action:manipulation;'>🕒 Latest First ▾</button>"
+                f"<button type='button' id='pop-5m-x-btn' "
+                f"style='cursor:pointer;background:#dc2626;color:#fff;padding:3px 10px;border-radius:6px;font-size:13px;font-weight:900;border:1px solid #ef4444;touch-action:manipulation;' title='Close Alerts'>✖</button>"
+                f"</div></div>"
+                f"<div id='popup-cards-scroll' style='max-height:68vh;overflow-y:auto;padding-right:2px;'>"
+                f"{_build_alert_cards_html(_all_locked_alerts, is_fresh_mode=False)}"
+                f"</div>"
             )
 
         components.html(
@@ -11730,9 +11789,11 @@ def render_live_ui():
                 const parentWin = window.parent;
                 const parentDoc = parentWin.document;
                 const curSlot = {json.dumps(_candle_slot_5m)};
-                const hasPicks = {json.dumps(_has_5m_picks)};
-                const picksCount = {len(_active_top2)};
-                const popupInnerHtml = {json.dumps(_popup_inner_html)};
+                const runVer = {json.dumps(str(_run_ts))};
+                const hasFreshPicks = {json.dumps(_has_fresh_picks)};
+                const allLockedCount = {len(_all_locked_alerts)};
+                const freshPopupHtml = {json.dumps(_fresh_popup_html)};
+                const allLockedPopupHtml = {json.dumps(_all_locked_popup_html)};
 
                 // 1. Update Status & Strong Sell / Buy Badge
                 const topBar = parentDoc.getElementById('pro-top-status-bar');
@@ -11746,7 +11807,7 @@ def render_live_ui():
                     dirBadge.style.borderColor = {json.dumps(_mkt_dir_border)};
                 }}
 
-                // 2. Pure JS Popup & Minimized Button (Next to STRONG SELL / BUY)
+                // 2. Top-Bar 5m Alert Button (Always shows ALL locked stocks count) + Auto-Popup for Fresh 5m Stocks
                 let minBtn = parentDoc.getElementById('sniper-5m-min-btn');
                 const leftGrp = parentDoc.getElementById('live-left-group');
                 if (!minBtn && leftGrp) {{
@@ -11756,24 +11817,13 @@ def render_live_ui():
                     minBtn.style.cssText = 'display:none;cursor:pointer;background:linear-gradient(90deg,#d97706,#b91c1c);border:1.5px solid #ffd700;color:#ffffff;padding:2px 9px;border-radius:5px;font-weight:800;font-size:12px;white-space:nowrap;box-shadow:0 0 8px rgba(255,215,0,0.45);user-select:none;touch-action:manipulation;align-items:center;';
                     leftGrp.appendChild(minBtn);
                 }}
-                if (minBtn) {{
-                    minBtn.innerHTML = '🔔 5m Alert (' + picksCount + ') ▴';
-                }}
 
                 let popEl = parentDoc.getElementById('sniper-5m-popup');
-                if (hasPicks) {{
-                    if (!popEl) {{
-                        popEl = parentDoc.createElement('div');
-                        popEl.id = 'sniper-5m-popup';
-                        popEl.style.cssText = 'position:fixed;bottom:18px;right:18px;width:400px;max-width:94vw;background:rgba(11,14,20,0.98);border:2px solid #ffd700;border-radius:12px;padding:12px 14px;z-index:999999;box-shadow:0 12px 32px rgba(0,0,0,0.85);font-family:Inter,sans-serif;';
-                        parentDoc.body.appendChild(popEl);
-                    }}
-                    if (popEl.getAttribute('data-slot') !== curSlot || !popEl.innerHTML) {{
-                        popEl.innerHTML = popupInnerHtml;
-                        popEl.setAttribute('data-slot', curSlot);
-                    }}
-                }} else if (popEl) {{
-                    popEl.style.display = 'none';
+                if (!popEl && (allLockedCount > 0 || hasFreshPicks)) {{
+                    popEl = parentDoc.createElement('div');
+                    popEl.id = 'sniper-5m-popup';
+                    popEl.style.cssText = 'position:fixed;bottom:18px;right:18px;width:420px;max-width:94vw;background:rgba(11,14,20,0.98);border:2px solid #ffd700;border-radius:12px;padding:12px 14px;z-index:999999;box-shadow:0 12px 32px rgba(0,0,0,0.85);font-family:Inter,sans-serif;';
+                    parentDoc.body.appendChild(popEl);
                 }}
 
                 function isSlotDismissed() {{
@@ -11792,44 +11842,68 @@ def render_live_ui():
                     }} catch (e) {{}}
                 }}
 
-                parentWin.sync5mPopupUI = function() {{
-                    const p = parentDoc.getElementById('sniper-5m-popup');
-                    const m = parentDoc.getElementById('sniper-5m-min-btn');
-                    const minimized = isSlotDismissed();
-                    if (p) p.style.setProperty('display', (hasPicks && !minimized) ? 'block' : 'none', 'important');
-                    if (m) m.style.setProperty('display', (hasPicks && minimized) ? 'inline-flex' : 'none', 'important');
-                }};
-
-                // Bind Direct Click + Touch Handlers to Close (✖), Restore (🔔) and Show Mini Chart
-                const xBtn = parentDoc.getElementById('pop-5m-x-btn');
-                if (xBtn) {{
-                    const doClose = function(e) {{
-                        if (e) {{ e.preventDefault(); e.stopPropagation(); }}
-                        setSlotDismissed(true);
-                        parentWin.sync5mPopupUI();
-                    }};
-                    xBtn.onclick = doClose;
-                    xBtn.ontouchend = doClose;
+                function applyTimeSort(p) {{
+                    const wrap = p ? p.querySelector('#popup-cards-scroll') : null;
+                    const sortBtn = p ? p.querySelector('#pop-5m-sort-btn') : null;
+                    if (!wrap) return;
+                    const asc = !!parentWin._allAlertsAsc;
+                    const cards = Array.from(wrap.querySelectorAll('.alert-stock-card'));
+                    cards.sort((a, b) => {{
+                        const ta = parseFloat(a.getAttribute('data-ts') || '0');
+                        const tb = parseFloat(b.getAttribute('data-ts') || '0');
+                        return asc ? (ta - tb) : (tb - ta);
+                    }});
+                    cards.forEach(c => wrap.appendChild(c));
+                    if (sortBtn) {{
+                        sortBtn.innerHTML = asc ? '🕒 Oldest First ▴' : '🕒 Latest First ▾';
+                    }}
                 }}
 
-                if (minBtn) {{
-                    const doRestore = function(e) {{
-                        if (e) {{ e.preventDefault(); e.stopPropagation(); }}
-                        setSlotDismissed(false);
-                        parentWin.sync5mPopupUI();
-                    }};
-                    minBtn.onclick = doRestore;
-                    minBtn.ontouchend = doRestore;
-                }}
+                function bindPopupButtons(p) {{
+                    if (!p) return;
+                    const xBtn = p.querySelector('#pop-5m-x-btn');
+                    if (xBtn) {{
+                        const doClose = function(e) {{
+                            if (e) {{ e.preventDefault(); e.stopPropagation(); }}
+                            parentWin._allAlertsOpen = false;
+                            setSlotDismissed(true);
+                            parentWin.sync5mPopupUI(true);
+                        }};
+                        xBtn.onclick = doClose;
+                        xBtn.ontouchend = doClose;
+                    }}
 
-                if (popEl) {{
-                    popEl.querySelectorAll('.pop-5m-open-mini').forEach(btn => {{
+                    const viewAllBtn = p.querySelector('#pop-5m-view-all-btn');
+                    if (viewAllBtn) {{
+                        const doViewAll = function(e) {{
+                            if (e) {{ e.preventDefault(); e.stopPropagation(); }}
+                            setSlotDismissed(true);
+                            parentWin._allAlertsOpen = true;
+                            parentWin.sync5mPopupUI(true);
+                        }};
+                        viewAllBtn.onclick = doViewAll;
+                        viewAllBtn.ontouchend = doViewAll;
+                    }}
+
+                    const sortBtn = p.querySelector('#pop-5m-sort-btn');
+                    if (sortBtn) {{
+                        const doSort = function(e) {{
+                            if (e) {{ e.preventDefault(); e.stopPropagation(); }}
+                            parentWin._allAlertsAsc = !parentWin._allAlertsAsc;
+                            applyTimeSort(p);
+                        }};
+                        sortBtn.onclick = doSort;
+                        sortBtn.ontouchend = doSort;
+                    }}
+
+                    p.querySelectorAll('.pop-5m-open-mini').forEach(btn => {{
                         const doOpenMini = function(e) {{
                             if (e) {{ e.preventDefault(); e.stopPropagation(); }}
                             const sym = btn.getAttribute('data-sym');
                             parentWin._selected5mSym = sym;
+                            parentWin._allAlertsOpen = false;
                             setSlotDismissed(true);
-                            parentWin.sync5mPopupUI();
+                            parentWin.sync5mPopupUI(true);
                             parentDoc.querySelectorAll('.sniper-5m-mini-container').forEach(el => {{
                                 el.style.display = 'none';
                             }});
@@ -11845,6 +11919,52 @@ def render_live_ui():
                     }});
                 }}
 
+                parentWin.sync5mPopupUI = function(forceRedraw) {{
+                    const p = parentDoc.getElementById('sniper-5m-popup');
+                    const m = parentDoc.getElementById('sniper-5m-min-btn');
+                    const showAll = !!parentWin._allAlertsOpen && (allLockedCount > 0);
+                    const showFresh = !showAll && hasFreshPicks && !isSlotDismissed();
+                    const modeNow = showAll ? 'all' : (showFresh ? 'fresh' : 'none');
+
+                    if (m) {{
+                        m.style.setProperty('display', (allLockedCount > 0) ? 'inline-flex' : 'none', 'important');
+                        m.innerHTML = showAll
+                            ? ('🔔 5m Alert (' + allLockedCount + ') ▾')
+                            : ('🔔 5m Alert (' + allLockedCount + ') ▴');
+                    }}
+
+                    if (p) {{
+                        if (modeNow === 'none') {{
+                            p.style.setProperty('display', 'none', 'important');
+                        }} else {{
+                            const needHtml = forceRedraw || (p.getAttribute('data-mode') !== modeNow) || (p.getAttribute('data-ver') !== runVer);
+                            if (needHtml) {{
+                                const prevScrollEl = p.querySelector('#popup-cards-scroll');
+                                const prevScrollTop = prevScrollEl ? prevScrollEl.scrollTop : 0;
+                                p.innerHTML = (modeNow === 'all') ? allLockedPopupHtml : freshPopupHtml;
+                                p.setAttribute('data-mode', modeNow);
+                                p.setAttribute('data-ver', runVer);
+                                if (modeNow === 'all') applyTimeSort(p);
+                                bindPopupButtons(p);
+                                const newScrollEl = p.querySelector('#popup-cards-scroll');
+                                if (newScrollEl && prevScrollTop > 0) newScrollEl.scrollTop = prevScrollTop;
+                            }}
+                            p.style.setProperty('display', 'block', 'important');
+                        }}
+                    }}
+                }};
+
+                if (minBtn) {{
+                    const doToggleAll = function(e) {{
+                        if (e) {{ e.preventDefault(); e.stopPropagation(); }}
+                        setSlotDismissed(true);
+                        parentWin._allAlertsOpen = !parentWin._allAlertsOpen;
+                        parentWin.sync5mPopupUI(true);
+                    }};
+                    minBtn.onclick = doToggleAll;
+                    minBtn.ontouchend = doToggleAll;
+                }}
+
                 parentDoc.querySelectorAll('.sniper-mini-hide-btn').forEach(hBtn => {{
                     const doHideMini = function(e) {{
                         if (e) {{ e.preventDefault(); e.stopPropagation(); }}
@@ -11857,14 +11977,14 @@ def render_live_ui():
                     hBtn.ontouchend = doHideMini;
                 }});
 
-                parentWin.sync5mPopupUI();
+                parentWin.sync5mPopupUI(true);
 
                 if (parentWin._selected5mSym) {{
                     const boxEl = parentDoc.getElementById('sniper-mini-box-' + parentWin._selected5mSym);
                     if (boxEl) boxEl.style.display = 'block';
                 }}
 
-                // 3. Top Header News Ticker (Docked to the Left of Share Button at Top Right)
+                // 3. Top Header News Ticker
                 if (!parentWin._flashEpoch) parentWin._flashEpoch = Date.now();
                 let hdrNewsBar = parentDoc.getElementById('top-header-news-bar');
                 if (!hdrNewsBar) {{
@@ -11940,7 +12060,7 @@ def render_live_ui():
                 if (parentWin._rpSyncInterval) clearInterval(parentWin._rpSyncInterval);
                 parentWin._rpSyncInterval = setInterval(() => {{
                     parentWin.applyRight20State(false);
-                    parentWin.sync5mPopupUI();
+                    parentWin.sync5mPopupUI(false);
                 }}, 300);
 
                 if (parentWin._stCdInterval) clearInterval(parentWin._stCdInterval);
@@ -12432,13 +12552,14 @@ def render_live_ui():
                                     if not sec_df.empty:
                                         render_chart_grid(sec_df.head(6), True, "sec_top6", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
 
-                        # 🎯 POPUP RECOMMENDATION MINI-CHART (DIRECTLY BELOW GLOBAL INDICES — ZERO RELOAD!)
-                        for _pk in _SS.get('top2_5m_picks', []):
-                            _psym = _pk.get('sym', '')
-                            _pft = _pk.get('ft', f"{_psym}.NS")
-                            _df_5m_p = processed_charts.get(_pft, pd.DataFrame())
-                            if not _psym or _df_5m_p is None or _df_5m_p.empty:
-                                continue
+                        for _pk in _all_locked_alerts:
+                         _psym = _pk.get('sym', '')
+                         _pft = _pk.get('ft', f"{_psym}.NS")
+                         _df_5m_p = processed_charts.get(_pft, pd.DataFrame())
+                         if (_df_5m_p is None or _df_5m_p.empty) and _pft in _SS.get('5m_store', {}):
+                             _df_5m_p = _fix_ist_df(process_5m_data(_SS['5m_store'][_pft]))
+                         if not _psym or _df_5m_p is None or _df_5m_p.empty:
+                             continue
 
                             _opt_e = float(_pk.get('opt_entry', _pk.get('ltp', 0.0)))
                             _sl_e = float(_pk.get('sl', 0.0))
@@ -12448,6 +12569,7 @@ def render_live_ui():
                             _enote = _pk.get('entry_note', f"{_pk.get('side', 'BUY')} @ ₹{_opt_e:.2f}")
 
                             # Optimal Buy/Sell Entry, SL & Target లైన్స్‌తో రెడీగా ఉండే హై-ప్రెసిషన్ చార్ట్
+                            if _pft not in _SS['chart_trades']:
                             _SS['chart_trades'][_pft] = {
                                 'side': _pk.get('side', 'BUY'),
                                 'qty': max(1, int(_UI.get('trade_qty', 10))),
