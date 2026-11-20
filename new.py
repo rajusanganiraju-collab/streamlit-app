@@ -7227,7 +7227,7 @@ def _refresh_locked_alerts_live(df_universe):
     """Updates live LTP & trade status for all locked stocks without changing locked Entry/SL/TGT."""
     saved_locks = _SS.setdefault('popup_locked_stocks', {})
     today_str = f"{now_ist().strftime('%Y-%m-%d')}_{'LIVE' if is_market_open() else 'OFF'}"
- if _SS.get('popup_lock_date') != today_str:
+    if _SS.get('popup_lock_date') != today_str:
         saved_locks.clear()
         _SS['popup_lock_date'] = today_str
         _SS['fresh_5m_picks'] = []
@@ -7302,19 +7302,19 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
     mkt_open_now = is_market_open()
 
     saved_locks = _SS.setdefault('popup_locked_stocks', {})
- today_str = f"{now_dt.strftime('%Y-%m-%d')}_{'LIVE' if mkt_open_now else 'OFF'}"
- if _SS.get('popup_lock_date') != today_str:
-     saved_locks.clear()
-     _SS['popup_lock_date'] = today_str
-     _SS['fresh_5m_picks'] = []
+    today_str = f"{now_dt.strftime('%Y-%m-%d')}_{'LIVE' if mkt_open_now else 'OFF'}"
+    if _SS.get('popup_lock_date') != today_str:
+        saved_locks.clear()
+        _SS['popup_lock_date'] = today_str
+        _SS['fresh_5m_picks'] = []
 
- # Off-market testing lo prati 5 min ki 2 stocks add avvakunda max 2 tho aagutundi
- if (not mkt_open_now) and len(saved_locks) >= 2:
-     return []
+    # Off-market testing lo prati 5 min ki 2 stocks add avvakunda max 2 tho aagutundi
+    if (not mkt_open_now) and len(saved_locks) >= 2:
+        return []
 
- # Live market time guard: 9:20 AM mundu & 2:45 PM taruvata kotha alerts generate cheyadu
- if mkt_open_now and (now_t < dt_time(9, 20) or now_t > dt_time(14, 45)):
-     return []
+    # Live market time guard: 9:20 AM mundu & 2:45 PM taruvata kotha alerts generate cheyadu
+    if mkt_open_now and (now_t < dt_time(9, 20) or now_t > dt_time(14, 45)):
+        return []
 
     df_u_all = df_universe.drop_duplicates(subset=['Fetch_T']).copy()
 
@@ -12558,7 +12558,7 @@ def render_live_ui():
                                         render_chart_grid(sec_df.head(6), True, "sec_top6", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
 
                         for _k_tr in [k for k, v in _SS.get('chart_trades', {}).items() if v.get('mode') == '🎯 90%+ Optimal Entry']:
-                         _SS['chart_trades'].pop(_k_tr, None)
+                            _SS['chart_trades'].pop(_k_tr, None)
                         for _pk in _all_locked_alerts:
                             _psym = _pk.get('sym', '')
                             _pft = _pk.get('ft', f"{_psym}.NS")
