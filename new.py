@@ -1142,9 +1142,9 @@ _SKIP_BAD_SYMS = {
     "SEQUENT", "SEAMEC", "TATAMOTORS", "INFIBEAM", "AKZOINDIA"
 }
 
-@st.cache_data(ttl=21600, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def fetch_nse_delivery_pct():
-    """NSE full bhavcopy nundi anni EQ stocks yokka latest Delivery % (DELIV_PER) techukuntundi (1 request, 6h cache)."""
+    """NSE full bhavcopy nundi anni EQ stocks yokka latest Delivery % (DELIV_PER) + Date label techukuntundi (1h cache)."""
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         "Accept": "text/csv,text/plain,*/*",
@@ -1170,10 +1170,10 @@ def fetch_nse_delivery_pct():
                     df_b["DELIV_PER"] = pd.to_numeric(df_b["DELIV_PER"], errors="coerce").fillna(0.0)
                     out_m = dict(zip(df_b["SYMBOL"], df_b["DELIV_PER"]))
                     if len(out_m) > 100:
-                        return out_m
+                        return out_m, d_chk.strftime("%d%b")
         except Exception:
             continue
-    return {}
+    return {}, ""
 @st.cache_data(ttl=900, show_spinner=False)
 def fetch_all_data(_v=6):
     import tempfile
@@ -12122,8 +12122,13 @@ def render_live_ui():
                         dfs_to_concat.append(sub_df.sort_values(by='S', ascending=False).head(8))
 
             elif strat == "🏦 Institutional Accumulation (FII/DII Footprint)":
-                deliv_map = fetch_nse_delivery_pct()
+                deliv_res = fetch_nse_delivery_pct()
+                if isinstance(deliv_res, tuple):
+                    deliv_map, deliv_dt_lbl = deliv_res
+                else:
+                    deliv_map, deliv_dt_lbl = deliv_res, ""
                 has_deliv_feed = len(deliv_map) > 50
+                _del_pfx = f"Del({deliv_dt_lbl})" if deliv_dt_lbl else "Del"
 
                 ud_s = pd.to_numeric(df_filtered['UD_Vol_Ratio'], errors='coerce').fillna(1.0) if 'UD_Vol_Ratio' in df_filtered.columns else pd.Series(1.0, index=df_filtered.index)
                 acc_s = pd.to_numeric(df_filtered['Inst_Acc_Days'], errors='coerce').fillna(0).astype(int) if 'Inst_Acc_Days' in df_filtered.columns else pd.Series(0, index=df_filtered.index)
@@ -12132,12 +12137,10 @@ def render_live_ui():
                 rs60_s = pd.to_numeric(df_filtered['RS_60D'], errors='coerce').fillna(0.0) if 'RS_60D' in df_filtered.columns else pd.Series(0.0, index=df_filtered.index)
                 deliv_s = df_filtered['T'].map(lambda s: float(deliv_map.get(str(s).strip().upper(), 0.0))).astype(float)
 
-                # Stage-2 healthy structure + Beating NIFTY (20D RS > 0) + Institutional Volume/Delivery Accumulation
                 inst_trend = has_history & (df_filtered['P'] > df_filtered['SMA50']) & (df_filtered['P'] > df_filtered['SMA200']) & (df_filtered['SMA50'] >= df_filtered['SMA150'] * 0.98) & (df_filtered['Pullback_52W'] <= 22.0)
                 inst_rs = (rs20_s > 0.0) & (rs60_s > -2.0)
                 inst_flow = (ud_s >= 1.30) & ((acc_s >= 2) | pp_s | (deliv_s >= 55.0))
                 if has_deliv_feed:
-                    # Cut pure intraday speculation traps (low delivery % without multi-day accumulation)
                     inst_flow = inst_flow & ((deliv_s == 0.0) | (deliv_s >= 35.0) | (acc_s >= 3) | pp_s)
 
                 sub_df = df_filtered[inst_trend & inst_rs & inst_flow].copy()
@@ -12156,16 +12159,11 @@ def render_live_ui():
                     sub_df['S'] = np.clip(12 + ud_pts + acc_pts + pp_pts + rs_pts + del_pts, 15, 39).astype(int)
 
                     def _mk_inst_icon(r):
-                        d_s = f" Del:{r['_del']:.0f}%" if r['_del'] >= 35 else ""
-                        return f"🏦 Pocket-Pivot{d_s}" if r['_pp'] else f"🏦 Inst U/D:{r['_ud']:.1f}x{d_s}"
+                        d_s = f" {_del_pfx}:{r['_del']:.0f}%" if r['_del'] > 0 else ""
+                        return f"🏦 Pocket-Pivot{d_s}" if r['_pp'] else f"🏦 Inst-Acc{d_s}"
 
                     def _mk_inst_tag(r):
-                        pts = [f"U/D:{r['_ud']:.1f}x", f"Acc:{int(r['_acc'])}d", f"RS20:{r['_rs20']:+.1f}%"]
-                        if r['_pp']:
-                            pts.append("PocketPivot🔥")
-                        if r['_del'] > 0:
-                            pts.append(f"Del:{r['_del']:.0f}%")
-                        return " | ".join(pts)
+                        return f"U/D:{r['_ud']:.1f}x | Acc:{int(r['_acc'])}d | RS20:{r['_rs20']:+.1f}%"
 
                     sub_df['Strategy_Icon'] = sub_df.apply(_mk_inst_icon, axis=1)
                     sub_df['AlphaTag'] = sub_df.apply(_mk_inst_tag, axis=1)
