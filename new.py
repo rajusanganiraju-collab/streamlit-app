@@ -5974,7 +5974,258 @@ def render_portfolio_allocation(df_port, df_all_stocks):
                 f"<tbody>{rows}</tbody></table>", unsafe_allow_html=True)
 
 
+@st.cache_data(ttl=1800, show_spinner=False)
+def fetch_portfolio_benchmark_history(port_syms_tuple):
+    """Fetches 1Y daily Close prices for NIFTY, BANKNIFTY and all portfolio stocks in one fast batch."""
+    syms = [str(s).upper().replace(".NS", "").strip() for s in port_syms_tuple if str(s).strip()]
+    tkrs = ["^NSEI", "^NSEBANK"] + [f"{s}.NS" for s in syms]
+    close_dict = {}
+    try:
+        raw = yf.download(tkrs, period="1y", interval="1d", progress=False, group_by='ticker', threads=8, timeout=15)
+        if raw is not None and not raw.empty:
+            if isinstance(raw.columns, pd.MultiIndex):
+                if 'Close' in raw.columns.levels[0]:
+                    raw = raw.swaplevel(axis=1)
+                lvl0 = set(raw.columns.get_level_values(0))
+                for t in tkrs:
+                    if t in lvl0 and 'Close' in raw[t].columns:
+                        s = pd.to_numeric(raw[t]['Close'], errors='coerce').dropna()
+                        if not s.empty:
+                            close_dict[t] = s
+    except Exception:
+        pass
 
+    # Fallback to .BO for any portfolio stock missing on .NS
+    for s in syms:
+        if f"{s}.NS" not in close_dict:
+            try:
+                rb = yf.download(f"{s}.BO", period="1y", interval="1d", progress=False, timeout=8)
+                if isinstance(rb.columns, pd.MultiIndex):
+                    rb.columns = rb.columns.get_level_values(0)
+                if not rb.empty and 'Close' in rb.columns:
+                    sb = pd.to_numeric(rb['Close'], errors='coerce').dropna()
+                    if not sb.empty:
+                        close_dict[f"{s}.NS"] = sb
+            except Exception:
+                pass
+
+    if not close_dict:
+        return pd.DataFrame()
+    df_c = pd.DataFrame(close_dict).sort_index()
+    df_c.index = pd.to_datetime(df_c.index).tz_localize(None)
+    return df_c.ffill()
+
+
+def render_portfolio_vs_benchmark_section(df_port):
+    """Renders (1) Weighted My Portfolio vs NIFTY vs BANKNIFTY chart and (2) Individual Portfolio Stocks vs Benchmark chart & Alpha table."""
+    if df_port is None or df_port.empty:
+        st.info("Portfolio lo stocks unte NIFTY & BANKNIFTY comparison charts kanipistayi.")
+        return
+
+    # Aggregate quantities per symbol
+    qty_map = {}
+    for _, r in df_port.iterrows():
+        sym = _pf_clean_sym(r.get('Symbol', ''))
+        try:
+            q = float(r.get('Quantity', 0))
+        except Exception:
+            q = 0.0
+        if sym and q > 0:
+            qty_map[sym] = qty_map.get(sym, 0.0) + q
+
+    if not qty_map:
+        return
+
+    port_syms = tuple(sorted(qty_map.keys()))
+    df_hist = fetch_portfolio_benchmark_history(port_syms)
+    if df_hist.empty or len(df_hist) < 2:
+        st.warning("Historical benchmark data load avvaledu.")
+        return
+
+    tf_map = {
+        "7 Days": pd.DateOffset(days=7),
+        "15 Days": pd.DateOffset(days=15),
+        "30 Days": pd.DateOffset(days=30),
+        "2 Months": pd.DateOffset(months=2),
+        "3 Months": pd.DateOffset(months=3),
+        "6 Months": pd.DateOffset(months=6),
+        "1 Year": pd.DateOffset(years=1),
+    }
+
+    c_tf, c_bm = st.columns([2.2, 1.0])
+    with c_tf:
+        sel_tf = st.radio(
+            "⏱️ Growth Period:",
+            list(tf_map.keys()),
+            index=1,  # Default: 15 Days
+            horizontal=True,
+            key="pf_bm_tf_radio"
+        )
+    with c_bm:
+        sel_bm = st.radio(
+            "📊 Stock Benchmark:",
+            ["NIFTY 50", "BANKNIFTY"],
+            index=0,
+            horizontal=True,
+            key="pf_bm_idx_radio"
+        )
+
+    end_dt = df_hist.index.max()
+    start_dt = end_dt - tf_map[sel_tf]
+    df_win = df_hist[df_hist.index >= start_dt].copy()
+    if len(df_win) < 2:
+        df_win = df_hist.tail(5).copy()
+    df_win = df_win.ffill().bfill()
+
+    # 1. Compute Weighted Portfolio Value Series & % Growth
+    valid_syms = [s for s in port_syms if f"{s}.NS" in df_win.columns and pd.notna(df_win[f"{s}.NS"].iloc[0]) and float(df_win[f"{s}.NS"].iloc[0]) > 0]
+    if not valid_syms:
+        st.info("Portfolio stocks history dorkaledu.")
+        return
+
+    port_val_series = sum(df_win[f"{s}.NS"] * qty_map[s] for s in valid_syms)
+    port_pct = ((port_val_series / float(port_val_series.iloc[0])) - 1.0) * 100.0
+
+    nifty_pct = ((df_win["^NSEI"] / float(df_win["^NSEI"].iloc[0])) - 1.0) * 100.0 if "^NSEI" in df_win.columns else pd.Series(0.0, index=df_win.index)
+    bnk_pct = ((df_win["^NSEBANK"] / float(df_win["^NSEBANK"].iloc[0])) - 1.0) * 100.0 if "^NSEBANK" in df_win.columns else pd.Series(0.0, index=df_win.index)
+
+    p_ret = float(port_pct.iloc[-1])
+    n_ret = float(nifty_pct.iloc[-1])
+    b_ret = float(bnk_pct.iloc[-1])
+    alpha_n = p_ret - n_ret
+
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric(f"💼 My Portfolio ({sel_tf})", f"{p_ret:+.2f}%")
+    m2.metric(f"📈 NIFTY 50 ({sel_tf})", f"{n_ret:+.2f}%")
+    m3.metric(f"🏦 BANKNIFTY ({sel_tf})", f"{b_ret:+.2f}%")
+    m4.metric("⚡ Alpha vs NIFTY", f"{alpha_n:+.2f}%", delta="Outperforming 🚀" if alpha_n >= 0 else "Underperforming ⚠️")
+
+    # CHART 1: My Portfolio vs NIFTY vs BANKNIFTY
+    fig1 = go.Figure()
+    fig1.add_hline(y=0, line_dash="dot", line_color="#475569", line_width=1)
+    fig1.add_trace(go.Scatter(
+        x=df_win.index, y=port_pct, mode='lines', name=f'💼 My Portfolio ({p_ret:+.2f}%)',
+        line=dict(color='#38bdf8', width=3),
+        hovertemplate='<b>My Portfolio</b>: %{y:+.2f}%<extra></extra>'
+    ))
+    fig1.add_trace(go.Scatter(
+        x=df_win.index, y=nifty_pct, mode='lines', name=f'📈 NIFTY 50 ({n_ret:+.2f}%)',
+        line=dict(color='#22c55e', width=2, dash='dash'),
+        hovertemplate='<b>NIFTY 50</b>: %{y:+.2f}%<extra></extra>'
+    ))
+    fig1.add_trace(go.Scatter(
+        x=df_win.index, y=bnk_pct, mode='lines', name=f'🏦 BANKNIFTY ({b_ret:+.2f}%)',
+        line=dict(color='#f59e0b', width=2, dash='dot'),
+        hovertemplate='<b>BANKNIFTY</b>: %{y:+.2f}%<extra></extra>'
+    ))
+    fig1.update_layout(
+        title=dict(text=f"💼 My Portfolio vs NIFTY 50 vs BANKNIFTY — {sel_tf} Growth (%)", font=dict(size=14, color='#e6edf3')),
+        height=310, margin=dict(l=10, r=15, t=38, b=20),
+        paper_bgcolor='#0d1117', plot_bgcolor='#0b0e14',
+        hovermode='x unified',
+        legend=dict(orientation='h', y=1.02, x=0, font=dict(color='#e6edf3', size=11)),
+        xaxis=dict(showgrid=False, tickfont=dict(color='#9ca3af', size=10)),
+        yaxis=dict(showgrid=True, gridcolor='#1e293b', ticksuffix='%', tickfont=dict(color='#9ca3af', size=10))
+    )
+    st.plotly_chart(fig1, use_container_width=True, key=f"pf_vs_idx_chart_{sel_tf}", config={'displayModeBar': False})
+
+    # 2. Individual Portfolio Stocks Growth vs Selected Benchmark
+    bm_series = nifty_pct if sel_bm == "NIFTY 50" else bnk_pct
+    bm_ret_val = n_ret if sel_bm == "NIFTY 50" else b_ret
+
+    stk_perf = []
+    stk_pct_map = {}
+    for s in valid_syms:
+        ser = df_win[f"{s}.NS"]
+        p0, p1 = float(ser.iloc[0]), float(ser.iloc[-1])
+        spct = ((ser / p0) - 1.0) * 100.0
+        s_ret = float(spct.iloc[-1])
+        stk_pct_map[s] = spct
+        stk_perf.append({
+            "Symbol": s, "Start": p0, "Current": p1,
+            "Growth": s_ret, "Alpha": s_ret - bm_ret_val
+        })
+
+    stk_perf.sort(key=lambda x: x["Growth"], reverse=True)
+    all_sorted_syms = [x["Symbol"] for x in stk_perf]
+    default_pick = all_sorted_syms if len(all_sorted_syms) <= 10 else (all_sorted_syms[:5] + all_sorted_syms[-5:])
+
+    chosen_syms = st.multiselect(
+        f"📌 Select Portfolio Stocks to Compare vs {sel_bm} ({sel_tf}):",
+        options=all_sorted_syms,
+        default=default_pick,
+        key="pf_bm_stk_msel"
+    )
+
+    # CHART 2: Individual Portfolio Stocks vs Selected Benchmark
+    fig2 = go.Figure()
+    fig2.add_hline(y=0, line_dash="dot", line_color="#475569", line_width=1)
+    fig2.add_trace(go.Scatter(
+        x=df_win.index, y=bm_series, mode='lines', name=f'⭐ {sel_bm} ({bm_ret_val:+.2f}%)',
+        line=dict(color='#ffd700', width=3, dash='dash'),
+        hovertemplate=f'<b>{sel_bm}</b>: %{{y:+.2f}}%<extra></extra>'
+    ))
+    for i_c, sym_c in enumerate(chosen_syms):
+        if sym_c in stk_pct_map:
+            s_final = float(stk_pct_map[sym_c].iloc[-1])
+            fig2.add_trace(go.Scatter(
+                x=df_win.index, y=stk_pct_map[sym_c], mode='lines',
+                name=f"{sym_c} ({s_final:+.1f}%)",
+                line=dict(color=_PF_COLORS[i_c % len(_PF_COLORS)], width=1.8),
+                hovertemplate=f'<b>{sym_c}</b>: %{{y:+.2f}}%<extra></extra>'
+            ))
+
+    fig2.update_layout(
+        title=dict(text=f"📊 Individual Portfolio Stocks vs {sel_bm} — {sel_tf} Growth (%)", font=dict(size=14, color='#e6edf3')),
+        height=350, margin=dict(l=10, r=15, t=38, b=20),
+        paper_bgcolor='#0d1117', plot_bgcolor='#0b0e14',
+        hovermode='x unified',
+        legend=dict(font=dict(color='#e6edf3', size=10.5)),
+        xaxis=dict(showgrid=False, tickfont=dict(color='#9ca3af', size=10)),
+        yaxis=dict(showgrid=True, gridcolor='#1e293b', ticksuffix='%', tickfont=dict(color='#9ca3af', size=10))
+    )
+    st.plotly_chart(fig2, use_container_width=True, key=f"pf_stks_vs_bm_{sel_tf}_{sel_bm}", config={'displayModeBar': False})
+
+    # TABLE: Outperformers vs Laggards Breakdown
+    t_rows = ""
+    for rk, item in enumerate(stk_perf, start=1):
+        bg = "row-dark" if rk % 2 == 1 else "row-light"
+        g_col = "text-green" if item["Growth"] >= 0 else "text-red"
+        a_col = "text-green" if item["Alpha"] >= 0 else "text-red"
+        if item["Alpha"] >= 2.0:
+            verdict = "🚀 Leader (Beating Index)"
+            v_col = "#3fb950"
+        elif item["Alpha"] >= -1.5:
+            verdict = "⚖️ Inline with Index"
+            v_col = "#ffd700"
+        else:
+            verdict = "🩸 Laggard (Underperforming)"
+            v_col = "#f85149"
+
+        t_rows += (
+            f"<tr class='{bg}'>"
+            f"<td><b>{rk}</b></td>"
+            f"<td class='t-symbol'><a href='?grid_sym={item['Symbol']}.NS' target='_self'>{item['Symbol']} 📌</a></td>"
+            f"<td>₹{item['Start']:,.1f}</td>"
+            f"<td>₹{item['Current']:,.1f}</td>"
+            f"<td class='{g_col}'>{item['Growth']:+.2f}%</td>"
+            f"<td style='color:#ffd700;'>{bm_ret_val:+.2f}%</td>"
+            f"<td class='{a_col}'>{item['Alpha']:+.2f}%</td>"
+            f"<td style='color:{v_col};font-weight:bold;font-size:10.5px;'>{verdict}</td>"
+            f"</tr>"
+        )
+
+    st.markdown(
+        f"<table class='term-table'><thead>"
+        f"<tr><th colspan='8' class='term-head-port' style='background:#0f2942;'>🏆 PORTFOLIO STOCKS RELATIVE STRENGTH vs {sel_bm} ({sel_tf})</th></tr>"
+        f"<tr style='background:#21262d;'>"
+        f"<th style='width:5%;'>#</th><th style='text-align:left;width:14%;'>STOCK</th>"
+        f"<th style='width:12%;'>START PRICE</th><th style='width:12%;'>CURRENT</th>"
+        f"<th style='width:12%;'>STOCK %</th><th style='width:11%;'>{sel_bm} %</th>"
+        f"<th style='width:12%;'>ALPHA</th><th style='width:22%;'>STRENGTH STATUS</th>"
+        f"</tr></thead><tbody>{t_rows}</tbody></table>",
+        unsafe_allow_html=True
+    )
 def render_portfolio_table(df_port, df_stocks, weekly_trends, port_sort="Default"):
     if df_port.empty: return "<div style='padding:20px; text-align:center; color:#8b949e; border: 1px dashed #30363d; border-radius:8px;'>Portfolio is empty. Add a stock using the option below!</div>"
     
@@ -7224,7 +7475,7 @@ if "grid_sym" in st.query_params:
 
 
 def _refresh_locked_alerts_live(df_universe):
-    """Updates live LTP & trade status for all locked stocks without changing locked Entry/SL/TGT."""
+    """Updates live LTP, status & P&L for all locked stocks without changing locked Entry/SL/TGT."""
     saved_locks = _SS.setdefault('popup_locked_stocks', {})
     today_str = f"{now_ist().strftime('%Y-%m-%d')}_{'LIVE' if is_market_open() else 'OFF'}"
     if _SS.get('popup_lock_date') != today_str:
@@ -7257,43 +7508,67 @@ def _refresh_locked_alerts_live(df_universe):
 
         if item.get('final_outcome'):
             status_txt = item['final_outcome']
+            exit_p = float(item.get('exit_price', cur_p))
         elif item.get('triggered', False):
             if is_buy_l:
                 if cur_p >= tg:
                     status_txt = f"🎯 TGT HIT ({hit_tm})"
                     item['final_outcome'] = status_txt
+                    item['outcome_code'] = 'TGT'
+                    item['exit_price'] = tg
+                    exit_p = tg
                 elif cur_p <= sl:
                     status_txt = f"🛑 SL HIT ({hit_tm})"
                     item['final_outcome'] = status_txt
+                    item['outcome_code'] = 'SL'
+                    item['exit_price'] = sl
+                    exit_p = sl
                 else:
                     status_txt = "🟢 ACTIVE"
+                    item['outcome_code'] = 'ACTIVE'
+                    exit_p = cur_p
             else:
                 if cur_p <= tg:
                     status_txt = f"🎯 TGT HIT ({hit_tm})"
                     item['final_outcome'] = status_txt
+                    item['outcome_code'] = 'TGT'
+                    item['exit_price'] = tg
+                    exit_p = tg
                 elif cur_p >= sl:
                     status_txt = f"🛑 SL HIT ({hit_tm})"
                     item['final_outcome'] = status_txt
+                    item['outcome_code'] = 'SL'
+                    item['exit_price'] = sl
+                    exit_p = sl
                 else:
                     status_txt = "🔴 ACTIVE"
+                    item['outcome_code'] = 'ACTIVE'
+                    exit_p = cur_p
         else:
             status_txt = "⏳ WAITING ENTRY"
+            item['outcome_code'] = 'WAIT'
+            exit_p = ent
+
+        if item.get('triggered', False) and ent > 0:
+            pnl_pct = ((exit_p - ent) / ent * 100.0) if is_buy_l else ((ent - exit_p) / ent * 100.0)
+        else:
+            pnl_pct = 0.0
 
         item['ltp'] = cur_p
         item['day_c'] = cur_dc
         item['vol_x'] = cur_vx
+        item['pnl_pct'] = round(pnl_pct, 2)
         item['status'] = status_txt
         item['entry_note'] = f"🔒 {item.get('lock_time', '')} | {status_txt} | {item.get('base_note', '')}"
 
-    all_sorted = sorted(
+    return sorted(
         saved_locks.values(),
         key=lambda x: (-float(x.get('lock_ts', 0)), -x.get('prob', 0))
     )
-    return all_sorted
 
 
 def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_res):
-    """Scans all 8 strategies and returns ONLY brand-new stocks locked in this 5-min slot."""
+    """Strict A+ Scanner: Ranks ALL stocks together; new stock pops up ONLY if it beats existing leaders into overall Top-2."""
     if df_universe is None or df_universe.empty:
         return []
 
@@ -7308,15 +7583,25 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
         _SS['popup_lock_date'] = today_str
         _SS['fresh_5m_picks'] = []
 
-    # Off-market testing lo prati 5 min ki 2 stocks add avvakunda max 2 tho aagutundi
-    if (not mkt_open_now) and len(saved_locks) >= 2:
+    # Hard daily cap: Max 8 A+ intraday alerts per day (Off-market testing max 2)
+    MAX_DAILY_ALERTS = 8 if mkt_open_now else 2
+    if len(saved_locks) >= MAX_DAILY_ALERTS:
         return []
 
-    # Live market time guard: 9:20 AM mundu & 2:45 PM taruvata kotha alerts generate cheyadu
-    if mkt_open_now and (now_t < dt_time(9, 20) or now_t > dt_time(14, 45)):
+    # Live market time guard: 9:20 AM mundu & 1:45 PM taruvata kotha intraday entries aapesi SL/TGT track chestundi
+    if mkt_open_now and (now_t < dt_time(9, 20) or now_t > dt_time(13, 45)):
         return []
 
     df_u_all = df_universe.drop_duplicates(subset=['Fetch_T']).copy()
+
+    # Nifty intraday % move for true Alpha check
+    nifty_day_c = 0.0
+    _ndf = processed_charts.get("^NSEI", pd.DataFrame())
+    if _ndf is not None and not _ndf.empty and len(_ndf) >= 2:
+        _nsess = (_ndf.index.to_series().diff() > pd.Timedelta(minutes=120)).cumsum()
+        _ntd = _ndf[_nsess == _nsess.iloc[-1]]
+        if not _ntd.empty and float(_ntd['Open'].iloc[0]) > 0:
+            nifty_day_c = ((float(_ntd['Close'].iloc[-1]) - float(_ntd['Open'].iloc[0])) / float(_ntd['Open'].iloc[0])) * 100.0
 
     # Market breadth alignment on FULL universe
     _univ_set = set(NIFTY_50).union(set(FNO_STOCKS))
@@ -7329,13 +7614,17 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
         elif _buy_ratio <= 0.40:
             allow_buy = False
 
-    df_u = df_u_all[df_u_all['Day_C'].abs() >= 0.65].copy()
+    # Strict minimum price move (must beat Nifty cleanly) & strict volume (>= 1.8x)
+    min_buy_move = max(1.0, nifty_day_c * 1.25) if nifty_day_c > 0 else 1.0
+    min_sell_move = min(-1.0, nifty_day_c * 1.25) if nifty_day_c < 0 else -1.0
+
+    df_u = df_u_all[(df_u_all['Day_C'].abs() >= 1.0) & (df_u_all['VolX'] >= 1.8)].copy()
     if df_u.empty:
         return []
 
     intra_ema = df_u['Intra_EMA10'].where(df_u['Intra_EMA10'] > 0, df_u['VWAP'])
-    base_buy = (df_u['P'] > intra_ema) & (df_u['P'] > df_u['VWAP']) & (df_u['Day_C'] >= 0.65)
-    base_sell = (df_u['P'] < intra_ema) & (df_u['P'] < df_u['VWAP']) & (df_u['Day_C'] <= -0.65)
+    base_buy = (df_u['P'] > intra_ema) & (df_u['P'] > df_u['VWAP']) & (df_u['Day_C'] >= min_buy_move)
+    base_sell = (df_u['P'] < intra_ema) & (df_u['P'] < df_u['VWAP']) & (df_u['Day_C'] <= min_sell_move)
 
     sniper_map = {}
     for side_k in ('buy', 'sell'):
@@ -7345,15 +7634,11 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
     is_morning_session = (not mkt_open_now) or (now_t <= dt_time(10, 45))
     is_lunch_chop = mkt_open_now and (dt_time(11, 30) <= now_t <= dt_time(13, 15))
 
-    fresh_candidates = []
+    # IMPORTANT: Evaluate ALL stocks (including already-locked ones) so weak #3/#4 stocks NEVER sneak into Top-2!
+    all_ranked = []
     for _, row in df_u.iterrows():
         ft = row['Fetch_T']
         sym = str(row['T']).strip()
-
-        # Already locked ayina stock ni skip cheyadam (adi 5m Alert history lo untundi)
-        if sym in saved_locks:
-            continue
-
         ltp, op, hi, lo = float(row['P']), float(row['O']), float(row['H']), float(row['L'])
         vwap = float(row['VWAP'])
         ema10 = float(row.get('Intra_EMA10', vwap) or vwap)
@@ -7407,7 +7692,7 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
                     has_pullback = True
 
         # 4. First Hour ORB
-        if is_morning_session and vol_x >= 1.15 and abs(day_c) >= 1.0:
+        if is_morning_session and abs(day_c) >= 1.2:
             if is_b and ltp > op and (op - lo) <= (ltp * 0.006):
                 matched_strats.append("🔥1Hr-ORB")
                 bonus_prob += 6
@@ -7420,14 +7705,14 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
         # 5. NR7 / Narrow CPR Breakout
         if not is_lunch_chop:
             prev_rng = (prev_h - prev_l) / max(prev_l, 1.0)
-            if vol_x >= 1.1 and (prev_rng <= 0.025 or bool(row.get('Narrow_CPR', False))):
+            if prev_rng <= 0.025 or bool(row.get('Narrow_CPR', False)):
                 if (is_b and ltp > op) or (is_s and ltp < op):
                     matched_strats.append("💥NR7-BO")
                     bonus_prob += 5
                     has_breakout = True
 
         # 6. Gap & Go
-        if is_morning_session and vol_x >= 1.15 and abs(day_c) >= 1.0:
+        if is_morning_session and abs(day_c) >= 1.2:
             if is_b and (op - lo) <= (ltp * 0.003):
                 matched_strats.append("🚀Gap&Go")
                 bonus_prob += 7
@@ -7438,7 +7723,7 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
                 has_breakout = True
 
         # 7. PDH / PDL Breakout
-        if not is_lunch_chop and vol_x >= 1.15:
+        if not is_lunch_chop:
             if is_b and ltp > prev_h:
                 matched_strats.append("💥PDH-BO")
                 bonus_prob += 6
@@ -7451,30 +7736,38 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
         # 8. Dip-Bounce / Rally-Reject
         if is_b:
             day_pb = ((hi - ltp) / max(hi, 1.0)) * 100.0
-            if 0.6 <= day_pb <= 3.5 and (lo <= vwap * 1.005 or lo <= ema10 * 1.005) and vol_x >= 1.05:
+            if 0.6 <= day_pb <= 3.5 and (lo <= vwap * 1.005 or lo <= ema10 * 1.005):
                 matched_strats.append("🧲Dip-Bounce")
                 bonus_prob += 5
                 has_pullback = True
         else:
             day_rl = ((ltp - lo) / max(lo, 1.0)) * 100.0
-            if 0.6 <= day_rl <= 3.5 and (hi >= vwap * 0.995 or hi >= ema10 * 0.995) and vol_x >= 1.05:
+            if 0.6 <= day_rl <= 3.5 and (hi >= vwap * 0.995 or hi >= ema10 * 0.995):
                 matched_strats.append("🧲Rally-Reject")
                 bonus_prob += 5
                 has_pullback = True
 
-        if not matched_strats:
+        # Strict Confluence Gate: Minimum 2 independent strategies must agree
+        if len(matched_strats) < 2:
             continue
 
-        pwr_score = 18.0 + (abs(day_c) * 3.2) + (min(vol_x, 5.0) * 2.5)
+        pwr_score = 16.0 + (abs(day_c) * 3.0) + (min(vol_x, 5.0) * 2.4)
         order_flow_p = bull_p if is_b else bear_p
-        raw_prob = int(min(99, round(62 + (pwr_score * 0.65) + bonus_prob + (4 if order_flow_p >= 75 else 0))))
-        if ft in sniper_map:
-            raw_prob = max(raw_prob, int(sniper_map[ft]['score']))
-
+        raw_prob = int(min(99, round(58 + (pwr_score * 0.60) + bonus_prob + (4 if order_flow_p >= 75 else 0))))
         if raw_prob < 90:
             continue
 
-        # 5m ATR & Swing Levels
+        # If already locked, keep it in ranking competition so weaker stocks cannot take its Top-2 spot
+        if sym in saved_locks:
+            all_ranked.append({
+                "sym": sym, "already_locked": True,
+                "prob": raw_prob, "n_strats": len(matched_strats),
+                "score": int(min(39, round(pwr_score))), "vol_x": round(vol_x, 1),
+                "day_c": round(day_c, 2)
+            })
+            continue
+
+        # 5m ATR & Swing Levels for new candidate
         if not td_5m.empty and len(td_5m) >= 3:
             atr_5m = float(td_5m['ATR_13'].iloc[-1]) if ('ATR_13' in td_5m.columns and pd.notna(td_5m['ATR_13'].iloc[-1])) else float((td_5m['High'] - td_5m['Low']).tail(10).mean())
             atr_5m = max(atr_5m, ltp * 0.0025)
@@ -7539,27 +7832,157 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
         rr_ratio = round(abs(tg_p - opt_entry) / max(abs(opt_entry - sl_p), 0.01), 1)
         init_status = ("🟢 ACTIVE" if is_b else "🔴 ACTIVE") if is_trig else "⏳ WAITING ENTRY"
 
-        fresh_candidates.append({
-            "sym": sym, "ft": ft, "side": side, "ltp": round(ltp, 2),
+        all_ranked.append({
+            "sym": sym, "already_locked": False, "ft": ft, "side": side, "ltp": round(ltp, 2),
             "opt_entry": opt_entry, "base_note": base_note,
             "lock_time": lock_tm_str, "lock_ts": lock_ts_val,
-            "triggered": is_trig, "final_outcome": "", "status": init_status,
+            "triggered": is_trig, "final_outcome": "", "outcome_code": "ACTIVE" if is_trig else "WAIT",
+            "status": init_status, "pnl_pct": 0.0,
             "entry_note": f"🔒 {lock_tm_str} | {init_status} | {base_note}",
             "rr": rr_ratio, "day_c": round(day_c, 2), "vol_x": round(vol_x, 1),
-            "prob": raw_prob, "score": int(min(39, round(pwr_score))),
+            "prob": raw_prob, "n_strats": len(matched_strats),
+            "score": int(min(39, round(pwr_score))),
             "strats": " + ".join(matched_strats[:3]),
             "sl": sl_p, "tg": tg_p, "row": row.to_dict()
         })
 
-    fresh_candidates.sort(key=lambda x: (-x["prob"], -x["score"], -x["vol_x"], -abs(x["day_c"])))
-    new_top2 = fresh_candidates[:2]
+    # Rank ALL candidates together; ONLY truly Top-2 stocks that are NOT yet locked get promoted!
+    all_ranked.sort(key=lambda x: (-x["prob"], -x["n_strats"], -x["score"], -x["vol_x"], -abs(x["day_c"])))
+    overall_top2 = all_ranked[:2]
+    slots_left = max(0, MAX_DAILY_ALERTS - len(saved_locks))
+    new_top2 = [c for c in overall_top2 if not c.get("already_locked")][:slots_left]
 
-    # Lock newly found stocks permanently for today
     for idx_n, nc in enumerate(new_top2):
+        nc.pop("already_locked", None)
         nc["lock_ts"] = time.time() - (idx_n * 0.001)
         saved_locks[nc["sym"]] = nc
 
     return new_top2
+
+
+def render_5m_alert_terminal(all_locked_alerts, df_all_stocks, chart_timeframe, chart_dict_to_use, show_crosshair, show_vol):
+    """Dedicated 5m Alert Terminal: Day P&L Summary KPIs + Full Performance Table + Mini Charts Grid."""
+    if not all_locked_alerts:
+        st.info("🔔 Eroju inka ye A+ 5m Alert stock lock avvaledu (Strict Filter: Vol >= 1.8x, Nifty Alpha, 2+ Strategies, Prob >= 90%).")
+        return
+
+    c_hdr1, c_hdr2 = st.columns([3, 1])
+    with c_hdr1:
+        st.markdown("<div style='font-size:16px; font-weight:800; color:#ffd700; padding-top:4px;'>🔔 5m ALERT TERMINAL — TODAY'S PERFORMANCE & MINI CHARTS</div>", unsafe_allow_html=True)
+    with c_hdr2:
+        cap_per_trade = st.selectbox(
+            "Capital/Trade",
+            [50000, 100000, 200000, 500000],
+            index=1,
+            format_func=lambda x: f"₹{x:,} / trade",
+            key="alert_term_cap_sel",
+            label_visibility="collapsed"
+        )
+
+    tot_cnt = len(all_locked_alerts)
+    tgt_cnt = sum(1 for x in all_locked_alerts if x.get('outcome_code') == 'TGT' or 'TGT HIT' in str(x.get('status', '')))
+    sl_cnt = sum(1 for x in all_locked_alerts if x.get('outcome_code') == 'SL' or 'SL HIT' in str(x.get('status', '')))
+    act_cnt = sum(1 for x in all_locked_alerts if x.get('outcome_code') == 'ACTIVE' or 'ACTIVE' in str(x.get('status', '')))
+    wait_cnt = tot_cnt - tgt_cnt - sl_cnt - act_cnt
+
+    closed_cnt = tgt_cnt + sl_cnt
+    win_rate = (tgt_cnt / closed_cnt * 100.0) if closed_cnt > 0 else 0.0
+
+    total_pnl_rs = 0.0
+    total_pnl_pct = 0.0
+    rows_html = ""
+    for i, pk in enumerate(all_locked_alerts):
+        sym = pk['sym']
+        ft = pk.get('ft', f"{sym}.NS")
+        side = pk.get('side', 'BUY')
+        ent = float(pk.get('opt_entry', pk.get('ltp', 0)))
+        sl = float(pk.get('sl', 0))
+        tg = float(pk.get('tg', 0))
+        ltp = float(pk.get('ltp', ent))
+        pnl_pct = float(pk.get('pnl_pct', 0.0))
+        pnl_rs = (cap_per_trade * pnl_pct / 100.0)
+        total_pnl_rs += pnl_rs
+        total_pnl_pct += pnl_pct
+
+        bg_c = "row-dark" if i % 2 == 0 else "row-light"
+        s_col = "text-green" if side == "BUY" else "text-red"
+        p_col = "text-green" if pnl_rs > 0 else ("text-red" if pnl_rs < 0 else "")
+        p_sign = "+" if pnl_rs > 0 else ""
+        st_txt = str(pk.get('status', 'ACTIVE'))
+        st_col = "#3fb950" if "TGT HIT" in st_txt else ("#f85149" if "SL HIT" in st_txt else ("#ffd700" if "WAITING" in st_txt else "#38bdf8"))
+
+        rows_html += (
+            f"<tr class='{bg_c}'>"
+            f"<td style='color:#ffd700;font-weight:bold;'>{pk.get('lock_time', '-')}</td>"
+            f"<td class='t-symbol'><a href='?grid_sym={ft}' target='_self'>{sym} 📌</a></td>"
+            f"<td class='{s_col}'>{side}</td>"
+            f"<td style='font-size:10px;color:#c9d1d9;' title='{_html.escape(str(pk.get('strats', '')))}'>{_html.escape(str(pk.get('strats', '')))}</td>"
+            f"<td>₹{ent:.2f}</td>"
+            f"<td style='color:#f85149;font-weight:bold;'>₹{sl:.2f}</td>"
+            f"<td style='color:#3fb950;font-weight:bold;'>₹{tg:.2f}</td>"
+            f"<td style='color:#ffd700;font-weight:bold;'>₹{ltp:.2f}</td>"
+            f"<td style='color:{st_col};font-weight:bold;font-size:10.5px;'>{st_txt}</td>"
+            f"<td class='{p_col}'>{p_sign}{pnl_pct:.2f}%</td>"
+            f"<td class='{p_col}'>{p_sign}₹{pnl_rs:,.0f}</td>"
+            f"</tr>"
+        )
+
+    k1, k2, k3, k4, k5 = st.columns(5)
+    k1.metric("🔔 Total Alerts", f"{tot_cnt}")
+    k2.metric("🎯 Target Hit", f"{tgt_cnt}", delta=f"Win Rate: {win_rate:.0f}%" if closed_cnt > 0 else "Running")
+    k3.metric("🛑 SL Hit", f"{sl_cnt}")
+    k4.metric("⚡ Active / Wait", f"{act_cnt} / {wait_cnt}")
+    k5.metric("💰 Net Day P&L", f"₹{total_pnl_rs:+,.0f}", delta=f"{total_pnl_pct:+.2f}% sum")
+
+    tot_col = "text-green" if total_pnl_rs >= 0 else "text-red"
+    tot_sign = "+" if total_pnl_rs > 0 else ""
+    table_html = (
+        "<table class='term-table'><thead>"
+        "<tr><th colspan='11' class='term-head-port' style='background:#0f2942;'>📊 5m ALERT PERFORMANCE LEDGER (LOCKED ENTRY / SL / TARGET)</th></tr>"
+        "<tr style='background:#21262d;'>"
+        "<th style='width:8%;'>TIME</th><th style='text-align:left;width:10%;'>STOCK</th><th style='width:6%;'>SIDE</th>"
+        "<th style='width:18%;'>STRATEGIES</th><th style='width:8%;'>ENTRY</th><th style='width:8%;color:#f85149;'>🛑 SL</th>"
+        "<th style='width:8%;color:#3fb950;'>🎯 TGT</th><th style='width:8%;'>LIVE LTP</th>"
+        "<th style='width:11%;'>STATUS</th><th style='width:7%;'>P&L %</th><th style='width:8%;'>P&L (₹)</th>"
+        "</tr></thead><tbody>"
+        + rows_html
+        + f"<tr class='port-total'><td colspan='9' style='text-align:right;padding-right:12px;'>"
+          f"DAY TOTAL (🎯 TGT: {tgt_cnt} | 🛑 SL: {sl_cnt} | ⚡ Active: {act_cnt} | ⏳ Wait: {wait_cnt} | Capital: ₹{cap_per_trade:,}/trade):</td>"
+          f"<td class='{tot_col}'>{tot_sign}{total_pnl_pct:.2f}%</td>"
+          f"<td class='{tot_col}'>{tot_sign}₹{total_pnl_rs:,.0f}</td></tr>"
+        + "</tbody></table>"
+    )
+    st.markdown(table_html, unsafe_allow_html=True)
+
+    # Render ALL locked 5m Alert stocks as Mini Charts in exact time-wise order (with locked Entry/SL/TGT lines)
+    st.markdown("<div style='font-size:15px; font-weight:bold; margin:10px 0 4px 0; color:#38bdf8;'>📈 5m Alert Stocks — Live Mini Charts (Locked Entry / SL / TGT)</div>", unsafe_allow_html=True)
+    lu_all = df_all_stocks.drop_duplicates(subset=['T']).set_index('T').to_dict('index') if (df_all_stocks is not None and not df_all_stocks.empty) else {}
+    chart_rows = []
+    missing_fts = []
+    for pk in all_locked_alerts:
+        sym = pk['sym']
+        ft = pk.get('ft', f"{sym}.NS")
+        base_r = dict(lu_all.get(sym, pk.get('row', {})))
+        if base_r:
+            base_r['T'] = sym
+            base_r['Fetch_T'] = ft
+            base_r['Strategy_Icon'] = f"{pk.get('lock_time', '')} {pk.get('side', '')}"
+            chart_rows.append(base_r)
+            if ft not in chart_dict_to_use or chart_dict_to_use[ft].empty:
+                missing_fts.append(ft)
+
+    if missing_fts and chart_timeframe == "Intraday (5m)":
+        ex_5m = fetch_cached_5m_data(missing_fts)
+        if not ex_5m.empty:
+            for mft in missing_fts:
+                try:
+                    raw_m = ex_5m[mft] if isinstance(ex_5m.columns, pd.MultiIndex) else ex_5m
+                    chart_dict_to_use[mft] = _fix_ist_df(process_5m_data(raw_m))
+                except Exception:
+                    pass
+
+    if chart_rows:
+        render_chart_grid(pd.DataFrame(chart_rows), True, "alert_5m_term", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
 
 def _toggle_wl_stock(s_ft, s_disp):
     st.session_state.inspected_stock = s_disp
@@ -8456,6 +8879,15 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
 
             # 🔥 MINI-CHART ENTRY, STOP LOSS & TAKE PROFIT LINES
             _active_tr_mc = _SS.get('chart_trades', {}).get(fetch_sym)
+         if (not _active_tr_mc) and (key_suffix == "alert_5m_term"):
+             _lk_mc = _SS.get('popup_locked_stocks', {}).get(display_sym)
+             if _lk_mc:
+                 _active_tr_mc = {
+                     'side': _lk_mc.get('side', 'BUY'),
+                     'entry': _lk_mc.get('opt_entry', _lk_mc.get('ltp', 0)),
+                     'sl': _lk_mc.get('sl', 0),
+                     'target': _lk_mc.get('tg', 0)
+                 }
             if _active_tr_mc:
                 _mc_ent = float(_active_tr_mc.get('entry', 0))
                 _mc_sl = float(_active_tr_mc.get('sl', 0))
@@ -10364,6 +10796,7 @@ def render_live_ui():
                 "🤖 AI Predictions (F&O)",
                 "🤖 AI Predictions (Mid Cap)",
                 "🤖 AI Predictions (Small Cap)",
+                "🔔 5m Alert Terminal",
                 "High Score Stocks 🔥",
                 "Day Trading Stocks 🚀",
                 "Swing Trading 📈",
@@ -10859,6 +11292,9 @@ def render_live_ui():
         pp_df_now = load_paper_portfolio()
         pp_tickers = [f"{str(sym).upper().strip()}.NS" for sym in pp_df_now['Symbol'].tolist() if str(sym).strip() != ""] if not pp_df_now.empty else []
         df_filtered = df_all_stocks[df_all_stocks['Fetch_T'].isin(pp_tickers)].copy()
+    elif watchlist_mode == "🔔 5m Alert Terminal":
+        _lk_syms = list(_SS.get('popup_locked_stocks', {}).keys())
+        df_filtered = df_all_stocks[df_all_stocks['T'].isin(_lk_syms)].copy()
     elif watchlist_mode == "Commodity 🛢️":
         df_filtered = df_commodities.copy()
     elif watchlist_mode == "Fundamentals 🏢":
@@ -12317,6 +12753,11 @@ def render_live_ui():
 
                 elif watchlist_mode == "📝 Paper Trading 💼":
                     render_paper_trading_terminal(df_all_stocks)
+                elif watchlist_mode == "🔔 5m Alert Terminal":
+                    render_5m_alert_terminal(
+                        _all_locked_alerts, df_all_stocks, chart_timeframe,
+                        chart_dict_to_use, show_crosshair, show_vol
+                    )
                 elif watchlist_mode == "My Portfolio 💼" and view_mode == "Heat Map":
                     try:
                         if not df_port_saved.empty:
@@ -12352,6 +12793,11 @@ def render_live_ui():
                             render_portfolio_allocation(df_port_saved, df_all_stocks)
                         except Exception as _pe:
                             st.caption(f"Allocation render error: {_pe}")
+                    with st.expander("📈 My Portfolio vs NIFTY & BANKNIFTY (7D / 15D / 30D / 2M / 3M / 6M / 1Y Growth)", expanded=True):
+                        try:
+                            render_portfolio_vs_benchmark_section(df_port_saved)
+                        except Exception as _be:
+                            st.caption(f"Benchmark chart error: {_be}")
 
                     _avail_dates = ["All Dates"] + sorted(list(set(df_port_saved['Date'].dropna().astype(str).tolist()))) if not df_port_saved.empty and 'Date' in df_port_saved.columns else ["All Dates"]
                     sc1, sc2, sc3 = st.columns([0.4, 0.3, 0.3])
@@ -12558,7 +13004,7 @@ def render_live_ui():
                                         render_chart_grid(sec_df.head(6), True, "sec_top6", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
 
                         for _k_tr in [k for k, v in _SS.get('chart_trades', {}).items() if v.get('mode') == '🎯 90%+ Optimal Entry']:
-                            _SS['chart_trades'].pop(_k_tr, None)
+                         _SS['chart_trades'].pop(_k_tr, None)
                         for _pk in _all_locked_alerts:
                             _psym = _pk.get('sym', '')
                             _pft = _pk.get('ft', f"{_psym}.NS")
