@@ -12112,7 +12112,7 @@ def render_live_ui():
                         sub_df['Strategy_Icon'] = lbl
                         dfs_to_concat.append(sub_df.sort_values(by='S', ascending=False).head(8))
 
-        elif strat == "🏦 Institutional Accumulation (FII/DII Footprint)":
+            elif strat == "🏦 Institutional Accumulation (FII/DII Footprint)":
                 deliv_map = fetch_nse_delivery_pct()
                 has_deliv_feed = len(deliv_map) > 50
 
