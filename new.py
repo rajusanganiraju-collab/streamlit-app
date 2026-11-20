@@ -8879,15 +8879,15 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
 
             # 🔥 MINI-CHART ENTRY, STOP LOSS & TAKE PROFIT LINES
             _active_tr_mc = _SS.get('chart_trades', {}).get(fetch_sym)
-         if (not _active_tr_mc) and (key_suffix == "alert_5m_term"):
-             _lk_mc = _SS.get('popup_locked_stocks', {}).get(display_sym)
-             if _lk_mc:
-                 _active_tr_mc = {
-                     'side': _lk_mc.get('side', 'BUY'),
-                     'entry': _lk_mc.get('opt_entry', _lk_mc.get('ltp', 0)),
-                     'sl': _lk_mc.get('sl', 0),
-                     'target': _lk_mc.get('tg', 0)
-                 }
+            if (not _active_tr_mc) and (key_suffix == "alert_5m_term"):
+                _lk_mc = _SS.get('popup_locked_stocks', {}).get(display_sym)
+                if _lk_mc:
+                    _active_tr_mc = {
+                        'side': _lk_mc.get('side', 'BUY'),
+                        'entry': _lk_mc.get('opt_entry', _lk_mc.get('ltp', 0)),
+                        'sl': _lk_mc.get('sl', 0),
+                        'target': _lk_mc.get('tg', 0)
+                    }
             if _active_tr_mc:
                 _mc_ent = float(_active_tr_mc.get('entry', 0))
                 _mc_sl = float(_active_tr_mc.get('sl', 0))
