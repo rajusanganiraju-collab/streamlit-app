@@ -112,7 +112,6 @@ def gemini_batch_domino_news(headlines_tuple):
     """బ్రేకింగ్ న్యూస్ హెడ్‌లైన్స్ చదివి ఏ స్టాక్ పెరుగుతుందో (Winner), ఏది పడుతుందో (Victim) JSON లో ఇస్తుంది"""
     if not headlines_tuple:
         return []
-    
     joined_news = "\n".join([f"{i}. {h}" for i, h in enumerate(headlines_tuple[:10])])
     prompt = (
         "You are an Indian Stock Market (NSE) Domino-Effect & Supply-Chain Analyst.\n"
@@ -124,18 +123,12 @@ def gemini_batch_domino_news(headlines_tuple):
         '- "te_rule": 1-sentence Telugu explanation of why Winner rises and Victim falls.\n\n'
         f"Headlines:\n{joined_news}"
     )
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.1, "responseMimeType": "application/json"}
-    }
-    try:
-        r = requests.post(url, json=payload, timeout=12)
-        if r.status_code == 200:
-            txt = r.json()["candidates"][0]["content"]["parts"][0]["text"]
-            return json.loads(txt)
-    except Exception:
-        pass
+    ok, res = _call_gemini_api(prompt, json_mode=True)
+    if ok:
+        try:
+            return json.loads(res)
+        except Exception:
+            pass
     return []
 
 try:
