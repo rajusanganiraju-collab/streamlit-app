@@ -1149,10 +1149,42 @@ _SKIP_BAD_SYMS = {
     "SEQUENT", "SEAMEC", "TATAMOTORS", "INFIBEAM", "AKZOINDIA"
 }
 
+@st.cache_data(ttl=21600, show_spinner=False)
+def fetch_nse_delivery_pct():
+    """NSE full bhavcopy nundi anni EQ stocks yokka latest Delivery % (DELIV_PER) techukuntundi (1 request, 6h cache)."""
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "text/csv,text/plain,*/*",
+        "Referer": "https://www.nseindia.com/"
+    }
+    base_d = now_ist().date()
+    for back in range(0, 7):
+        d_chk = base_d - pd.Timedelta(days=back)
+        if d_chk.weekday() >= 5:
+            continue
+        dt_str = d_chk.strftime("%d%m%Y")
+        url = f"https://nsearchives.nseindia.com/products/content/sec_bhavdata_full_{dt_str}.csv"
+        try:
+            r = requests.get(url, headers=headers, timeout=5)
+            if r.status_code == 200 and "DELIV_PER" in r.text[:400]:
+                from io import StringIO
+                df_b = pd.read_csv(StringIO(r.text))
+                df_b.columns = [str(c).strip().upper() for c in df_b.columns]
+                if "SYMBOL" in df_b.columns and "DELIV_PER" in df_b.columns:
+                    if "SERIES" in df_b.columns:
+                        df_b = df_b[df_b["SERIES"].astype(str).str.strip().str.upper() == "EQ"]
+                    df_b["SYMBOL"] = df_b["SYMBOL"].astype(str).str.strip().str.upper()
+                    df_b["DELIV_PER"] = pd.to_numeric(df_b["DELIV_PER"], errors="coerce").fillna(0.0)
+                    out_m = dict(zip(df_b["SYMBOL"], df_b["DELIV_PER"]))
+                    if len(out_m) > 100:
+                        return out_m
+        except Exception:
+            continue
+    return {}
 @st.cache_data(ttl=900, show_spinner=False)
-def fetch_all_data(_v=5):
+def fetch_all_data(_v=6):
     import tempfile
-    _cache_file = os.path.join(tempfile.gettempdir(), "daily_base_cache_v5.pkl")
+    _cache_file = os.path.join(tempfile.gettempdir(), "daily_base_cache_v6.pkl")
     if os.path.exists(_cache_file):
         try:
             # ఫైల్ 6 గంటల లోపుదైతే మళ్ళీ 550 స్టాక్స్ డౌన్‌లోడ్ చేయకుండా డైరెక్ట్‌గా తీసుకుంటుంది
@@ -1189,6 +1221,8 @@ def fetch_all_data(_v=5):
     fetched_symbols = data.columns.levels[0] if isinstance(data.columns, pd.MultiIndex) else data.columns
 
     nifty_dist = 0.1
+    nifty_ret_20d = 0.0
+    nifty_ret_60d = 0.0
     if "^NSEI" in fetched_symbols:
         try:
             n_df = data["^NSEI"].dropna(subset=['Close'])
@@ -1196,6 +1230,12 @@ def fetch_all_data(_v=5):
                 n_ltp = float(n_df['Close'].iloc[-1])
                 n_vwap = (float(n_df['High'].iloc[-1]) + float(n_df['Low'].iloc[-1]) + n_ltp) / 3
                 if n_vwap > 0: nifty_dist = abs(n_ltp - n_vwap) / n_vwap * 100
+                if len(n_df) >= 22:
+                    n_c20 = float(n_df['Close'].iloc[-21])
+                    if n_c20 > 0: nifty_ret_20d = ((n_ltp - n_c20) / n_c20) * 100.0
+                if len(n_df) >= 62:
+                    n_c60 = float(n_df['Close'].iloc[-61])
+                    if n_c60 > 0: nifty_ret_60d = ((n_ltp - n_c60) / n_c60) * 100.0
         except: pass
 
     for symbol in fetched_symbols:  # 🔧 FIX: MultiIndex లేకపోయినా crash అవ్వకూడదు
@@ -1364,7 +1404,42 @@ def fetch_all_data(_v=5):
                     if disp_name in stocks:
                         stock_sector = sec
                         break
-            
+            ud_vol_ratio = 1.0
+            inst_acc_days = 0
+            is_pocket_pivot = False
+            rs_20d = 0.0
+            rs_60d = 0.0
+            if len(df) >= 22:
+                _c20 = float(df['Close'].iloc[-21])
+                if _c20 > 0:
+                    rs_20d = round((((ltp - _c20) / _c20) * 100.0) - nifty_ret_20d, 2)
+                if len(df) >= 62:
+                    _c60 = float(df['Close'].iloc[-61])
+                    if _c60 > 0:
+                        rs_60d = round((((ltp - _c60) / _c60) * 100.0) - nifty_ret_60d, 2)
+                if 'Volume' in df.columns and not df['Volume'].isna().all():
+                    _d20 = df.iloc[-21:].copy()
+                    _d20['_pc'] = _d20['Close'].shift(1)
+                    _d20 = _d20.iloc[1:]
+                    _up_m = _d20['Close'] > _d20['_pc']
+                    _dn_m = _d20['Close'] < _d20['_pc']
+                    _up_v = float(_d20.loc[_up_m, 'Volume'].sum())
+                    _dn_v = float(_d20.loc[_dn_m, 'Volume'].sum())
+                    ud_vol_ratio = round(_up_v / max(_dn_v, 1.0), 2)
+                    _avg20_v = float(_d20['Volume'].mean())
+                    _rng20 = (_d20['High'] - _d20['Low']).replace(0, np.nan)
+                    _cpos20 = ((_d20['Close'] - _d20['Low']) / _rng20).fillna(0.5)
+                    if _avg20_v > 0:
+                        inst_acc_days = int((_up_m & (_d20['Volume'] >= _avg20_v * 1.35) & (_cpos20 >= 0.50)).sum())
+                    if len(_d20) >= 12:
+                        for _off in (-1, -2):
+                            _bar = _d20.iloc[_off]
+                            _p10 = _d20.iloc[_off - 10 : _off]
+                            _dn_p10 = _p10.loc[_p10['Close'] < _p10['_pc'], 'Volume']
+                            _max_dn_v = float(_dn_p10.max()) if not _dn_p10.empty else 0.0
+                            if (_bar['Close'] > _bar['_pc']) and (_bar['Close'] >= _bar['Open']) and (_max_dn_v > 0) and (float(_bar['Volume']) > _max_dn_v):
+                                is_pocket_pivot = True
+                                break
             results.append({
                 "VCP_Contract": vcp_price_contraction, "VCP_Vol_Dry": vcp_vol_dry,
                 "Fetch_T": symbol, "T": disp_name, "P": ltp, "O": open_p, "H": high, "L": low, "Prev_C": prev_c,
@@ -1379,7 +1454,9 @@ def fetch_all_data(_v=5):
                 "Is_Index": is_index, "Is_Sector": is_sector, "Sector": stock_sector, "Is_Commodity": is_commodity,
                 "SMA150_20D": sma150_20d, "Box_Top20": box_top_20, "Box_Bot20": box_bot_20,
                 "Pullback_52W": pullback_52w_pct,
-                "RSI2": current_rsi2, "RSI14": current_rsi14
+                "RSI2": current_rsi2, "RSI14": current_rsi14,
+                "UD_Vol_Ratio": ud_vol_ratio, "Inst_Acc_Days": inst_acc_days,
+                "Pocket_Pivot": is_pocket_pivot, "RS_20D": rs_20d, "RS_60D": rs_60d
             })
         except: continue
     _final_df = pd.DataFrame(results)
@@ -11058,6 +11135,7 @@ def render_live_ui():
             elif watchlist_mode == "Legendary Strategy 🏆":
                 strat_opts = [
                     "All Swing Trading Moves 📈",
+                    "🏦 Institutional Accumulation (FII/DII Footprint)",
                     "🎯 52WH Pullback & 52WL Breakdown (Top 32)",
                     "🧲 The 20-EMA Holy Grail Pullback",
                     "📉 RSI(2) Mean Reversion (Larry Connors)",
@@ -11913,6 +11991,7 @@ def render_live_ui():
         strats_to_run = move_type_filter if isinstance(move_type_filter, list) else [move_type_filter]
         if "All Swing Trading Moves 📈" in strats_to_run or "All Swing Stocks" in strats_to_run:
             strats_to_run = [
+                "🏦 Institutional Accumulation (FII/DII Footprint)",
                 "📈 Minervini Trend Template (VCP)", "📉 Strict VCP (Price & Vol Contraction)",
                 "🧲 The 20-EMA Holy Grail Pullback", "📉 RSI(2) Mean Reversion (Larry Connors)",
                 "📦 Nicolas Darvas (Box Breakout)", "📦 Nicolas Darvas Modified",
@@ -12033,6 +12112,56 @@ def render_live_ui():
                         sub_df['Strategy_Icon'] = lbl
                         dfs_to_concat.append(sub_df.sort_values(by='S', ascending=False).head(8))
 
+        elif strat == "🏦 Institutional Accumulation (FII/DII Footprint)":
+                deliv_map = fetch_nse_delivery_pct()
+                has_deliv_feed = len(deliv_map) > 50
+
+                ud_s = pd.to_numeric(df_filtered['UD_Vol_Ratio'], errors='coerce').fillna(1.0) if 'UD_Vol_Ratio' in df_filtered.columns else pd.Series(1.0, index=df_filtered.index)
+                acc_s = pd.to_numeric(df_filtered['Inst_Acc_Days'], errors='coerce').fillna(0).astype(int) if 'Inst_Acc_Days' in df_filtered.columns else pd.Series(0, index=df_filtered.index)
+                pp_s = df_filtered['Pocket_Pivot'].fillna(False).astype(bool) if 'Pocket_Pivot' in df_filtered.columns else pd.Series(False, index=df_filtered.index)
+                rs20_s = pd.to_numeric(df_filtered['RS_20D'], errors='coerce').fillna(0.0) if 'RS_20D' in df_filtered.columns else pd.Series(0.0, index=df_filtered.index)
+                rs60_s = pd.to_numeric(df_filtered['RS_60D'], errors='coerce').fillna(0.0) if 'RS_60D' in df_filtered.columns else pd.Series(0.0, index=df_filtered.index)
+                deliv_s = df_filtered['T'].map(lambda s: float(deliv_map.get(str(s).strip().upper(), 0.0))).astype(float)
+
+                # Stage-2 healthy structure + Beating NIFTY (20D RS > 0) + Institutional Volume/Delivery Accumulation
+                inst_trend = has_history & (df_filtered['P'] > df_filtered['SMA50']) & (df_filtered['P'] > df_filtered['SMA200']) & (df_filtered['SMA50'] >= df_filtered['SMA150'] * 0.98) & (df_filtered['Pullback_52W'] <= 22.0)
+                inst_rs = (rs20_s > 0.0) & (rs60_s > -2.0)
+                inst_flow = (ud_s >= 1.30) & ((acc_s >= 2) | pp_s | (deliv_s >= 55.0))
+                if has_deliv_feed:
+                    # Cut pure intraday speculation traps (low delivery % without multi-day accumulation)
+                    inst_flow = inst_flow & ((deliv_s == 0.0) | (deliv_s >= 35.0) | (acc_s >= 3) | pp_s)
+
+                sub_df = df_filtered[inst_trend & inst_rs & inst_flow].copy()
+                if not sub_df.empty:
+                    sub_df['_ud'] = ud_s.loc[sub_df.index]
+                    sub_df['_acc'] = acc_s.loc[sub_df.index]
+                    sub_df['_pp'] = pp_s.loc[sub_df.index]
+                    sub_df['_rs20'] = rs20_s.loc[sub_df.index]
+                    sub_df['_del'] = deliv_s.loc[sub_df.index]
+
+                    ud_pts = np.clip((sub_df['_ud'] - 1.0) * 5.0, 1, 8)
+                    acc_pts = np.clip(sub_df['_acc'] * 2.0, 0, 6)
+                    pp_pts = np.where(sub_df['_pp'], 4, 0)
+                    rs_pts = np.clip(sub_df['_rs20'] * 0.5, 0, 5)
+                    del_pts = np.where(sub_df['_del'] >= 65.0, 6, np.where(sub_df['_del'] >= 50.0, 4, 0))
+                    sub_df['S'] = np.clip(12 + ud_pts + acc_pts + pp_pts + rs_pts + del_pts, 15, 39).astype(int)
+
+                    def _mk_inst_icon(r):
+                        d_s = f" Del:{r['_del']:.0f}%" if r['_del'] >= 35 else ""
+                        return f"🏦 Pocket-Pivot{d_s}" if r['_pp'] else f"🏦 Inst U/D:{r['_ud']:.1f}x{d_s}"
+
+                    def _mk_inst_tag(r):
+                        pts = [f"U/D:{r['_ud']:.1f}x", f"Acc:{int(r['_acc'])}d", f"RS20:{r['_rs20']:+.1f}%"]
+                        if r['_pp']:
+                            pts.append("PocketPivot🔥")
+                        if r['_del'] > 0:
+                            pts.append(f"Del:{r['_del']:.0f}%")
+                        return " | ".join(pts)
+
+                    sub_df['Strategy_Icon'] = sub_df.apply(_mk_inst_icon, axis=1)
+                    sub_df['AlphaTag'] = sub_df.apply(_mk_inst_tag, axis=1)
+                    sub_df = sub_df.drop(columns=['_ud', '_acc', '_pp', '_rs20', '_del'], errors='ignore')
+                    dfs_to_concat.append(sub_df.sort_values(by='S', ascending=False).head(24))
         if dfs_to_concat:
             df_filtered = pd.concat(dfs_to_concat).drop_duplicates(subset=['Fetch_T'], keep='first')
         else:
