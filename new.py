@@ -7226,8 +7226,8 @@ if "grid_sym" in st.query_params:
 def _refresh_locked_alerts_live(df_universe):
     """Updates live LTP & trade status for all locked stocks without changing locked Entry/SL/TGT."""
     saved_locks = _SS.setdefault('popup_locked_stocks', {})
-    today_str = now_ist().strftime('%Y-%m-%d')
-    if _SS.get('popup_lock_date') != today_str:
+    today_str = f"{now_ist().strftime('%Y-%m-%d')}_{'LIVE' if is_market_open() else 'OFF'}"
+ if _SS.get('popup_lock_date') != today_str:
         saved_locks.clear()
         _SS['popup_lock_date'] = today_str
         _SS['fresh_5m_picks'] = []
@@ -7302,14 +7302,19 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
     mkt_open_now = is_market_open()
 
     saved_locks = _SS.setdefault('popup_locked_stocks', {})
-    today_str = now_dt.strftime('%Y-%m-%d')
-    if _SS.get('popup_lock_date') != today_str:
-        saved_locks.clear()
-        _SS['popup_lock_date'] = today_str
+ today_str = f"{now_dt.strftime('%Y-%m-%d')}_{'LIVE' if mkt_open_now else 'OFF'}"
+ if _SS.get('popup_lock_date') != today_str:
+     saved_locks.clear()
+     _SS['popup_lock_date'] = today_str
+     _SS['fresh_5m_picks'] = []
 
-    # Live market time guard: 9:20 AM mundu & 2:45 PM taruvata kotha alerts generate cheyadu
-    if mkt_open_now and (now_t < dt_time(9, 20) or now_t > dt_time(14, 45)):
-        return []
+ # Off-market testing lo prati 5 min ki 2 stocks add avvakunda max 2 tho aagutundi
+ if (not mkt_open_now) and len(saved_locks) >= 2:
+     return []
+
+ # Live market time guard: 9:20 AM mundu & 2:45 PM taruvata kotha alerts generate cheyadu
+ if mkt_open_now and (now_t < dt_time(9, 20) or now_t > dt_time(14, 45)):
+     return []
 
     df_u_all = df_universe.drop_duplicates(subset=['Fetch_T']).copy()
 
@@ -12552,6 +12557,8 @@ def render_live_ui():
                                     if not sec_df.empty:
                                         render_chart_grid(sec_df.head(6), True, "sec_top6", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
 
+                        for _k_tr in [k for k, v in _SS.get('chart_trades', {}).items() if v.get('mode') == '🎯 90%+ Optimal Entry']:
+                         _SS['chart_trades'].pop(_k_tr, None)
                         for _pk in _all_locked_alerts:
                             _psym = _pk.get('sym', '')
                             _pft = _pk.get('ft', f"{_psym}.NS")
@@ -12568,19 +12575,7 @@ def render_live_ui():
                             _rr_e = _pk.get('rr', round(abs(_tg_e - _opt_e) / max(abs(_opt_e - _sl_e), 0.01), 1))
                             _enote = _pk.get('entry_note', f"{_pk.get('side', 'BUY')} @ ₹{_opt_e:.2f}")
 
-                            # Optimal Buy/Sell Entry, SL & Target లైన్స్‌తో రెడీగా ఉండే హై-ప్రెసిషన్ చార్ట్
-                            if _pft not in _SS['chart_trades']:
-                                _SS['chart_trades'][_pft] = {
-                                    'side': _pk.get('side', 'BUY'),
-                                    'qty': max(1, int(_UI.get('trade_qty', 10))),
-                                    'prod': _UI.get('trade_prod', 'INTRADAY'),
-                                    'order_type': 'LIMIT',
-                                    'entry': _opt_e,
-                                    'sl': _sl_e,
-                                    'target': _tg_e,
-                                    'time': now_ist().strftime('%d-%b %I:%M:%S %p'),
-                                    'mode': '🎯 90%+ Optimal Entry'
-                                }
+                            
                             _b_col = "#22c55e" if _pk.get('side') == "BUY" else "#ef4444"
 
                             # 📈 SVG Mini-Chart విత్ Entry (Blue), SL (Red), Take Profit (Green) లైన్స్
