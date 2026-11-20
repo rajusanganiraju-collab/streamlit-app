@@ -12553,13 +12553,13 @@ def render_live_ui():
                                         render_chart_grid(sec_df.head(6), True, "sec_top6", chart_timeframe, chart_dict_to_use, show_crosshair, show_vol)
 
                         for _pk in _all_locked_alerts:
-                         _psym = _pk.get('sym', '')
-                         _pft = _pk.get('ft', f"{_psym}.NS")
-                         _df_5m_p = processed_charts.get(_pft, pd.DataFrame())
-                         if (_df_5m_p is None or _df_5m_p.empty) and _pft in _SS.get('5m_store', {}):
-                             _df_5m_p = _fix_ist_df(process_5m_data(_SS['5m_store'][_pft]))
-                         if not _psym or _df_5m_p is None or _df_5m_p.empty:
-                             continue
+                            _psym = _pk.get('sym', '')
+                            _pft = _pk.get('ft', f"{_psym}.NS")
+                            _df_5m_p = processed_charts.get(_pft, pd.DataFrame())
+                            if (_df_5m_p is None or _df_5m_p.empty) and _pft in _SS.get('5m_store', {}):
+                                _df_5m_p = _fix_ist_df(process_5m_data(_SS['5m_store'][_pft]))
+                            if not _psym or _df_5m_p is None or _df_5m_p.empty:
+                                continue
 
                             _opt_e = float(_pk.get('opt_entry', _pk.get('ltp', 0.0)))
                             _sl_e = float(_pk.get('sl', 0.0))
@@ -12570,17 +12570,17 @@ def render_live_ui():
 
                             # Optimal Buy/Sell Entry, SL & Target లైన్స్‌తో రెడీగా ఉండే హై-ప్రెసిషన్ చార్ట్
                             if _pft not in _SS['chart_trades']:
-                            _SS['chart_trades'][_pft] = {
-                                'side': _pk.get('side', 'BUY'),
-                                'qty': max(1, int(_UI.get('trade_qty', 10))),
-                                'prod': _UI.get('trade_prod', 'INTRADAY'),
-                                'order_type': 'LIMIT',
-                                'entry': _opt_e,
-                                'sl': _sl_e,
-                                'target': _tg_e,
-                                'time': now_ist().strftime('%d-%b %I:%M:%S %p'),
-                                'mode': '🎯 90%+ Optimal Entry'
-                            }
+                                _SS['chart_trades'][_pft] = {
+                                    'side': _pk.get('side', 'BUY'),
+                                    'qty': max(1, int(_UI.get('trade_qty', 10))),
+                                    'prod': _UI.get('trade_prod', 'INTRADAY'),
+                                    'order_type': 'LIMIT',
+                                    'entry': _opt_e,
+                                    'sl': _sl_e,
+                                    'target': _tg_e,
+                                    'time': now_ist().strftime('%d-%b %I:%M:%S %p'),
+                                    'mode': '🎯 90%+ Optimal Entry'
+                                }
                             _b_col = "#22c55e" if _pk.get('side') == "BUY" else "#ef4444"
 
                             # 📈 SVG Mini-Chart విత్ Entry (Blue), SL (Red), Take Profit (Green) లైన్స్
