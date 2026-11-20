@@ -5991,7 +5991,8 @@ def fetch_portfolio_benchmark_history(port_syms_tuple):
                     if t in lvl0 and 'Close' in raw[t].columns:
                         s = pd.to_numeric(raw[t]['Close'], errors='coerce').dropna()
                         if not s.empty:
-                            close_dict[t] = s
+                            s.index = pd.to_datetime(s.index).tz_localize(None).normalize()
+                            close_dict[t] = s[~s.index.duplicated(keep='last')]
     except Exception:
         pass
 
@@ -6005,7 +6006,8 @@ def fetch_portfolio_benchmark_history(port_syms_tuple):
                 if not rb.empty and 'Close' in rb.columns:
                     sb = pd.to_numeric(rb['Close'], errors='coerce').dropna()
                     if not sb.empty:
-                        close_dict[f"{s}.NS"] = sb
+                        sb.index = pd.to_datetime(sb.index).tz_localize(None).normalize()
+                        close_dict[f"{s}.NS"] = sb[~sb.index.duplicated(keep='last')]
             except Exception:
                 pass
 
@@ -8159,6 +8161,10 @@ def render_5m_alert_terminal(all_locked_alerts, df_all_stocks, chart_timeframe, 
             base_r['T'] = sym
             base_r['Fetch_T'] = ft
             base_r['Strategy_Icon'] = f"{pk.get('lock_time', '')} {pk.get('side', '')}"
+            base_r['Alert_Side'] = pk.get('side', 'BUY')
+            base_r['Alert_Entry'] = float(pk.get('opt_entry', pk.get('ltp', 0)) or 0)
+            base_r['Alert_SL'] = float(pk.get('sl', 0) or 0)
+            base_r['Alert_TGT'] = float(pk.get('tg', 0) or 0)
             chart_rows.append(base_r)
             if ft not in chart_dict_to_use or chart_dict_to_use[ft].empty:
                 missing_fts.append(ft)
@@ -9072,14 +9078,23 @@ def render_chart(row, df_chart, show_pin=True, key_suffix="", timeframe="Intrada
             # 🔥 MINI-CHART ENTRY, STOP LOSS & TAKE PROFIT LINES
             _active_tr_mc = _SS.get('chart_trades', {}).get(fetch_sym)
             if (not _active_tr_mc) and (key_suffix == "alert_5m_term"):
-                _lk_mc = _SS.get('popup_locked_stocks', {}).get(display_sym)
-                if _lk_mc:
+                _row_ent = float(row.get('Alert_Entry', 0) or 0)
+                if _row_ent > 0:
                     _active_tr_mc = {
-                        'side': _lk_mc.get('side', 'BUY'),
-                        'entry': _lk_mc.get('opt_entry', _lk_mc.get('ltp', 0)),
-                        'sl': _lk_mc.get('sl', 0),
-                        'target': _lk_mc.get('tg', 0)
+                        'side': row.get('Alert_Side', 'BUY'),
+                        'entry': _row_ent,
+                        'sl': float(row.get('Alert_SL', 0) or 0),
+                        'target': float(row.get('Alert_TGT', 0) or 0)
                     }
+                else:
+                    _lk_mc = _SS.get('popup_locked_stocks', {}).get(display_sym)
+                    if _lk_mc:
+                        _active_tr_mc = {
+                            'side': _lk_mc.get('side', 'BUY'),
+                            'entry': _lk_mc.get('opt_entry', _lk_mc.get('ltp', 0)),
+                            'sl': _lk_mc.get('sl', 0),
+                            'target': _lk_mc.get('tg', 0)
+                        }
             if _active_tr_mc:
                 _mc_ent = float(_active_tr_mc.get('entry', 0))
                 _mc_sl = float(_active_tr_mc.get('sl', 0))
@@ -11485,7 +11500,13 @@ def render_live_ui():
         pp_tickers = [f"{str(sym).upper().strip()}.NS" for sym in pp_df_now['Symbol'].tolist() if str(sym).strip() != ""] if not pp_df_now.empty else []
         df_filtered = df_all_stocks[df_all_stocks['Fetch_T'].isin(pp_tickers)].copy()
     elif watchlist_mode == "🔔 5m Alert Terminal":
+        _restore_today_alerts_from_sheet()
         _lk_syms = list(_SS.get('popup_locked_stocks', {}).keys())
+        if not _lk_syms:
+            _df_ah = load_5m_alerts_history()
+            if not _df_ah.empty:
+                _latest_dt = sorted(_df_ah['Date'].astype(str).unique().tolist(), reverse=True)[0]
+                _lk_syms = _df_ah[_df_ah['Date'].astype(str) == _latest_dt]['Symbol'].astype(str).str.upper().str.strip().tolist()
         df_filtered = df_all_stocks[df_all_stocks['T'].isin(_lk_syms)].copy()
     elif watchlist_mode == "Commodity 🛢️":
         df_filtered = df_commodities.copy()
@@ -12332,6 +12353,18 @@ def render_live_ui():
                     key="tr_qty_key",
                     label_visibility="collapsed",
                     on_change=_on_trade_cfg_change
+                )
+            with tb_back:
+                st.markdown("<div class='pro-ActionBar'></div>", unsafe_allow_html=True)
+                st.button("↩️ Mini", key="btn_back_mini", width="stretch", on_click=_back_to_mini_charts)
+            with tb_theme:
+                st.markdown("<div class='pro-ActionBar'></div>", unsafe_allow_html=True)
+                _th_opts = ["Light (White)", "Dark (Black)"]
+                _th_idx = _th_opts.index(_UI.get('pro_grid_theme', _th_opts[0])) if _UI.get('pro_grid_theme', _th_opts[0]) in _th_opts else 0
+                st.selectbox(
+                    "Theme", _th_opts, index=_th_idx,
+                    key="pro_theme_sel_key", label_visibility="collapsed",
+                    on_change=_on_pro_theme_change
                 )
             with tb_clear:
                 st.markdown("<div class='pro-ActionBar'></div>", unsafe_allow_html=True)
