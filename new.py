@@ -112,25 +112,7 @@ def gemini_batch_domino_news(headlines_tuple):
     """బ్రేకింగ్ న్యూస్ హెడ్‌లైన్స్ చదివి ఏ స్టాక్ పెరుగుతుందో (Winner), ఏది పడుతుందో (Victim) JSON లో ఇస్తుంది"""
     if not headlines_tuple:
         return []
-    joined_news = "\n".join([f"{i}. {h}" for i, h in enumerate(headlines_tuple[:10])])
-    prompt = (
-        "You are an Indian Stock Market (NSE) Domino-Effect & Supply-Chain Analyst.\n"
-        "Read these news headlines and return ONLY a valid JSON array of objects for headlines that impact NSE stocks.\n"
-        "Each object must have:\n"
-        '- "idx": integer index of the headline (0 to 9)\n'
-        '- "winners": array of uppercase NSE stock symbols (e.g. ["HAL", "BEL"]) that benefit\n'
-        '- "victims": array of uppercase NSE stock symbols (e.g. ["INDIGO", "ASIANPAINT"]) that get hurt\n'
-        '- "te_rule": 1-sentence Telugu explanation of why Winner rises and Victim falls.\n\n'
-        f"Headlines:\n{joined_news}"
-    )
-    ok, res = _call_gemini_api(prompt, json_mode=True)
-    if ok:
-        try:
-            return json.loads(res)
-        except Exception:
-            pass
-    return []
-
+    
     joined_news = "\n".join([f"{i}. {h}" for i, h in enumerate(headlines_tuple[:10])])
     prompt = (
         "You are an Indian Stock Market (NSE) Domino-Effect & Supply-Chain Analyst.\n"
