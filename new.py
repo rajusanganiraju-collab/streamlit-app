@@ -8004,8 +8004,57 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
     return new_top2
 
 
+def _delete_5m_alert_from_sheet(target_date, target_sym=None):
+    """Deletes either one stock row or an entire date from both RAM memory & Google Sheet (5m_Alerts_History)."""
+    cols = ["Date", "Lock_Time", "Symbol", "Side", "Strategies", "Entry", "SL", "Target", "Live_LTP", "Status", "Outcome", "PnL_Pct"]
+    t_date = str(target_date).strip()
+    t_sym = str(target_sym).upper().strip() if target_sym else None
+    today_prefix = now_ist().strftime('%Y-%m-%d')
+
+    # 1. Clear from RAM memory (_SS['popup_locked_stocks']) if matching current lock date or today
+    saved_locks = _SS.setdefault('popup_locked_stocks', {})
+    cur_lock_date = str(_SS.get('popup_lock_date', ''))
+    if cur_lock_date == t_date or t_date.startswith(today_prefix):
+        if t_sym:
+            saved_locks.pop(t_sym, None)
+            _SS['fresh_5m_picks'] = [s for s in _SS.get('fresh_5m_picks', []) if s != t_sym]
+        else:
+            saved_locks.clear()
+            _SS['fresh_5m_picks'] = []
+        if not saved_locks:
+            _SS['popup_lock_date'] = today_prefix
+
+    # 2. Delete from Google Sheet (Trading_DB -> 5m_Alerts_History)
+    try:
+        ws = init_5m_alerts_sheet()
+        if ws is not None:
+            df_h = load_5m_alerts_history()
+            if not df_h.empty:
+                if t_sym:
+                    keep_mask = ~((df_h['Date'].astype(str).str.strip() == t_date) & (df_h['Symbol'].astype(str).str.upper().str.strip() == t_sym))
+                else:
+                    keep_mask = ~(df_h['Date'].astype(str).str.strip() == t_date)
+                df_rem = df_h[keep_mask].fillna("")
+                ws.clear()
+                ws.update([cols] + df_rem[cols].values.tolist() if not df_rem.empty else [cols])
+            load_5m_alerts_history.clear()
+            _SS['alerts_sheet_sig'] = None
+    except Exception:
+        pass
+
+
 def render_5m_alert_terminal(all_locked_alerts, df_all_stocks, chart_timeframe, chart_dict_to_use, show_crosshair, show_vol):
-    """Dedicated 5m Alert Terminal: Today + Previous Days History (from Google Sheets: 5m_Alerts_History) + Mini Charts."""
+    """Dedicated 5m Alert Terminal: Today + Previous Days History + Row/Date Delete + Mini Charts."""
+    # Handle 1-click row delete from table
+    if "del_5m_row" in st.query_params:
+        _del_raw = str(st.query_params["del_5m_row"])
+        st.query_params.clear()
+        if "|" in _del_raw:
+            _d_dt, _d_sym = _del_raw.split("|", 1)
+            _delete_5m_alert_from_sheet(_d_dt, _d_sym)
+            st.toast(f"🗑️ Deleted {_d_sym} ({_d_dt}) from 5m Alerts & Google Sheet!", icon="✅")
+            st.rerun()
+
     today_str = now_ist().strftime('%Y-%m-%d')
     df_hist = load_5m_alerts_history()
     hist_dates = sorted(
@@ -8015,14 +8064,15 @@ def render_5m_alert_terminal(all_locked_alerts, df_all_stocks, chart_timeframe, 
 
     avail_dates = []
     if all_locked_alerts:
-        avail_dates.append(today_str)
+        _mem_dt = str(_SS.get('popup_lock_date') or today_str)
+        avail_dates.append(_mem_dt)
     for d in hist_dates:
         if d not in avail_dates:
             avail_dates.append(d)
 
-    c_hdr1, c_hdr2, c_hdr3 = st.columns([2.4, 1.0, 1.0])
+    c_hdr1, c_hdr2, c_hdr3, c_hdr4 = st.columns([2.2, 1.0, 0.9, 0.7])
     with c_hdr1:
-        st.markdown("<div style='font-size:15.5px; font-weight:800; color:#ffd700; padding-top:4px;'>🔔 5m ALERT TERMINAL — HISTORY & P&L (Google Sheet: 5m_Alerts_History)</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:15px; font-weight:800; color:#ffd700; padding-top:4px;'>🔔 5m ALERT TERMINAL — HISTORY & P&L (Google Sheet: 5m_Alerts_History)</div>", unsafe_allow_html=True)
     with c_hdr2:
         sel_date = st.selectbox(
             "Date",
@@ -8041,12 +8091,18 @@ def render_5m_alert_terminal(all_locked_alerts, df_all_stocks, chart_timeframe, 
             key="alert_term_cap_sel",
             label_visibility="collapsed"
         )
+    with c_hdr4:
+        if avail_dates and st.button("🗑️ Clear Date", key="btn_del_5m_date", width="stretch", help=f"Delete all alerts for {sel_date}"):
+            _delete_5m_alert_from_sheet(sel_date, None)
+            st.toast(f"🗑️ Cleared all alerts for {sel_date}!", icon="✅")
+            st.rerun()
 
-    # Pick live memory alerts if Today is selected & present, else load selected date from Google Sheets
-    if sel_date == today_str and all_locked_alerts:
+    # Pick live memory alerts if current memory date is selected, else load selected date from Google Sheets
+    _cur_mem_date = str(_SS.get('popup_lock_date') or today_str)
+    if sel_date == _cur_mem_date and all_locked_alerts:
         display_alerts = all_locked_alerts
     elif not df_hist.empty and sel_date in hist_dates:
-        df_sel = df_hist[df_hist['Date'].astype(str) == sel_date]
+        df_sel = df_hist[df_hist['Date'].astype(str).str.strip() == sel_date]
         display_alerts = []
         for _, r in df_sel.iterrows():
             sym_s = str(r.get('Symbol', '')).upper().strip()
@@ -8104,6 +8160,7 @@ def render_5m_alert_terminal(all_locked_alerts, df_all_stocks, chart_timeframe, 
         p_sign = "+" if pnl_rs > 0 else ""
         st_txt = str(pk.get('status', 'ACTIVE'))
         st_col = "#3fb950" if "TGT HIT" in st_txt else ("#f85149" if "SL HIT" in st_txt else ("#ffd700" if "WAITING" in st_txt else "#38bdf8"))
+        del_href = f"?del_5m_row={urllib.parse.quote(f'{sel_date}|{sym}')}"
 
         rows_html += (
             f"<tr class='{bg_c}'>"
@@ -8118,6 +8175,7 @@ def render_5m_alert_terminal(all_locked_alerts, df_all_stocks, chart_timeframe, 
             f"<td style='color:{st_col};font-weight:bold;font-size:10.5px;'>{st_txt}</td>"
             f"<td class='{p_col}'>{p_sign}{pnl_pct:.2f}%</td>"
             f"<td class='{p_col}'>{p_sign}₹{pnl_rs:,.0f}</td>"
+            f"<td><a href='{del_href}' target='_self' title='Delete {sym}' style='color:#f85149;border:none;font-size:13px;'>🗑️</a></td>"
             f"</tr>"
         )
 
@@ -8132,18 +8190,18 @@ def render_5m_alert_terminal(all_locked_alerts, df_all_stocks, chart_timeframe, 
     tot_sign = "+" if total_pnl_rs > 0 else ""
     table_html = (
         "<table class='term-table'><thead>"
-        f"<tr><th colspan='11' class='term-head-port' style='background:#0f2942;'>📊 5m ALERT PERFORMANCE LEDGER — {sel_date} (SAVED IN GOOGLE SHEETS)</th></tr>"
+        f"<tr><th colspan='12' class='term-head-port' style='background:#0f2942;'>📊 5m ALERT PERFORMANCE LEDGER — {sel_date} (SAVED IN GOOGLE SHEETS)</th></tr>"
         "<tr style='background:#21262d;'>"
-        "<th style='width:8%;'>TIME</th><th style='text-align:left;width:10%;'>STOCK</th><th style='width:6%;'>SIDE</th>"
-        "<th style='width:18%;'>STRATEGIES</th><th style='width:8%;'>ENTRY</th><th style='width:8%;color:#f85149;'>🛑 SL</th>"
+        "<th style='width:7%;'>TIME</th><th style='text-align:left;width:10%;'>STOCK</th><th style='width:5%;'>SIDE</th>"
+        "<th style='width:17%;'>STRATEGIES</th><th style='width:8%;'>ENTRY</th><th style='width:8%;color:#f85149;'>🛑 SL</th>"
         "<th style='width:8%;color:#3fb950;'>🎯 TGT</th><th style='width:8%;'>LTP / CLOSE</th>"
-        "<th style='width:11%;'>STATUS</th><th style='width:7%;'>P&L %</th><th style='width:8%;'>P&L (₹)</th>"
+        "<th style='width:11%;'>STATUS</th><th style='width:6%;'>P&L %</th><th style='width:8%;'>P&L (₹)</th><th style='width:4%;'>DEL</th>"
         "</tr></thead><tbody>"
         + rows_html
         + f"<tr class='port-total'><td colspan='9' style='text-align:right;padding-right:12px;'>"
           f"{sel_date} TOTAL (🎯 TGT: {tgt_cnt} | 🛑 SL: {sl_cnt} | ⚡ Active: {act_cnt} | ⏳ Wait: {wait_cnt} | Capital: ₹{cap_per_trade:,}/trade):</td>"
           f"<td class='{tot_col}'>{tot_sign}{total_pnl_pct:.2f}%</td>"
-          f"<td class='{tot_col}'>{tot_sign}₹{total_pnl_rs:,.0f}</td></tr>"
+          f"<td class='{tot_col}'>{tot_sign}₹{total_pnl_rs:,.0f}</td><td></td></tr>"
         + "</tbody></table>"
     )
     st.markdown(table_html, unsafe_allow_html=True)
