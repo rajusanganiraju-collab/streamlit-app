@@ -7474,92 +7474,241 @@ if "grid_sym" in st.query_params:
         st.session_state.pro_grid_radio_key = _new_m
 
 
+@st.cache_resource(show_spinner=False)
+def init_5m_alerts_sheet():
+    """Trading_DB Google Sheet lo 5m_Alerts_History tab auto-create/connect chestundi."""
+    cols = ["Date", "Lock_Time", "Symbol", "Side", "Strategies", "Entry", "SL", "Target", "Live_LTP", "Status", "Outcome", "PnL_Pct"]
+    try:
+        sh = port_ws.spreadsheet
+        try:
+            ws = sh.worksheet("5m_Alerts_History")
+        except Exception:
+            ws = sh.add_worksheet(title="5m_Alerts_History", rows=1000, cols=14)
+            ws.update([cols])
+        return ws
+    except Exception:
+        return None
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def load_5m_alerts_history():
+    cols = ["Date", "Lock_Time", "Symbol", "Side", "Strategies", "Entry", "SL", "Target", "Live_LTP", "Status", "Outcome", "PnL_Pct"]
+    try:
+        ws = init_5m_alerts_sheet()
+        if ws is None:
+            return pd.DataFrame(columns=cols)
+        recs = ws.get_all_records()
+        df_h = pd.DataFrame(recs) if recs else pd.DataFrame(columns=cols)
+        for c in cols:
+            if c not in df_h.columns:
+                df_h[c] = ""
+        return df_h[cols]
+    except Exception:
+        return pd.DataFrame(columns=cols)
+
+
+def _sync_today_alerts_to_sheet(today_date, saved_locks, force=False):
+    """Saves/updates today's locked 5m alerts into Google Sheet (Trading_DB -> 5m_Alerts_History) only when changed."""
+    if not saved_locks:
+        return
+    try:
+        sig = (
+            today_date,
+            tuple(sorted(
+                (
+                    k,
+                    str(v.get('status', '')),
+                    str(v.get('outcome_code', '')),
+                    round(float(v.get('pnl_pct', 0.0)), 1) if (not is_market_open()) else 0.0
+                )
+                for k, v in saved_locks.items()
+            ))
+        )
+        if (not force) and _SS.get('alerts_sheet_sig') == sig:
+            return
+
+        ws = init_5m_alerts_sheet()
+        if ws is None:
+            return
+
+        cols = ["Date", "Lock_Time", "Symbol", "Side", "Strategies", "Entry", "SL", "Target", "Live_LTP", "Status", "Outcome", "PnL_Pct"]
+        df_old = load_5m_alerts_history()
+        if not df_old.empty:
+            df_old = df_old[df_old['Date'].astype(str) != str(today_date)].copy()
+
+        today_rows = []
+        sorted_items = sorted(saved_locks.values(), key=lambda x: float(x.get('lock_ts', 0)))
+        for item in sorted_items:
+            today_rows.append({
+                "Date": str(today_date),
+                "Lock_Time": str(item.get('lock_time', '-')),
+                "Symbol": str(item.get('sym', '')),
+                "Side": str(item.get('side', 'BUY')),
+                "Strategies": str(item.get('strats', '')),
+                "Entry": round(float(item.get('opt_entry', item.get('ltp', 0.0))), 2),
+                "SL": round(float(item.get('sl', 0.0)), 2),
+                "Target": round(float(item.get('tg', 0.0)), 2),
+                "Live_LTP": round(float(item.get('ltp', 0.0)), 2),
+                "Status": str(item.get('status', 'ACTIVE')),
+                "Outcome": str(item.get('outcome_code', 'ACTIVE')),
+                "PnL_Pct": round(float(item.get('pnl_pct', 0.0)), 2),
+            })
+
+        df_new = pd.concat([df_old, pd.DataFrame(today_rows, columns=cols)], ignore_index=True).fillna("")
+        ws.clear()
+        ws.update([cols] + df_new[cols].values.tolist())
+        load_5m_alerts_history.clear()
+        _SS['alerts_sheet_sig'] = sig
+    except Exception:
+        pass
+
+
+def _restore_today_alerts_from_sheet():
+    """Restores today's saved live alerts from Google Sheets after app reboot or refresh."""
+    if _SS.get('alerts_sheet_loaded'):
+        return
+    _SS['alerts_sheet_loaded'] = True
+    try:
+        today_str = now_ist().strftime('%Y-%m-%d')
+        df_h = load_5m_alerts_history()
+        if df_h.empty:
+            return
+        df_td = df_h[df_h['Date'].astype(str) == today_str]
+        if df_td.empty:
+            return
+
+        saved_locks = _SS.setdefault('popup_locked_stocks', {})
+        base_ts = time.time() - (len(df_td) * 60)
+        for idx_r, (_, r) in enumerate(df_td.iterrows()):
+            sym = str(r.get('Symbol', '')).upper().strip()
+            if not sym:
+                continue
+            ent = float(r.get('Entry', 0) or 0)
+            sl = float(r.get('SL', 0) or 0)
+            tg = float(r.get('Target', 0) or 0)
+            ltp = float(r.get('Live_LTP', ent) or ent)
+            st_txt = str(r.get('Status', 'ACTIVE'))
+            out_c = str(r.get('Outcome', 'ACTIVE'))
+            side = str(r.get('Side', 'BUY')).upper()
+            ltm = str(r.get('Lock_Time', '-'))
+            rr_v = round(abs(tg - ent) / max(abs(ent - sl), 0.01), 1)
+            is_final = out_c in ('TGT', 'SL') or ('TGT HIT' in st_txt) or ('SL HIT' in st_txt)
+
+            saved_locks[sym] = {
+                "sym": sym, "ft": f"{sym}.NS", "side": side, "ltp": ltp,
+                "opt_entry": ent, "base_note": f"{side} @ ₹{ent:.1f}",
+                "lock_time": ltm, "lock_ts": base_ts + (idx_r * 60),
+                "triggered": (out_c != 'WAIT') and ('WAITING' not in st_txt),
+                "final_outcome": st_txt if is_final else "",
+                "outcome_code": out_c,
+                "exit_price": tg if out_c == 'TGT' else (sl if out_c == 'SL' else ltp),
+                "status": st_txt,
+                "pnl_pct": round(float(r.get('PnL_Pct', 0.0) or 0.0), 2),
+                "entry_note": f"🔒 {ltm} | {st_txt} | {side} @ ₹{ent:.1f}",
+                "rr": rr_v, "day_c": 0.0, "vol_x": 0.0,
+                "prob": 95, "n_strats": 2, "score": 30,
+                "strats": str(r.get('Strategies', '')),
+                "sl": sl, "tg": tg, "row": {}
+            }
+        if saved_locks:
+            _SS['popup_lock_date'] = today_str
+    except Exception:
+        pass
+
+
 def _refresh_locked_alerts_live(df_universe):
-    """Updates live LTP, status & P&L for all locked stocks without changing locked Entry/SL/TGT."""
+    """Updates live LTP, status & P&L for today's locked stocks and syncs to Google Sheets. Never clears at 3:30 PM!"""
+    _restore_today_alerts_from_sheet()
     saved_locks = _SS.setdefault('popup_locked_stocks', {})
-    today_str = f"{now_ist().strftime('%Y-%m-%d')}_{'LIVE' if is_market_open() else 'OFF'}"
-    if _SS.get('popup_lock_date') != today_str:
+    today_str = now_ist().strftime('%Y-%m-%d')
+    mkt_open_now = is_market_open()
+
+    # Clear yesterday's alerts ONLY when a NEW live trading day starts (9:15 AM+)
+    if mkt_open_now and _SS.get('popup_lock_date') != today_str:
         saved_locks.clear()
         _SS['popup_lock_date'] = today_str
         _SS['fresh_5m_picks'] = []
 
-    if not saved_locks or df_universe is None or df_universe.empty:
+    if not saved_locks:
         return []
 
-    df_u_all = df_universe.drop_duplicates(subset=['Fetch_T'])
-    live_lookup = {str(r['T']).strip(): r for _, r in df_u_all.iterrows()}
-    hit_tm = now_ist().strftime('%I:%M %p')
+    if df_universe is not None and not df_universe.empty:
+        df_u_all = df_universe.drop_duplicates(subset=['Fetch_T'])
+        live_lookup = {str(r['T']).strip(): r for _, r in df_u_all.iterrows()}
+        hit_tm = now_ist().strftime('%I:%M %p')
 
-    for sym_k, item in saved_locks.items():
-        r_now = live_lookup.get(sym_k)
-        if r_now is None:
-            continue
-        cur_p = round(float(r_now['P']), 2)
-        cur_dc = round(float(r_now['Day_C']), 2)
-        cur_vx = round(float(r_now['VolX']), 1)
-        ent = float(item['opt_entry'])
-        sl = float(item['sl'])
-        tg = float(item['tg'])
-        is_buy_l = (item['side'] == 'BUY')
+        for sym_k, item in saved_locks.items():
+            r_now = live_lookup.get(sym_k)
+            if r_now is None:
+                continue
+            cur_p = round(float(r_now['P']), 2)
+            cur_dc = round(float(r_now['Day_C']), 2)
+            cur_vx = round(float(r_now['VolX']), 1)
+            ent = float(item['opt_entry'])
+            sl = float(item['sl'])
+            tg = float(item['tg'])
+            is_buy_l = (item['side'] == 'BUY')
 
-        if not item.get('triggered', False):
-            if (is_buy_l and cur_p <= ent) or ((not is_buy_l) and cur_p >= ent):
-                item['triggered'] = True
+            if mkt_open_now and not item.get('triggered', False):
+                if (is_buy_l and cur_p <= ent) or ((not is_buy_l) and cur_p >= ent):
+                    item['triggered'] = True
 
-        if item.get('final_outcome'):
-            status_txt = item['final_outcome']
-            exit_p = float(item.get('exit_price', cur_p))
-        elif item.get('triggered', False):
-            if is_buy_l:
-                if cur_p >= tg:
-                    status_txt = f"🎯 TGT HIT ({hit_tm})"
-                    item['final_outcome'] = status_txt
-                    item['outcome_code'] = 'TGT'
-                    item['exit_price'] = tg
-                    exit_p = tg
-                elif cur_p <= sl:
-                    status_txt = f"🛑 SL HIT ({hit_tm})"
-                    item['final_outcome'] = status_txt
-                    item['outcome_code'] = 'SL'
-                    item['exit_price'] = sl
-                    exit_p = sl
+            if item.get('final_outcome'):
+                status_txt = item['final_outcome']
+                exit_p = float(item.get('exit_price', cur_p))
+            elif item.get('triggered', False):
+                if is_buy_l:
+                    if cur_p >= tg:
+                        status_txt = f"🎯 TGT HIT ({hit_tm})"
+                        item['final_outcome'] = status_txt
+                        item['outcome_code'] = 'TGT'
+                        item['exit_price'] = tg
+                        exit_p = tg
+                    elif cur_p <= sl:
+                        status_txt = f"🛑 SL HIT ({hit_tm})"
+                        item['final_outcome'] = status_txt
+                        item['outcome_code'] = 'SL'
+                        item['exit_price'] = sl
+                        exit_p = sl
+                    else:
+                        status_txt = "🟢 ACTIVE"
+                        item['outcome_code'] = 'ACTIVE'
+                        exit_p = cur_p
                 else:
-                    status_txt = "🟢 ACTIVE"
-                    item['outcome_code'] = 'ACTIVE'
-                    exit_p = cur_p
+                    if cur_p <= tg:
+                        status_txt = f"🎯 TGT HIT ({hit_tm})"
+                        item['final_outcome'] = status_txt
+                        item['outcome_code'] = 'TGT'
+                        item['exit_price'] = tg
+                        exit_p = tg
+                    elif cur_p >= sl:
+                        status_txt = f"🛑 SL HIT ({hit_tm})"
+                        item['final_outcome'] = status_txt
+                        item['outcome_code'] = 'SL'
+                        item['exit_price'] = sl
+                        exit_p = sl
+                    else:
+                        status_txt = "🔴 ACTIVE"
+                        item['outcome_code'] = 'ACTIVE'
+                        exit_p = cur_p
             else:
-                if cur_p <= tg:
-                    status_txt = f"🎯 TGT HIT ({hit_tm})"
-                    item['final_outcome'] = status_txt
-                    item['outcome_code'] = 'TGT'
-                    item['exit_price'] = tg
-                    exit_p = tg
-                elif cur_p >= sl:
-                    status_txt = f"🛑 SL HIT ({hit_tm})"
-                    item['final_outcome'] = status_txt
-                    item['outcome_code'] = 'SL'
-                    item['exit_price'] = sl
-                    exit_p = sl
-                else:
-                    status_txt = "🔴 ACTIVE"
-                    item['outcome_code'] = 'ACTIVE'
-                    exit_p = cur_p
-        else:
-            status_txt = "⏳ WAITING ENTRY"
-            item['outcome_code'] = 'WAIT'
-            exit_p = ent
+                status_txt = "⏳ WAITING ENTRY"
+                item['outcome_code'] = 'WAIT'
+                exit_p = ent
 
-        if item.get('triggered', False) and ent > 0:
-            pnl_pct = ((exit_p - ent) / ent * 100.0) if is_buy_l else ((ent - exit_p) / ent * 100.0)
-        else:
-            pnl_pct = 0.0
+            if item.get('triggered', False) and ent > 0:
+                pnl_pct = ((exit_p - ent) / ent * 100.0) if is_buy_l else ((ent - exit_p) / ent * 100.0)
+            else:
+                pnl_pct = 0.0
 
-        item['ltp'] = cur_p
-        item['day_c'] = cur_dc
-        item['vol_x'] = cur_vx
-        item['pnl_pct'] = round(pnl_pct, 2)
-        item['status'] = status_txt
-        item['entry_note'] = f"🔒 {item.get('lock_time', '')} | {status_txt} | {item.get('base_note', '')}"
+            item['ltp'] = cur_p
+            item['day_c'] = cur_dc
+            item['vol_x'] = cur_vx
+            item['pnl_pct'] = round(pnl_pct, 2)
+            item['status'] = status_txt
+            item['entry_note'] = f"🔒 {item.get('lock_time', '')} | {status_txt} | {item.get('base_note', '')}"
+
+        _sync_today_alerts_to_sheet(_SS.get('popup_lock_date') or today_str, saved_locks)
 
     return sorted(
         saved_locks.values(),
@@ -7568,7 +7717,7 @@ def _refresh_locked_alerts_live(df_universe):
 
 
 def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_res):
-    """Strict A+ Scanner: Ranks ALL stocks together; new stock pops up ONLY if it beats existing leaders into overall Top-2."""
+    """Strict Live A+ Scanner: Runs ONLY during live market (9:20 AM – 1:45 PM). No fake alerts after 3:30 PM!"""
     if df_universe is None or df_universe.empty:
         return []
 
@@ -7576,20 +7725,25 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
     now_t = now_dt.time()
     mkt_open_now = is_market_open()
 
+    # After 3:30 PM, before 9:15 AM, or Weekends -> DO NOT generate fake alerts or wipe today's real alerts
+    if not mkt_open_now:
+        return []
+
+    _restore_today_alerts_from_sheet()
     saved_locks = _SS.setdefault('popup_locked_stocks', {})
-    today_str = f"{now_dt.strftime('%Y-%m-%d')}_{'LIVE' if mkt_open_now else 'OFF'}"
+    today_str = now_dt.strftime('%Y-%m-%d')
     if _SS.get('popup_lock_date') != today_str:
         saved_locks.clear()
         _SS['popup_lock_date'] = today_str
         _SS['fresh_5m_picks'] = []
 
-    # Hard daily cap: Max 8 A+ intraday alerts per day (Off-market testing max 2)
-    MAX_DAILY_ALERTS = 8 if mkt_open_now else 2
+    # Hard daily cap: Max 8 A+ intraday alerts per day
+    MAX_DAILY_ALERTS = 8
     if len(saved_locks) >= MAX_DAILY_ALERTS:
         return []
 
-    # Live market time guard: 9:20 AM mundu & 1:45 PM taruvata kotha intraday entries aapesi SL/TGT track chestundi
-    if mkt_open_now and (now_t < dt_time(9, 20) or now_t > dt_time(13, 45)):
+    # Live market time guard: 9:20 AM mundu & 1:45 PM taruvata kotha intraday entries aagipotayi
+    if now_t < dt_time(9, 20) or now_t > dt_time(13, 45):
         return []
 
     df_u_all = df_universe.drop_duplicates(subset=['Fetch_T']).copy()
@@ -7614,7 +7768,6 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
         elif _buy_ratio <= 0.40:
             allow_buy = False
 
-    # Strict minimum price move (must beat Nifty cleanly) & strict volume (>= 1.8x)
     min_buy_move = max(1.0, nifty_day_c * 1.25) if nifty_day_c > 0 else 1.0
     min_sell_move = min(-1.0, nifty_day_c * 1.25) if nifty_day_c < 0 else -1.0
 
@@ -7631,10 +7784,10 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
         for item in sniper_cached_res.get(side_k, []):
             sniper_map[item['sym']] = item
 
-    is_morning_session = (not mkt_open_now) or (now_t <= dt_time(10, 45))
-    is_lunch_chop = mkt_open_now and (dt_time(11, 30) <= now_t <= dt_time(13, 15))
+    is_morning_session = (now_t <= dt_time(10, 45))
+    is_lunch_chop = (dt_time(11, 30) <= now_t <= dt_time(13, 15))
 
-    # IMPORTANT: Evaluate ALL stocks (including already-locked ones) so weak #3/#4 stocks NEVER sneak into Top-2!
+    # Evaluate ALL stocks (including already-locked ones) so weak #3/#4 stocks NEVER sneak into Top-2
     all_ranked = []
     for _, row in df_u.iterrows():
         ft = row['Fetch_T']
@@ -7657,14 +7810,12 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
         has_breakout = False
         has_pullback = False
 
-        # 1. Order-Flow Sniper
         if ft in sniper_map:
             sn = sniper_map[ft]
             if (sn['side'] == 'buy' and is_b) or (sn['side'] == 'sell' and is_s):
                 matched_strats.append(f"🎯Sniper({sn['score']}%)")
                 bonus_prob += 8
 
-        # 2 & 3. 5m CVD-Flip & Sudden VWAP Cross
         df_5m = processed_charts.get(ft, pd.DataFrame())
         td_5m = pd.DataFrame()
         if df_5m is not None and not df_5m.empty and len(df_5m) >= 4:
@@ -7691,7 +7842,6 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
                     bonus_prob += 5
                     has_pullback = True
 
-        # 4. First Hour ORB
         if is_morning_session and abs(day_c) >= 1.2:
             if is_b and ltp > op and (op - lo) <= (ltp * 0.006):
                 matched_strats.append("🔥1Hr-ORB")
@@ -7702,7 +7852,6 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
                 bonus_prob += 6
                 has_breakout = True
 
-        # 5. NR7 / Narrow CPR Breakout
         if not is_lunch_chop:
             prev_rng = (prev_h - prev_l) / max(prev_l, 1.0)
             if prev_rng <= 0.025 or bool(row.get('Narrow_CPR', False)):
@@ -7711,7 +7860,6 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
                     bonus_prob += 5
                     has_breakout = True
 
-        # 6. Gap & Go
         if is_morning_session and abs(day_c) >= 1.2:
             if is_b and (op - lo) <= (ltp * 0.003):
                 matched_strats.append("🚀Gap&Go")
@@ -7722,7 +7870,6 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
                 bonus_prob += 7
                 has_breakout = True
 
-        # 7. PDH / PDL Breakout
         if not is_lunch_chop:
             if is_b and ltp > prev_h:
                 matched_strats.append("💥PDH-BO")
@@ -7733,7 +7880,6 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
                 bonus_prob += 6
                 has_breakout = True
 
-        # 8. Dip-Bounce / Rally-Reject
         if is_b:
             day_pb = ((hi - ltp) / max(hi, 1.0)) * 100.0
             if 0.6 <= day_pb <= 3.5 and (lo <= vwap * 1.005 or lo <= ema10 * 1.005):
@@ -7747,7 +7893,6 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
                 bonus_prob += 5
                 has_pullback = True
 
-        # Strict Confluence Gate: Minimum 2 independent strategies must agree
         if len(matched_strats) < 2:
             continue
 
@@ -7757,7 +7902,6 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
         if raw_prob < 90:
             continue
 
-        # If already locked, keep it in ranking competition so weaker stocks cannot take its Top-2 spot
         if sym in saved_locks:
             all_ranked.append({
                 "sym": sym, "already_locked": True,
@@ -7767,7 +7911,6 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
             })
             continue
 
-        # 5m ATR & Swing Levels for new candidate
         if not td_5m.empty and len(td_5m) >= 3:
             atr_5m = float(td_5m['ATR_13'].iloc[-1]) if ('ATR_13' in td_5m.columns and pd.notna(td_5m['ATR_13'].iloc[-1])) else float((td_5m['High'] - td_5m['Low']).tail(10).mean())
             atr_5m = max(atr_5m, ltp * 0.0025)
@@ -7846,30 +7989,50 @@ def scan_all_strategies_top2_90pct(df_universe, processed_charts, sniper_cached_
             "sl": sl_p, "tg": tg_p, "row": row.to_dict()
         })
 
-    # Rank ALL candidates together; ONLY truly Top-2 stocks that are NOT yet locked get promoted!
     all_ranked.sort(key=lambda x: (-x["prob"], -x["n_strats"], -x["score"], -x["vol_x"], -abs(x["day_c"])))
     overall_top2 = all_ranked[:2]
     slots_left = max(0, MAX_DAILY_ALERTS - len(saved_locks))
     new_top2 = [c for c in overall_top2 if not c.get("already_locked")][:slots_left]
 
-    for idx_n, nc in enumerate(new_top2):
-        nc.pop("already_locked", None)
-        nc["lock_ts"] = time.time() - (idx_n * 0.001)
-        saved_locks[nc["sym"]] = nc
+    if new_top2:
+        for idx_n, nc in enumerate(new_top2):
+            nc.pop("already_locked", None)
+            nc["lock_ts"] = time.time() - (idx_n * 0.001)
+            saved_locks[nc["sym"]] = nc
+        _sync_today_alerts_to_sheet(today_str, saved_locks, force=True)
 
     return new_top2
 
 
 def render_5m_alert_terminal(all_locked_alerts, df_all_stocks, chart_timeframe, chart_dict_to_use, show_crosshair, show_vol):
-    """Dedicated 5m Alert Terminal: Day P&L Summary KPIs + Full Performance Table + Mini Charts Grid."""
-    if not all_locked_alerts:
-        st.info("🔔 Eroju inka ye A+ 5m Alert stock lock avvaledu (Strict Filter: Vol >= 1.8x, Nifty Alpha, 2+ Strategies, Prob >= 90%).")
-        return
+    """Dedicated 5m Alert Terminal: Today + Previous Days History (from Google Sheets: 5m_Alerts_History) + Mini Charts."""
+    today_str = now_ist().strftime('%Y-%m-%d')
+    df_hist = load_5m_alerts_history()
+    hist_dates = sorted(
+        [str(d).strip() for d in df_hist['Date'].dropna().unique().tolist() if str(d).strip()],
+        reverse=True
+    ) if not df_hist.empty else []
 
-    c_hdr1, c_hdr2 = st.columns([3, 1])
+    avail_dates = []
+    if all_locked_alerts:
+        avail_dates.append(today_str)
+    for d in hist_dates:
+        if d not in avail_dates:
+            avail_dates.append(d)
+
+    c_hdr1, c_hdr2, c_hdr3 = st.columns([2.4, 1.0, 1.0])
     with c_hdr1:
-        st.markdown("<div style='font-size:16px; font-weight:800; color:#ffd700; padding-top:4px;'>🔔 5m ALERT TERMINAL — TODAY'S PERFORMANCE & MINI CHARTS</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:15.5px; font-weight:800; color:#ffd700; padding-top:4px;'>🔔 5m ALERT TERMINAL — HISTORY & P&L (Google Sheet: 5m_Alerts_History)</div>", unsafe_allow_html=True)
     with c_hdr2:
+        sel_date = st.selectbox(
+            "Date",
+            avail_dates if avail_dates else [today_str],
+            index=0,
+            format_func=lambda d: f"📅 {d} (Today)" if d == today_str else f"📅 {d}",
+            key="alert_term_date_sel",
+            label_visibility="collapsed"
+        )
+    with c_hdr3:
         cap_per_trade = st.selectbox(
             "Capital/Trade",
             [50000, 100000, 200000, 500000],
@@ -7879,10 +8042,41 @@ def render_5m_alert_terminal(all_locked_alerts, df_all_stocks, chart_timeframe, 
             label_visibility="collapsed"
         )
 
-    tot_cnt = len(all_locked_alerts)
-    tgt_cnt = sum(1 for x in all_locked_alerts if x.get('outcome_code') == 'TGT' or 'TGT HIT' in str(x.get('status', '')))
-    sl_cnt = sum(1 for x in all_locked_alerts if x.get('outcome_code') == 'SL' or 'SL HIT' in str(x.get('status', '')))
-    act_cnt = sum(1 for x in all_locked_alerts if x.get('outcome_code') == 'ACTIVE' or 'ACTIVE' in str(x.get('status', '')))
+    # Pick live memory alerts if Today is selected & present, else load selected date from Google Sheets
+    if sel_date == today_str and all_locked_alerts:
+        display_alerts = all_locked_alerts
+    elif not df_hist.empty and sel_date in hist_dates:
+        df_sel = df_hist[df_hist['Date'].astype(str) == sel_date]
+        display_alerts = []
+        for _, r in df_sel.iterrows():
+            sym_s = str(r.get('Symbol', '')).upper().strip()
+            if not sym_s:
+                continue
+            display_alerts.append({
+                "sym": sym_s, "ft": f"{sym_s}.NS",
+                "side": str(r.get('Side', 'BUY')).upper(),
+                "lock_time": str(r.get('Lock_Time', '-')),
+                "strats": str(r.get('Strategies', '')),
+                "opt_entry": float(r.get('Entry', 0) or 0),
+                "sl": float(r.get('SL', 0) or 0),
+                "tg": float(r.get('Target', 0) or 0),
+                "ltp": float(r.get('Live_LTP', 0) or 0),
+                "status": str(r.get('Status', '')),
+                "outcome_code": str(r.get('Outcome', '')),
+                "pnl_pct": float(r.get('PnL_Pct', 0.0) or 0.0),
+                "row": {}
+            })
+    else:
+        display_alerts = []
+
+    if not display_alerts:
+        st.info("🔔 Ee date ki saved live 5m alerts levu. Market open (9:20 AM – 1:45 PM) lo A+ setups dorikite automatic ga Google Sheet (Trading_DB -> 5m_Alerts_History) lo save avtayi.")
+        return
+
+    tot_cnt = len(display_alerts)
+    tgt_cnt = sum(1 for x in display_alerts if x.get('outcome_code') == 'TGT' or 'TGT HIT' in str(x.get('status', '')))
+    sl_cnt = sum(1 for x in display_alerts if x.get('outcome_code') == 'SL' or 'SL HIT' in str(x.get('status', '')))
+    act_cnt = sum(1 for x in display_alerts if x.get('outcome_code') == 'ACTIVE' or 'ACTIVE' in str(x.get('status', '')))
     wait_cnt = tot_cnt - tgt_cnt - sl_cnt - act_cnt
 
     closed_cnt = tgt_cnt + sl_cnt
@@ -7891,7 +8085,7 @@ def render_5m_alert_terminal(all_locked_alerts, df_all_stocks, chart_timeframe, 
     total_pnl_rs = 0.0
     total_pnl_pct = 0.0
     rows_html = ""
-    for i, pk in enumerate(all_locked_alerts):
+    for i, pk in enumerate(display_alerts):
         sym = pk['sym']
         ft = pk.get('ft', f"{sym}.NS")
         side = pk.get('side', 'BUY')
@@ -7938,28 +8132,28 @@ def render_5m_alert_terminal(all_locked_alerts, df_all_stocks, chart_timeframe, 
     tot_sign = "+" if total_pnl_rs > 0 else ""
     table_html = (
         "<table class='term-table'><thead>"
-        "<tr><th colspan='11' class='term-head-port' style='background:#0f2942;'>📊 5m ALERT PERFORMANCE LEDGER (LOCKED ENTRY / SL / TARGET)</th></tr>"
+        f"<tr><th colspan='11' class='term-head-port' style='background:#0f2942;'>📊 5m ALERT PERFORMANCE LEDGER — {sel_date} (SAVED IN GOOGLE SHEETS)</th></tr>"
         "<tr style='background:#21262d;'>"
         "<th style='width:8%;'>TIME</th><th style='text-align:left;width:10%;'>STOCK</th><th style='width:6%;'>SIDE</th>"
         "<th style='width:18%;'>STRATEGIES</th><th style='width:8%;'>ENTRY</th><th style='width:8%;color:#f85149;'>🛑 SL</th>"
-        "<th style='width:8%;color:#3fb950;'>🎯 TGT</th><th style='width:8%;'>LIVE LTP</th>"
+        "<th style='width:8%;color:#3fb950;'>🎯 TGT</th><th style='width:8%;'>LTP / CLOSE</th>"
         "<th style='width:11%;'>STATUS</th><th style='width:7%;'>P&L %</th><th style='width:8%;'>P&L (₹)</th>"
         "</tr></thead><tbody>"
         + rows_html
         + f"<tr class='port-total'><td colspan='9' style='text-align:right;padding-right:12px;'>"
-          f"DAY TOTAL (🎯 TGT: {tgt_cnt} | 🛑 SL: {sl_cnt} | ⚡ Active: {act_cnt} | ⏳ Wait: {wait_cnt} | Capital: ₹{cap_per_trade:,}/trade):</td>"
+          f"{sel_date} TOTAL (🎯 TGT: {tgt_cnt} | 🛑 SL: {sl_cnt} | ⚡ Active: {act_cnt} | ⏳ Wait: {wait_cnt} | Capital: ₹{cap_per_trade:,}/trade):</td>"
           f"<td class='{tot_col}'>{tot_sign}{total_pnl_pct:.2f}%</td>"
           f"<td class='{tot_col}'>{tot_sign}₹{total_pnl_rs:,.0f}</td></tr>"
         + "</tbody></table>"
     )
     st.markdown(table_html, unsafe_allow_html=True)
 
-    # Render ALL locked 5m Alert stocks as Mini Charts in exact time-wise order (with locked Entry/SL/TGT lines)
-    st.markdown("<div style='font-size:15px; font-weight:bold; margin:10px 0 4px 0; color:#38bdf8;'>📈 5m Alert Stocks — Live Mini Charts (Locked Entry / SL / TGT)</div>", unsafe_allow_html=True)
+    # Render Mini Charts for selected date's alerts
+    st.markdown(f"<div style='font-size:15px; font-weight:bold; margin:10px 0 4px 0; color:#38bdf8;'>📈 5m Alert Stocks ({sel_date}) — Mini Charts</div>", unsafe_allow_html=True)
     lu_all = df_all_stocks.drop_duplicates(subset=['T']).set_index('T').to_dict('index') if (df_all_stocks is not None and not df_all_stocks.empty) else {}
     chart_rows = []
     missing_fts = []
-    for pk in all_locked_alerts:
+    for pk in display_alerts:
         sym = pk['sym']
         ft = pk.get('ft', f"{sym}.NS")
         base_r = dict(lu_all.get(sym, pk.get('row', {})))
