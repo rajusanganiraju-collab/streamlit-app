@@ -7346,66 +7346,6 @@ def _calc_grid_mode(cnt):
     if cnt <= 4: return "4"
     return "6"
 
-if "grid_sym" in st.query_params:
-    _g_sym = st.query_params["grid_sym"]
-    _pop_act = st.query_params.get("pop_trade", "")
-    _pop_view = st.query_params.get("pop_view", "pro")
-    st.query_params.clear()
-
-    if _pop_act:
-        try:
-            _pside, _pent, _psl, _ptg = _pop_act.split("|")
-            _SS['chart_trades'][_g_sym] = {
-                'side': _pside,
-                'qty': max(1, int(_UI.get('trade_qty', 10))),
-                'prod': _UI.get('trade_prod', 'INTRADAY'),
-                'order_type': 'MARKET',
-                'entry': round(float(_pent), 2),
-                'sl': round(float(_psl), 2),
-                'target': round(float(_ptg), 2),
-                'time': now_ist().strftime('%d-%b %I:%M:%S %p'),
-                'mode': '🎯 90%+ AI Sniper Alert',
-                'order_id': '',
-                'is_super': False
-            }
-        except Exception:
-            pass
-
-    _p_list = list(_UI.get('pinned_stocks', []))
-    if _pop_act:
-        if _g_sym in _p_list:
-            _p_list.remove(_g_sym)
-        _p_list.insert(0, _g_sym)
-        _p_list = _p_list[:6]
-    else:
-        if _g_sym in _p_list:
-            _p_list.remove(_g_sym)
-        else:
-            if len(_p_list) >= 6:
-                _p_list.pop(0)
-            _p_list.append(_g_sym)
-
-    _UI['pinned_stocks'] = _p_list
-    st.session_state.pinned_stocks = list(_p_list)
-    _UI['inspected_stock'] = _g_sym.replace(".NS", "")
-    st.session_state.inspected_stock = _UI['inspected_stock']
-
-    if _pop_act and _pop_view == "mini":
-        _UI['grid_layout_mode'] = "Off"
-        st.session_state.grid_layout_mode = "Off"
-        st.session_state.pro_grid_radio_key = "Off"
-        _UI['view_mode'] = "Chart 📈"
-    elif _pop_act and _pop_view == "pro":
-        _UI['grid_layout_mode'] = "1"
-        st.session_state.grid_layout_mode = "1"
-        st.session_state.pro_grid_radio_key = "1"
-    else:
-        _new_m = _calc_grid_mode(len(_p_list))
-        _UI['grid_layout_mode'] = _new_m
-        st.session_state.grid_layout_mode = _new_m
-        st.session_state.pro_grid_radio_key = _new_m
-
-
 if "close_5m_pop" in st.query_params:
     _SS['popup_dismissed_slot'] = st.query_params["close_5m_pop"]
     st.query_params.clear()
@@ -7423,7 +7363,7 @@ if "grid_sym" in st.query_params:
     if _pop_act:
         try:
             _pside, _pent, _psl, _ptg = _pop_act.split("|")
-            _SS['chart_trades'][_g_sym] = {
+            _SS.setdefault('chart_trades', {})[_g_sym] = {
                 'side': _pside,
                 'qty': max(1, int(_UI.get('trade_qty', 10))),
                 'prod': _UI.get('trade_prod', 'INTRADAY'),
