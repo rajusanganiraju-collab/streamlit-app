@@ -11097,6 +11097,7 @@ def render_live_ui():
                 ai_strat_options = [
                     ADAPTIVE_STRAT,
                     "All Day Trading Moves 🚀",
+                    "🏦 Inst-Backed One-Side Trend",
                     "🔬 CVD Flip Reversal (Before VWAP)",
                     NEWS_STRAT,
                     DOMINO_STRAT,
@@ -11690,6 +11691,7 @@ def render_live_ui():
         ai_strats_to_run = list(move_type_filter) if isinstance(move_type_filter, list) else [move_type_filter]
         if "All Day Trading Moves 🚀" in ai_strats_to_run:
             for _core_s in [
+                "🏦 Inst-Backed One-Side Trend",
                 "🔬 CVD Flip Reversal (Before VWAP)",
                 "🔥 First Hour Vol Breakout (ORB+VWAP)",
                 "💥 Inside Bar Vol Breakout (NR7)",
@@ -11711,6 +11713,28 @@ def render_live_ui():
                 20, 39
             ).astype(int)
 
+        # 🏦 Multi-Day Institutional Footprint Check (Zero Extra Load — Uses 1Y Data + Cached NSE Delivery %)
+        _del_res_ai = fetch_nse_delivery_pct()
+        _del_map_ai, _del_dt_ai = _del_res_ai if isinstance(_del_res_ai, tuple) else (_del_res_ai, "")
+        _del_pfx_ai = f"Del({_del_dt_ai})" if _del_dt_ai else "Del"
+
+        _ud_ai = pd.to_numeric(df_filtered['UD_Vol_Ratio'], errors='coerce').fillna(1.0) if 'UD_Vol_Ratio' in df_filtered.columns else pd.Series(1.0, index=df_filtered.index)
+        _acc_ai = pd.to_numeric(df_filtered['Inst_Acc_Days'], errors='coerce').fillna(0).astype(int) if 'Inst_Acc_Days' in df_filtered.columns else pd.Series(0, index=df_filtered.index)
+        _pp_ai = df_filtered['Pocket_Pivot'].fillna(False).astype(bool) if 'Pocket_Pivot' in df_filtered.columns else pd.Series(False, index=df_filtered.index)
+        _rs20_ai = pd.to_numeric(df_filtered['RS_20D'], errors='coerce').fillna(0.0) if 'RS_20D' in df_filtered.columns else pd.Series(0.0, index=df_filtered.index)
+        _del_ai = pd.to_numeric(df_filtered['T'].map(lambda s: float(_del_map_ai.get(str(s).strip().upper(), 0.0))), errors='coerce').fillna(0.0)
+
+        _sma50_ok_b = (df_filtered['SMA50'] <= 0) | (df_filtered['P'] > df_filtered['SMA50'])
+        _sma50_ok_s = (df_filtered['SMA50'] <= 0) | (df_filtered['P'] < df_filtered['SMA50'])
+        _is_inst_bull = (_ud_ai >= 1.30) & (_rs20_ai > 0.0) & _sma50_ok_b & ((_acc_ai >= 2) | _pp_ai | (_del_ai >= 50.0))
+        _is_inst_bear = (_ud_ai <= 0.78) & (_rs20_ai < -1.0) & _sma50_ok_s & ((_del_ai == 0.0) | (_del_ai >= 40.0))
+
+        _inst_bull_syms = set(df_filtered.loc[_is_inst_bull, 'T'].astype(str))
+        _inst_bear_syms = set(df_filtered.loc[_is_inst_bear, 'T'].astype(str))
+        _inst_meta_map = {
+            str(df_filtered.at[ix, 'T']): (float(_ud_ai.at[ix]), int(_acc_ai.at[ix]), bool(_pp_ai.at[ix]), float(_rs20_ai.at[ix]), float(_del_ai.at[ix]))
+            for ix in df_filtered.index
+        }
         all_dfs = []
         for strat in ai_strats_to_run:
             if strat == "All Day Trading Moves 🚀":
@@ -11734,6 +11758,29 @@ def render_live_ui():
                     _sub['AlphaTag'] = _sub['Fetch_T'].map(lambda s: f"🎯{_m[s]['tag']} ({_m[s]['score']}%)")
                     all_dfs.append(_sub)
 
+            # 1B. 🏦 INSTITUTIONAL-BACKED ONE-SIDE INTRADAY TREND
+            elif strat == "🏦 Inst-Backed One-Side Trend":
+                c_buy = base_buy & _is_inst_bull & (df_filtered['VolX'] >= 1.15) & (df_filtered['Day_C'] >= 0.80) & (df_filtered['Bull_P'] >= 60.0)
+                c_sell = base_sell & _is_inst_bear & (df_filtered['VolX'] >= 1.15) & (df_filtered['Day_C'] <= -0.80) & (df_filtered['Bear_P'] >= 60.0)
+                for _mask, _is_b_side in [(c_buy, True), (c_sell, False)]:
+                    _sub = df_filtered[_mask].copy()
+                    if not _sub.empty:
+                        _sub['S'] = _calc_unified_power_score(_sub, bonus_pts=5)
+                        _sub['AI_Prob'] = np.clip(66 + _sub['S'], 78, 99).astype(int)
+                        if _is_b_side:
+                            _sub['Strategy_Icon'] = _sub['T'].map(
+                                lambda s: "🏦 PP-Trend BUY" if _inst_meta_map.get(str(s), (1, 0, False, 0, 0))[2] else "🏦 Inst-Trend BUY"
+                            )
+                        else:
+                            _sub['Strategy_Icon'] = "🏦 Inst-Dump SELL"
+                        def _fmt_inst_ai_tag(sym_v):
+                            u_v, a_v, p_v, r_v, d_v = _inst_meta_map.get(str(sym_v), (1.0, 0, False, 0.0, 0.0))
+                            t_p = [f"U/D:{u_v:.1f}x", f"RS20:{r_v:+.1f}%"]
+                            if d_v > 0:
+                                t_p.append(f"{_del_pfx_ai}:{d_v:.0f}%")
+                            return " | ".join(t_p)
+                        _sub['AlphaTag'] = _sub['T'].map(_fmt_inst_ai_tag)
+                        all_dfs.append(_sub.sort_values(by='S', ascending=False).head(per_strat_cap))
             # 2. 📰 NEWS + VOL + PRICE CATALYST
             elif strat == NEWS_STRAT:
                 _df_news, _ = run_news_vol_price_strategy(df_filtered, processed_charts, min_volx=1.1, min_move_pct=0.75)
@@ -11965,21 +12012,41 @@ def render_live_ui():
         if all_dfs:
             _combined_ai = pd.concat(all_dfs, ignore_index=True)
             _combined_ai['_abs_dc'] = _combined_ai['Day_C'].abs()
-            # ఒకే స్టాక్ 2 స్ట్రాటజీలలో వస్తే (ఉదా: PD Break + CVD-Flip), Breakout స్ట్రాటజీ బ్యాడ్జ్ కనిపించేలా ప్రయారిటీ
+            # ఒకే స్టాక్ 2 స్ట్రాటజీలలో వస్తే Institutional / Breakout బ్యాడ్జ్ కనిపించేలా ప్రయారిటీ
             _combined_ai['_strat_prio'] = np.where(
-                _combined_ai['Strategy_Icon'].astype(str).str.contains('1-Hr|NR7|Gap&Go|PD Break|Dip|VWAP Cross|Domino|News', na=False),
+                _combined_ai['Strategy_Icon'].astype(str).str.contains('🏦|1-Hr|NR7|Gap&Go|PD Break|Dip|VWAP Cross|Domino|News', na=False),
                 1, 0
             )
             df_filtered = (
                 _combined_ai.sort_values(by=['S', '_strat_prio', '_abs_dc', 'VolX'], ascending=[False, False, False, False])
                 .drop_duplicates(subset=['Fetch_T'], keep='first')
-                .sort_values(by=['S', '_abs_dc', 'VolX'], ascending=[False, False, False])
                 .drop(columns=['_abs_dc', '_strat_prio'], errors='ignore')
             )
         else:
             df_filtered = pd.DataFrame(columns=df_filtered.columns)
 
         if not df_filtered.empty:
+            is_sell_sig = df_filtered['Strategy_Icon'].astype(str).str.contains('🔴|🔻|SELL|DOWN|🩸', na=False)
+            is_buy = ~is_sell_sig
+
+            # 🏦 Institutional Boost (+4 Score & 🏦 Badge) on ANY matching Intraday Setup
+            _boost_mask = (is_buy & df_filtered['T'].isin(_inst_bull_syms)) | (is_sell_sig & df_filtered['T'].isin(_inst_bear_syms))
+            if _boost_mask.any():
+                _not_tagged = _boost_mask & (~df_filtered['Strategy_Icon'].astype(str).str.contains('🏦', na=False))
+                df_filtered.loc[_not_tagged, 'S'] = np.clip(df_filtered.loc[_not_tagged, 'S'] + 4, 20, 40).astype(int)
+                if 'AI_Prob' in df_filtered.columns:
+                    df_filtered.loc[_not_tagged, 'AI_Prob'] = np.clip(df_filtered.loc[_not_tagged, 'AI_Prob'] + 4, 70, 99).astype(int)
+                df_filtered.loc[_not_tagged, 'Strategy_Icon'] = "🏦 " + df_filtered.loc[_not_tagged, 'Strategy_Icon'].astype(str)
+                for _b_ix in df_filtered[_not_tagged].index:
+                    _bsym = str(df_filtered.at[_b_ix, 'T'])
+                    _u, _a, _p, _r20, _dl = _inst_meta_map.get(_bsym, (1.0, 0, False, 0.0, 0.0))
+                    _add_t = f"🏦U/D:{_u:.1f}x" + (f" {_del_pfx_ai}:{_dl:.0f}%" if _dl > 0 else "")
+                    _old_t = str(df_filtered.at[_b_ix, 'AlphaTag'] or "").strip()
+                    df_filtered.at[_b_ix, 'AlphaTag'] = f"{_add_t} | {_old_t}" if _old_t else _add_t
+
+            df_filtered['_abs_dc_f'] = df_filtered['Day_C'].abs()
+            df_filtered = df_filtered.sort_values(by=['S', '_abs_dc_f', 'VolX'], ascending=[False, False, False]).drop(columns=['_abs_dc_f'], errors='ignore')
+
             is_sell_sig = df_filtered['Strategy_Icon'].astype(str).str.contains('🔴|🔻|SELL|DOWN|🩸', na=False)
             is_buy = ~is_sell_sig
             atr_val = df_filtered.get('ATR', df_filtered['P'] * 0.02)
